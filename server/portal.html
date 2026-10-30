@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>JET MEDIA — портал</title>
+<link rel="icon" href="/favicon.svg">
 <style>
   body { font-family: system-ui, sans-serif; margin: 16px; background: #f6f6f4; color: #222; }
   nav button { font-size: 16px; padding: 8px 14px; border: 0; background: none; border-bottom: 2px solid transparent; cursor: pointer; }
@@ -22,7 +23,8 @@
 </style>
 </head>
 <body>
-<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button></nav>
+<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button>
+  <button onclick="logout()" style="float:right">Выйти</button></nav>
 
 <section id="devices">
   <p>
@@ -67,8 +69,12 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-const api = async (path, method = 'GET', body) =>
-  (await fetch(path, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) })).json();
+const api = async (path, method = 'GET', body) => {
+  const r = await fetch(path, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) });
+  if (r.status === 401) location.href = '/login';
+  return r.json();
+};
+const logout = async () => { await api('/api/admin/logout', 'POST'); location.href = '/login'; };
 
 let devices = [], rests = [], cur = null;
 

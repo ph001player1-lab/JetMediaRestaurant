@@ -2,7 +2,7 @@
 //   /api/device/*  — планшеты: телеметрия раз в 15 с, в ответ команды
 //   /guest/        — интерфейс стола (меню, вызов официанта, заказ)
 //   /staff/        — приложение персонала (PWA): вызовы и заказы ресторана
-//   /              — портал администратора (Basic Auth)
+//   /              — портал администратора (вход на /login)
 // Данные — в DATA_DIR/db.json.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -27,8 +27,11 @@ const STATIC = {
   '/staff/': 'staff.html',
   '/staff/manifest.json': 'manifest.json',
   '/staff/sw.js': 'sw.js',
+  '/login': 'login.html',
+  '/favicon.ico': 'favicon.svg',
+  '/favicon.svg': 'favicon.svg',
 };
-const TYPES = { html: 'text/html; charset=utf-8', json: 'application/manifest+json', js: 'text/javascript' };
+const TYPES = { html: 'text/html; charset=utf-8', json: 'application/manifest+json', js: 'text/javascript', svg: 'image/svg+xml' };
 const FILES = Object.fromEntries(Object.values(STATIC).map((f) => [f, fs.readFileSync(new URL(`./${f}`, import.meta.url))]));
 
 let db = { devices: {}, restaurants: {}, calls: [], orders: [], sessions: {}, vapid: null };
@@ -55,7 +58,10 @@ function save() {
 
 const uid = () => crypto.randomBytes(6).toString('hex');
 const fail = (status, message) => Object.assign(new Error(message), { status });
-const isAdmin = (req) => req.headers.authorization === 'Basic ' + Buffer.from('admin:' + PASS).toString('base64');
+// Вход администратора — страница /login и cookie; cookie меняется вместе с паролем
+const ADMIN_COOKIE = crypto.createHmac('sha256', PASS).update('jetmedia-admin').digest('base64url');
+const sha = (s) => crypto.createHash('sha256').update(String(s)).digest();
+const isAdmin = (req) => (req.headers.cookie || '').split(/;\s*/).includes(`jm_admin=${ADMIN_COOKIE}`);
 
 function readBody(req) {
   return new Promise((resolve) => {
@@ -342,17 +348,30 @@ http.createServer(async (req, res) => {
       res.writeHead(301, { location: url.pathname + '/' + url.search });
       return res.end();
     }
+    if (req.method === 'GET' && url.pathname === '/' && !isAdmin(req)) {
+      res.writeHead(302, { location: '/login' });
+      return res.end();
+    }
     const file = req.method === 'GET' && STATIC[url.pathname];
-    if (file && (url.pathname !== '/' || isAdmin(req))) return send(res, 200, FILES[file], TYPES[file.split('.').pop()]);
+    if (file) return send(res, 200, FILES[file], TYPES[file.split('.').pop()]);
 
     const body = req.method === 'POST' ? await readBody(req) : {};
+    if (req.method === 'POST' && url.pathname === '/api/admin/login') {
+      if (!crypto.timingSafeEqual(sha(body.password), sha(PASS))) {
+        await new Promise((r) => setTimeout(r, 1000)); // притормаживаем подбор пароля
+        return send(res, 403, { error: 'wrong password' });
+      }
+      res.setHeader('set-cookie', `jm_admin=${ADMIN_COOKIE}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000`);
+      return send(res, 200, {});
+    }
+    if (req.method === 'POST' && url.pathname === '/api/admin/logout') {
+      res.setHeader('set-cookie', 'jm_admin=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+      return send(res, 200, {});
+    }
     const route = PUBLIC[`${req.method} ${url.pathname}`];
     if (route) return send(res, 200, route(body, Object.fromEntries(url.searchParams), req));
 
-    if (!isAdmin(req)) {
-      res.writeHead(401, { 'www-authenticate': 'Basic realm="JET MEDIA"' });
-      return res.end();
-    }
+    if (!isAdmin(req)) return send(res, 401, { error: 'not signed in' });
     const out = admin(req.method, url.pathname, body);
     send(res, out === undefined ? 404 : 200, out ?? { error: 'not found' });
   } catch (e) {

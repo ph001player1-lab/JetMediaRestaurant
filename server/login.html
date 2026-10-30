@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JET MEDIA — вход</title>
+<link rel="icon" href="/favicon.svg">
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; background: #f6f6f4; color: #222; }
+  form { max-width: 360px; margin: 18vh auto; padding: 24px; background: #fff; border-radius: 16px; display: flex; flex-direction: column; gap: 12px; }
+  input, button { font: inherit; font-size: 17px; padding: 12px; border-radius: 10px; border: 1px solid #ddd; }
+  button { background: #222; color: #fff; border: 0; cursor: pointer; }
+  .err { color: #c62828; min-height: 1em; margin: 0; }
+</style>
+</head>
+<body>
+<form id="f">
+  <h2>JET MEDIA — портал</h2>
+  <input id="pass" type="password" placeholder="Пароль администратора" autocomplete="current-password" autofocus>
+  <button>Войти</button>
+  <p class="err" id="err"></p>
+</form>
+<script>
+document.getElementById('f').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await fetch('/api/admin/login', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ password: document.getElementById('pass').value }),
+  });
+  if (r.ok) location.href = '/';
+  else document.getElementById('err').textContent = 'Неверный пароль';
+};
+</script>
+</body>
+</html>
