@@ -24,6 +24,13 @@
   #shiftBtn { background: #2e7d32; }
   #shiftBtn.off { background: #c62828; }
   [hidden] { display: none !important; }
+  /* Предпросмотр слайда: настоящая страница планшета 800×1280, уменьшенная */
+  .pv { position: fixed; right: 16px; bottom: 16px; z-index: 50; background: #222; padding: 8px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+  .pvbar { display: flex; gap: 8px; align-items: center; color: #fff; margin-bottom: 6px; font-size: 14px; }
+  .pvbar b { flex: 1; }
+  .pvbar select, .pvbar button { font-size: 13px; padding: 4px 8px; margin: 0; }
+  .pvframe { width: 288px; height: 461px; overflow: hidden; border-radius: 10px; background: #000; }
+  .pvframe iframe { width: 800px; height: 1280px; border: 0; transform: scale(.36); transform-origin: 0 0; }
   .tabs { display: flex; gap: 4px; overflow-x: auto; padding: 0 16px; border-top: 1px solid #eee; }
   .line { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #eee; }
   .line span { flex: 1; }
@@ -113,6 +120,13 @@
   <section id="tAI" hidden></section><section id="tDev" hidden></section>
   </main>
   <div class="modal" id="modal" hidden></div>
+<div class="pv" id="pvPanel" hidden>
+  <div class="pvbar"><b><span data-t="preview"></span></b>
+    <select id="pvLang"><option value="ru">RU</option><option value="en">EN</option><option value="th">TH</option><option value="zh">ZH</option></select>
+    <button id="pvClose">✕</button></div>
+  <div class="pvframe"><iframe id="pvFrame" title="preview"></iframe></div>
+</div>
+
 </div>
 <script>
 const T = {
@@ -137,7 +151,7 @@ const T = {
         srcLang: 'Source language', srcInterval: 'Check for changes', int_hourly: 'Every hour', int_daily: 'Once a day', int_off: 'Only by button',
         syncNow: 'Sync now', syncing: 'Syncing…', lastSync: 'Last sync', items: 'items', search: 'Search by name or code', all: 'All',
         upload: 'Upload photo', hide: 'Hide from tablets', close: 'Close', synced: 'Fields from the source are updated on every sync',
-        paid: 'Bill paid', viewGrid: 'Tiles', viewTable: 'Table', saveAll: 'Save changes', code: 'Code', aiEvery: 'Show the character every N minutes', aiDuration: 'How long it stays on screen, seconds', aiStart: 'Start the slideshow with the character', aiGreetings: 'Greeting phrase (add several — a random one is said)', addGreeting: 'Add another greeting', aiFilters: 'Recommendations for special diets', tagged: 'dishes marked', tagsHint: 'Mark dishes in the menu (dish card → special diets) so the character can recommend them', dishTags: 'Special diets', showHint: 'Show a hint under the slide title', hintText: 'Hint text (empty — “Swipe to see more”)', tabAI: 'AI host', tabDev: 'Devices', aiOn: 'Show the AI host on tablets', aiChar: 'Character', aiSpeak: 'Speak out loud', aiNone: 'No characters yet — JET MEDIA adds them', entrance: 'Entrance', online: 'online', offline: 'offline', scansL: 'QR scans', link: 'Link for the QR code', phone: 'Phone on the slide', edit: 'Edit', addDish: 'Add a dish — search by name or code', total: 'Total', editedBy: 'edited', display: 'Display on tablets', idleSec: 'Start the slideshow after idle, seconds', slideSec: 'Seconds per slide', titleSize: 'Title size, px', textSize: 'Text size, px', textColor: 'Text color', bgColor: 'Caption background', sampleTitle: 'Sample title', sampleText: 'Sample text under the title' },
+        paid: 'Bill paid', preview: 'Preview', qrPos: 'QR code and phone: position', qrSize: 'QR code size', pos_top_right: 'top right', pos_top_left: 'top left', pos_middle_right: 'middle right', pos_middle_left: 'middle left', pos_bottom_right: 'bottom right', pos_bottom_left: 'bottom left', size_s: 'small', size_m: 'medium', size_l: 'large', viewGrid: 'Tiles', viewTable: 'Table', saveAll: 'Save changes', code: 'Code', aiEvery: 'Show the character every N minutes', aiDuration: 'How long it stays on screen, seconds', aiStart: 'Start the slideshow with the character', aiGreetings: 'Greeting phrase (add several — a random one is said)', addGreeting: 'Add another greeting', aiFilters: 'Recommendations for special diets', tagged: 'dishes marked', tagsHint: 'Mark dishes in the menu (dish card → special diets) so the character can recommend them', dishTags: 'Special diets', showHint: 'Show a hint under the slide title', hintText: 'Hint text (empty — “Swipe to see more”)', tabAI: 'AI host', tabDev: 'Devices', aiOn: 'Show the AI host on tablets', aiChar: 'Character', aiSpeak: 'Speak out loud', aiNone: 'No characters yet — JET MEDIA adds them', entrance: 'Entrance', online: 'online', offline: 'offline', scansL: 'QR scans', link: 'Link for the QR code', phone: 'Phone on the slide', edit: 'Edit', addDish: 'Add a dish — search by name or code', total: 'Total', editedBy: 'edited', display: 'Display on tablets', idleSec: 'Start the slideshow after idle, seconds', slideSec: 'Seconds per slide', titleSize: 'Title size, px', textSize: 'Text size, px', textColor: 'Text color', bgColor: 'Caption background', sampleTitle: 'Sample title', sampleText: 'Sample text under the title' },
   th: { login: 'เข้าสู่ระบบพนักงาน', code: 'รหัสร้าน', pin: 'PIN ของคุณ', start: 'เข้าสู่ระบบ', out: 'ออกจากระบบ',
         calls: 'การเรียก', orders: 'ออร์เดอร์', tables: 'โต๊ะ', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'เช็คบิล',
         going: 'กำลังไป', done: 'เสร็จแล้ว', confirm: 'ยืนยัน', reject: 'ปฏิเสธ', free: 'ว่างแล้ว', none: 'ยังไม่มี',
@@ -159,7 +173,7 @@ const T = {
         srcLang: 'ภาษาของแหล่งที่มา', srcInterval: 'ตรวจสอบการเปลี่ยนแปลง', int_hourly: 'ทุกชั่วโมง', int_daily: 'วันละครั้ง', int_off: 'เมื่อกดปุ่มเท่านั้น',
         syncNow: 'ซิงก์ตอนนี้', syncing: 'กำลังซิงก์…', lastSync: 'ซิงก์ล่าสุด', items: 'รายการ', search: 'ค้นหาตามชื่อหรือรหัส', all: 'ทั้งหมด',
         upload: 'อัปโหลดรูป', hide: 'ซ่อนจากแท็บเล็ต', close: 'ปิด', synced: 'ข้อมูลจากแหล่งที่มาจะอัปเดตทุกครั้งที่ซิงก์',
-        paid: 'ชำระเงินแล้ว', viewGrid: 'การ์ด', viewTable: 'ตาราง', saveAll: 'บันทึกการเปลี่ยนแปลง', code: 'รหัส', aiEvery: 'แสดงตัวละครทุก ๆ กี่นาที', aiDuration: 'แสดงบนจอนานกี่วินาที', aiStart: 'เริ่มสไลด์ด้วยตัวละคร', aiGreetings: 'คำทักทาย (เพิ่มได้หลายแบบ — สุ่มพูด)', addGreeting: 'เพิ่มคำทักทาย', aiFilters: 'แนะนำสำหรับอาหารพิเศษ', tagged: 'เมนูที่ทำเครื่องหมาย', tagsHint: 'ทำเครื่องหมายเมนู (การ์ดเมนู → อาหารพิเศษ) เพื่อให้ตัวละครแนะนำได้', dishTags: 'อาหารพิเศษ', showHint: 'แสดงคำแนะนำใต้หัวข้อสไลด์', hintText: 'ข้อความคำแนะนำ (ว่าง = “ปัดเพื่อดูเพิ่มเติม”)', tabAI: 'ผู้ช่วย AI', tabDev: 'อุปกรณ์', aiOn: 'แสดงผู้ช่วย AI บนแท็บเล็ต', aiChar: 'ตัวละคร', aiSpeak: 'พูดออกเสียง', aiNone: 'ยังไม่มีตัวละคร — JET MEDIA จะเพิ่มให้', entrance: 'ทางเข้า', online: 'ออนไลน์', offline: 'ออฟไลน์', scansL: 'สแกน QR', link: 'ลิงก์สำหรับ QR โค้ด', phone: 'เบอร์โทรบนสไลด์', edit: 'แก้ไข', addDish: 'เพิ่มเมนู — ค้นหาตามชื่อหรือรหัส', total: 'รวม', editedBy: 'แก้ไขโดย', display: 'การแสดงผลบนแท็บเล็ต', idleSec: 'เริ่มสไลด์เมื่อไม่มีการใช้งาน (วินาที)', slideSec: 'วินาทีต่อสไลด์', titleSize: 'ขนาดหัวข้อ (px)', textSize: 'ขนาดข้อความ (px)', textColor: 'สีข้อความ', bgColor: 'สีพื้นหลังข้อความ', sampleTitle: 'ตัวอย่างหัวข้อ', sampleText: 'ตัวอย่างข้อความใต้หัวข้อ' },
+        paid: 'ชำระเงินแล้ว', preview: 'ตัวอย่าง', qrPos: 'ตำแหน่ง QR โค้ดและเบอร์โทร', qrSize: 'ขนาด QR โค้ด', pos_top_right: 'บนขวา', pos_top_left: 'บนซ้าย', pos_middle_right: 'กลางขวา', pos_middle_left: 'กลางซ้าย', pos_bottom_right: 'ล่างขวา', pos_bottom_left: 'ล่างซ้าย', size_s: 'เล็ก', size_m: 'กลาง', size_l: 'ใหญ่', viewGrid: 'การ์ด', viewTable: 'ตาราง', saveAll: 'บันทึกการเปลี่ยนแปลง', code: 'รหัส', aiEvery: 'แสดงตัวละครทุก ๆ กี่นาที', aiDuration: 'แสดงบนจอนานกี่วินาที', aiStart: 'เริ่มสไลด์ด้วยตัวละคร', aiGreetings: 'คำทักทาย (เพิ่มได้หลายแบบ — สุ่มพูด)', addGreeting: 'เพิ่มคำทักทาย', aiFilters: 'แนะนำสำหรับอาหารพิเศษ', tagged: 'เมนูที่ทำเครื่องหมาย', tagsHint: 'ทำเครื่องหมายเมนู (การ์ดเมนู → อาหารพิเศษ) เพื่อให้ตัวละครแนะนำได้', dishTags: 'อาหารพิเศษ', showHint: 'แสดงคำแนะนำใต้หัวข้อสไลด์', hintText: 'ข้อความคำแนะนำ (ว่าง = “ปัดเพื่อดูเพิ่มเติม”)', tabAI: 'ผู้ช่วย AI', tabDev: 'อุปกรณ์', aiOn: 'แสดงผู้ช่วย AI บนแท็บเล็ต', aiChar: 'ตัวละคร', aiSpeak: 'พูดออกเสียง', aiNone: 'ยังไม่มีตัวละคร — JET MEDIA จะเพิ่มให้', entrance: 'ทางเข้า', online: 'ออนไลน์', offline: 'ออฟไลน์', scansL: 'สแกน QR', link: 'ลิงก์สำหรับ QR โค้ด', phone: 'เบอร์โทรบนสไลด์', edit: 'แก้ไข', addDish: 'เพิ่มเมนู — ค้นหาตามชื่อหรือรหัส', total: 'รวม', editedBy: 'แก้ไขโดย', display: 'การแสดงผลบนแท็บเล็ต', idleSec: 'เริ่มสไลด์เมื่อไม่มีการใช้งาน (วินาที)', slideSec: 'วินาทีต่อสไลด์', titleSize: 'ขนาดหัวข้อ (px)', textSize: 'ขนาดข้อความ (px)', textColor: 'สีข้อความ', bgColor: 'สีพื้นหลังข้อความ', sampleTitle: 'ตัวอย่างหัวข้อ', sampleText: 'ตัวอย่างข้อความใต้หัวข้อ' },
   ru: { login: 'Вход для персонала', code: 'Код ресторана', pin: 'Ваш PIN', start: 'Войти', out: 'Выйти',
         calls: 'Вызовы', orders: 'Заказы', tables: 'Столы', table: 'Стол', waiter: 'Вызов', bill: 'Счёт',
         going: 'Иду', done: 'Готово', confirm: 'Подтвердить', reject: 'Отклонить', free: 'свободен', none: 'Пока пусто',
@@ -181,7 +195,7 @@ const T = {
         srcLang: 'Язык источника', srcInterval: 'Проверять изменения', int_hourly: 'Каждый час', int_daily: 'Раз в день', int_off: 'Только по кнопке',
         syncNow: 'Синхронизировать сейчас', syncing: 'Синхронизация…', lastSync: 'Последняя синхронизация', items: 'блюд', search: 'Поиск по названию или коду', all: 'Все',
         upload: 'Загрузить фото', hide: 'Скрыть с планшетов', close: 'Закрыть', synced: 'Поля из источника обновляются при каждой синхронизации',
-        paid: 'Счёт оплачен', viewGrid: 'Плитка', viewTable: 'Таблица', saveAll: 'Сохранить изменения', code: 'Код', aiEvery: 'Показывать персонажа каждые N минут', aiDuration: 'Сколько секунд держать на экране', aiStart: 'Начинать показ с персонажа', aiGreetings: 'Фраза приветствия (можно добавить несколько — будет говорить случайную)', addGreeting: 'Добавить вариант приветствия', aiFilters: 'Подбор по особым пожеланиям', tagged: 'отмечено блюд', tagsHint: 'Отметьте блюда в меню (карточка блюда → особые пожелания), чтобы персонаж мог их советовать', dishTags: 'Особые пожелания', showHint: 'Показывать подсказку под заголовком слайда', hintText: 'Текст подсказки (пусто — «Листайте, чтобы посмотреть ещё»)', tabAI: 'ИИ-персонаж', tabDev: 'Устройства', aiOn: 'Показывать ИИ-персонажа на планшетах', aiChar: 'Персонаж', aiSpeak: 'Говорить вслух', aiNone: 'Персонажей пока нет — их добавляет JET MEDIA', entrance: 'Вход', online: 'онлайн', offline: 'офлайн', scansL: 'сканов QR', link: 'Ссылка для QR-кода', phone: 'Телефон на слайде', edit: 'Изменить', addDish: 'Добавить блюдо — поиск по названию или коду', total: 'Итого', editedBy: 'изменил', display: 'Показ на планшетах', idleSec: 'Через сколько секунд простоя начинать показ', slideSec: 'Секунд на один слайд', titleSize: 'Размер заголовка, px', textSize: 'Размер текста, px', textColor: 'Цвет текста', bgColor: 'Цвет фона подписи', sampleTitle: 'Пример заголовка', sampleText: 'Пример текста под заголовком' },
+        paid: 'Счёт оплачен', preview: 'Предпросмотр', qrPos: 'QR-код и телефон: место на экране', qrSize: 'Размер QR-кода', pos_top_right: 'сверху справа', pos_top_left: 'сверху слева', pos_middle_right: 'по центру справа', pos_middle_left: 'по центру слева', pos_bottom_right: 'снизу справа', pos_bottom_left: 'снизу слева', size_s: 'маленький', size_m: 'средний', size_l: 'большой', viewGrid: 'Плитка', viewTable: 'Таблица', saveAll: 'Сохранить изменения', code: 'Код', aiEvery: 'Показывать персонажа каждые N минут', aiDuration: 'Сколько секунд держать на экране', aiStart: 'Начинать показ с персонажа', aiGreetings: 'Фраза приветствия (можно добавить несколько — будет говорить случайную)', addGreeting: 'Добавить вариант приветствия', aiFilters: 'Подбор по особым пожеланиям', tagged: 'отмечено блюд', tagsHint: 'Отметьте блюда в меню (карточка блюда → особые пожелания), чтобы персонаж мог их советовать', dishTags: 'Особые пожелания', showHint: 'Показывать подсказку под заголовком слайда', hintText: 'Текст подсказки (пусто — «Листайте, чтобы посмотреть ещё»)', tabAI: 'ИИ-персонаж', tabDev: 'Устройства', aiOn: 'Показывать ИИ-персонажа на планшетах', aiChar: 'Персонаж', aiSpeak: 'Говорить вслух', aiNone: 'Персонажей пока нет — их добавляет JET MEDIA', entrance: 'Вход', online: 'онлайн', offline: 'офлайн', scansL: 'сканов QR', link: 'Ссылка для QR-кода', phone: 'Телефон на слайде', edit: 'Изменить', addDish: 'Добавить блюдо — поиск по названию или коду', total: 'Итого', editedBy: 'изменил', display: 'Показ на планшетах', idleSec: 'Через сколько секунд простоя начинать показ', slideSec: 'Секунд на один слайд', titleSize: 'Размер заголовка, px', textSize: 'Размер текста, px', textColor: 'Цвет текста', bgColor: 'Цвет фона подписи', sampleTitle: 'Пример заголовка', sampleText: 'Пример текста под заголовком' },
 };
 
 let lang = localStorage.lang || 'en';
@@ -373,6 +387,12 @@ document.addEventListener('click', async (e) => {
     refresh();
   } else if (b.dataset.oclose) {
     closeItem();
+  } else if (b.dataset.pvpromo !== undefined) {
+    const p = mgr.restaurant.promos[Number(b.dataset.pvpromo)];
+    openPreview(() => slideOf('promo', p), () => mgr.restaurant.display);
+  } else if (b.dataset.pvad) {
+    const a = mgr.ads.find((x) => x.id === b.dataset.pvad);
+    openPreview(() => slideOf('ad', a), () => mgr.restaurant.display);
   } else if (b.dataset.view) {
     const [list, view] = b.dataset.view.split('|');
     views[list] = localStorage[`${list}View`] = view;
@@ -568,6 +588,9 @@ function renderManager() {
   $('tPromos').innerHTML = `<div data-list="promos">${r.promos.map((p, i) => `<div class="ed" data-i="${i}">
       ${img(p.image)}${uploader('image')}${inp('image', p.image, 'image')}${multi('title', p.title, 'title')}${multi('text', p.text, 'text')}
       ${inp('link', p.link || '', 'link')}${inp('phone', p.phone || '', 'phone')}
+      <label>${t('qrPos')}<select data-f="qrPos">${QR_POS.map((v) => `<option value="${v}" ${(p.qrPos || 'top-right') === v ? 'selected' : ''}>${t('pos_' + v.replace('-', '_'))}</option>`).join('')}</select></label>
+      <label>${t('qrSize')}<select data-f="qrSize">${['s', 'm', 'l'].map((v) => `<option value="${v}" ${(p.qrSize || 'm') === v ? 'selected' : ''}>${t('size_' + v)}</option>`).join('')}</select></label>
+      <button class="ghostbtn" data-pvpromo="${i}">👁 ${t('preview')}</button>
       ${chk('active', p.active, 'active')}${del(i)}</div>`).join('')}</div>${saveBar('promos')}`;
 
   const d = r.display;
@@ -585,6 +608,7 @@ function renderManager() {
     const blocked = r.blockedAds.includes(a.id);
     return `<div class="ed">${img(a.image)}<b>${esc(a.title)}</b>
       <span class="empty">${esc(a.advertiser)} · ${a.views} ${t('views')} · ${a.scans} ${t('scansL')}</span>
+      <button class="ghostbtn" data-pvad="${esc(a.id)}">👁 ${t('preview')}</button>
       <button data-block="${esc(a.id)}" style="background:${blocked ? '#c62828' : '#2e7d32'}">${t(blocked ? 'blocked' : 'shown')}</button></div>`;
   }).join('') || `<p class="empty">${t('noAds')}</p>`);
   renderPreview();
@@ -627,6 +651,11 @@ function renderPreview() {
     <div style="font-size:${Number(d.titleSize) || 38}px;font-weight:700;line-height:1.2">${t('sampleTitle')}</div>
     <div style="font-size:${Number(d.textSize) || 22}px;margin-top:6px">${d.showHint === false ? '' : esc((d.hint || {})[elang] || Object.values(d.hint || {})[0] || t('sampleText'))}</div></div>`;
 }
+
+const QR_POS = ['top-right', 'top-left', 'middle-right', 'middle-left', 'bottom-right', 'bottom-left'];
+const slideOf = (type, x) => ({
+  type, image: x.image, title: x.title, text: x.text, phone: x.phone, qr: x.link, qrPos: x.qrPos, qrSize: x.qrSize,
+});
 
 // Вид списков меню и персонала: плитка или таблица (запоминаем в браузере)
 const views = { menu: localStorage.menuView || 'grid', staff: localStorage.staffView || 'grid' };
@@ -822,6 +851,32 @@ async function onEdit(e) {
 }
 document.addEventListener('input', onEdit);
 document.addEventListener('change', onEdit);
+// Любая правка — сразу в открытый предпросмотр
+document.addEventListener('input', () => sendPreview());
+document.addEventListener('change', () => sendPreview());
+
+// ---------- Предпросмотр слайда: getSlide() собирает слайд из полей, панель обновляется при каждой правке
+
+let pvGet = null, pvDisplay = () => ({});
+
+function openPreview(getSlide, getDisplay) {
+  pvGet = getSlide;
+  if (getDisplay) pvDisplay = getDisplay;
+  $('pvPanel').hidden = false;
+  // Страницу планшета грузим только при первом открытии предпросмотра
+  if (!$('pvFrame').getAttribute('src')) $('pvFrame').src = '/guest/?preview=1';
+  else sendPreview();
+}
+
+function sendPreview() {
+  if (!pvGet || $('pvPanel').hidden) return;
+  $('pvFrame').contentWindow.postMessage({ slide: pvGet(), display: pvDisplay(), lang: $('pvLang').value }, location.origin);
+}
+
+$('pvFrame').onload = sendPreview;
+$('pvLang').onchange = sendPreview;
+$('pvClose').onclick = () => { $('pvPanel').hidden = true; };
+
 
 $('code').value = localStorage.code || '';
 texts();

@@ -21,6 +21,13 @@
   .form label { display: flex; flex-direction: column; font-size: 13px; gap: 4px; }
   textarea { width: 100%; box-sizing: border-box; height: 90px; }
   [hidden] { display: none !important; }
+  /* Предпросмотр слайда: настоящая страница планшета 800×1280, уменьшенная */
+  .pv { position: fixed; right: 16px; bottom: 16px; z-index: 50; background: #222; padding: 8px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+  .pvbar { display: flex; gap: 8px; align-items: center; color: #fff; margin-bottom: 6px; font-size: 14px; }
+  .pvbar b { flex: 1; }
+  .pvbar select, .pvbar button { font-size: 13px; padding: 4px 8px; margin: 0; }
+  .pvframe { width: 288px; height: 461px; overflow: hidden; border-radius: 10px; background: #000; }
+  .pvframe iframe { width: 800px; height: 1280px; border: 0; transform: scale(.36); transform-origin: 0 0; }
   #ads input:not([type]) { width: 100%; min-width: 120px; box-sizing: border-box; }
 </style>
 </head>
@@ -84,7 +91,7 @@
 <section id="adsTab" hidden>
   <p class="hint">Внешняя реклама показывается на планшетах ресторанов с тарифом Standard, в паузах между акциями ресторана. Пустой список ресторанов — показ во всех. Менеджер ресторана может заблокировать рекламу у себя.</p>
   <div class="wrap"><table>
-    <thead><tr><th>Рекламодатель</th><th>Заголовок</th><th>Картинка (ссылка)</th><th>Ссылка для QR</th><th>Телефон</th><th>Рестораны</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
+    <thead><tr><th>Рекламодатель</th><th>Заголовок</th><th>Картинка (ссылка)</th><th>Ссылка для QR</th><th>Телефон</th><th>QR и телефон: место / размер</th><th>Рестораны</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
     <tbody id="ads"></tbody>
   </table></div>
   <p><button id="addAdBtn">+ Реклама</button></p>
@@ -99,6 +106,13 @@
     <tbody id="chars"></tbody>
   </table></div>
 </section>
+
+<div class="pv" id="pvPanel" hidden>
+  <div class="pvbar"><b>Предпросмотр</b>
+    <select id="pvLang"><option value="ru">RU</option><option value="en">EN</option><option value="th">TH</option><option value="zh">ZH</option></select>
+    <button id="pvClose">✕</button></div>
+  <div class="pvframe"><iframe id="pvFrame" title="preview"></iframe></div>
+</div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -368,12 +382,18 @@ function renderAds() {
     <td><input data-f="image" value="${esc(a.image)}"><input type="file" accept="image/*" data-upload="image"></td>
     <td><input data-f="link" value="${esc(a.link || '')}" placeholder="https://"></td>
     <td><input data-f="phone" value="${esc(a.phone || '')}"></td>
+    <td><select data-f="qrPos">${Object.entries(QR_POS).map(([v, l]) => `<option value="${v}" ${(a.qrPos || 'top-right') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <select data-f="qrSize">${Object.entries(QR_SIZE).map(([v, l]) => `<option value="${v}" ${(a.qrSize || 'm') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
     <td><select data-f="restaurants" multiple size="3">${rests.map((r) =>
       `<option value="${esc(r.id)}" ${(a.restaurants || []).includes(r.id) ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></td>
     <td><input data-f="active" type="checkbox" ${a.active ? 'checked' : ''}></td>
     <td>${a.views ?? 0} показов<br>${a.scans ?? 0} сканов QR</td>
-    <td><button data-save="${i}">Сохранить</button><button data-del="${i}">✕</button></td></tr>`).join('');
+    <td><button data-pv="${i}">👁</button><button data-save="${i}">Сохранить</button><button data-del="${i}">✕</button></td></tr>`).join('');
 }
+
+const QR_POS = { 'top-right': 'сверху справа', 'top-left': 'сверху слева', 'middle-right': 'по центру справа', 'middle-left': 'по центру слева', 'bottom-right': 'снизу справа', 'bottom-left': 'снизу слева' };
+const QR_SIZE = { s: 'маленький', m: 'средний', l: 'большой' };
+const adSlide = (a) => ({ type: 'ad', image: a.image, title: a.title, phone: a.phone, qr: a.link, qrPos: a.qrPos, qrSize: a.qrSize });
 
 $('ads').oninput = $('ads').onchange = async (e) => {
   const a = ads[e.target.closest('tr').dataset.i];
@@ -386,10 +406,12 @@ $('ads').oninput = $('ads').onchange = async (e) => {
   if (f === 'active') a.active = e.target.checked;
   else if (f === 'restaurants') a.restaurants = [...e.target.selectedOptions].map((o) => o.value);
   else a[f] = e.target.value.trim();
+  sendPreview();
 };
 
 $('ads').onclick = async (e) => {
-  const { save, del } = e.target.dataset;
+  const { save, del, pv } = e.target.dataset;
+  if (pv !== undefined) { const a = ads[pv]; return openPreview(() => adSlide(a)); }
   if (save !== undefined) { ads[save] = await api('/api/ads', 'POST', ads[save]); renderAds(); alert('Сохранено'); }
   if (del !== undefined && confirm('Удалить рекламу?')) {
     if (ads[del].id) await api(`/api/ads/${encodeURIComponent(ads[del].id)}`, 'DELETE');
@@ -398,6 +420,28 @@ $('ads').onclick = async (e) => {
 };
 
 $('addAdBtn').onclick = () => { ads.push({ active: true, restaurants: [] }); renderAds(); };
+
+// ---------- Предпросмотр слайда: getSlide() собирает слайд из полей, панель обновляется при каждой правке
+
+let pvGet = null, pvDisplay = () => ({});
+
+function openPreview(getSlide, getDisplay) {
+  pvGet = getSlide;
+  if (getDisplay) pvDisplay = getDisplay;
+  $('pvPanel').hidden = false;
+  // Страницу планшета грузим только при первом открытии предпросмотра
+  if (!$('pvFrame').getAttribute('src')) $('pvFrame').src = '/guest/?preview=1';
+  else sendPreview();
+}
+
+function sendPreview() {
+  if (!pvGet || $('pvPanel').hidden) return;
+  $('pvFrame').contentWindow.postMessage({ slide: pvGet(), display: pvDisplay(), lang: $('pvLang').value }, location.origin);
+}
+
+$('pvFrame').onload = sendPreview;
+$('pvLang').onchange = sendPreview;
+$('pvClose').onclick = () => { $('pvPanel').hidden = true; };
 
 // ---------- ИИ-персонажи
 

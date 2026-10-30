@@ -53,6 +53,10 @@ const DISPLAY = {
 // ИИ-персонаж: как часто появляется в карусели, сколько держится, приветствия и подбор блюд по пожеланиям
 const AVATAR = { enabled: false, characterId: '', speak: true, everyMin: 3, durationSec: 20, startWith: true, greetings: [], filters: [] };
 // Отметки блюд для подбора по особым пожеланиям
+// Где на слайде блок с QR-кодом и телефоном и какого он размера
+const QR_POS = ['top-right', 'top-left', 'middle-right', 'middle-left', 'bottom-right', 'bottom-left'];
+const QR_SIZE = ['s', 'm', 'l'];
+const qrPlace = (x) => ({ qrPos: QR_POS.includes(x.qrPos) ? x.qrPos : 'top-right', qrSize: QR_SIZE.includes(x.qrSize) ? x.qrSize : 'm' });
 const DISH_TAGS = ['vegan', 'vegetarian', 'gluten_free', 'lactose_free', 'nut_free', 'seafood_free', 'spicy', 'mild', 'kids', 'halal'];
 
 let db = { devices: {}, restaurants: {}, calls: [], orders: [], sessions: {}, vapid: null, ads: [], stats: {}, characters: [] };
@@ -152,13 +156,16 @@ function slidesFor(r) {
   const own = [
     ...(r.promos || []).filter((p) => p.active && p.image).map((p) => ({
       type: 'promo', id: p.id, image: p.image, title: p.title, text: p.text, phone: p.phone || '',
-      qr: p.link ? `${PUBLIC_URL}/go/p/${p.id}?r=${r.id}` : '',
+      qr: p.link ? `${PUBLIC_URL}/go/p/${p.id}?r=${r.id}` : '', ...qrPlace(p),
     })),
     ...(r.menu || []).filter((i) => (i.promo || i.dayDish) && i.photo).map((i) => ({ type: 'item', id: i.id, image: i.photo, title: i.name, price: i.price })),
   ];
   const ads = r.tariff === 'premium' ? [] : db.ads
     .filter((a) => a.active && a.image && (!a.restaurants?.length || a.restaurants.includes(r.id)) && !(r.blockedAds || []).includes(a.id))
-    .map((a) => ({ type: 'ad', id: a.id, image: a.image, title: a.title, phone: a.phone || '', qr: a.link ? `${PUBLIC_URL}/go/a/${a.id}?r=${r.id}` : '' }));
+    .map((a) => ({
+      type: 'ad', id: a.id, image: a.image, title: a.title, phone: a.phone || '',
+      qr: a.link ? `${PUBLIC_URL}/go/a/${a.id}?r=${r.id}` : '', ...qrPlace(a),
+    }));
   // ИИ-персонаж — первым слайдом карусели
   // ИИ-персонаж в список не входит: планшет вставляет его в карусель по своему расписанию
   const out = [];
@@ -430,7 +437,10 @@ function managerGet(b, q) {
       avatar: { ...AVATAR, ...r.avatar },
     },
     ads: db.ads.filter((a) => a.active && (!a.restaurants?.length || a.restaurants.includes(r.id)))
-      .map((a) => ({ id: a.id, title: a.title, advertiser: a.advertiser, image: a.image, views: views(a.id, r.id), scans: scans(a.id, r.id) })),
+      .map((a) => ({
+      id: a.id, title: a.title, advertiser: a.advertiser, image: a.image, link: a.link, phone: a.phone, ...qrPlace(a),
+      views: views(a.id, r.id), scans: scans(a.id, r.id),
+    })),
     characters: db.characters.map((c) => ({ id: c.id, name: c.name, image: c.images.idle, greeting: c.greeting })),
     devices: Object.values(db.devices).filter((d) => d.restaurantId === r.id).map((d) => ({
       id: d.id, entrance: d.role === 'entrance', table: d.table, online: Date.now() - d.lastSeen < ONLINE_MS,
@@ -599,7 +609,7 @@ function cleanAvatar(a) {
 function cleanPromos(list) {
   return list.filter((p) => p && p.image).map((p) => ({
     id: p.id || uid(), image: String(p.image), title: p.title || {}, text: p.text || {}, active: !!p.active,
-    link: String(p.link || '').trim(), phone: String(p.phone || '').trim(),
+    link: String(p.link || '').trim(), phone: String(p.phone || '').trim(), ...qrPlace(p),
   }));
 }
 
@@ -622,7 +632,7 @@ function cleanAd(a) {
   return {
     id: a.id || uid(), advertiser: String(a.advertiser || ''), title: String(a.title || ''), image: String(a.image || ''),
     restaurants: (a.restaurants || []).map(String), active: !!a.active,
-    link: String(a.link || '').trim(), phone: String(a.phone || '').trim(),
+    link: String(a.link || '').trim(), phone: String(a.phone || '').trim(), ...qrPlace(a),
   };
 }
 

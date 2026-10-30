@@ -65,8 +65,13 @@
   .slide .cap b { display: block; line-height: 1.2; }
   .slide .cap span { display: block; margin-top: 8px; opacity: .92; }
   .slide .tag { position: absolute; top: 24px; left: 20px; background: rgba(0,0,0,.55); padding: 6px 12px; border-radius: 8px; font-size: 15px; }
-  .contact { position: absolute; right: 20px; top: 90px; background: #fff; color: var(--ink); border-radius: 16px; padding: 12px; text-align: center; width: 220px; }
-  .contact .qr svg { width: 196px; height: 196px; display: block; }
+  .contact { position: absolute; background: #fff; color: var(--ink); border-radius: 16px; padding: 12px; text-align: center; max-width: 300px; }
+  .contact.pos-top-right { top: 90px; right: 20px; } .contact.pos-top-left { top: 90px; left: 20px; }
+  .contact.pos-middle-right { top: 32%; right: 88px; } .contact.pos-middle-left { top: 32%; left: 88px; }
+  .contact.pos-bottom-right { bottom: 320px; right: 20px; } .contact.pos-bottom-left { bottom: 320px; left: 20px; }
+  .contact .qr svg { width: 196px; height: 196px; display: block; margin: 0 auto; }
+  .contact.size-s .qr svg { width: 130px; height: 130px; } .contact.size-l .qr svg { width: 260px; height: 260px; }
+  .contact.size-s .phone { font-size: 17px; }
   .contact .small { font-size: 15px; margin-top: 4px; }
   .contact .phone { font-size: 22px; font-weight: 700; margin-top: 8px; }
   .arrow { position: absolute; top: 45%; width: 64px; height: 64px; border-radius: 32px; border: 0; background: rgba(0,0,0,.3); color: #fff; font-size: 40px; line-height: 60px; padding: 0; z-index: 2; }
@@ -159,6 +164,8 @@ var SPEECH_LANG = { en: 'en-US', th: 'th-TH', ru: 'ru-RU', zh: 'zh-CN' };
 var IDLE_RESET_MS = 180000, HOLD_AFTER_SWIPE_MS = 20000, DAY = '★day';
 
 var D = new URLSearchParams(location.search).get('d') || '';
+// Предпросмотр в портале и кабинете менеджера: слайд приходит через postMessage, без сервера и подсчёта показов
+var PREVIEW = new URLSearchParams(location.search).get('preview') === '1';
 var lang = null, state = null, cart = {}, cat = null, lastTouch = Date.now(), menuSig = '', seen = {}, sending = false;
 // cart: «id» или «id|вариант» → количество; MENU: id → блюдо; BUILD: версия интерфейса
 var MENU = {}, BUILD = null, sheetMode = 'cart', online = true;
@@ -362,7 +369,7 @@ function sendOrder() {
 }
 
 function call(type) {
-  if (isEntrance()) return;
+  if (isEntrance() || PREVIEW) return;
   if (!online) toast(t('offline'));
   post('/api/guest/call', { type: type }).then(function (c) {
     if (c.id) { seen[c.id] = c.status + '|'; toast(t('called')); }
@@ -388,7 +395,7 @@ function slideHtml(s, current) {
   if (s.type === 'avatar') return avatarHtml(current);
   return '<img class="bg" src="' + esc(s.image) + '" alt="">' +
     (s.type === 'ad' ? '<span class="tag">' + t('ad') + '</span>' : '') +
-    (s.qr || s.phone ? '<div class="contact">' +
+    (s.qr || s.phone ? '<div class="contact pos-' + (s.qrPos || 'top-right') + ' size-' + (s.qrSize || 'm') + '">' +
       (s.qr ? '<div class="qr">' + qrSvg(s.qr) + '</div><div class="small">' + t('scan') + '</div>' : '') +
       (s.phone ? '<div class="phone">📞 ' + esc(s.phone) + '</div>' : '') + '</div>' : '') +
     '<div class="cap"><b>' + esc(tr(s.title)) + (s.price ? ' · ' + money(s.price) : '') + '</b><span>' + esc(tr(s.text) || hintText()) + '</span></div>';
@@ -459,7 +466,7 @@ function slideGo(dir) {
 
 function onSlideShown(s) {
   slideAt = Date.now();
-  if (s.type === 'ad') post('/api/guest/impression', { id: s.id }).catch(function () {});
+  if (s.type === 'ad' && !PREVIEW) post('/api/guest/impression', { id: s.id }).catch(function () {});
   if (s.type === 'avatar') {
     lastAvatarAt = Date.now();
     holdUntil = Math.max(holdUntil, Date.now() + (state.avatar.durationSec || 20) * 1000);
@@ -505,6 +512,7 @@ function showAttract(index) {
 }
 
 function hideAttract() {
+  if (PREVIEW) return;
   stopSpeech();
   $('attract').style.display = 'none';
   lastTouch = Date.now();
@@ -716,8 +724,24 @@ setInterval(function () {
   else if (visible && now > holdUntil && now - slideAt >= (ds.slideSec || 7) * 1000) slideGo(1);
 }, 1000);
 
-load();
-setInterval(load, 5000);
+if (PREVIEW) {
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin || !e.data || !e.data.slide) return;
+    var d = e.data;
+    state = {
+      restaurant: { name: '', langs: d.langs || ['ru', 'en', 'th', 'zh'] }, mode: 'table', menu: [], calls: [], orders: [],
+      slides: [d.slide], display: d.display || {}, avatar: null,
+    };
+    lang = d.lang || state.restaurant.langs[0];
+    show('msg', false);
+    holdUntil = Date.now() + 3600000; // в предпросмотре слайд не листается сам
+    showAttract(0);
+    holdUntil = Date.now() + 3600000;
+  });
+} else {
+  load();
+  setInterval(load, 5000);
+}
 </script>
 </body>
 </html>
