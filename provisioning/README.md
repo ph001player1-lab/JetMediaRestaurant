@@ -9,8 +9,10 @@
 
 ## На компьютере (Windows)
 
-1. Положить агент в `apk\jet-agent.apk`.
-2. Двойной клик по `provision.cmd`. ADB скрипт скачает сам, если его нет.
+1. Скачать архив: https://github.com/ph001player1-lab/JetMediaRestaurant/archive/refs/heads/claude/brave-ride-0arxnd.zip и распаковать, например в `C:\JetMedia`.
+2. Открыть папку `provisioning` внутри распакованной папки и создать в ней папку `apk`. Положить туда файл агента `jet-agent.apk`.
+3. Двойной клик по `check.cmd` — только проверка, ничего не меняет.
+4. Двойной клик по `provision.cmd` — настройка. ADB скрипт скачает сам, если его нет.
 
 Варианты запуска из PowerShell в этой папке:
 
