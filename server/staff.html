@@ -30,6 +30,18 @@
   .ed img { width: 100%; max-height: 180px; object-fit: cover; border-radius: 8px; }
   .ed .del { background: #efe7df; color: #c62828; justify-self: start; font-size: 15px; padding: 8px 12px; }
   .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 12px 0; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 10px; }
+  .chips button { background: #fff; color: inherit; border: 1px solid #ddd; font-size: 14px; padding: 8px 12px; white-space: nowrap; }
+  .chips button.on { background: #1f1a17; color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .tile { background: #fff; border-radius: 12px; overflow: hidden; cursor: pointer; font-size: 14px; display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; }
+  .tile img, .tile .noimg { width: 100%; height: 100px; object-fit: cover; background: #eee4da; }
+  .tile > div, .tile > b, .tile > span { padding: 0 8px; }
+  .tile.off { opacity: .45; }
+  .msearch { width: 100%; font-size: 16px; padding: 10px; border-radius: 10px; border: 1px solid #ddd; box-sizing: border-box; }
+  .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.4); display: flex; align-items: flex-end; justify-content: center; z-index: 20; }
+  .modal .ed { width: 100%; max-width: 560px; max-height: 92vh; overflow: auto; margin: 0; border-radius: 16px 16px 0 0; }
+  .ghostbtn { background: #efe7df; color: #1f1a17; }
   main { padding: 0 16px 32px; max-width: 720px; margin: auto; }
   .banner { background: #fff3cd; border-radius: 12px; padding: 12px; margin: 12px 0; }
   .banner button { margin-top: 8px; }
@@ -71,6 +83,7 @@
   <section id="tStaff" hidden></section><section id="tMenu" hidden></section>
   <section id="tPromos" hidden></section><section id="tAds" hidden></section>
   </main>
+  <div class="modal" id="modal" hidden></div>
 </div>
 <script>
 const T = {
@@ -89,7 +102,12 @@ const T = {
         dish: 'Dish name', desc: 'Description', price: 'Price ฿', photo: 'Photo link', promo: 'In promo slideshow',
         day: 'Dish of the day', editLang: 'Editing language', image: 'Image link', title: 'Title', text: 'Text', active: 'Active',
         shown: 'Shown — tap to block', blocked: 'Blocked — tap to show', views: 'views in 7 days',
-        premium: 'Your plan has no external ads', noAds: 'No external ads yet' },
+        premium: 'Your plan has no external ads', noAds: 'No external ads yet',
+        source: 'Menu source', srcType: 'Where the menu comes from', src_manual: 'Manual (this cabinet)', src_website: 'Restaurant website',
+        src_pos: 'POS system', src_json: 'JSON feed (own system)', srcUrl: 'Page address', srcVendor: 'POS system', srcToken: 'API token',
+        srcLang: 'Source language', srcInterval: 'Check for changes', int_hourly: 'Every hour', int_daily: 'Once a day', int_off: 'Only by button',
+        syncNow: 'Sync now', syncing: 'Syncing…', lastSync: 'Last sync', items: 'items', search: 'Search by name or code', all: 'All',
+        upload: 'Upload photo', hide: 'Hide from tablets', close: 'Close', synced: 'Fields from the source are updated on every sync' },
   th: { login: 'เข้าสู่ระบบพนักงาน', code: 'รหัสร้าน', pin: 'PIN ของคุณ', start: 'เข้าสู่ระบบ', out: 'ออกจากระบบ',
         calls: 'การเรียก', orders: 'ออร์เดอร์', tables: 'โต๊ะ', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'เช็คบิล',
         going: 'กำลังไป', done: 'เสร็จแล้ว', confirm: 'ยืนยัน', reject: 'ปฏิเสธ', free: 'ว่างแล้ว', none: 'ยังไม่มี',
@@ -105,7 +123,12 @@ const T = {
         dish: 'ชื่อเมนู', desc: 'คำอธิบาย', price: 'ราคา ฿', photo: 'ลิงก์รูปภาพ', promo: 'แสดงในสไลด์โปรโมชัน',
         day: 'เมนูแนะนำประจำวัน', editLang: 'ภาษาที่แก้ไข', image: 'ลิงก์รูปภาพ', title: 'หัวข้อ', text: 'ข้อความ', active: 'เปิดใช้งาน',
         shown: 'แสดงอยู่ — แตะเพื่อบล็อก', blocked: 'บล็อกแล้ว — แตะเพื่อแสดง', views: 'ครั้งที่แสดงใน 7 วัน',
-        premium: 'แพ็กเกจของคุณไม่มีโฆษณาภายนอก', noAds: 'ยังไม่มีโฆษณาภายนอก' },
+        premium: 'แพ็กเกจของคุณไม่มีโฆษณาภายนอก', noAds: 'ยังไม่มีโฆษณาภายนอก',
+        source: 'แหล่งที่มาของเมนู', srcType: 'เมนูมาจากที่ไหน', src_manual: 'กรอกเอง (ในหน้านี้)', src_website: 'เว็บไซต์ร้าน',
+        src_pos: 'ระบบ POS', src_json: 'JSON ฟีด (ระบบของร้าน)', srcUrl: 'ที่อยู่หน้าเว็บ', srcVendor: 'ระบบ POS', srcToken: 'API โทเค็น',
+        srcLang: 'ภาษาของแหล่งที่มา', srcInterval: 'ตรวจสอบการเปลี่ยนแปลง', int_hourly: 'ทุกชั่วโมง', int_daily: 'วันละครั้ง', int_off: 'เมื่อกดปุ่มเท่านั้น',
+        syncNow: 'ซิงก์ตอนนี้', syncing: 'กำลังซิงก์…', lastSync: 'ซิงก์ล่าสุด', items: 'รายการ', search: 'ค้นหาตามชื่อหรือรหัส', all: 'ทั้งหมด',
+        upload: 'อัปโหลดรูป', hide: 'ซ่อนจากแท็บเล็ต', close: 'ปิด', synced: 'ข้อมูลจากแหล่งที่มาจะอัปเดตทุกครั้งที่ซิงก์' },
   ru: { login: 'Вход для персонала', code: 'Код ресторана', pin: 'Ваш PIN', start: 'Войти', out: 'Выйти',
         calls: 'Вызовы', orders: 'Заказы', tables: 'Столы', table: 'Стол', waiter: 'Вызов', bill: 'Счёт',
         going: 'Иду', done: 'Готово', confirm: 'Подтвердить', reject: 'Отклонить', free: 'свободен', none: 'Пока пусто',
@@ -121,12 +144,17 @@ const T = {
         dish: 'Название блюда', desc: 'Описание', price: 'Цена ฿', photo: 'Ссылка на фото', promo: 'В показе акций',
         day: 'Блюдо дня', editLang: 'Язык редактирования', image: 'Ссылка на картинку', title: 'Заголовок', text: 'Текст', active: 'Включено',
         shown: 'Показывается — нажмите, чтобы заблокировать', blocked: 'Заблокировано — нажмите, чтобы показывать', views: 'показов за 7 дней',
-        premium: 'В вашем тарифе нет внешней рекламы', noAds: 'Внешней рекламы пока нет' },
+        premium: 'В вашем тарифе нет внешней рекламы', noAds: 'Внешней рекламы пока нет',
+        source: 'Источник меню', srcType: 'Откуда берётся меню', src_manual: 'Вручную (в этом кабинете)', src_website: 'Сайт ресторана',
+        src_pos: 'POS-система', src_json: 'JSON-фид (своя система)', srcUrl: 'Адрес страницы', srcVendor: 'POS-система', srcToken: 'API-токен',
+        srcLang: 'Язык источника', srcInterval: 'Проверять изменения', int_hourly: 'Каждый час', int_daily: 'Раз в день', int_off: 'Только по кнопке',
+        syncNow: 'Синхронизировать сейчас', syncing: 'Синхронизация…', lastSync: 'Последняя синхронизация', items: 'блюд', search: 'Поиск по названию или коду', all: 'Все',
+        upload: 'Загрузить фото', hide: 'Скрыть с планшетов', close: 'Закрыть', synced: 'Поля из источника обновляются при каждой синхронизации' },
 };
 
 let lang = localStorage.lang || 'en';
 let token = localStorage.token || '';
-let seen = new Set(), first = true, audio = null, timer = null, last = null;
+let seen = new Set(), first = true, audio = null, timer = null, last = null, appBuild = null;
 
 const $ = (id) => document.getElementById(id);
 const t = (k) => (T[lang] || T.en)[k] || k;
@@ -223,6 +251,9 @@ async function enablePush() {
 }
 
 function render(s) {
+  // Вышла новая версия приложения — перезагружаемся, если ничего не редактируется
+  if (appBuild && s.build !== appBuild && !$('tWork').hidden) return location.reload();
+  appBuild ??= s.build;
   last = s;
   $('rname').textContent = s.restaurant.name;
   $('who').textContent = s.me.name;
@@ -265,6 +296,8 @@ document.addEventListener('click', async (e) => {
   // Звук в браузере разрешён только после касания
   audio ??= new (window.AudioContext || window.webkitAudioContext)();
   audio.resume?.();
+  const tile = e.target.closest('[data-edit]');
+  if (tile) return openItem(Number(tile.dataset.edit));
   const b = e.target.closest('button');
   if (!b) return;
   if (b.dataset.l) {
@@ -278,6 +311,31 @@ document.addEventListener('click', async (e) => {
     const [kind, id, action] = b.dataset.act.split('|');
     await api('/api/staff/action', { token, kind, id, action });
     refresh();
+  } else if (b.dataset.mcat !== undefined) {
+    mcat = b.dataset.mcat;
+    renderGrid();
+  } else if (b.dataset.newitem) {
+    openItem(-1);
+  } else if (b.dataset.msave) {
+    const r = mgr.restaurant;
+    if (medit >= 0) r.menu[medit] = r.draft[0]; else r.menu.push(r.draft[0]);
+    closeItem();
+    await saveManager(false);
+  } else if (b.dataset.mclose) {
+    closeItem();
+  } else if (b.dataset.mdel) {
+    mgr.restaurant.menu.splice(medit, 1);
+    closeItem();
+    await saveManager(false);
+  } else if (b.dataset.srcsave) {
+    await api('/api/manager/restaurant', { token, menuSource: mgr.restaurant.menuSource });
+    await loadManager();
+    alert(t('saved'));
+  } else if (b.dataset.sync) {
+    b.textContent = t('syncing');
+    b.disabled = true;
+    await api('/api/manager/sync', { token });
+    await loadManager();
   } else if (b.dataset.tab) {
     showTab(b.dataset.tab);
   } else if (b.dataset.add) {
@@ -360,13 +418,10 @@ function renderManager() {
       ${inp('tables', Array.isArray(m.tables) ? m.tables.join(', ') : m.tables, 'tablesHint')}
       ${del(i)}</div>`).join('')}</div>${saveBar('staff')}`;
 
-  $('tMenu').innerHTML = `${langBar()}<div data-list="menu">${r.menu.map((it, i) => `<div class="ed" data-i="${i}">
-      ${img(it.photo)}${inp('cat', val(it.cat), 'cat')}${inp('name', val(it.name), 'dish')}${inp('desc', val(it.desc), 'desc')}
-      ${inp('price', it.price ?? '', 'price', 'number')}${inp('photo', it.photo, 'photo')}
-      ${chk('dayDish', it.dayDish, 'day')}${chk('promo', it.promo, 'promo')}${del(i)}</div>`).join('')}</div>${saveBar('menu')}`;
+  renderMenuTab();
 
   $('tPromos').innerHTML = `${langBar()}<div data-list="promos">${r.promos.map((p, i) => `<div class="ed" data-i="${i}">
-      ${img(p.image)}${inp('image', p.image, 'image')}${inp('title', val(p.title), 'title')}${inp('text', val(p.text), 'text')}
+      ${img(p.image)}${uploader('image')}${inp('image', p.image, 'image')}${inp('title', val(p.title), 'title')}${inp('text', val(p.text), 'text')}
       ${chk('active', p.active, 'active')}${del(i)}</div>`).join('')}</div>${saveBar('promos')}`;
 
   $('tAds').innerHTML = r.tariff === 'premium' ? `<p class="empty">${t('premium')}</p>` : mgr.ads.map((a) => {
@@ -377,15 +432,118 @@ function renderManager() {
   }).join('') || `<p class="empty">${t('noAds')}</p>`;
 }
 
-function onEdit(e) {
+// ---------- Меню: источник, категории, поиск, плитка блюд и карточка редактирования
+
+let mcat = '', mq = '', medit = -1;
+const uploader = (f) => `<label>${t('upload')}<input type="file" accept="image/*" data-upload="${f}"></label>`;
+const opts = (f, values, cur, prefix) => `<select data-sf="${f}">${values.map((v) =>
+  `<option value="${v}" ${cur === v ? 'selected' : ''}>${prefix ? t(prefix + v) : v.toUpperCase()}</option>`).join('')}</select>`;
+
+function renderMenuTab() {
+  const s = mgr.restaurant.menuSource || { type: 'manual' };
+  const status = s.lastSync
+    ? `${t('lastSync')}: ${new Date(s.lastSync).toLocaleString()} — ${s.lastError ? esc(s.lastError) : `${s.lastCount} ${t('items')}`}` : '';
+  $('tMenu').innerHTML = `<div class="ed">
+      <b>${t('source')}</b>
+      <label>${t('srcType')}${opts('type', ['manual', 'website', 'pos', 'json'], s.type, 'src_')}</label>
+      ${s.type === 'website' || s.type === 'json' ? `<label>${t('srcUrl')}<input data-sf="url" value="${esc(s.url || '')}"></label>` : ''}
+      ${s.type === 'pos' ? `<label>${t('srcVendor')}<select data-sf="vendor"><option value="loyverse">Loyverse</option></select></label>
+        <label>${t('srcToken')}<input data-sf="token" placeholder="${s.hasToken ? '••••••••' : ''}"></label>` : ''}
+      ${s.type !== 'manual' ? `<label>${t('srcLang')}${opts('lang', ['en', 'th', 'ru', 'zh'], s.lang || 'en')}</label>
+        <label>${t('srcInterval')}${opts('interval', ['hourly', 'daily', 'off'], s.interval || 'hourly', 'int_')}</label>` : ''}
+      <div class="bar"><button data-srcsave="1">${t('save')}</button>${s.type !== 'manual' ? `<button data-sync="1">${t('syncNow')}</button>` : ''}</div>
+      <span class="empty">${status}</span>
+    </div>
+    ${langBar()}
+    <input class="msearch" placeholder="${t('search')}" value="${esc(mq)}">
+    <div id="mgrid"></div>
+    <div class="bar"><button data-newitem="1">+ ${t('add')}</button></div>`;
+  renderGrid();
+}
+
+function renderGrid() {
+  const menu = mgr.restaurant.menu;
+  const cats = new Map();
+  for (const it of menu) cats.set(val(it.cat) || '—', (cats.get(val(it.cat) || '—') || 0) + 1);
+  const q = mq.trim().toLowerCase();
+  const shown = menu.map((it, i) => [it, i]).filter(([it]) => (!mcat || (val(it.cat) || '—') === mcat)
+    && (!q || `${it.sku || ''} ${Object.values(it.name || {}).join(' ')}`.toLowerCase().includes(q)));
+  $('mgrid').innerHTML = `<div class="chips">
+      <button data-mcat="" class="${mcat ? '' : 'on'}">${t('all')} · ${menu.length}</button>
+      ${[...cats].map(([c, n]) => `<button data-mcat="${esc(c)}" class="${c === mcat ? 'on' : ''}">${esc(c)} · ${n}</button>`).join('')}
+    </div>
+    <div class="grid">${shown.map(([it, i]) => `<div class="tile ${it.hidden ? 'off' : ''}" data-edit="${i}">
+      ${it.photo ? `<img src="${esc(it.photo)}" loading="lazy" alt="">` : '<div class="noimg"></div>'}
+      <div><small>${esc(it.sku || '')}</small> ${esc(val(it.name) || '—')}</div>
+      <b>${it.price ? `฿${it.price}` : ''}${(it.options || []).length ? '+' : ''}</b>
+      <span>${it.dayDish ? '★ ' : ''}${it.promo ? '📣 ' : ''}${it.hidden ? '⦸' : ''}</span></div>`).join('')}</div>`;
+}
+
+// Правим копию блюда: «Сохранить» переносит её в меню, «Закрыть» — отменяет
+function openItem(i) {
+  medit = i;
+  const src = i >= 0 ? mgr.restaurant.menu[i] : { cat: mcat ? { [elang]: mcat } : {}, name: {}, desc: {} };
+  mgr.restaurant.draft = [structuredClone(src)];
+  renderItem();
+}
+
+function renderItem() {
+  const it = mgr.restaurant.draft[0];
+  $('modal').innerHTML = `<div class="ed" data-list="draft" data-i="0">
+      ${img(it.photo)}${uploader('photo')}${inp('photo', it.photo, 'photo')}
+      ${inp('cat', val(it.cat), 'cat')}${inp('name', val(it.name), 'dish')}${inp('desc', val(it.desc), 'desc')}
+      ${inp('price', it.price ?? '', 'price', 'number')}
+      ${chk('dayDish', it.dayDish, 'day')}${chk('promo', it.promo, 'promo')}${chk('hidden', it.hidden, 'hide')}
+      ${it.extId ? `<span class="empty">${t('synced')}</span>` : ''}
+      <div class="bar"><button data-msave="1">${t('save')}</button><button class="ghostbtn" data-mclose="1">${t('close')}</button>
+        ${medit >= 0 ? `<button class="del" data-mdel="1">${t('del')}</button>` : ''}</div>
+    </div>`;
+  $('modal').hidden = false;
+}
+
+function closeItem() {
+  $('modal').hidden = true;
+  $('modal').innerHTML = '';
+  medit = -1;
+}
+
+// Перед отправкой уменьшаем фото до 1280 px — планшетам не нужны тяжёлые файлы
+async function uploadImage(file) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+  const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+  const res = await fetch('/api/upload', { method: 'POST', headers: { 'content-type': 'image/jpeg', 'x-staff-token': token }, body: blob });
+  const j = await res.json();
+  if (!res.ok) throw new Error(j.error);
+  return j.url;
+}
+
+async function onEdit(e) {
   const el = e.target;
   if (el.classList.contains('elang')) {
-    if (e.type === 'change') { elang = el.value; renderManager(); }
+    if (e.type === 'change') { elang = el.value; mcat = ''; renderManager(); }
     return;
   }
-  const f = el.dataset.f, card = el.closest('[data-i]'), list = el.closest('[data-list]');
+  if (el.classList.contains('msearch')) { mq = el.value; renderGrid(); return; }
+  if (el.dataset.sf && mgr) {
+    mgr.restaurant.menuSource = { ...mgr.restaurant.menuSource, [el.dataset.sf]: el.value };
+    if (el.dataset.sf === 'type' && e.type === 'change') renderMenuTab();
+    return;
+  }
+  const card = el.closest('[data-i]'), list = el.closest('[data-list]');
+  if (el.type === 'file' && e.type === 'change' && el.files[0] && card && list) {
+    const item = mgr.restaurant[list.dataset.list][card.dataset.i];
+    item[el.dataset.upload] = await uploadImage(el.files[0]);
+    if (el.dataset.upload === 'photo') item.photoManual = true;
+    if (list.dataset.list === 'draft') renderItem(); else renderManager();
+    return;
+  }
+  const f = el.dataset.f;
   if (!f || !card || !list || !mgr) return;
   const item = mgr.restaurant[list.dataset.list][card.dataset.i];
+  if (f === 'photo') item.photoManual = true;
   if (el.type === 'checkbox') item[f] = el.checked;
   else if (f === 'price') item[f] = Number(el.value) || 0;
   else if (list.dataset.list !== 'staff' && LANG_FIELDS.includes(f)) item[f] = { ...(item[f] || {}), [elang]: el.value };

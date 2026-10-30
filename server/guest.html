@@ -86,6 +86,8 @@ var IDLE_ATTRACT_MS = 60000, IDLE_RESET_MS = 180000, DAY = '\u2605day';
 
 var D = new URLSearchParams(location.search).get('d') || '';
 var lang = null, state = null, cart = {}, cat = null, lastTouch = Date.now(), slide = 0, menuSig = '', seen = {}, sending = false;
+// cart: ключ «id» или «id|вариант» → количество; MENU: id → блюдо; BUILD: версия интерфейса
+var MENU = {}, BUILD = null, sheetMode = 'cart';
 
 function $(id) { return document.getElementById(id); }
 function t(k) { return (T[lang] || T.en)[k] || T.en[k]; }
@@ -116,13 +118,21 @@ function load() {
       return;
     }
     show('msg', false); show('app', true);
+    // Вышла новая версия интерфейса — перезагружаемся, но не посреди заказа
+    if (BUILD && s.build && s.build !== BUILD && !cartCount() && Date.now() - lastTouch > 30000) { location.reload(); return; }
+    BUILD = BUILD || s.build;
     var first = !state;
     state = s;
     if (!lang) lang = defLang();
     notifyChanges(first);
     var sig = JSON.stringify(s.menu) + s.restaurant.name;
-    if (sig !== menuSig) { menuSig = sig; renderAll(); } else renderFooter();
-    if ($('cart').className.indexOf('show') >= 0) renderCart();
+    if (sig !== menuSig) {
+      menuSig = sig;
+      MENU = {};
+      s.menu.forEach(function (i) { MENU[i.id] = i; });
+      renderAll();
+    } else renderFooter();
+    if (sheetMode === 'cart' && $('cart').className.indexOf('show') >= 0) renderCart();
   }).catch(function () { /* нет сети — пробуем снова через 5 с */ });
 }
 
@@ -156,14 +166,39 @@ function renderAll() {
   $('items').innerHTML = state.menu.filter(function (i) { return cat === DAY ? i.dayDish : (tr(i.cat) || '—') === cat; }).map(function (i) {
     return '<div class="item">' + (i.photo ? '<img src="' + esc(i.photo) + '" alt="">' : '<div class="ph"></div>') +
       '<div class="b"><div class="n">' + esc(tr(i.name)) + '</div><div class="d">' + esc(tr(i.desc)) + '</div>' +
-      '<div class="row"><span class="price">' + (i.price ? money(i.price) : '') + '</span>' +
-      '<button class="add" data-add="' + esc(i.id) + '">' + t('add') + (cart[i.id] ? ' · ' + cart[i.id] : '') + '</button></div></div></div>';
+      '<div class="row"><span class="price">' + priceLabel(i) + '</span>' +
+      '<button class="add" data-add="' + esc(i.id) + '">' + t('add') + (inCart(i.id) ? ' · ' + inCart(i.id) : '') + '</button></div></div></div>';
   }).join('');
   renderFooter();
 }
 
 function cartCount() { var n = 0; for (var k in cart) n += cart[k]; return n; }
-function cartTotal() { return state.menu.reduce(function (s, i) { return s + (cart[i.id] || 0) * (Number(i.price) || 0); }, 0); }
+function inCart(id) { var n = 0; for (var k in cart) if (k.split('|')[0] === id) n += cart[k]; return n; }
+// Строка корзины: блюдо, выбранный вариант, цена и название
+function lineOf(key) {
+  var p = key.split('|'), i = MENU[p[0]];
+  if (!i) return null;
+  var o = p[1] ? (i.options || []).filter(function (x) { return x.key === p[1]; })[0] : null;
+  if (p[1] && !o) return null;
+  return { price: Number(o ? o.price : i.price) || 0, name: tr(i.name) + (o ? ' · ' + tr(o.label) : '') };
+}
+function cartTotal() {
+  return Object.keys(cart).reduce(function (s, k) { var l = lineOf(k); return s + (l ? l.price * cart[k] : 0); }, 0);
+}
+function priceLabel(i) {
+  var prices = (i.options || []).map(function (o) { return Number(o.price) || 0; }).filter(Boolean);
+  if (!prices.length) return i.price ? money(i.price) : '';
+  var min = Math.min.apply(null, prices);
+  return money(min) + (Math.max.apply(null, prices) > min ? '+' : '');
+}
+function openOptions(id) {
+  var i = MENU[id];
+  sheetMode = 'opts';
+  $('sheet').innerHTML = '<h2>' + esc(tr(i.name)) + '</h2>' + i.options.map(function (o) {
+    return '<button class="big ghost" data-opt="' + esc(id + '|' + o.key) + '">' + esc(tr(o.label)) + ' · ' + money(o.price) + '</button>';
+  }).join('') + '<button class="big ghost" data-close="1">' + t('close') + '</button>';
+  $('cart').className = 'overlay show';
+}
 
 function renderFooter() {
   $('callBtn').textContent = t('call');
@@ -173,13 +208,12 @@ function renderFooter() {
 }
 
 function renderCart() {
-  var byId = {};
-  state.menu.forEach(function (i) { byId[i.id] = i; });
-  var lines = Object.keys(cart).filter(function (id) { return byId[id]; }).map(function (id) {
-    var i = byId[id];
-    return '<div class="line"><span class="n">' + esc(tr(i.name)) + '</span>' +
-      '<span class="qty"><button data-dec="' + esc(id) + '">−</button> ' + cart[id] + ' <button data-inc="' + esc(id) + '">+</button></span>' +
-      '<span class="price">' + money(i.price * cart[id]) + '</span></div>';
+  sheetMode = 'cart';
+  var lines = Object.keys(cart).filter(function (k) { return lineOf(k); }).map(function (k) {
+    var l = lineOf(k);
+    return '<div class="line"><span class="n">' + esc(l.name) + '</span>' +
+      '<span class="qty"><button data-dec="' + esc(k) + '">−</button> ' + cart[k] + ' <button data-inc="' + esc(k) + '">+</button></span>' +
+      '<span class="price">' + money(l.price * cart[k]) + '</span></div>';
   }).join('');
   var ordered = state.orders.map(function (o) {
     return '<div class="line"><span class="n">' + o.items.map(function (i) { return i.qty + ' × ' + esc(tr(i.name)); }).join(', ') +
@@ -194,7 +228,7 @@ function renderCart() {
 function sendOrder() {
   if (sending) return;
   sending = true;
-  var items = Object.keys(cart).map(function (id) { return { id: id, qty: cart[id] }; });
+  var items = Object.keys(cart).map(function (k) { var p = k.split('|'); return { id: p[0], opt: p[1] || '', qty: cart[k] }; });
   post('/api/guest/order', { items: items }).then(function (o) {
     if (!o.id) return;
     cart = {};
@@ -218,7 +252,8 @@ document.addEventListener('click', function (e) {
   var d = b.dataset;
   if (d.lang) { lang = d.lang; renderAll(); }
   else if (d.cat) { cat = d.cat; renderAll(); }
-  else if (d.add) { cart[d.add] = (cart[d.add] || 0) + 1; renderAll(); }
+  else if (d.add) { if ((MENU[d.add].options || []).length) openOptions(d.add); else { cart[d.add] = (cart[d.add] || 0) + 1; renderAll(); } }
+  else if (d.opt) { cart[d.opt] = (cart[d.opt] || 0) + 1; $('cart').className = 'overlay'; renderAll(); }
   else if (d.inc) { cart[d.inc]++; renderCart(); renderAll(); }
   else if (d.dec) { if (--cart[d.dec] <= 0) delete cart[d.dec]; renderCart(); renderAll(); }
   else if (d.send) sendOrder();

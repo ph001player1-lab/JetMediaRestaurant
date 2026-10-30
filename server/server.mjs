@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { createVapidKeys, sendPush } from './push.mjs';
+import { fetchMenu, POS_VENDORS } from './menu-sources.mjs';
 
 const PORT = 3000;
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -33,6 +34,12 @@ const STATIC = {
 };
 const TYPES = { html: 'text/html; charset=utf-8', json: 'application/manifest+json', js: 'text/javascript', svg: 'image/svg+xml' };
 const FILES = Object.fromEntries(Object.values(STATIC).map((f) => [f, fs.readFileSync(new URL(`./${f}`, import.meta.url))]));
+// Версия интерфейса: открытые страницы стола и персонала сами перезагружаются, когда она меняется
+const BUILD = crypto.createHash('sha1').update(Buffer.concat(Object.values(FILES))).digest('hex').slice(0, 10);
+const UPLOADS = path.join(DATA_DIR, 'uploads');
+const IMAGE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const MAX_UPLOAD = 8 * 1024 * 1024;
+const SYNC_EVERY = { hourly: 3600_000, daily: 24 * 3600_000 };
 
 let db = { devices: {}, restaurants: {}, calls: [], orders: [], sessions: {}, vapid: null, ads: [], stats: {} };
 try {
@@ -141,7 +148,8 @@ function guestState(b, q) {
   return {
     restaurant: { name: t.r.name, langs: t.r.langs },
     table: t.table,
-    menu: t.r.menu || [],
+    build: BUILD,
+    menu: (t.r.menu || []).filter((i) => !i.hidden),
     slides: slidesFor(t.r),
     calls: openAt(db.calls, t.r, t.table).filter((c) => c.status !== 'done'),
     orders: openAt(db.orders, t.r, t.table),
@@ -170,13 +178,18 @@ function guestCall(b) {
 function guestOrder(b) {
   const t = tableOf(b.d);
   if (!t) throw fail(400, 'device is not assigned');
-  const menu = new Map((t.r.menu || []).map((i) => [i.id, i]));
+  const menu = new Map((t.r.menu || []).filter((i) => !i.hidden).map((i) => [i.id, i]));
   const items = (b.items || [])
     .filter((x) => menu.has(x.id) && x.qty > 0)
     .slice(0, 50)
     .map((x) => {
       const m = menu.get(x.id);
-      return { id: m.id, name: m.name, price: Number(m.price) || 0, qty: Math.min(99, x.qty | 0) };
+      const opt = x.opt ? (m.options || []).find((o) => o.key === x.opt) : null;
+      // К названию добавляем вариант: «Пиво · 500 мл»
+      const name = opt
+        ? Object.fromEntries(Object.entries(m.name).map(([l, v]) => [l, `${v} · ${opt.label[l] || Object.values(opt.label)[0] || ''}`]))
+        : m.name;
+      return { id: m.id, opt: opt?.key || '', name, price: Number(opt ? opt.price : m.price) || 0, qty: Math.min(99, x.qty | 0) };
     });
   if (!items.length) throw fail(400, 'empty order');
   const o = {
@@ -219,6 +232,7 @@ function staffState(b, q) {
   const { s, r, member } = session(q.token);
   return {
     restaurant: { name: r.name },
+    build: BUILD,
     me: { name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0 },
     vapidKey: db.vapid.publicKey,
     calls: db.calls.filter((c) => c.restaurantId === r.id && !c.closed && c.status !== 'done'),
@@ -316,6 +330,7 @@ function managerGet(b, q) {
     restaurant: {
       name: r.name, tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
       menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [],
+      menuSource: publicSource(r.menuSource),
     },
     ads: db.ads.filter((a) => a.active && (!a.restaurants?.length || a.restaurants.includes(r.id)))
       .map((a) => ({ id: a.id, title: a.title, advertiser: a.advertiser, image: a.image, views: views(a.id, r.id) })),
@@ -328,18 +343,125 @@ function managerSave(b) {
   if (Array.isArray(b.menu)) r.menu = cleanMenu(b.menu);
   if (Array.isArray(b.promos)) r.promos = cleanPromos(b.promos);
   if (Array.isArray(b.blockedAds)) r.blockedAds = b.blockedAds.map(String);
+  if (b.menuSource) r.menuSource = cleanSource(b.menuSource, r.menuSource);
   save();
   return {};
+}
+
+async function managerSync(b) {
+  const { r } = managerSession(b.token);
+  await syncMenu(r);
+  return publicSource(r.menuSource);
+}
+
+// ---------- Синхронизация меню с сайтом, POS или JSON-фидом
+
+// Токен POS наружу не отдаём
+const publicSource = (s) => {
+  if (!s) return { type: 'manual' };
+  const { token, ...rest } = s;
+  return { ...rest, hasToken: !!token };
+};
+
+function cleanSource(b, prev = {}) {
+  const type = ['manual', 'website', 'pos', 'json'].includes(b.type) ? b.type : 'manual';
+  return {
+    ...prev, type,
+    url: String(b.url ?? prev.url ?? '').trim(),
+    vendor: POS_VENDORS[b.vendor] ? b.vendor : 'loyverse',
+    token: b.token ? String(b.token).trim() : prev.token || '',
+    lang: ['en', 'th', 'ru', 'zh'].includes(b.lang) ? b.lang : prev.lang || 'en',
+    interval: ['hourly', 'daily', 'off'].includes(b.interval) ? b.interval : prev.interval || 'hourly',
+  };
+}
+
+const nonEmpty = (o = {}) => Object.fromEntries(Object.entries(o).filter(([, v]) => v));
+
+// Поля из источника (названия на его языках, категория, цена, варианты, наличие) обновляем;
+// переводы на другие языки, «блюдо дня», акции и своё фото сохраняем.
+// Блюда, пропавшие из источника, скрываем, а добавленные вручную не трогаем.
+function mergeMenu(r, items) {
+  const old = new Map((r.menu || []).filter((i) => i.extId).map((i) => [i.extId, i]));
+  const seen = new Set();
+  const synced = items.filter((s) => s.extId && Object.values(s.name || {}).some(Boolean)).map((s) => {
+    seen.add(s.extId);
+    const o = old.get(s.extId) || { id: uid(), cat: {}, name: {}, desc: {} };
+    return {
+      ...o, extId: s.extId, sku: s.sku || o.sku || '',
+      cat: { ...o.cat, ...nonEmpty(s.cat) }, name: { ...o.name, ...nonEmpty(s.name) }, desc: { ...o.desc, ...nonEmpty(s.desc) },
+      price: Number(s.price) || 0, options: s.options || [],
+      photo: o.photoManual ? o.photo : s.photo || o.photo || '',
+      hidden: s.available === false,
+    };
+  });
+  const manual = (r.menu || []).filter((i) => !i.extId);
+  const gone = [...old.values()].filter((i) => !seen.has(i.extId)).map((i) => ({ ...i, hidden: true }));
+  r.menu = [...synced, ...manual, ...gone];
+}
+
+const syncing = new Set();
+async function syncMenu(r) {
+  const src = r.menuSource;
+  if (!src || src.type === 'manual' || syncing.has(r.id)) return;
+  syncing.add(r.id);
+  try {
+    const items = await fetchMenu(src);
+    mergeMenu(r, items);
+    Object.assign(src, { lastCount: items.length, lastError: '' });
+  } catch (e) {
+    src.lastError = e.message;
+  } finally {
+    src.lastSync = Date.now();
+    syncing.delete(r.id);
+    save();
+  }
+}
+
+// Проверяем источники раз в 5 минут; каждый ресторан — с выбранной частотой (раз в час или раз в день)
+setInterval(() => {
+  for (const r of Object.values(db.restaurants)) {
+    const s = r.menuSource;
+    if (s && s.type !== 'manual' && SYNC_EVERY[s.interval] && Date.now() - (s.lastSync || 0) > SYNC_EVERY[s.interval]) syncMenu(r);
+  }
+}, 5 * 60_000);
+
+// Вебхук «меню изменилось» для POS или сайта: POST /api/menu/webhook?r=<id>&key=<syncKey>
+function menuWebhook(b, q) {
+  const r = db.restaurants[q.r];
+  if (!r || !r.syncKey || q.key !== r.syncKey) throw fail(403, 'bad key');
+  syncMenu(r);
+  return { ok: true };
+}
+
+// ---------- Загрузка картинок (админ или менеджер): тело запроса — сам файл
+
+async function upload(req) {
+  const ext = IMAGE_TYPES[req.headers['content-type']];
+  if (!ext) throw fail(400, 'only jpeg, png or webp');
+  const chunks = [];
+  let size = 0;
+  for await (const c of req) {
+    size += c.length;
+    if (size > MAX_UPLOAD) throw fail(413, 'file is too large');
+    chunks.push(c);
+  }
+  const data = Buffer.concat(chunks);
+  const name = `${crypto.createHash('sha1').update(data).digest('hex').slice(0, 20)}.${ext}`;
+  fs.mkdirSync(UPLOADS, { recursive: true });
+  fs.writeFileSync(path.join(UPLOADS, name), data);
+  return { url: `/uploads/${name}` };
 }
 
 // ---------- Администратор
 
 function cleanMenu(menu) {
   return menu
-    .filter((i) => i && i.name && Object.values(i.name).some(Boolean))
+    .filter((i) => i && i.name && typeof i.name === 'object' && Object.values(i.name).some(Boolean))
     .map((i) => ({
       id: i.id || uid(), cat: i.cat || {}, name: i.name, desc: i.desc || {},
       price: Number(i.price) || 0, photo: String(i.photo || ''), promo: !!i.promo, dayDish: !!i.dayDish,
+      extId: i.extId || undefined, sku: String(i.sku || ''), options: Array.isArray(i.options) ? i.options : [],
+      hidden: !!i.hidden, photoManual: !!i.photoManual,
     }));
 }
 
@@ -376,7 +498,9 @@ function admin(method, p, b) {
     return Object.values(db.devices).map(({ queue, ...d }) =>
       ({ ...d, online: now - d.lastSeen < ONLINE_MS, pending: queue.length }));
   }
-  if (method === 'GET' && p === '/api/restaurants') return Object.values(db.restaurants);
+  if (method === 'GET' && p === '/api/restaurants') {
+    return Object.values(db.restaurants).map((r) => ({ ...r, menuSource: publicSource(r.menuSource) }));
+  }
   if (method === 'POST' && p === '/api/restaurants') {
     const id = b.id || uid();
     const prev = db.restaurants[id] || { staffCode: String(crypto.randomInt(100000, 1000000)) };
@@ -390,6 +514,8 @@ function admin(method, p, b) {
       promos: Array.isArray(b.promos) ? cleanPromos(b.promos) : prev.promos || [],
       tariff: b.tariff === 'premium' ? 'premium' : 'standard',
       blockedAds: prev.blockedAds || [],
+      menuSource: b.menuSource ? cleanSource(b.menuSource, prev.menuSource) : prev.menuSource,
+      syncKey: prev.syncKey || crypto.randomBytes(12).toString('hex'),
     };
     save();
     return db.restaurants[id];
@@ -406,6 +532,10 @@ function admin(method, p, b) {
   if (m && method === 'DELETE') { db.ads = db.ads.filter((a) => a.id !== m[1]); save(); return {}; }
   m = p.match(/^\/api\/restaurants\/([^/]+)$/);
   if (m && method === 'DELETE') { delete db.restaurants[m[1]]; save(); return {}; }
+  m = p.match(/^\/api\/restaurants\/([^/]+)\/sync$/);
+  if (m && method === 'POST' && db.restaurants[m[1]]) {
+    return syncMenu(db.restaurants[m[1]]).then(() => publicSource(db.restaurants[m[1]].menuSource));
+  }
 
   m = p.match(/^\/api\/devices\/([^/]+)(?:\/(command|assign))?$/);
   const d = m && db.devices[decodeURIComponent(m[1])];
@@ -442,6 +572,8 @@ const PUBLIC = {
   'POST /api/guest/impression': guestImpression,
   'GET /api/manager/restaurant': managerGet,
   'POST /api/manager/restaurant': managerSave,
+  'POST /api/manager/sync': managerSync,
+  'POST /api/menu/webhook': menuWebhook,
 };
 
 http.createServer(async (req, res) => {
@@ -459,6 +591,19 @@ http.createServer(async (req, res) => {
     const file = req.method === 'GET' && STATIC[url.pathname];
     if (file) return send(res, 200, FILES[file], TYPES[file.split('.').pop()]);
 
+    const up = req.method === 'GET' && url.pathname.match(/^\/uploads\/([a-f0-9]+\.(jpg|png|webp))$/);
+    if (up) {
+      const f = path.join(UPLOADS, up[1]);
+      if (!fs.existsSync(f)) return send(res, 404, { error: 'not found' });
+      res.writeHead(200, { 'content-type': `image/${up[2] === 'jpg' ? 'jpeg' : up[2]}`, 'cache-control': 'public, max-age=31536000, immutable' });
+      return fs.createReadStream(f).pipe(res);
+    }
+    if (req.method === 'POST' && url.pathname === '/api/upload') {
+      const token = req.headers['x-staff-token'];
+      if (!isAdmin(req)) managerSession(token);
+      return send(res, 200, await upload(req));
+    }
+
     const body = req.method === 'POST' ? await readBody(req) : {};
     if (req.method === 'POST' && url.pathname === '/api/admin/login') {
       if (!crypto.timingSafeEqual(sha(body.password), sha(PASS))) {
@@ -473,10 +618,10 @@ http.createServer(async (req, res) => {
       return send(res, 200, {});
     }
     const route = PUBLIC[`${req.method} ${url.pathname}`];
-    if (route) return send(res, 200, route(body, Object.fromEntries(url.searchParams), req));
+    if (route) return send(res, 200, await route(body, Object.fromEntries(url.searchParams), req));
 
     if (!isAdmin(req)) return send(res, 401, { error: 'not signed in' });
-    const out = admin(req.method, url.pathname, body);
+    const out = await admin(req.method, url.pathname, body);
     send(res, out === undefined ? 404 : 200, out ?? { error: 'not found' });
   } catch (e) {
     send(res, e.status || 500, { error: e.message });

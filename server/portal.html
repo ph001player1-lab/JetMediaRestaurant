@@ -51,6 +51,16 @@
     <button id="saveBtn">Сохранить</button>
     <button id="delBtn">Удалить ресторан</button>
   </div>
+  <div class="form">
+    <label>Источник меню <select id="sType"><option value="manual">Вручную</option><option value="website">Сайт ресторана</option><option value="pos">POS-система</option><option value="json">JSON-фид своей системы</option></select></label>
+    <label>Адрес страницы или фида <input id="sUrl" size="36"></label>
+    <label>POS <select id="sVendor"><option value="loyverse">Loyverse</option></select></label>
+    <label>API-токен POS <input id="sToken"></label>
+    <label>Язык источника <select id="sLang"><option>en</option><option>th</option><option>ru</option><option>zh</option></select></label>
+    <label>Проверять изменения <select id="sInterval"><option value="hourly">каждый час</option><option value="daily">раз в день</option><option value="off">только по кнопке</option></select></label>
+    <button id="syncBtn">Сохранить и синхронизировать</button>
+  </div>
+  <p class="hint" id="srcInfo"></p>
   <p class="hint" id="staffInfo"></p>
   <h3>Персонал</h3>
   <div class="wrap"><table>
@@ -59,6 +69,7 @@
   </table></div>
   <p><button id="addStaffBtn">+ Сотрудник</button> <span class="hint">PIN можно оставить пустым — придумается при сохранении.</span></p>
   <h3>Меню</h3>
+  <p><input id="mSearch" placeholder="Поиск по названию, коду или категории" size="40"></p>
   <div class="wrap"><table>
     <thead><tr><th>Категория</th><th>Название</th><th>Описание</th><th>Цена ฿</th><th>Фото (ссылка)</th><th>Акция</th><th>Блюдо дня</th><th></th></tr></thead>
     <tbody id="menu"></tbody>
@@ -178,6 +189,16 @@ function edit(id) {
   $('rName').value = cur.name;
   $('rTables').value = cur.tables.join(', ');
   $('rTariff').value = cur.tariff || 'standard';
+  const s = cur.menuSource || { type: 'manual' };
+  $('sType').value = s.type;
+  $('sUrl').value = s.url || '';
+  $('sVendor').value = s.vendor || 'loyverse';
+  $('sToken').value = '';
+  $('sToken').placeholder = s.hasToken ? '•••••••• (сохранён)' : '';
+  $('sLang').value = s.lang || 'en';
+  $('sInterval').value = s.interval || 'hourly';
+  $('srcInfo').innerHTML = (s.lastSync ? `Последняя синхронизация: ${new Date(s.lastSync).toLocaleString()} — ${s.lastError ? `<b style="color:#c62828">${esc(s.lastError)}</b>` : `${s.lastCount} блюд`}. ` : '')
+    + (cur.syncKey ? `Вебхук «меню изменилось»: <code>${location.origin}/api/menu/webhook?r=${esc(cur.id)}&amp;key=${esc(cur.syncKey)}</code>` : '');
   $('staffInfo').innerHTML = cur.staffCode
     ? `Приложение персонала: <b>${location.origin}/staff/</b> · код ресторана: <b>${esc(cur.staffCode)}</b> · каждый сотрудник входит со своим PIN`
     : 'Сохраните ресторан, чтобы получить код для персонала.';
@@ -207,21 +228,45 @@ $('addStaffBtn').onclick = () => { cur.staff.push({ role: 'waiter' }); renderSta
 function renderMenu() {
   const l = $('eLang').value;
   const v = (o) => esc((o || {})[l] || '');
-  $('menu').innerHTML = cur.menu.map((it, i) => `<tr data-i="${i}">
+  const q = $('mSearch').value.trim().toLowerCase();
+  const match = (it) => !q || `${it.sku || ''} ${Object.values(it.name || {}).join(' ')} ${Object.values(it.cat || {}).join(' ')}`.toLowerCase().includes(q);
+  $('menu').innerHTML = cur.menu.map((it, i) => !match(it) ? '' : `<tr data-i="${i}" ${it.hidden ? 'style="opacity:.45"' : ''}>
     <td><input data-f="cat" value="${v(it.cat)}"></td>
     <td><input data-f="name" value="${v(it.name)}"></td>
     <td><input data-f="desc" value="${v(it.desc)}"></td>
     <td><input data-f="price" type="number" value="${it.price ?? ''}" style="width:90px"></td>
-    <td><input data-f="photo" value="${esc(it.photo || '')}"></td>
+    <td><input data-f="photo" value="${esc(it.photo || '')}"><input type="file" accept="image/*" data-upload="photo"></td>
     <td><input data-f="promo" type="checkbox" ${it.promo ? 'checked' : ''}></td>
     <td><input data-f="dayDish" type="checkbox" ${it.dayDish ? 'checked' : ''}></td>
     <td><button data-del="${i}">✕</button></td></tr>`).join('');
 }
 
-$('menu').oninput = $('menu').onchange = (e) => {
+// Перед отправкой уменьшаем картинку до 1280 px
+async function uploadImage(file) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+  const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+  return (await (await fetch('/api/upload', { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: blob })).json()).url;
+}
+
+$('mSearch').oninput = renderMenu;
+
+$('menu').oninput = $('menu').onchange = async (e) => {
+  const it0 = e.target.closest('tr') && cur.menu[e.target.closest('tr').dataset.i];
+  if (e.target.type === 'file') {
+    if (e.type === 'change' && e.target.files[0]) {
+      it0.photo = await uploadImage(e.target.files[0]);
+      it0.photoManual = true;
+      renderMenu();
+    }
+    return;
+  }
   const f = e.target.dataset.f;
   if (!f) return;
-  const it = cur.menu[e.target.closest('tr').dataset.i];
+  const it = it0;
+  if (f === 'photo') it.photoManual = true;
   if (f === 'price') it.price = Number(e.target.value) || 0;
   else if (f === 'photo') it.photo = e.target.value.trim();
   else if (f === 'promo' || f === 'dayDish') it[f] = e.target.checked;
@@ -260,14 +305,27 @@ const parseTables = (s) => s.split(',').map((x) => x.trim()).filter(Boolean).fla
   return Array.from({ length: Math.max(0, to - from + 1) }, (_, k) => String(from + k));
 });
 
-$('saveBtn').onclick = async () => {
+async function saveRestaurant(notice) {
   cur.name = $('rName').value.trim() || 'Ресторан';
   cur.tables = parseTables($('rTables').value);
   cur.tariff = $('rTariff').value;
+  cur.menuSource = {
+    type: $('sType').value, url: $('sUrl').value.trim(), vendor: $('sVendor').value,
+    token: $('sToken').value.trim(), lang: $('sLang').value, interval: $('sInterval').value,
+  };
   const saved = await api('/api/restaurants', 'POST', cur);
   await loadRests(saved.id);
   loadDevices();
-  alert('Сохранено');
+  if (notice) alert('Сохранено');
+}
+$('saveBtn').onclick = () => saveRestaurant(true);
+
+$('syncBtn').onclick = async () => {
+  await saveRestaurant(false);
+  $('syncBtn').textContent = 'Синхронизация…';
+  await api(`/api/restaurants/${encodeURIComponent(cur.id)}/sync`, 'POST');
+  $('syncBtn').textContent = 'Сохранить и синхронизировать';
+  await loadRests(cur.id);
 };
 
 $('delBtn').onclick = async () => {
@@ -290,7 +348,7 @@ function renderAds() {
   $('ads').innerHTML = ads.map((a, i) => `<tr data-i="${i}">
     <td><input data-f="advertiser" value="${esc(a.advertiser)}"></td>
     <td><input data-f="title" value="${esc(a.title)}"></td>
-    <td><input data-f="image" value="${esc(a.image)}"></td>
+    <td><input data-f="image" value="${esc(a.image)}"><input type="file" accept="image/*" data-upload="image"></td>
     <td><select data-f="restaurants" multiple size="3">${rests.map((r) =>
       `<option value="${esc(r.id)}" ${(a.restaurants || []).includes(r.id) ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></td>
     <td><input data-f="active" type="checkbox" ${a.active ? 'checked' : ''}></td>
@@ -298,10 +356,14 @@ function renderAds() {
     <td><button data-save="${i}">Сохранить</button><button data-del="${i}">✕</button></td></tr>`).join('');
 }
 
-$('ads').oninput = $('ads').onchange = (e) => {
+$('ads').oninput = $('ads').onchange = async (e) => {
+  const a = ads[e.target.closest('tr').dataset.i];
+  if (e.target.type === 'file') {
+    if (e.type === 'change' && e.target.files[0]) { a.image = await uploadImage(e.target.files[0]); renderAds(); }
+    return;
+  }
   const f = e.target.dataset.f;
   if (!f) return;
-  const a = ads[e.target.closest('tr').dataset.i];
   if (f === 'active') a.active = e.target.checked;
   else if (f === 'restaurants') a.restaurants = [...e.target.selectedOptions].map((o) => o.value);
   else a[f] = e.target.value.trim();
