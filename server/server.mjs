@@ -34,7 +34,7 @@ const STATIC = {
 const TYPES = { html: 'text/html; charset=utf-8', json: 'application/manifest+json', js: 'text/javascript', svg: 'image/svg+xml' };
 const FILES = Object.fromEntries(Object.values(STATIC).map((f) => [f, fs.readFileSync(new URL(`./${f}`, import.meta.url))]));
 
-let db = { devices: {}, restaurants: {}, calls: [], orders: [], sessions: {}, vapid: null };
+let db = { devices: {}, restaurants: {}, calls: [], orders: [], sessions: {}, vapid: null, ads: [], stats: {} };
 try {
   db = { ...db, ...JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) };
 } catch {
@@ -42,6 +42,8 @@ try {
   try { db.devices = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'devices.json'), 'utf8')); } catch {}
 }
 db.sessions ??= {};
+db.ads ??= [];
+db.stats ??= {};
 db.vapid ??= createVapidKeys();
 
 let saveTimer;
@@ -57,6 +59,7 @@ function save() {
 }
 
 const uid = () => crypto.randomBytes(6).toString('hex');
+const day = (ts = Date.now()) => new Date(ts).toISOString().slice(0, 10);
 const fail = (status, message) => Object.assign(new Error(message), { status });
 // Вход администратора — страница /login и cookie; cookie меняется вместе с паролем
 const ADMIN_COOKIE = crypto.createHmac('sha256', PASS).update('jetmedia-admin').digest('base64url');
@@ -101,6 +104,37 @@ function tableOf(deviceId) {
 
 const openAt = (list, r, table) => list.filter((x) => x.restaurantId === r.id && x.table === table && !x.closed);
 
+// Карусель простоя: акции и блюда ресторана, через каждые две — внешняя реклама (кроме тарифа Premium)
+function slidesFor(r) {
+  const own = [
+    ...(r.promos || []).filter((p) => p.active && p.image).map((p) => ({ type: 'promo', id: p.id, image: p.image, title: p.title, text: p.text })),
+    ...(r.menu || []).filter((i) => (i.promo || i.dayDish) && i.photo).map((i) => ({ type: 'item', id: i.id, image: i.photo, title: i.name, price: i.price })),
+  ];
+  const ads = r.tariff === 'premium' ? [] : db.ads
+    .filter((a) => a.active && a.image && (!a.restaurants?.length || a.restaurants.includes(r.id)) && !(r.blockedAds || []).includes(a.id))
+    .map((a) => ({ type: 'ad', id: a.id, image: a.image, title: a.title }));
+  if (!own.length) return ads;
+  const out = [];
+  own.forEach((s, i) => { out.push(s); if (i % 2 === 1 && ads.length) out.push(ads[Math.floor(i / 2) % ads.length]); });
+  if (own.length === 1 && ads.length) out.push(ads[0]);
+  return out;
+}
+
+// Показы рекламы за последние 7 дней: по ресторану или по всей сети (rid = '*')
+function views(adId, rid = '*') {
+  let n = 0;
+  for (let k = 0; k < 7; k++) n += db.stats[`${adId}|${rid}|${day(Date.now() - k * 864e5)}`] || 0;
+  return n;
+}
+
+function guestImpression(b) {
+  const t = tableOf(b.d);
+  if (!t || !db.ads.some((a) => a.id === b.id)) throw fail(400, 'bad impression');
+  for (const key of [`${b.id}|${t.r.id}|${day()}`, `${b.id}|*|${day()}`]) db.stats[key] = (db.stats[key] || 0) + 1;
+  save();
+  return {};
+}
+
 function guestState(b, q) {
   const t = tableOf(q.d);
   if (!t) return { unassigned: true };
@@ -108,6 +142,7 @@ function guestState(b, q) {
     restaurant: { name: t.r.name, langs: t.r.langs },
     table: t.table,
     menu: t.r.menu || [],
+    slides: slidesFor(t.r),
     calls: openAt(db.calls, t.r, t.table).filter((c) => c.status !== 'done'),
     orders: openAt(db.orders, t.r, t.table),
   };
@@ -232,9 +267,16 @@ function staffAction(b) {
 }
 
 // Пуш всем сотрудникам ресторана, которые на смене и включили уведомления
+// Официантам этого стола (без назначенных столов — всех столов); менеджерам — напоминания
+// и вызовы, которые некому отправить
 function notify(restaurantId, table, kind, extra = '', reminder = false) {
-  for (const s of Object.values(db.sessions)) {
-    if (s.restaurantId !== restaurantId || !s.onShift || !s.subs.length) continue;
+  const r = db.restaurants[restaurantId];
+  if (!r) return;
+  const member = (s) => (r.staff || []).find((m) => m.id === s.staffId);
+  const active = Object.values(db.sessions).filter((s) => s.restaurantId === restaurantId && s.onShift && s.subs.length && member(s));
+  const waiters = active.filter((s) => member(s).role === 'waiter' && (!member(s).tables?.length || member(s).tables.includes(table)));
+  const managers = active.filter((s) => member(s).role === 'manager');
+  for (const s of new Set([...waiters, ...(reminder || !waiters.length ? managers : [])])) {
     const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en;
     const data = { title: `${L.table} ${table}`, body: (reminder ? `${L.again}: ` : '') + L[kind] + extra, tag: `${kind}-${table}` };
     for (const sub of s.subs) {
@@ -260,6 +302,36 @@ setInterval(() => {
   }
 }, 15_000);
 
+// ---------- Менеджер ресторана: персонал и столы, меню, акции, блокировка внешней рекламы
+
+function managerSession(token) {
+  const x = session(token);
+  if (x.member.role !== 'manager') throw fail(403, 'managers only');
+  return x;
+}
+
+function managerGet(b, q) {
+  const { r } = managerSession(q.token);
+  return {
+    restaurant: {
+      name: r.name, tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
+      menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [],
+    },
+    ads: db.ads.filter((a) => a.active && (!a.restaurants?.length || a.restaurants.includes(r.id)))
+      .map((a) => ({ id: a.id, title: a.title, advertiser: a.advertiser, image: a.image, views: views(a.id, r.id) })),
+  };
+}
+
+function managerSave(b) {
+  const { r } = managerSession(b.token);
+  if (Array.isArray(b.staff)) r.staff = cleanStaff(b.staff);
+  if (Array.isArray(b.menu)) r.menu = cleanMenu(b.menu);
+  if (Array.isArray(b.promos)) r.promos = cleanPromos(b.promos);
+  if (Array.isArray(b.blockedAds)) r.blockedAds = b.blockedAds.map(String);
+  save();
+  return {};
+}
+
 // ---------- Администратор
 
 function cleanMenu(menu) {
@@ -267,8 +339,21 @@ function cleanMenu(menu) {
     .filter((i) => i && i.name && Object.values(i.name).some(Boolean))
     .map((i) => ({
       id: i.id || uid(), cat: i.cat || {}, name: i.name, desc: i.desc || {},
-      price: Number(i.price) || 0, photo: String(i.photo || ''), promo: !!i.promo,
+      price: Number(i.price) || 0, photo: String(i.photo || ''), promo: !!i.promo, dayDish: !!i.dayDish,
     }));
+}
+
+function cleanPromos(list) {
+  return list.filter((p) => p && p.image).map((p) => ({
+    id: p.id || uid(), image: String(p.image), title: p.title || {}, text: p.text || {}, active: !!p.active,
+  }));
+}
+
+function cleanAd(a) {
+  return {
+    id: a.id || uid(), advertiser: String(a.advertiser || ''), title: String(a.title || ''), image: String(a.image || ''),
+    restaurants: (a.restaurants || []).map(String), active: !!a.active,
+  };
 }
 
 // PIN — 4–8 цифр, уникальный в ресторане; пустой или повторный заменяем случайным
@@ -278,7 +363,10 @@ function cleanStaff(list) {
     let pin = String(m.pin || '').trim();
     while (!/^\d{4,8}$/.test(pin) || used.has(pin)) pin = String(crypto.randomInt(1000, 10000));
     used.add(pin);
-    return { id: m.id || uid(), name: String(m.name).trim().slice(0, 40), role: m.role === 'manager' ? 'manager' : 'waiter', pin };
+    return {
+      id: m.id || uid(), name: String(m.name).trim().slice(0, 40), role: m.role === 'manager' ? 'manager' : 'waiter', pin,
+      tables: (m.tables || []).map(String),
+    };
   });
 }
 
@@ -299,11 +387,24 @@ function admin(method, p, b) {
       langs: b.langs || prev.langs || ['en', 'th', 'ru', 'zh'],
       menu: Array.isArray(b.menu) ? cleanMenu(b.menu) : prev.menu || [],
       staff: Array.isArray(b.staff) ? cleanStaff(b.staff) : prev.staff || [],
+      promos: Array.isArray(b.promos) ? cleanPromos(b.promos) : prev.promos || [],
+      tariff: b.tariff === 'premium' ? 'premium' : 'standard',
+      blockedAds: prev.blockedAds || [],
     };
     save();
     return db.restaurants[id];
   }
-  let m = p.match(/^\/api\/restaurants\/([^/]+)$/);
+  if (method === 'GET' && p === '/api/ads') return db.ads.map((a) => ({ ...a, views: views(a.id) }));
+  if (method === 'POST' && p === '/api/ads') {
+    const ad = cleanAd(b);
+    const i = db.ads.findIndex((a) => a.id === ad.id);
+    if (i >= 0) db.ads[i] = ad; else db.ads.push(ad);
+    save();
+    return ad;
+  }
+  let m = p.match(/^\/api\/ads\/([^/]+)$/);
+  if (m && method === 'DELETE') { db.ads = db.ads.filter((a) => a.id !== m[1]); save(); return {}; }
+  m = p.match(/^\/api\/restaurants\/([^/]+)$/);
   if (m && method === 'DELETE') { delete db.restaurants[m[1]]; save(); return {}; }
 
   m = p.match(/^\/api\/devices\/([^/]+)(?:\/(command|assign))?$/);
@@ -338,6 +439,9 @@ const PUBLIC = {
   'POST /api/staff/shift': staffShift,
   'POST /api/staff/subscribe': staffSubscribe,
   'POST /api/staff/logout': staffLogout,
+  'POST /api/guest/impression': guestImpression,
+  'GET /api/manager/restaurant': managerGet,
+  'POST /api/manager/restaurant': managerSave,
 };
 
 http.createServer(async (req, res) => {

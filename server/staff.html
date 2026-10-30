@@ -17,7 +17,19 @@
   header b { flex: 1; }
   header button { font-size: 14px; padding: 8px 12px; }
   .langs button { background: none; color: inherit; border: 1px solid #ddd; padding: 6px 10px; font-size: 14px; }
-  #shiftBtn.off { background: #999; }
+  #shiftBtn { background: #2e7d32; }
+  #shiftBtn.off { background: #c62828; }
+  [hidden] { display: none !important; }
+  .tabs { display: flex; gap: 4px; overflow-x: auto; padding: 0 16px; background: #fff; border-top: 1px solid #eee; position: sticky; top: 0; }
+  .tabs button { background: none; color: inherit; font-size: 15px; padding: 10px 12px; border-radius: 0; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .tabs button.on { border-color: #1f1a17; font-weight: 600; }
+  .ed { background: #fff; border-radius: 12px; padding: 12px; margin: 8px 0; display: grid; gap: 8px; }
+  .ed label { display: flex; flex-direction: column; font-size: 13px; color: #8a7f76; gap: 4px; }
+  .ed label.chk { flex-direction: row; align-items: center; gap: 8px; color: inherit; font-size: 16px; }
+  .ed input, .ed select, .bar select { font-size: 16px; padding: 10px; border-radius: 10px; border: 1px solid #ddd; }
+  .ed img { width: 100%; max-height: 180px; object-fit: cover; border-radius: 8px; }
+  .ed .del { background: #efe7df; color: #c62828; justify-self: start; font-size: 15px; padding: 8px 12px; }
+  .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 12px 0; }
   main { padding: 0 16px 32px; max-width: 720px; margin: auto; }
   .banner { background: #fff3cd; border-radius: 12px; padding: 12px; margin: 12px 0; }
   .banner button { margin-top: 8px; }
@@ -47,11 +59,17 @@
     <span class="langs"><button data-l="en">EN</button><button data-l="th">ไทย</button><button data-l="ru">RU</button></span>
     <button id="out" data-t="out"></button>
   </header>
-  <main>
+  <nav class="tabs" id="tabs" hidden>
+    <button data-tab="tWork" class="on" data-t="tabWork"></button><button data-tab="tStaff" data-t="tabStaff"></button><button data-tab="tMenu" data-t="tabMenu"></button><button data-tab="tPromos" data-t="tabPromos"></button><button data-tab="tAds" data-t="tabAds"></button>
+  </nav>
+  <main><section id="tWork">
     <div class="banner" id="pushBanner" hidden><span id="pushText"></span><br><button id="pushBtn" data-t="push"></button></div>
     <h3 data-t="calls"></h3><div id="calls"></div>
     <h3 data-t="orders"></h3><div id="orders"></div>
     <h3 data-t="tables"></h3><div id="tables"></div>
+  </section>
+  <section id="tStaff" hidden></section><section id="tMenu" hidden></section>
+  <section id="tPromos" hidden></section><section id="tAds" hidden></section>
   </main>
 </div>
 <script>
@@ -64,7 +82,14 @@ const T = {
         pushText: 'Turn on notifications to get calls even when the phone is locked.',
         iosHint: 'iPhone: tap Share → Add to Home Screen, open the app from the home screen and turn on notifications there.',
         noPush: 'This browser does not support notifications. Keep this page open.',
-        denied: 'Notifications are blocked. Allow them in the browser or phone settings.' },
+        denied: 'Notifications are blocked. Allow them in the browser or phone settings.',
+        tabWork: 'Calls', tabStaff: 'Staff', tabMenu: 'Menu', tabPromos: 'Promos', tabAds: 'Ads', save: 'Save', saved: 'Saved',
+        add: 'Add', del: 'Delete', role: 'Role', roleWaiter: 'Waiter', roleManager: 'Manager', nameF: 'Name',
+        pinF: 'PIN (empty — generated)', tablesHint: 'Tables (e.g. 1-5, 8). Empty — all tables', cat: 'Category',
+        dish: 'Dish name', desc: 'Description', price: 'Price ฿', photo: 'Photo link', promo: 'In promo slideshow',
+        day: 'Dish of the day', editLang: 'Editing language', image: 'Image link', title: 'Title', text: 'Text', active: 'Active',
+        shown: 'Shown — tap to block', blocked: 'Blocked — tap to show', views: 'views in 7 days',
+        premium: 'Your plan has no external ads', noAds: 'No external ads yet' },
   th: { login: 'เข้าสู่ระบบพนักงาน', code: 'รหัสร้าน', pin: 'PIN ของคุณ', start: 'เข้าสู่ระบบ', out: 'ออกจากระบบ',
         calls: 'การเรียก', orders: 'ออร์เดอร์', tables: 'โต๊ะ', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'เช็คบิล',
         going: 'กำลังไป', done: 'เสร็จแล้ว', confirm: 'ยืนยัน', reject: 'ปฏิเสธ', free: 'ว่างแล้ว', none: 'ยังไม่มี',
@@ -73,7 +98,14 @@ const T = {
         pushText: 'เปิดการแจ้งเตือนเพื่อรับการเรียกแม้หน้าจอล็อกอยู่',
         iosHint: 'iPhone: แตะ แชร์ → เพิ่มไปยังหน้าจอโฮม แล้วเปิดแอปจากหน้าจอโฮมและเปิดการแจ้งเตือน',
         noPush: 'เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน กรุณาเปิดหน้านี้ไว้',
-        denied: 'การแจ้งเตือนถูกบล็อก กรุณาอนุญาตในการตั้งค่า' },
+        denied: 'การแจ้งเตือนถูกบล็อก กรุณาอนุญาตในการตั้งค่า',
+        tabWork: 'การเรียก', tabStaff: 'พนักงาน', tabMenu: 'เมนู', tabPromos: 'โปรโมชัน', tabAds: 'โฆษณา', save: 'บันทึก', saved: 'บันทึกแล้ว',
+        add: 'เพิ่ม', del: 'ลบ', role: 'ตำแหน่ง', roleWaiter: 'พนักงานเสิร์ฟ', roleManager: 'ผู้จัดการ', nameF: 'ชื่อ',
+        pinF: 'PIN (ว่าง = สร้างให้อัตโนมัติ)', tablesHint: 'โต๊ะ (เช่น 1-5, 8) ว่าง = ทุกโต๊ะ', cat: 'หมวดหมู่',
+        dish: 'ชื่อเมนู', desc: 'คำอธิบาย', price: 'ราคา ฿', photo: 'ลิงก์รูปภาพ', promo: 'แสดงในสไลด์โปรโมชัน',
+        day: 'เมนูแนะนำประจำวัน', editLang: 'ภาษาที่แก้ไข', image: 'ลิงก์รูปภาพ', title: 'หัวข้อ', text: 'ข้อความ', active: 'เปิดใช้งาน',
+        shown: 'แสดงอยู่ — แตะเพื่อบล็อก', blocked: 'บล็อกแล้ว — แตะเพื่อแสดง', views: 'ครั้งที่แสดงใน 7 วัน',
+        premium: 'แพ็กเกจของคุณไม่มีโฆษณาภายนอก', noAds: 'ยังไม่มีโฆษณาภายนอก' },
   ru: { login: 'Вход для персонала', code: 'Код ресторана', pin: 'Ваш PIN', start: 'Войти', out: 'Выйти',
         calls: 'Вызовы', orders: 'Заказы', tables: 'Столы', table: 'Стол', waiter: 'Вызов', bill: 'Счёт',
         going: 'Иду', done: 'Готово', confirm: 'Подтвердить', reject: 'Отклонить', free: 'свободен', none: 'Пока пусто',
@@ -82,7 +114,14 @@ const T = {
         pushText: 'Включите уведомления, чтобы получать вызовы даже на заблокированный телефон.',
         iosHint: 'iPhone: нажмите «Поделиться» → «На экран Домой», откройте приложение с главного экрана и включите уведомления там.',
         noPush: 'Этот браузер не поддерживает уведомления. Держите страницу открытой.',
-        denied: 'Уведомления запрещены. Разрешите их в настройках браузера или телефона.' },
+        denied: 'Уведомления запрещены. Разрешите их в настройках браузера или телефона.',
+        tabWork: 'Вызовы', tabStaff: 'Персонал', tabMenu: 'Меню', tabPromos: 'Акции', tabAds: 'Реклама', save: 'Сохранить', saved: 'Сохранено',
+        add: 'Добавить', del: 'Удалить', role: 'Роль', roleWaiter: 'Официант', roleManager: 'Менеджер', nameF: 'Имя',
+        pinF: 'PIN (пусто — придумается)', tablesHint: 'Столы (например 1-5, 8). Пусто — все столы', cat: 'Категория',
+        dish: 'Название блюда', desc: 'Описание', price: 'Цена ฿', photo: 'Ссылка на фото', promo: 'В показе акций',
+        day: 'Блюдо дня', editLang: 'Язык редактирования', image: 'Ссылка на картинку', title: 'Заголовок', text: 'Текст', active: 'Включено',
+        shown: 'Показывается — нажмите, чтобы заблокировать', blocked: 'Заблокировано — нажмите, чтобы показывать', views: 'показов за 7 дней',
+        premium: 'В вашем тарифе нет внешней рекламы', noAds: 'Внешней рекламы пока нет' },
 };
 
 let lang = localStorage.lang || 'en';
@@ -192,6 +231,7 @@ function render(s) {
   $('pushBanner').hidden = s.me.push;
   $('pushText').textContent = t(isIOS && !standalone ? 'iosHint' : 'pushText');
   $('pushBtn').hidden = isIOS && !standalone;
+  $('tabs').hidden = s.me.role !== 'manager';
 
   let fresh = false;
   for (const x of [...s.calls.filter((c) => c.status === 'new'), ...s.orders.filter((o) => o.status === 'pending')]) {
@@ -231,12 +271,28 @@ document.addEventListener('click', async (e) => {
     lang = localStorage.lang = b.dataset.l;
     texts();
     if (last) render(last);
+    if (mgr) renderManager();
     // язык push-уведомлений тоже меняем
     if (last?.me.push) enablePush();
   } else if (b.dataset.act) {
     const [kind, id, action] = b.dataset.act.split('|');
     await api('/api/staff/action', { token, kind, id, action });
     refresh();
+  } else if (b.dataset.tab) {
+    showTab(b.dataset.tab);
+  } else if (b.dataset.add) {
+    const fresh = { staff: { role: 'waiter' }, promos: { active: true } }[b.dataset.add] || {};
+    mgr.restaurant[b.dataset.add].push(fresh);
+    renderManager();
+  } else if (b.dataset.del !== undefined) {
+    mgr.restaurant[b.closest('[data-list]').dataset.list].splice(Number(b.dataset.del), 1);
+    renderManager();
+  } else if (b.dataset.save) {
+    saveManager(true);
+  } else if (b.dataset.block) {
+    const r = mgr.restaurant, id = b.dataset.block;
+    r.blockedAds = r.blockedAds.includes(id) ? r.blockedAds.filter((x) => x !== id) : [...r.blockedAds, id];
+    saveManager(false);
   } else if (b.id === 'go') {
     $('err').textContent = '';
     login();
@@ -249,6 +305,94 @@ document.addEventListener('click', async (e) => {
     logout();
   }
 });
+
+// ---------- Кабинет менеджера: персонал и столы, меню, акции, внешняя реклама
+
+let mgr = null, elang = 'en';
+const LANG_FIELDS = ['cat', 'name', 'desc', 'title', 'text'];
+const val = (o) => (o && typeof o === 'object' ? o[elang] || '' : o ?? '');
+
+// «1-5, 8» → 1, 2, 3, 4, 5, 8
+const parseTables = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean).flatMap((x) => {
+  const m = x.match(/^(\d+)\s*-\s*(\d+)$/);
+  if (!m) return [x];
+  const from = Number(m[1]), to = Math.min(Number(m[2]), from + 200);
+  return Array.from({ length: Math.max(0, to - from + 1) }, (_, k) => String(from + k));
+});
+
+function showTab(id) {
+  document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('on', x.dataset.tab === id));
+  for (const s of ['tWork', 'tStaff', 'tMenu', 'tPromos', 'tAds']) $(s).hidden = s !== id;
+  if (id !== 'tWork') loadManager();
+}
+
+async function loadManager() {
+  mgr = await api(`/api/manager/restaurant?token=${encodeURIComponent(token)}`);
+  renderManager();
+}
+
+async function saveManager(notice) {
+  const r = mgr.restaurant;
+  await api('/api/manager/restaurant', {
+    token,
+    staff: r.staff.map((m) => ({ ...m, tables: Array.isArray(m.tables) ? m.tables : parseTables(m.tables) })),
+    menu: r.menu, promos: r.promos, blockedAds: r.blockedAds,
+  });
+  await loadManager();
+  if (notice) alert(t('saved'));
+}
+
+const inp = (f, v, label, type = 'text') => `<label>${t(label)}<input data-f="${f}" type="${type}" value="${esc(v)}"></label>`;
+const chk = (f, on, label) => `<label class="chk"><input data-f="${f}" type="checkbox" ${on ? 'checked' : ''}>${t(label)}</label>`;
+const img = (src) => (src ? `<img src="${esc(src)}" alt="">` : '');
+const del = (i) => `<button class="del" data-del="${i}">${t('del')}</button>`;
+const langBar = () => `<div class="bar"><label>${t('editLang')} <select class="elang">${
+  ['en', 'th', 'ru', 'zh'].map((l) => `<option value="${l}" ${l === elang ? 'selected' : ''}>${l.toUpperCase()}</option>`).join('')}</select></label></div>`;
+const saveBar = (list) => `<div class="bar"><button data-add="${list}">+ ${t('add')}</button><button data-save="1">${t('save')}</button></div>`;
+
+function renderManager() {
+  const r = mgr.restaurant;
+  $('tStaff').innerHTML = `<div data-list="staff">${r.staff.map((m, i) => `<div class="ed" data-i="${i}">
+      ${inp('name', m.name, 'nameF')}
+      <label>${t('role')}<select data-f="role"><option value="waiter">${t('roleWaiter')}</option>
+        <option value="manager" ${m.role === 'manager' ? 'selected' : ''}>${t('roleManager')}</option></select></label>
+      ${inp('pin', m.pin, 'pinF')}
+      ${inp('tables', Array.isArray(m.tables) ? m.tables.join(', ') : m.tables, 'tablesHint')}
+      ${del(i)}</div>`).join('')}</div>${saveBar('staff')}`;
+
+  $('tMenu').innerHTML = `${langBar()}<div data-list="menu">${r.menu.map((it, i) => `<div class="ed" data-i="${i}">
+      ${img(it.photo)}${inp('cat', val(it.cat), 'cat')}${inp('name', val(it.name), 'dish')}${inp('desc', val(it.desc), 'desc')}
+      ${inp('price', it.price ?? '', 'price', 'number')}${inp('photo', it.photo, 'photo')}
+      ${chk('dayDish', it.dayDish, 'day')}${chk('promo', it.promo, 'promo')}${del(i)}</div>`).join('')}</div>${saveBar('menu')}`;
+
+  $('tPromos').innerHTML = `${langBar()}<div data-list="promos">${r.promos.map((p, i) => `<div class="ed" data-i="${i}">
+      ${img(p.image)}${inp('image', p.image, 'image')}${inp('title', val(p.title), 'title')}${inp('text', val(p.text), 'text')}
+      ${chk('active', p.active, 'active')}${del(i)}</div>`).join('')}</div>${saveBar('promos')}`;
+
+  $('tAds').innerHTML = r.tariff === 'premium' ? `<p class="empty">${t('premium')}</p>` : mgr.ads.map((a) => {
+    const blocked = r.blockedAds.includes(a.id);
+    return `<div class="ed">${img(a.image)}<b>${esc(a.title)}</b>
+      <span class="empty">${esc(a.advertiser)} · ${a.views} ${t('views')}</span>
+      <button data-block="${esc(a.id)}" style="background:${blocked ? '#c62828' : '#2e7d32'}">${t(blocked ? 'blocked' : 'shown')}</button></div>`;
+  }).join('') || `<p class="empty">${t('noAds')}</p>`;
+}
+
+function onEdit(e) {
+  const el = e.target;
+  if (el.classList.contains('elang')) {
+    if (e.type === 'change') { elang = el.value; renderManager(); }
+    return;
+  }
+  const f = el.dataset.f, card = el.closest('[data-i]'), list = el.closest('[data-list]');
+  if (!f || !card || !list || !mgr) return;
+  const item = mgr.restaurant[list.dataset.list][card.dataset.i];
+  if (el.type === 'checkbox') item[f] = el.checked;
+  else if (f === 'price') item[f] = Number(el.value) || 0;
+  else if (list.dataset.list !== 'staff' && LANG_FIELDS.includes(f)) item[f] = { ...(item[f] || {}), [elang]: el.value };
+  else item[f] = el.value;
+}
+document.addEventListener('input', onEdit);
+document.addEventListener('change', onEdit);
 
 $('code').value = localStorage.code || '';
 texts();

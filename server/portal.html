@@ -20,10 +20,12 @@
   .form { background: #fff; padding: 12px; margin: 12px 0; display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
   .form label { display: flex; flex-direction: column; font-size: 13px; gap: 4px; }
   textarea { width: 100%; box-sizing: border-box; height: 90px; }
+  [hidden] { display: none !important; }
+  #ads input:not([type]) { width: 100%; min-width: 120px; box-sizing: border-box; }
 </style>
 </head>
 <body>
-<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button>
+<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button><button data-tab="adsTab">Реклама</button>
   <button onclick="logout()" style="float:right">Выйти</button></nav>
 
 <section id="devices">
@@ -42,6 +44,7 @@
     <label>Ресторан <select id="restSel"></select></label>
     <label>Название <input id="rName"></label>
     <label>Столы <input id="rTables" placeholder="1-20, VIP1"></label>
+    <label>Тариф <select id="rTariff"><option value="standard">Standard — с рекламой сети</option><option value="premium">Premium — без внешней рекламы</option></select></label>
     <label>Язык редактирования
       <select id="eLang"><option value="en">EN</option><option value="th">TH</option><option value="ru">RU</option><option value="zh">ZH</option></select>
     </label>
@@ -57,13 +60,22 @@
   <p><button id="addStaffBtn">+ Сотрудник</button> <span class="hint">PIN можно оставить пустым — придумается при сохранении.</span></p>
   <h3>Меню</h3>
   <div class="wrap"><table>
-    <thead><tr><th>Категория</th><th>Название</th><th>Описание</th><th>Цена ฿</th><th>Фото (ссылка)</th><th>Акция</th><th></th></tr></thead>
+    <thead><tr><th>Категория</th><th>Название</th><th>Описание</th><th>Цена ฿</th><th>Фото (ссылка)</th><th>Акция</th><th>Блюдо дня</th><th></th></tr></thead>
     <tbody id="menu"></tbody>
   </table></div>
   <p><button id="addBtn">+ Блюдо</button></p>
   <p class="hint">Вставить строки из Excel или Google Таблиц на выбранном языке. Колонки: категория, название, описание, цена, ссылка на фото.</p>
   <textarea id="paste"></textarea>
   <p><button id="importBtn">Добавить из вставленного</button></p>
+</section>
+
+<section id="adsTab" hidden>
+  <p class="hint">Внешняя реклама показывается на планшетах ресторанов с тарифом Standard, в паузах между акциями ресторана. Пустой список ресторанов — показ во всех. Менеджер ресторана может заблокировать рекламу у себя.</p>
+  <div class="wrap"><table>
+    <thead><tr><th>Рекламодатель</th><th>Заголовок</th><th>Картинка (ссылка)</th><th>Рестораны</th><th>Включена</th><th>Показов за 7 дней</th><th></th></tr></thead>
+    <tbody id="ads"></tbody>
+  </table></div>
+  <p><button id="addAdBtn">+ Реклама</button></p>
 </section>
 
 <script>
@@ -80,7 +92,8 @@ let devices = [], rests = [], cur = null;
 
 document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => {
   document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
-  for (const id of ['devices', 'rest']) $(id).hidden = id !== b.dataset.tab;
+  for (const id of ['devices', 'rest', 'adsTab']) $(id).hidden = id !== b.dataset.tab;
+  if (b.dataset.tab === 'adsTab') loadAds();
 }));
 
 // ---------- Устройства
@@ -164,6 +177,7 @@ function edit(id) {
   $('restSel').value = cur.id || '';
   $('rName').value = cur.name;
   $('rTables').value = cur.tables.join(', ');
+  $('rTariff').value = cur.tariff || 'standard';
   $('staffInfo').innerHTML = cur.staffCode
     ? `Приложение персонала: <b>${location.origin}/staff/</b> · код ресторана: <b>${esc(cur.staffCode)}</b> · каждый сотрудник входит со своим PIN`
     : 'Сохраните ресторан, чтобы получить код для персонала.';
@@ -200,6 +214,7 @@ function renderMenu() {
     <td><input data-f="price" type="number" value="${it.price ?? ''}" style="width:90px"></td>
     <td><input data-f="photo" value="${esc(it.photo || '')}"></td>
     <td><input data-f="promo" type="checkbox" ${it.promo ? 'checked' : ''}></td>
+    <td><input data-f="dayDish" type="checkbox" ${it.dayDish ? 'checked' : ''}></td>
     <td><button data-del="${i}">✕</button></td></tr>`).join('');
 }
 
@@ -209,7 +224,7 @@ $('menu').oninput = $('menu').onchange = (e) => {
   const it = cur.menu[e.target.closest('tr').dataset.i];
   if (f === 'price') it.price = Number(e.target.value) || 0;
   else if (f === 'photo') it.photo = e.target.value.trim();
-  else if (f === 'promo') it.promo = e.target.checked;
+  else if (f === 'promo' || f === 'dayDish') it[f] = e.target.checked;
   else it[f] = { ...(it[f] || {}), [$('eLang').value]: e.target.value };
 };
 
@@ -248,6 +263,7 @@ const parseTables = (s) => s.split(',').map((x) => x.trim()).filter(Boolean).fla
 $('saveBtn').onclick = async () => {
   cur.name = $('rName').value.trim() || 'Ресторан';
   cur.tables = parseTables($('rTables').value);
+  cur.tariff = $('rTariff').value;
   const saved = await api('/api/restaurants', 'POST', cur);
   await loadRests(saved.id);
   loadDevices();
@@ -260,6 +276,47 @@ $('delBtn').onclick = async () => {
   cur = null;
   loadRests();
 };
+
+// ---------- Реклама
+
+let ads = [];
+
+async function loadAds() {
+  ads = await api('/api/ads');
+  renderAds();
+}
+
+function renderAds() {
+  $('ads').innerHTML = ads.map((a, i) => `<tr data-i="${i}">
+    <td><input data-f="advertiser" value="${esc(a.advertiser)}"></td>
+    <td><input data-f="title" value="${esc(a.title)}"></td>
+    <td><input data-f="image" value="${esc(a.image)}"></td>
+    <td><select data-f="restaurants" multiple size="3">${rests.map((r) =>
+      `<option value="${esc(r.id)}" ${(a.restaurants || []).includes(r.id) ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></td>
+    <td><input data-f="active" type="checkbox" ${a.active ? 'checked' : ''}></td>
+    <td>${a.views ?? 0}</td>
+    <td><button data-save="${i}">Сохранить</button><button data-del="${i}">✕</button></td></tr>`).join('');
+}
+
+$('ads').oninput = $('ads').onchange = (e) => {
+  const f = e.target.dataset.f;
+  if (!f) return;
+  const a = ads[e.target.closest('tr').dataset.i];
+  if (f === 'active') a.active = e.target.checked;
+  else if (f === 'restaurants') a.restaurants = [...e.target.selectedOptions].map((o) => o.value);
+  else a[f] = e.target.value.trim();
+};
+
+$('ads').onclick = async (e) => {
+  const { save, del } = e.target.dataset;
+  if (save !== undefined) { ads[save] = await api('/api/ads', 'POST', ads[save]); renderAds(); alert('Сохранено'); }
+  if (del !== undefined && confirm('Удалить рекламу?')) {
+    if (ads[del].id) await api(`/api/ads/${encodeURIComponent(ads[del].id)}`, 'DELETE');
+    loadAds();
+  }
+};
+
+$('addAdBtn').onclick = () => { ads.push({ active: true, restaurants: [] }); renderAds(); };
 
 loadRests().then(loadDevices);
 setInterval(loadDevices, 5000);

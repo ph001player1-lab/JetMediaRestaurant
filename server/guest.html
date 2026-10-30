@@ -67,22 +67,22 @@ var T = {
   en: { call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
         sent: 'Order sent. A waiter will come to confirm it.', called: 'The waiter has been called', coming: 'The waiter is on the way',
         confirmed: 'Order confirmed', touch: 'Touch to see the menu', add: 'Add', close: 'Close', ordered: 'Ordered',
-        pending: 'awaiting confirmation', rejected: 'cancelled' },
+        pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day' },
   ru: { call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
         sent: 'Заказ отправлен. Официант подойдёт подтвердить.', called: 'Официант вызван', coming: 'Официант идёт',
         confirmed: 'Заказ подтверждён', touch: 'Коснитесь, чтобы открыть меню', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
-        pending: 'ждёт подтверждения', rejected: 'отменён' },
+        pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня' },
   th: { call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
         sent: 'ส่งรายการแล้ว พนักงานจะมายืนยัน', called: 'เรียกพนักงานแล้ว', coming: 'พนักงานกำลังมา',
         confirmed: 'ยืนยันรายการแล้ว', touch: 'แตะเพื่อดูเมนู', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
-        pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว' },
+        pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน' },
   zh: { call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
         sent: '订单已发送，服务员将前来确认', called: '已呼叫服务员', coming: '服务员马上就来',
         confirmed: '订单已确认', touch: '点击查看菜单', add: '添加', close: '关闭', ordered: '已点',
-        pending: '待确认', rejected: '已取消' }
+        pending: '待确认', rejected: '已取消', day: '★ 今日推荐' }
 };
 var LANG_NAMES = { en: 'EN', th: 'ไทย', ru: 'RU', zh: '中文' };
-var IDLE_ATTRACT_MS = 60000, IDLE_RESET_MS = 180000;
+var IDLE_ATTRACT_MS = 60000, IDLE_RESET_MS = 180000, DAY = '\u2605day';
 
 var D = new URLSearchParams(location.search).get('d') || '';
 var lang = null, state = null, cart = {}, cat = null, lastTouch = Date.now(), slide = 0, menuSig = '', seen = {}, sending = false;
@@ -138,7 +138,7 @@ function notifyChanges(first) {
 }
 
 function categories() {
-  var known = {}, out = [];
+  var known = {}, out = state.menu.some(function (i) { return i.dayDish; }) ? [DAY] : [];
   state.menu.forEach(function (i) { var c = tr(i.cat) || '—'; if (!known[c]) { known[c] = 1; out.push(c); } });
   return out;
 }
@@ -151,9 +151,9 @@ function renderAll() {
   var list = categories();
   if (list.indexOf(cat) < 0) cat = list[0];
   $('cats').innerHTML = list.map(function (c) {
-    return '<button data-cat="' + esc(c) + '" class="' + (c === cat ? 'on' : '') + '">' + esc(c) + '</button>';
+    return '<button data-cat="' + esc(c) + '" class="' + (c === cat ? 'on' : '') + '">' + esc(c === DAY ? t('day') : c) + '</button>';
   }).join('');
-  $('items').innerHTML = state.menu.filter(function (i) { return (tr(i.cat) || '—') === cat; }).map(function (i) {
+  $('items').innerHTML = state.menu.filter(function (i) { return cat === DAY ? i.dayDish : (tr(i.cat) || '—') === cat; }).map(function (i) {
     return '<div class="item">' + (i.photo ? '<img src="' + esc(i.photo) + '" alt="">' : '<div class="ph"></div>') +
       '<div class="b"><div class="n">' + esc(tr(i.name)) + '</div><div class="d">' + esc(tr(i.desc)) + '</div>' +
       '<div class="row"><span class="price">' + (i.price ? money(i.price) : '') + '</span>' +
@@ -243,14 +243,15 @@ setInterval(function () {
     $('cart').className = 'overlay';
     renderAll();
   }
-  var promos = state.menu.filter(function (i) { return i.promo && i.photo; });
-  if (idle > IDLE_ATTRACT_MS && promos.length) {
+  var slides = state.slides || [];
+  if (idle > IDLE_ATTRACT_MS && slides.length) {
     var a = $('attract');
     if (a.style.display !== 'block' || idle % 7000 < 1000) {
-      var p = promos[slide++ % promos.length];
-      $('aImg').src = p.photo;
-      $('aName').textContent = tr(p.name) + (p.price ? ' · ' + money(p.price) : '');
-      $('aText').textContent = t('touch');
+      var p = slides[slide++ % slides.length];
+      $('aImg').src = p.image;
+      $('aName').textContent = tr(p.title) + (p.price ? ' · ' + money(p.price) : '');
+      $('aText').textContent = tr(p.text) || t('touch');
+      if (p.type === 'ad') post('/api/guest/impression', { id: p.id }).catch(function () {});
     }
     a.style.display = 'block';
   }
