@@ -12,43 +12,55 @@
   html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
     font-family: system-ui, -apple-system, "Noto Sans Thai", "Noto Sans SC", sans-serif; -webkit-user-select: none; user-select: none; }
   #app { display: flex; flex-direction: column; height: 100%; }
-  header { display: flex; align-items: center; padding: 12px 16px; background: var(--card); box-shadow: 0 1px 0 rgba(0,0,0,.06); }
-  header h1 { font-size: 22px; margin: 0; flex: 1; }
-  .langs button { border: 1px solid #ddd; background: none; border-radius: 8px; padding: 8px 12px; font-size: 16px; margin-left: 6px; color: var(--ink); }
+  header { display: flex; align-items: center; padding: 14px 16px; background: var(--card); }
+  header h1 { font-size: 26px; margin: 0; flex: 1; }
+  .langs button { border: 1px solid #ddd; background: none; border-radius: 10px; padding: 10px 14px; font-size: 18px; margin-left: 8px; color: var(--ink); }
   .langs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
-  main { flex: 1; display: flex; min-height: 0; }
-  nav { width: 200px; overflow-y: auto; padding: 8px; }
-  nav button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 14px 12px; font-size: 17px; border-radius: 10px; color: var(--ink); }
-  nav button.on { background: var(--card); font-weight: 600; }
-  #items { flex: 1; overflow-y: auto; padding: 8px 16px 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); grid-gap: 14px; align-content: start; }
-  .item { background: var(--card); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
-  .item img, .ph { width: 100%; height: 150px; object-fit: cover; background: #eee4da; display: block; }
-  .item .b { padding: 10px 12px; flex: 1; display: flex; flex-direction: column; }
-  .item .n { font-weight: 600; font-size: 17px; margin-bottom: 4px; }
-  .item .d { color: var(--muted); font-size: 13px; flex: 1; }
-  .row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
-  .price { font-weight: 700; font-size: 17px; }
-  .add { border: 0; background: var(--accent); color: #fff; border-radius: 10px; padding: 10px 14px; font-size: 16px; }
-  footer { display: flex; padding: 12px 16px; background: var(--card); box-shadow: 0 -1px 0 rgba(0,0,0,.06); }
-  footer button { flex: 1; border: 0; border-radius: 12px; font-size: 18px; font-weight: 600; padding: 18px 8px; margin-left: 12px; background: #efe7df; color: var(--ink); }
+  /* Категории — горизонтальная лента */
+  #cats { white-space: nowrap; overflow-x: auto; padding: 10px 12px; background: var(--card); box-shadow: 0 1px 0 rgba(0,0,0,.06); flex: none; }
+  #cats button { display: inline-block; border: 1px solid #e3d9cf; background: var(--bg); color: var(--ink); border-radius: 24px; padding: 12px 18px; font-size: 18px; margin-right: 8px; }
+  #cats button.on { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: 600; }
+  main { flex: 1; min-height: 0; display: flex; }
+  #items { flex: 1; overflow-y: auto; padding: 8px; }
+  /* Карточки — flex-wrap вместо grid: старый WebView сжимает строки grid по высоте экрана */
+  .grid { display: flex; flex-wrap: wrap; align-items: flex-start; }
+  .item { flex: none; width: calc(50% - 16px); margin: 8px; background: var(--card); border-radius: 16px; overflow: hidden; }
+  .item img, .ph { width: 100%; height: 260px; object-fit: cover; background: #eee4da; display: block; }
+  .item .b { padding: 12px 14px 14px; }
+  .item .n { font-weight: 600; font-size: 21px; line-height: 1.25; margin-bottom: 6px; }
+  .item .d { color: var(--muted); font-size: 15px; line-height: 1.3; }
+  .row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+  .price { font-weight: 700; font-size: 22px; }
+  .add { border: 0; background: var(--accent); color: #fff; border-radius: 12px; padding: 14px 20px; font-size: 18px; font-weight: 600; }
+  @media (min-width: 1000px) { .item { width: calc(33.333% - 16px); } }
+  footer { display: flex; padding: 12px 16px; background: var(--card); box-shadow: 0 -1px 0 rgba(0,0,0,.06); flex: none; }
+  footer button { flex: 1; border: 0; border-radius: 14px; font-size: 20px; font-weight: 600; padding: 22px 8px; margin-left: 12px; background: #efe7df; color: var(--ink); }
   footer button:first-child { margin-left: 0; }
   footer #cartBtn { background: var(--accent); color: #fff; }
-  .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.4); display: none; align-items: flex-end; justify-content: center; }
+  .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.4); display: none; align-items: flex-end; justify-content: center; z-index: 4; }
   .overlay.show { display: flex; }
-  .sheet { background: var(--card); width: 640px; max-width: 100%; max-height: 85%; overflow: auto; border-radius: 18px 18px 0 0; padding: 20px; }
-  .line { display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; }
+  .sheet { background: var(--card); width: 680px; max-width: 100%; max-height: 85%; overflow: auto; border-radius: 20px 20px 0 0; padding: 22px; font-size: 18px; }
+  .line { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
   .line .n { flex: 1; padding-right: 10px; }
   .qty { white-space: nowrap; margin-right: 12px; }
-  .qty button { width: 44px; height: 44px; border-radius: 10px; border: 1px solid #ddd; background: none; font-size: 20px; color: var(--ink); }
-  .big { width: 100%; border: 0; border-radius: 12px; padding: 16px; font-size: 18px; font-weight: 600; background: var(--accent); color: #fff; margin-top: 14px; }
+  .qty button { width: 48px; height: 48px; border-radius: 12px; border: 1px solid #ddd; background: none; font-size: 22px; color: var(--ink); }
+  .big { width: 100%; border: 0; border-radius: 14px; padding: 18px; font-size: 20px; font-weight: 600; background: var(--accent); color: #fff; margin-top: 14px; }
   .big.ghost { background: #efe7df; color: var(--ink); }
-  .status { font-size: 14px; color: var(--muted); }
-  #toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 14px 22px; border-radius: 12px; font-size: 18px; display: none; z-index: 5; text-align: center; }
+  .status { font-size: 15px; color: var(--muted); }
+  #toast { position: fixed; top: 90px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 16px 24px; border-radius: 14px; font-size: 20px; display: none; z-index: 30; text-align: center; }
+  /* Экран простоя: акции и реклама, крупные кнопки и выбор языка */
   #attract { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #000; display: none; z-index: 10; color: #fff; }
-  #attract img { width: 100%; height: 100%; object-fit: cover; opacity: .85; }
-  #attract .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 32px; background: linear-gradient(transparent, rgba(0,0,0,.8)); }
-  #attract .cap b { display: block; font-size: 40px; }
-  #attract .cap span { font-size: 22px; opacity: .9; }
+  #attract img { width: 100%; height: 100%; object-fit: cover; opacity: .9; }
+  #attract .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 32px 32px 150px; background: linear-gradient(transparent, rgba(0,0,0,.85)); }
+  #attract .cap b { display: block; font-size: 38px; line-height: 1.2; }
+  #attract .cap span { display: block; font-size: 22px; opacity: .9; margin-top: 8px; }
+  #attract .acts { position: absolute; left: 16px; right: 16px; bottom: 24px; display: flex; }
+  #attract .abtn { flex: 1; margin: 0 8px; border: 0; border-radius: 18px; padding: 28px 12px; font-size: 24px; font-weight: 700; background: rgba(255,255,255,.94); color: var(--ink); }
+  #attract .abtn.main { background: var(--accent); color: #fff; }
+  #attract .alangs { position: absolute; top: 20px; right: 16px; }
+  #attract .alangs button { font-size: 20px; padding: 12px 16px; margin-left: 8px; border-radius: 12px; border: 0; background: rgba(255,255,255,.88); color: var(--ink); }
+  #attract .alangs button.on { background: var(--accent); color: #fff; }
+  #attract .tag { position: absolute; top: 24px; left: 20px; background: rgba(0,0,0,.55); padding: 6px 12px; border-radius: 8px; font-size: 15px; display: none; }
   #msg { display: none; height: 100%; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 20px; line-height: 1.6; }
 </style>
 </head>
@@ -56,30 +68,37 @@
 <div id="msg"></div>
 <div id="app" style="display:none">
   <header><h1 id="title"></h1><div class="langs" id="langs"></div></header>
-  <main><nav id="cats"></nav><section id="items"></section></main>
+  <nav id="cats"></nav>
+  <main><section id="items"></section></main>
   <footer><button id="callBtn"></button><button id="billBtn"></button><button id="cartBtn"></button></footer>
 </div>
 <div class="overlay" id="cart"><div class="sheet" id="sheet"></div></div>
 <div id="toast"></div>
-<div id="attract"><img id="aImg" alt=""><div class="cap"><b id="aName"></b><span id="aText"></span></div></div>
+<div id="attract">
+  <img id="aImg" alt="">
+  <span class="tag" id="aTag"></span>
+  <div class="alangs" id="aLangs"></div>
+  <div class="cap"><b id="aName"></b><span id="aText"></span></div>
+  <div class="acts"><button class="abtn" id="aCall"></button><button class="abtn main" id="aMenu"></button></div>
+</div>
 <script>
 var T = {
   en: { call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
         sent: 'Order sent. A waiter will come to confirm it.', called: 'The waiter has been called', coming: 'The waiter is on the way',
         confirmed: 'Order confirmed', touch: 'Touch to see the menu', add: 'Add', close: 'Close', ordered: 'Ordered',
-        pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day' },
+        pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day', menu: 'Open menu', ad: 'Advertisement' },
   ru: { call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
         sent: 'Заказ отправлен. Официант подойдёт подтвердить.', called: 'Официант вызван', coming: 'Официант идёт',
         confirmed: 'Заказ подтверждён', touch: 'Коснитесь, чтобы открыть меню', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
-        pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня' },
+        pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня', menu: 'Открыть меню', ad: 'Реклама' },
   th: { call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
         sent: 'ส่งรายการแล้ว พนักงานจะมายืนยัน', called: 'เรียกพนักงานแล้ว', coming: 'พนักงานกำลังมา',
         confirmed: 'ยืนยันรายการแล้ว', touch: 'แตะเพื่อดูเมนู', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
-        pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน' },
+        pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน', menu: 'ดูเมนู', ad: 'โฆษณา' },
   zh: { call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
         sent: '订单已发送，服务员将前来确认', called: '已呼叫服务员', coming: '服务员马上就来',
         confirmed: '订单已确认', touch: '点击查看菜单', add: '添加', close: '关闭', ordered: '已点',
-        pending: '待确认', rejected: '已取消', day: '★ 今日推荐' }
+        pending: '待确认', rejected: '已取消', day: '★ 今日推荐', menu: '查看菜单', ad: '广告' }
 };
 var LANG_NAMES = { en: 'EN', th: 'ไทย', ru: 'RU', zh: '中文' };
 var IDLE_ATTRACT_MS = 60000, IDLE_RESET_MS = 180000, DAY = '\u2605day';
@@ -163,13 +182,28 @@ function renderAll() {
   $('cats').innerHTML = list.map(function (c) {
     return '<button data-cat="' + esc(c) + '" class="' + (c === cat ? 'on' : '') + '">' + esc(c === DAY ? t('day') : c) + '</button>';
   }).join('');
-  $('items').innerHTML = state.menu.filter(function (i) { return cat === DAY ? i.dayDish : (tr(i.cat) || '—') === cat; }).map(function (i) {
+  $('items').innerHTML = '<div class="grid">' + state.menu.filter(function (i) { return cat === DAY ? i.dayDish : (tr(i.cat) || '—') === cat; }).map(function (i) {
     return '<div class="item">' + (i.photo ? '<img src="' + esc(i.photo) + '" alt="">' : '<div class="ph"></div>') +
       '<div class="b"><div class="n">' + esc(tr(i.name)) + '</div><div class="d">' + esc(tr(i.desc)) + '</div>' +
       '<div class="row"><span class="price">' + priceLabel(i) + '</span>' +
       '<button class="add" data-add="' + esc(i.id) + '">' + t('add') + (inCart(i.id) ? ' · ' + inCart(i.id) : '') + '</button></div></div></div>';
-  }).join('');
+  }).join('') + '</div>';
+  renderAttractTexts();
   renderFooter();
+}
+
+function renderAttractTexts() {
+  $('aCall').textContent = t('call');
+  $('aMenu').textContent = t('menu');
+  $('aTag').textContent = t('ad');
+  $('aLangs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {
+    return '<button data-alang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
+  }).join('');
+}
+
+function hideAttract() {
+  $('attract').style.display = 'none';
+  lastTouch = Date.now();
 }
 
 function cartCount() { var n = 0; for (var k in cart) n += cart[k]; return n; }
@@ -247,6 +281,14 @@ function call(type) {
 }
 
 document.addEventListener('click', function (e) {
+  // Экран простоя: язык, вызов официанта или переход к меню; касание в любом другом месте — тоже к меню
+  if (e.target.closest('#attract')) {
+    var a = e.target.closest('button');
+    if (a && a.dataset.alang) { lang = a.dataset.alang; renderAll(); return; }
+    hideAttract();
+    if (a && a.id === 'aCall') call('waiter');
+    return;
+  }
   var b = e.target.closest('button');
   if (!b || !state) return;
   var d = b.dataset;
@@ -263,10 +305,7 @@ document.addEventListener('click', function (e) {
   else if (b.id === 'billBtn') call('bill');
 });
 
-document.addEventListener('pointerdown', function () {
-  lastTouch = Date.now();
-  $('attract').style.display = 'none';
-}, true);
+document.addEventListener('pointerdown', function () { lastTouch = Date.now(); }, true);
 
 // Простой: через минуту — карусель акций, через 3 минуты — сброс языка и неотправленной корзины
 setInterval(function () {
@@ -286,6 +325,7 @@ setInterval(function () {
       $('aImg').src = p.image;
       $('aName').textContent = tr(p.title) + (p.price ? ' · ' + money(p.price) : '');
       $('aText').textContent = tr(p.text) || t('touch');
+      $('aTag').style.display = p.type === 'ad' ? 'block' : 'none';
       if (p.type === 'ad') post('/api/guest/impression', { id: p.id }).catch(function () {});
     }
     a.style.display = 'block';

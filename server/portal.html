@@ -44,6 +44,7 @@
     <label>Ресторан <select id="restSel"></select></label>
     <label>Название <input id="rName"></label>
     <label>Столы <input id="rTables" placeholder="1-20, VIP1"></label>
+    <label>Язык по умолчанию <select id="rLang"><option value="en">EN</option><option value="th">TH</option><option value="ru">RU</option><option value="zh">ZH</option></select></label>
     <label>Тариф <select id="rTariff"><option value="standard">Standard — с рекламой сети</option><option value="premium">Premium — без внешней рекламы</option></select></label>
     <label>Язык редактирования
       <select id="eLang"><option value="en">EN</option><option value="th">TH</option><option value="ru">RU</option><option value="zh">ZH</option></select>
@@ -189,6 +190,7 @@ function edit(id) {
   $('rName').value = cur.name;
   $('rTables').value = cur.tables.join(', ');
   $('rTariff').value = cur.tariff || 'standard';
+  $('rLang').value = (cur.langs || ['en'])[0];
   const s = cur.menuSource || { type: 'manual' };
   $('sType').value = s.type;
   $('sUrl').value = s.url || '';
@@ -309,6 +311,8 @@ async function saveRestaurant(notice) {
   cur.name = $('rName').value.trim() || 'Ресторан';
   cur.tables = parseTables($('rTables').value);
   cur.tariff = $('rTariff').value;
+  // Язык по умолчанию — первым в списке, остальные следом
+  cur.langs = [$('rLang').value, ...['en', 'th', 'ru', 'zh'].filter((l) => l !== $('rLang').value)];
   cur.menuSource = {
     type: $('sType').value, url: $('sUrl').value.trim(), vendor: $('sVendor').value,
     token: $('sToken').value.trim(), lang: $('sLang').value, interval: $('sInterval').value,
