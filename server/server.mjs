@@ -59,6 +59,12 @@ const qrPlace = (x) => {
   const pos = String(x.qrPos || '').replace('middle', 'upper'); // старые «по центру слева/справа»
   return { qrPos: QR_POS.includes(pos) ? pos : 'top-right', qrSize: QR_SIZE.includes(x.qrSize) ? x.qrSize : 'm' };
 };
+// Кадр картинки слайда: заполнить экран или показать целиком, сдвиг по вертикали (% высоты) и масштаб (%)
+const framing = (x) => ({
+  fit: x.fit === 'contain' ? 'contain' : 'cover',
+  imgY: Math.min(50, Math.max(-50, Math.round(Number(x.imgY)) || 0)),
+  imgScale: Math.min(200, Math.max(50, Math.round(Number(x.imgScale)) || 100)),
+});
 const DISH_TAGS = ['vegan', 'vegetarian', 'gluten_free', 'lactose_free', 'nut_free', 'seafood_free', 'spicy', 'mild', 'kids', 'halal'];
 
 let db = { devices: {}, restaurants: {}, calls: [], orders: [], sessions: {}, vapid: null, ads: [], stats: {}, characters: [] };
@@ -158,7 +164,7 @@ function slidesFor(r) {
   const own = [
     ...(r.promos || []).filter((p) => p.active && p.image).map((p) => ({
       type: 'promo', id: p.id, image: p.image, title: p.title, text: p.text, phone: p.phone || '',
-      qr: p.link ? `${PUBLIC_URL}/go/p/${p.id}?r=${r.id}` : '', ...qrPlace(p),
+      qr: p.link ? `${PUBLIC_URL}/go/p/${p.id}?r=${r.id}` : '', ...qrPlace(p), ...framing(p),
     })),
     ...(r.menu || []).filter((i) => (i.promo || i.dayDish) && i.photo).map((i) => ({ type: 'item', id: i.id, image: i.photo, title: i.name, price: i.price })),
   ];
@@ -166,7 +172,7 @@ function slidesFor(r) {
     .filter((a) => a.active && a.image && (!a.restaurants?.length || a.restaurants.includes(r.id)) && !(r.blockedAds || []).includes(a.id))
     .map((a) => ({
       type: 'ad', id: a.id, image: a.image, title: a.title, phone: a.phone || '',
-      qr: a.link ? `${PUBLIC_URL}/go/a/${a.id}?r=${r.id}` : '', ...qrPlace(a),
+      qr: a.link ? `${PUBLIC_URL}/go/a/${a.id}?r=${r.id}` : '', ...qrPlace(a), ...framing(a),
     }));
   // ИИ-персонаж — первым слайдом карусели
   // ИИ-персонаж в список не входит: планшет вставляет его в карусель по своему расписанию
@@ -440,7 +446,7 @@ function managerGet(b, q) {
     },
     ads: db.ads.filter((a) => a.active && (!a.restaurants?.length || a.restaurants.includes(r.id)))
       .map((a) => ({
-      id: a.id, title: a.title, advertiser: a.advertiser, image: a.image, link: a.link, phone: a.phone, ...qrPlace(a),
+      id: a.id, title: a.title, advertiser: a.advertiser, image: a.image, link: a.link, phone: a.phone, ...qrPlace(a), ...framing(a),
       views: views(a.id, r.id), scans: scans(a.id, r.id),
     })),
     characters: db.characters.map((c) => ({ id: c.id, name: c.name, image: c.images.idle, greeting: c.greeting })),
@@ -610,7 +616,7 @@ function cleanAvatar(a) {
 function cleanPromos(list) {
   return list.filter((p) => p && p.image).map((p) => ({
     id: p.id || uid(), image: String(p.image), title: p.title || {}, text: p.text || {}, active: !!p.active,
-    link: String(p.link || '').trim(), phone: String(p.phone || '').trim(), ...qrPlace(p),
+    link: String(p.link || '').trim(), phone: String(p.phone || '').trim(), ...qrPlace(p), ...framing(p),
   }));
 }
 
@@ -633,7 +639,7 @@ function cleanAd(a) {
   return {
     id: a.id || uid(), advertiser: String(a.advertiser || ''), title: String(a.title || ''), image: String(a.image || ''),
     restaurants: (a.restaurants || []).map(String), active: !!a.active,
-    link: String(a.link || '').trim(), phone: String(a.phone || '').trim(), ...qrPlace(a),
+    link: String(a.link || '').trim(), phone: String(a.phone || '').trim(), ...qrPlace(a), ...framing(a),
   };
 }
 

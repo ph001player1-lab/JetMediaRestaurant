@@ -21,6 +21,8 @@
   .form label { display: flex; flex-direction: column; font-size: 13px; gap: 4px; }
   textarea { width: 100%; box-sizing: border-box; height: 90px; }
   [hidden] { display: none !important; }
+  .sizehint { background: #fff3cd; border-radius: 10px; padding: 10px 14px; line-height: 1.5; }
+  .frame input[type=range], .pf input[type=range] { width: 100%; padding: 0; border: 0; }
   .qrgrid { display: grid; grid-template-columns: repeat(3, 26px); gap: 3px; margin: 4px 0; }
   .qrgrid button { width: 26px; height: 20px; padding: 0; margin: 0; border: 1px solid #bbb; background: #fff; border-radius: 3px; cursor: pointer; }
   .qrgrid button.on { background: #c8553d; border-color: #c8553d; }
@@ -92,10 +94,13 @@
 </section>
 
 <section id="adsTab" hidden>
-  <p class="hint">Картинка рекламы — вертикальная, 800×990 px: столько места между верхней и нижней планками планшета (предпросмотр «👁» показывает, как она ляжет).
+  <p class="sizehint"><b>Размер макета рекламы: 800 × 986 px</b> (вертикальный, соотношение ≈ 0,81; для большей чёткости — 1600 × 1972 px).
+    Это область между верхней и нижней планками планшета, а не весь экран 800 × 1280. Важный текст — не ближе 40 px к краям;
+    по центру слева и справа лежат стрелки листания, место блока с QR выбирается отдельно. Как макет ляжет на экран, показывает «👁».</p>
+  <p class="hint">
     Внешняя реклама показывается на планшетах ресторанов с тарифом Standard, в паузах между акциями ресторана. Пустой список ресторанов — показ во всех. Менеджер ресторана может заблокировать рекламу у себя.</p>
   <div class="wrap"><table>
-    <thead><tr><th>Рекламодатель</th><th>Заголовок</th><th>Картинка (ссылка)</th><th>Ссылка для QR</th><th>Телефон</th><th>QR и телефон: место / размер</th><th>Рестораны</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
+    <thead><tr><th>Рекламодатель</th><th>Заголовок</th><th>Картинка 800×986 (ссылка)</th><th>Ссылка для QR</th><th>Телефон</th><th>QR и телефон: место / размер</th><th>Кадр: режим, сдвиг ↕, масштаб</th><th>Рестораны</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
     <tbody id="ads"></tbody>
   </table></div>
   <p><button id="addAdBtn">+ Реклама</button></p>
@@ -388,6 +393,9 @@ function renderAds() {
     <td><input data-f="phone" value="${esc(a.phone || '')}"></td>
     <td>${qrGrid(a.qrPos)}
       <select data-f="qrSize">${Object.entries(QR_SIZE).map(([v, l]) => `<option value="${v}" ${(a.qrSize || 'm') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
+    <td class="frame"><select data-f="fit"><option value="cover">заполнить экран</option><option value="contain" ${a.fit === 'contain' ? 'selected' : ''}>показать целиком</option></select>
+      <input type="range" data-f="imgY" min="-50" max="50" value="${Number(a.imgY) || 0}" title="Сдвиг вверх / вниз">
+      <input type="range" data-f="imgScale" min="50" max="200" value="${Number(a.imgScale) || 100}" title="Масштаб"></td>
     <td><select data-f="restaurants" multiple size="3">${rests.map((r) =>
       `<option value="${esc(r.id)}" ${(a.restaurants || []).includes(r.id) ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></td>
     <td><input data-f="active" type="checkbox" ${a.active ? 'checked' : ''}></td>
@@ -404,7 +412,10 @@ const qrGrid = (cur) => {
     `<button type="button" data-qrpos="${r}-${c}" class="${pos === `${r}-${c}` ? 'on' : ''}" title="${rl}, ${cl}"></button>`)).join('')}</div>`;
 };
 const QR_SIZE = { s: 'маленький', m: 'средний', l: 'большой' };
-const adSlide = (a) => ({ type: 'ad', image: a.image, title: a.title, phone: a.phone, qr: a.link, qrPos: a.qrPos, qrSize: a.qrSize });
+const adSlide = (a) => ({
+  type: 'ad', image: a.image, title: a.title, phone: a.phone, qr: a.link, qrPos: a.qrPos, qrSize: a.qrSize,
+  fit: a.fit, imgY: a.imgY, imgScale: a.imgScale,
+});
 
 $('ads').oninput = $('ads').onchange = async (e) => {
   const a = ads[e.target.closest('tr').dataset.i];
