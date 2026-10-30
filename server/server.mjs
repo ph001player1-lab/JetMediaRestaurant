@@ -241,6 +241,11 @@ const PUBLIC = {
 http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://local');
+    // /staff и /guest без косой черты → на адрес с чертой
+    if (req.method === 'GET' && STATIC[url.pathname + '/']) {
+      res.writeHead(301, { location: url.pathname + '/' + url.search });
+      return res.end();
+    }
     const file = req.method === 'GET' && STATIC[url.pathname];
     if (file && (url.pathname !== '/' || isAdmin(req))) return send(res, 200, FILES[file], TYPES[file.split('.').pop()]);
 
