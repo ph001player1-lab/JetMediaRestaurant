@@ -48,15 +48,17 @@ const SYNC_EVERY = { hourly: 3600_000, daily: 24 * 3600_000 };
 // Показ акций и рекламы на планшете: задержка простоя, длительность слайда, шрифты и цвета подписи
 const DISPLAY = {
   idleSec: 60, slideSec: 7, titleSize: 38, textSize: 22, textColor: '#ffffff', bgColor: '#000000',
-  showHint: true, hint: {}, // подпись под заголовком слайда; пустой текст — стандартная «Листайте, чтобы посмотреть ещё»
 };
 // ИИ-персонаж: как часто появляется в карусели, сколько держится, приветствия и подбор блюд по пожеланиям
 const AVATAR = { enabled: false, characterId: '', speak: true, everyMin: 3, durationSec: 20, startWith: true, greetings: [], filters: [] };
 // Отметки блюд для подбора по особым пожеланиям
-// Где на слайде блок с QR-кодом и телефоном и какого он размера
-const QR_POS = ['top-right', 'top-left', 'middle-right', 'middle-left', 'bottom-right', 'bottom-left'];
+// Где на слайде блок с QR-кодом и телефоном (4 ряда × 3 столбца) и какого он размера
+const QR_POS = ['top', 'upper', 'lower', 'bottom'].flatMap((row) => ['left', 'center', 'right'].map((col) => `${row}-${col}`));
 const QR_SIZE = ['s', 'm', 'l'];
-const qrPlace = (x) => ({ qrPos: QR_POS.includes(x.qrPos) ? x.qrPos : 'top-right', qrSize: QR_SIZE.includes(x.qrSize) ? x.qrSize : 'm' });
+const qrPlace = (x) => {
+  const pos = String(x.qrPos || '').replace('middle', 'upper'); // старые «по центру слева/справа»
+  return { qrPos: QR_POS.includes(pos) ? pos : 'top-right', qrSize: QR_SIZE.includes(x.qrSize) ? x.qrSize : 'm' };
+};
 const DISH_TAGS = ['vegan', 'vegetarian', 'gluten_free', 'lactose_free', 'nut_free', 'seafood_free', 'spicy', 'mild', 'kids', 'halal'];
 
 let db = { devices: {}, restaurants: {}, calls: [], orders: [], sessions: {}, vapid: null, ads: [], stats: {}, characters: [] };
@@ -584,7 +586,6 @@ function cleanDisplay(d) {
     idleSec: num(d.idleSec, 10, 600, DISPLAY.idleSec), slideSec: num(d.slideSec, 3, 60, DISPLAY.slideSec),
     titleSize: num(d.titleSize, 16, 80, DISPLAY.titleSize), textSize: num(d.textSize, 12, 48, DISPLAY.textSize),
     textColor: color(d.textColor, DISPLAY.textColor), bgColor: color(d.bgColor, DISPLAY.bgColor),
-    showHint: d.showHint !== false, hint: texts(d.hint),
   };
 }
 

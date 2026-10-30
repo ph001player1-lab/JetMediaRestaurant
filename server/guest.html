@@ -56,44 +56,50 @@
   #offline { position: fixed; top: 0; left: 0; right: 0; z-index: 40; background: #c62828; color: #fff; text-align: center; padding: 10px; font-size: 18px; display: none; }
   #msg { display: none; height: 100%; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 20px; line-height: 1.6; }
 
-  /* Карусель: три слайда (следующий, текущий, предыдущий), лента едет слева направо */
-  #attract { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #000; display: none; z-index: 10; color: #fff; overflow: hidden; }
+  /* Экран простоя: тёмные планки сверху (название, языки) и снизу (точки, кнопки), между ними — карусель.
+     Размеры в долях экрана (1vw = 8 px при ширине 800), поэтому на любом планшете и в предпросмотре всё одинаково. */
+  #attract { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #141110; display: none; z-index: 10; color: #fff; overflow: hidden; }
+  .atop { position: absolute; top: 0; left: 0; right: 0; height: 8vh; display: flex; align-items: center; padding: 0 2.5vw; }
+  .atop b { flex: 1; font-size: 3.2vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #aLangs button { font-size: 2.4vw; padding: 1.2vw 2vw; margin-left: 1vw; border-radius: 1.5vw; border: 0; background: rgba(255,255,255,.14); color: #fff; }
+  #aLangs button.on { background: var(--accent); }
+  .astage { position: absolute; top: 8vh; bottom: 15vh; left: 0; right: 0; overflow: hidden; background: #000; }
   #ctrack { position: absolute; top: 0; bottom: 0; left: 0; width: 300%; display: flex; }
   .slide { position: relative; width: 33.3333%; height: 100%; overflow: hidden; flex: none; }
   .slide .bg { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .slide .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 32px 32px 200px; }
+  .slide .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 12vw 4vw 4vw; }
   .slide .cap b { display: block; line-height: 1.2; }
-  .slide .cap span { display: block; margin-top: 8px; opacity: .92; }
-  .slide .tag { position: absolute; top: 24px; left: 20px; background: rgba(0,0,0,.55); padding: 6px 12px; border-radius: 8px; font-size: 15px; }
-  .contact { position: absolute; background: #fff; color: var(--ink); border-radius: 16px; padding: 12px; text-align: center; max-width: 300px; }
-  .contact.pos-top-right { top: 90px; right: 20px; } .contact.pos-top-left { top: 90px; left: 20px; }
-  .contact.pos-middle-right { top: 32%; right: 88px; } .contact.pos-middle-left { top: 32%; left: 88px; }
-  .contact.pos-bottom-right { bottom: 320px; right: 20px; } .contact.pos-bottom-left { bottom: 320px; left: 20px; }
-  .contact .qr svg { width: 196px; height: 196px; display: block; margin: 0 auto; }
-  .contact.size-s .qr svg { width: 130px; height: 130px; } .contact.size-l .qr svg { width: 260px; height: 260px; }
-  .contact.size-s .phone { font-size: 17px; }
-  .contact .small { font-size: 15px; margin-top: 4px; }
-  .contact .phone { font-size: 22px; font-weight: 700; margin-top: 8px; }
-  .arrow { position: absolute; top: 45%; width: 64px; height: 64px; border-radius: 32px; border: 0; background: rgba(0,0,0,.3); color: #fff; font-size: 40px; line-height: 60px; padding: 0; z-index: 2; }
-  .arrow.left { left: 12px; } .arrow.right { right: 12px; }
-  #cdots { position: absolute; left: 0; right: 0; bottom: 140px; text-align: center; z-index: 2; }
-  #cdots i { display: inline-block; width: 10px; height: 10px; border-radius: 5px; background: rgba(255,255,255,.45); margin: 0 4px; }
-  #cdots i.on { background: #fff; width: 26px; }
-  #attract .acts { position: absolute; left: 16px; right: 16px; bottom: 24px; display: flex; z-index: 2; }
-  #attract .abtn { flex: 1; margin: 0 8px; border: 0; border-radius: 18px; padding: 28px 12px; font-size: 24px; font-weight: 700; background: rgba(255,255,255,.94); color: var(--ink); }
+  .slide .cap span { display: block; margin-top: 1vw; opacity: .92; }
+  .slide .tag { position: absolute; top: 2vw; left: 2.5vw; background: rgba(0,0,0,.55); padding: .8vw 1.5vw; border-radius: 1vw; font-size: 1.9vw; z-index: 1; }
+  /* Блок с QR-кодом и телефоном: 4 ряда по вертикали × 3 столбца */
+  .contact { position: absolute; background: #fff; color: var(--ink); border-radius: 2vw; padding: 1.5vw; text-align: center; max-width: 40vw; }
+  .contact.row-top { top: 3%; } .contact.row-upper { top: 27%; } .contact.row-lower { top: 51%; } .contact.row-bottom { bottom: 4%; }
+  .contact.col-left { left: 3vw; } .contact.col-right { right: 3vw; } .contact.col-center { left: 50%; transform: translateX(-50%); }
+  .contact.row-upper.col-left, .contact.row-lower.col-left { left: 11vw; }
+  .contact.row-upper.col-right, .contact.row-lower.col-right { right: 11vw; }
+  .contact .qr svg { width: 24.5vw; height: 24.5vw; display: block; margin: 0 auto; }
+  .contact.size-s .qr svg { width: 16vw; height: 16vw; } .contact.size-l .qr svg { width: 32.5vw; height: 32.5vw; }
+  .contact .small { font-size: 1.9vw; margin-top: .5vw; }
+  .contact .phone { font-size: 2.75vw; font-weight: 700; margin-top: 1vw; white-space: nowrap; }
+  .contact.size-s .phone { font-size: 2.1vw; }
+  .arrow { position: absolute; top: 50%; margin-top: -4vw; width: 8vw; height: 8vw; border-radius: 4vw; border: 0; background: rgba(0,0,0,.3); color: #fff; font-size: 5vw; line-height: 7.5vw; padding: 0; z-index: 2; }
+  .arrow.left { left: 1.5vw; } .arrow.right { right: 1.5vw; }
+  .abottom { position: absolute; left: 0; right: 0; bottom: 0; height: 15vh; padding: 0 2vw; display: flex; flex-direction: column; justify-content: center; }
+  #cdots { text-align: center; height: 1.25vw; margin-bottom: 1.8vh; }
+  #cdots i { display: inline-block; width: 1.25vw; height: 1.25vw; border-radius: .7vw; background: rgba(255,255,255,.35); margin: 0 .5vw; vertical-align: top; }
+  #cdots i.on { background: #fff; width: 3.25vw; }
+  #attract .acts { display: flex; }
+  #attract .abtn { flex: 1; margin: 0 1vw; border: 0; border-radius: 2.25vw; padding: 2.6vh 1.5vw; font-size: 3vw; font-weight: 700; background: #fff; color: var(--ink); }
   #attract .abtn.main { background: var(--accent); color: #fff; }
-  #aLangs { position: absolute; top: 20px; right: 16px; z-index: 2; }
-  #aLangs button { font-size: 20px; padding: 12px 16px; margin-left: 8px; border-radius: 12px; border: 0; background: rgba(255,255,255,.88); color: var(--ink); }
-  #aLangs button.on { background: var(--accent); color: #fff; }
 
   /* ИИ-персонаж: картинка и «пузырь» с репликой, как в комиксе */
   .avatar { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(#f9e7d2, #f2c9a5); color: var(--ink); }
-  .avatar .char { position: absolute; left: 50%; bottom: 120px; height: 58%; transform: translateX(-50%); }
-  .bubble { position: absolute; left: 24px; right: 24px; top: 90px; background: #fff; border-radius: 26px; padding: 22px 24px; box-shadow: 0 6px 20px rgba(0,0,0,.15); }
-  .bubble:after { content: ''; position: absolute; left: 50%; bottom: -22px; margin-left: -18px; border: 18px solid transparent; border-top-color: #fff; border-bottom: 0; }
-  .bubble .say { font-size: 26px; line-height: 1.35; margin: 0 0 6px; }
-  .bubble .who { color: var(--accent); font-weight: 700; font-size: 18px; }
-  .bubble button { display: inline-block; border: 0; border-radius: 22px; background: #efe7df; color: var(--ink); padding: 14px 18px; font-size: 19px; margin: 8px 8px 0 0; }
+  .avatar .char { position: absolute; left: 50%; bottom: 0; height: 64%; transform: translateX(-50%); }
+  .bubble { position: absolute; left: 3vw; right: 3vw; top: 3%; background: #fff; border-radius: 3.25vw; padding: 2.75vw 3vw; box-shadow: 0 .75vw 2.5vw rgba(0,0,0,.15); }
+  .bubble:after { content: ''; position: absolute; left: 50%; bottom: -2.75vw; margin-left: -2.25vw; border: 2.25vw solid transparent; border-top-color: #fff; border-bottom: 0; }
+  .bubble .say { font-size: 3.25vw; line-height: 1.35; margin: 0 0 .75vw; }
+  .bubble .who { color: var(--accent); font-weight: 700; font-size: 2.25vw; }
+  .bubble button { display: inline-block; border: 0; border-radius: 2.75vw; background: #efe7df; color: var(--ink); padding: 1.75vw 2.25vw; font-size: 2.4vw; margin: 1vw 1vw 0 0; }
 </style>
 </head>
 <body>
@@ -106,11 +112,12 @@
 </div>
 <div class="overlay" id="cart"><div class="sheet" id="sheet"></div></div>
 <div id="attract">
-  <div id="ctrack"></div>
-  <button class="arrow left" data-cgo="-1">‹</button><button class="arrow right" data-cgo="1">›</button>
-  <div id="aLangs"></div>
-  <div id="cdots"></div>
-  <div class="acts" id="acts"></div>
+  <div class="atop"><b id="aTitle"></b><div id="aLangs"></div></div>
+  <div class="astage">
+    <div id="ctrack"></div>
+    <button class="arrow left" data-cgo="-1">‹</button><button class="arrow right" data-cgo="1">›</button>
+  </div>
+  <div class="abottom"><div id="cdots"></div><div class="acts" id="acts"></div></div>
 </div>
 <div id="toast"></div>
 <div id="offline"></div>
@@ -119,28 +126,28 @@
 var T = {
   en: { call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
         sent: 'Order sent. A waiter will come to confirm it.', called: 'The waiter has been called', coming: 'The waiter is on the way',
-        confirmed: 'Order confirmed', touch: 'Swipe to see more', add: 'Add', close: 'Close', ordered: 'Ordered',
+        confirmed: 'Order confirmed', add: 'Add', close: 'Close', ordered: 'Ordered',
         pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day', menu: 'Open menu', ad: 'Advertisement',
         offline: 'No connection. Please wave to the waiter — we are reconnecting.', offlineBar: 'No connection — reconnecting…',
         edited: 'The waiter updated your order', scan: 'Scan the QR code', tableTotal: 'Table total', back: 'Back to the slideshow',
         recommend: 'I recommend', showDish: 'Show me', another: 'Something else', askRec: 'What do you recommend?', order: 'Order', diet: 'Special diet', dietAsk: 'What suits you?', noDish: 'Sorry, there is nothing like that on the menu yet — please ask the waiter!', prev: 'Back', dayRec: 'Today\'s dish of the day' },
   ru: { call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
         sent: 'Заказ отправлен. Официант подойдёт подтвердить.', called: 'Официант вызван', coming: 'Официант идёт',
-        confirmed: 'Заказ подтверждён', touch: 'Листайте, чтобы посмотреть ещё', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
+        confirmed: 'Заказ подтверждён', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
         pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня', menu: 'Открыть меню', ad: 'Реклама',
         offline: 'Нет связи. Пожалуйста, позовите официанта жестом — мы восстанавливаем подключение.', offlineBar: 'Нет связи — восстанавливаем подключение…',
         edited: 'Официант изменил ваш заказ', scan: 'Отсканируйте QR-код', tableTotal: 'Итого по столу', back: 'На главный экран',
         recommend: 'Советую попробовать', showDish: 'Показать', another: 'Что-нибудь ещё', askRec: 'Что посоветуешь?', order: 'Заказ', diet: 'Особые пожелания', dietAsk: 'Что вам подходит?', noDish: 'Пока таких блюд в меню нет — спросите официанта, он подскажет!', prev: 'Назад', dayRec: 'Сегодня блюдо дня' },
   th: { call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
         sent: 'ส่งรายการแล้ว พนักงานจะมายืนยัน', called: 'เรียกพนักงานแล้ว', coming: 'พนักงานกำลังมา',
-        confirmed: 'ยืนยันรายการแล้ว', touch: 'ปัดเพื่อดูเพิ่มเติม', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
+        confirmed: 'ยืนยันรายการแล้ว', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
         pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน', menu: 'ดูเมนู', ad: 'โฆษณา',
         offline: 'ไม่มีการเชื่อมต่อ กรุณาโบกมือเรียกพนักงาน ระบบกำลังเชื่อมต่อใหม่', offlineBar: 'ไม่มีการเชื่อมต่อ — กำลังเชื่อมต่อใหม่…',
         edited: 'พนักงานแก้ไขรายการของคุณแล้ว', scan: 'สแกน QR โค้ด', tableTotal: 'รวมทั้งโต๊ะ', back: 'กลับหน้าหลัก',
         recommend: 'แนะนำให้ลอง', showDish: 'ดูเมนูนี้', another: 'อย่างอื่น', askRec: 'แนะนำอะไรดี?', order: 'ออร์เดอร์', diet: 'อาหารพิเศษ', dietAsk: 'แบบไหนเหมาะกับคุณคะ?', noDish: 'ขออภัย ยังไม่มีเมนูแบบนี้ กรุณาถามพนักงานนะคะ', prev: 'กลับ', dayRec: 'เมนูแนะนำของวันนี้' },
   zh: { call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
         sent: '订单已发送，服务员将前来确认', called: '已呼叫服务员', coming: '服务员马上就来',
-        confirmed: '订单已确认', touch: '滑动查看更多', add: '添加', close: '关闭', ordered: '已点',
+        confirmed: '订单已确认', add: '添加', close: '关闭', ordered: '已点',
         pending: '待确认', rejected: '已取消', day: '★ 今日推荐', menu: '查看菜单', ad: '广告',
         offline: '网络连接中断，请向服务员招手示意，我们正在重新连接', offlineBar: '网络中断——正在重新连接…',
         edited: '服务员已更新您的订单', scan: '扫描二维码', tableTotal: '本桌合计', back: '返回首页',
@@ -395,16 +402,16 @@ function slideHtml(s, current) {
   if (s.type === 'avatar') return avatarHtml(current);
   return '<img class="bg" src="' + esc(s.image) + '" alt="">' +
     (s.type === 'ad' ? '<span class="tag">' + t('ad') + '</span>' : '') +
-    (s.qr || s.phone ? '<div class="contact pos-' + (s.qrPos || 'top-right') + ' size-' + (s.qrSize || 'm') + '">' +
+    (s.qr || s.phone ? '<div class="contact ' + qrClass(s.qrPos) + ' size-' + (s.qrSize || 'm') + '">' +
       (s.qr ? '<div class="qr">' + qrSvg(s.qr) + '</div><div class="small">' + t('scan') + '</div>' : '') +
       (s.phone ? '<div class="phone">📞 ' + esc(s.phone) + '</div>' : '') + '</div>' : '') +
-    '<div class="cap"><b>' + esc(tr(s.title)) + (s.price ? ' · ' + money(s.price) : '') + '</b><span>' + esc(tr(s.text) || hintText()) + '</span></div>';
+    (tr(s.title) || tr(s.text) ? '<div class="cap"><b>' + esc(tr(s.title)) + (s.price ? ' · ' + money(s.price) : '') + '</b><span>' + esc(tr(s.text)) + '</span></div>' : '');
 }
 
-// Подпись под заголовком: свой текст менеджера, стандартная подсказка или ничего
-function hintText() {
-  var ds = state.display || {};
-  return ds.showHint === false ? '' : tr(ds.hint) || t('touch');
+// «top-right» → ряд top, столбец right; старые «middle-…» — это ряд «выше центра»
+function qrClass(pos) {
+  var p = String(pos || 'top-right').replace('middle', 'upper').split('-');
+  return 'row-' + p[0] + ' col-' + (p[1] || 'right');
 }
 
 // Слева — следующий слайд, справа — предыдущий: показ «переезжает» слева направо
@@ -482,12 +489,13 @@ function styleCaptions(ds) {
   for (var i = 0; i < caps.length; i++) {
     caps[i].style.color = ds.textColor || '#fff';
     caps[i].style.background = 'linear-gradient(rgba(' + rgb + ',0), rgba(' + rgb + ',.88) 45%)';
-    caps[i].querySelector('b').style.fontSize = (ds.titleSize || 38) + 'px';
-    caps[i].querySelector('span').style.fontSize = (ds.textSize || 22) + 'px';
+    caps[i].querySelector('b').style.fontSize = (ds.titleSize || 38) / 8 + 'vw';
+    caps[i].querySelector('span').style.fontSize = (ds.textSize || 22) / 8 + 'vw';
   }
 }
 
 function renderAttract() {
+  $('aTitle').textContent = state.restaurant.name;
   $('acts').innerHTML = (isEntrance() ? '' : '<button class="abtn" id="aCall">' + t('call') + '</button>') +
     '<button class="abtn main" id="aMenu">' + t('menu') + '</button>';
   $('aLangs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {

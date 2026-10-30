@@ -21,6 +21,9 @@
   .form label { display: flex; flex-direction: column; font-size: 13px; gap: 4px; }
   textarea { width: 100%; box-sizing: border-box; height: 90px; }
   [hidden] { display: none !important; }
+  .qrgrid { display: grid; grid-template-columns: repeat(3, 26px); gap: 3px; margin: 4px 0; }
+  .qrgrid button { width: 26px; height: 20px; padding: 0; margin: 0; border: 1px solid #bbb; background: #fff; border-radius: 3px; cursor: pointer; }
+  .qrgrid button.on { background: #c8553d; border-color: #c8553d; }
   /* Предпросмотр слайда: настоящая страница планшета 800×1280, уменьшенная */
   .pv { position: fixed; right: 16px; bottom: 16px; z-index: 50; background: #222; padding: 8px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
   .pvbar { display: flex; gap: 8px; align-items: center; color: #fff; margin-bottom: 6px; font-size: 14px; }
@@ -89,7 +92,8 @@
 </section>
 
 <section id="adsTab" hidden>
-  <p class="hint">Внешняя реклама показывается на планшетах ресторанов с тарифом Standard, в паузах между акциями ресторана. Пустой список ресторанов — показ во всех. Менеджер ресторана может заблокировать рекламу у себя.</p>
+  <p class="hint">Картинка рекламы — вертикальная, 800×990 px: столько места между верхней и нижней планками планшета (предпросмотр «👁» показывает, как она ляжет).
+    Внешняя реклама показывается на планшетах ресторанов с тарифом Standard, в паузах между акциями ресторана. Пустой список ресторанов — показ во всех. Менеджер ресторана может заблокировать рекламу у себя.</p>
   <div class="wrap"><table>
     <thead><tr><th>Рекламодатель</th><th>Заголовок</th><th>Картинка (ссылка)</th><th>Ссылка для QR</th><th>Телефон</th><th>QR и телефон: место / размер</th><th>Рестораны</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
     <tbody id="ads"></tbody>
@@ -382,7 +386,7 @@ function renderAds() {
     <td><input data-f="image" value="${esc(a.image)}"><input type="file" accept="image/*" data-upload="image"></td>
     <td><input data-f="link" value="${esc(a.link || '')}" placeholder="https://"></td>
     <td><input data-f="phone" value="${esc(a.phone || '')}"></td>
-    <td><select data-f="qrPos">${Object.entries(QR_POS).map(([v, l]) => `<option value="${v}" ${(a.qrPos || 'top-right') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    <td>${qrGrid(a.qrPos)}
       <select data-f="qrSize">${Object.entries(QR_SIZE).map(([v, l]) => `<option value="${v}" ${(a.qrSize || 'm') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
     <td><select data-f="restaurants" multiple size="3">${rests.map((r) =>
       `<option value="${esc(r.id)}" ${(a.restaurants || []).includes(r.id) ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></td>
@@ -391,7 +395,14 @@ function renderAds() {
     <td><button data-pv="${i}">👁</button><button data-save="${i}">Сохранить</button><button data-del="${i}">✕</button></td></tr>`).join('');
 }
 
-const QR_POS = { 'top-right': 'сверху справа', 'top-left': 'сверху слева', 'middle-right': 'по центру справа', 'middle-left': 'по центру слева', 'bottom-right': 'снизу справа', 'bottom-left': 'снизу слева' };
+// Место блока с QR-кодом: сетка 4 ряда × 3 столбца, как на экране планшета
+const QR_ROWS = { top: 'верх', upper: 'выше центра', lower: 'ниже центра', bottom: 'низ' };
+const QR_COLS = { left: 'слева', center: 'по центру', right: 'справа' };
+const qrGrid = (cur) => {
+  const pos = String(cur || 'top-right').replace('middle', 'upper');
+  return `<div class="qrgrid">${Object.entries(QR_ROWS).flatMap(([r, rl]) => Object.entries(QR_COLS).map(([c, cl]) =>
+    `<button type="button" data-qrpos="${r}-${c}" class="${pos === `${r}-${c}` ? 'on' : ''}" title="${rl}, ${cl}"></button>`)).join('')}</div>`;
+};
 const QR_SIZE = { s: 'маленький', m: 'средний', l: 'большой' };
 const adSlide = (a) => ({ type: 'ad', image: a.image, title: a.title, phone: a.phone, qr: a.link, qrPos: a.qrPos, qrSize: a.qrSize });
 
@@ -410,7 +421,8 @@ $('ads').oninput = $('ads').onchange = async (e) => {
 };
 
 $('ads').onclick = async (e) => {
-  const { save, del, pv } = e.target.dataset;
+  const { save, del, pv, qrpos } = e.target.dataset;
+  if (qrpos) { ads[e.target.closest('tr').dataset.i].qrPos = qrpos; renderAds(); return sendPreview(); }
   if (pv !== undefined) { const a = ads[pv]; return openPreview(() => adSlide(a)); }
   if (save !== undefined) { ads[save] = await api('/api/ads', 'POST', ads[save]); renderAds(); alert('Сохранено'); }
   if (del !== undefined && confirm('Удалить рекламу?')) {
