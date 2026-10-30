@@ -47,6 +47,13 @@
     <button id="delBtn">Удалить ресторан</button>
   </div>
   <p class="hint" id="staffInfo"></p>
+  <h3>Персонал</h3>
+  <div class="wrap"><table>
+    <thead><tr><th>Имя</th><th>Роль</th><th>PIN</th><th></th></tr></thead>
+    <tbody id="staff"></tbody>
+  </table></div>
+  <p><button id="addStaffBtn">+ Сотрудник</button> <span class="hint">PIN можно оставить пустым — придумается при сохранении.</span></p>
+  <h3>Меню</h3>
   <div class="wrap"><table>
     <thead><tr><th>Категория</th><th>Название</th><th>Описание</th><th>Цена ฿</th><th>Фото (ссылка)</th><th>Акция</th><th></th></tr></thead>
     <tbody id="menu"></tbody>
@@ -136,7 +143,7 @@ async function removeDevice(i) {
 
 // ---------- Рестораны и меню
 
-const blank = () => ({ name: '', tables: [], menu: [], langs: ['en', 'th', 'ru', 'zh'] });
+const blank = () => ({ name: '', tables: [], menu: [], staff: [], langs: ['en', 'th', 'ru', 'zh'] });
 
 async function loadRests(selectId) {
   rests = await api('/api/restaurants');
@@ -147,14 +154,35 @@ async function loadRests(selectId) {
 
 function edit(id) {
   cur = structuredClone(rests.find((r) => r.id === id) || blank());
+  cur.staff ??= [];
   $('restSel').value = cur.id || '';
   $('rName').value = cur.name;
   $('rTables').value = cur.tables.join(', ');
   $('staffInfo').innerHTML = cur.staffCode
-    ? `Приложение персонала: <b>${location.origin}/staff/</b> · код ресторана: <b>${esc(cur.staffCode)}</b>`
+    ? `Приложение персонала: <b>${location.origin}/staff/</b> · код ресторана: <b>${esc(cur.staffCode)}</b> · каждый сотрудник входит со своим PIN`
     : 'Сохраните ресторан, чтобы получить код для персонала.';
   renderMenu();
+  renderStaff();
 }
+
+function renderStaff() {
+  $('staff').innerHTML = cur.staff.map((m, i) => `<tr data-i="${i}">
+    <td><input data-f="name" value="${esc(m.name)}"></td>
+    <td><select data-f="role"><option value="waiter">Официант</option><option value="manager" ${m.role === 'manager' ? 'selected' : ''}>Менеджер</option></select></td>
+    <td><input data-f="pin" value="${esc(m.pin || '')}" inputmode="numeric" style="width:90px"></td>
+    <td><button data-del="${i}">✕</button></td></tr>`).join('');
+}
+
+$('staff').oninput = $('staff').onchange = (e) => {
+  const f = e.target.dataset.f;
+  if (f) cur.staff[e.target.closest('tr').dataset.i][f] = e.target.value.trim();
+};
+$('staff').onclick = (e) => {
+  if (e.target.dataset.del === undefined) return;
+  cur.staff.splice(Number(e.target.dataset.del), 1);
+  renderStaff();
+};
+$('addStaffBtn').onclick = () => { cur.staff.push({ role: 'waiter' }); renderStaff(); };
 
 function renderMenu() {
   const l = $('eLang').value;

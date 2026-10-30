@@ -8,6 +8,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { createVapidKeys, sendPush } from './push.mjs';
 
 const PORT = 3000;
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -17,6 +18,8 @@ const DEVICE_KEY = process.env.DEVICE_KEY || '';
 const PUBLIC_URL = process.env.PUBLIC_URL || 'https://app.jetmedia.dev';
 const ONLINE_MS = 45_000;
 const KEEP_MS = 7 * 24 * 3600_000;
+const REMIND_MS = 45_000;
+const MAX_REMINDERS = 5;
 const COMMANDS = ['url', 'reload', 'reboot', 'update'];
 const STATIC = {
   '/': 'portal.html',
@@ -28,13 +31,15 @@ const STATIC = {
 const TYPES = { html: 'text/html; charset=utf-8', json: 'application/manifest+json', js: 'text/javascript' };
 const FILES = Object.fromEntries(Object.values(STATIC).map((f) => [f, fs.readFileSync(new URL(`./${f}`, import.meta.url))]));
 
-let db = { devices: {}, restaurants: {}, calls: [], orders: [] };
+let db = { devices: {}, restaurants: {}, calls: [], orders: [], sessions: {}, vapid: null };
 try {
   db = { ...db, ...JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) };
 } catch {
   // первая версия сервера хранила только devices.json
   try { db.devices = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'devices.json'), 'utf8')); } catch {}
 }
+db.sessions ??= {};
+db.vapid ??= createVapidKeys();
 
 let saveTimer;
 function save() {
@@ -111,8 +116,13 @@ function guestCall(b) {
   if (!c) {
     c = { id: uid(), restaurantId: t.r.id, table: t.table, type: b.type, status: 'new', at: Date.now() };
     db.calls.push(c);
-    save();
   }
+  // Гость нажал ещё раз — напоминаем, но не чаще раза в 20 секунд
+  if (Date.now() - (c.notifiedAt || 0) > 20_000) {
+    c.notifiedAt = Date.now();
+    notify(t.r.id, t.table, b.type);
+  }
+  save();
   return c;
 }
 
@@ -130,35 +140,76 @@ function guestOrder(b) {
   if (!items.length) throw fail(400, 'empty order');
   const o = {
     id: uid(), restaurantId: t.r.id, table: t.table, items,
-    total: items.reduce((s, i) => s + i.price * i.qty, 0), status: 'pending', at: Date.now(),
+    total: items.reduce((s, i) => s + i.price * i.qty, 0), status: 'pending', at: Date.now(), notifiedAt: Date.now(),
   };
   db.orders.push(o);
+  notify(t.r.id, t.table, 'order', ` · ฿${o.total}`);
   save();
   return o;
 }
 
-// ---------- Персонал (вход по коду ресторана)
+// ---------- Персонал: вход по коду ресторана + личному PIN, уведомления через Web Push
 
-function restaurantByCode(code) {
-  const r = Object.values(db.restaurants).find((x) => x.staffCode && x.staffCode === String(code || ''));
-  if (!r) throw fail(403, 'wrong code');
-  return r;
+const PUSH_TEXT = {
+  en: { table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder' },
+  th: { table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง' },
+  ru: { table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание' },
+};
+
+function session(token) {
+  const s = db.sessions[token];
+  const r = s && db.restaurants[s.restaurantId];
+  const member = r && (r.staff || []).find((m) => m.id === s.staffId);
+  if (!member) throw fail(401, 'not signed in');
+  return { s, r, member };
+}
+
+function staffLogin(b) {
+  const r = Object.values(db.restaurants).find((x) => x.staffCode === String(b.code || '').trim());
+  const member = r && (r.staff || []).find((m) => m.pin === String(b.pin || '').trim());
+  if (!member) throw fail(403, 'wrong code or pin');
+  const token = crypto.randomBytes(18).toString('base64url');
+  db.sessions[token] = { restaurantId: r.id, staffId: member.id, at: Date.now(), onShift: true, subs: [], lang: b.lang || 'en' };
+  save();
+  return { token };
 }
 
 function staffState(b, q) {
-  const r = restaurantByCode(q.code);
+  const { s, r, member } = session(q.token);
   return {
-    restaurant: { id: r.id, name: r.name },
+    restaurant: { name: r.name },
+    me: { name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0 },
+    vapidKey: db.vapid.publicKey,
     calls: db.calls.filter((c) => c.restaurantId === r.id && !c.closed && c.status !== 'done'),
     orders: db.orders.filter((o) => o.restaurantId === r.id && !o.closed),
   };
 }
 
+function staffShift(b) {
+  session(b.token).s.onShift = !!b.on;
+  save();
+  return {};
+}
+
+function staffSubscribe(b) {
+  const { s } = session(b.token);
+  if (!b.sub?.endpoint || !b.sub.keys?.p256dh) throw fail(400, 'bad subscription');
+  s.subs = s.subs.filter((x) => x.endpoint !== b.sub.endpoint).concat(b.sub);
+  if (PUSH_TEXT[b.lang]) s.lang = b.lang;
+  save();
+  return {};
+}
+
+function staffLogout(b) {
+  delete db.sessions[b.token];
+  save();
+  return {};
+}
+
 const NEXT = { call: { ack: 'ack', done: 'done' }, order: { confirm: 'confirmed', reject: 'rejected' } };
 
 function staffAction(b) {
-  const r = restaurantByCode(b.code);
-  const by = String(b.staff || '').slice(0, 40);
+  const { r, member } = session(b.token);
   if (b.kind === 'table') {
     // «Стол свободен»: закрываем сессию стола
     for (const x of [...db.calls, ...db.orders]) {
@@ -168,11 +219,40 @@ function staffAction(b) {
     const x = (b.kind === 'call' ? db.calls : db.orders).find((y) => y.id === b.id && y.restaurantId === r.id);
     const status = NEXT[b.kind]?.[b.action];
     if (!x || !status) throw fail(400, 'bad action');
-    Object.assign(x, { status, by, [`${status}At`]: Date.now() });
+    Object.assign(x, { status, by: member.name, [`${status}At`]: Date.now() });
   }
   save();
   return {};
 }
+
+// Пуш всем сотрудникам ресторана, которые на смене и включили уведомления
+function notify(restaurantId, table, kind, extra = '', reminder = false) {
+  for (const s of Object.values(db.sessions)) {
+    if (s.restaurantId !== restaurantId || !s.onShift || !s.subs.length) continue;
+    const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en;
+    const data = { title: `${L.table} ${table}`, body: (reminder ? `${L.again}: ` : '') + L[kind] + extra, tag: `${kind}-${table}` };
+    for (const sub of s.subs) {
+      sendPush(sub, data, db.vapid).then((ok) => {
+        if (!ok) { s.subs = s.subs.filter((x) => x !== sub); save(); }
+      });
+    }
+  }
+}
+
+// Никто не нажал «Иду» или «Подтвердить» — напоминаем каждые 45 секунд, до 5 раз
+setInterval(() => {
+  const now = Date.now();
+  const waiting = [
+    ...db.calls.filter((c) => c.status === 'new').map((c) => [c, c.type]),
+    ...db.orders.filter((o) => o.status === 'pending').map((o) => [o, 'order']),
+  ];
+  for (const [x, kind] of waiting) {
+    if (x.closed || (x.reminders || 0) >= MAX_REMINDERS || now - (x.notifiedAt || x.at) < REMIND_MS) continue;
+    x.reminders = (x.reminders || 0) + 1;
+    x.notifiedAt = now;
+    notify(x.restaurantId, x.table, kind, '', true);
+  }
+}, 15_000);
 
 // ---------- Администратор
 
@@ -183,6 +263,17 @@ function cleanMenu(menu) {
       id: i.id || uid(), cat: i.cat || {}, name: i.name, desc: i.desc || {},
       price: Number(i.price) || 0, photo: String(i.photo || ''), promo: !!i.promo,
     }));
+}
+
+// PIN — 4–8 цифр, уникальный в ресторане; пустой или повторный заменяем случайным
+function cleanStaff(list) {
+  const used = new Set();
+  return list.filter((m) => m && String(m.name || '').trim()).map((m) => {
+    let pin = String(m.pin || '').trim();
+    while (!/^\d{4,8}$/.test(pin) || used.has(pin)) pin = String(crypto.randomInt(1000, 10000));
+    used.add(pin);
+    return { id: m.id || uid(), name: String(m.name).trim().slice(0, 40), role: m.role === 'manager' ? 'manager' : 'waiter', pin };
+  });
 }
 
 function admin(method, p, b) {
@@ -201,6 +292,7 @@ function admin(method, p, b) {
       tables: (b.tables || []).map(String),
       langs: b.langs || prev.langs || ['en', 'th', 'ru', 'zh'],
       menu: Array.isArray(b.menu) ? cleanMenu(b.menu) : prev.menu || [],
+      staff: Array.isArray(b.staff) ? cleanStaff(b.staff) : prev.staff || [],
     };
     save();
     return db.restaurants[id];
@@ -236,6 +328,10 @@ const PUBLIC = {
   'POST /api/guest/order': guestOrder,
   'GET /api/staff/state': staffState,
   'POST /api/staff/action': staffAction,
+  'POST /api/staff/login': staffLogin,
+  'POST /api/staff/shift': staffShift,
+  'POST /api/staff/subscribe': staffSubscribe,
+  'POST /api/staff/logout': staffLogout,
 };
 
 http.createServer(async (req, res) => {

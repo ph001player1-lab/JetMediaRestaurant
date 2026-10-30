@@ -12,17 +12,21 @@
   .box { max-width: 420px; margin: 12vh auto; padding: 24px; background: #fff; border-radius: 16px; display: flex; flex-direction: column; gap: 12px; }
   input, button { font: inherit; font-size: 18px; padding: 12px; border-radius: 10px; border: 1px solid #ddd; }
   button { background: #1f1a17; color: #fff; border: 0; cursor: pointer; }
-  header { display: flex; gap: 8px; align-items: center; padding: 12px 16px; background: #fff; position: sticky; top: 0; }
+  header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 16px; background: #fff; position: sticky; top: 0; }
   header b { flex: 1; }
+  header button { font-size: 14px; padding: 8px 12px; }
   .langs button { background: none; color: inherit; border: 1px solid #ddd; padding: 6px 10px; font-size: 14px; }
+  #shiftBtn.off { background: #999; }
   main { padding: 0 16px 32px; max-width: 720px; margin: auto; }
+  .banner { background: #fff3cd; border-radius: 12px; padding: 12px; margin: 12px 0; }
+  .banner button { margin-top: 8px; }
   .card { background: #fff; border-radius: 12px; padding: 12px; margin: 8px 0; border-left: 6px solid #c8553d; }
   .card.ack, .card.confirmed { border-color: #2e7d32; }
   .card.rejected { border-color: #999; opacity: .6; }
   .card ul { margin: 6px 0; padding-left: 20px; }
   .card button { margin: 8px 8px 0 0; font-size: 16px; padding: 10px 14px; }
   #tables button { margin: 4px; background: #efe7df; color: #1f1a17; }
-  .empty, .hint { color: #8a7f76; }
+  .empty { color: #8a7f76; }
   .err { color: #c62828; min-height: 1em; }
 </style>
 </head>
@@ -30,19 +34,20 @@
 <div id="login" class="box">
   <div class="langs"><button data-l="en">EN</button> <button data-l="th">ไทย</button> <button data-l="ru">RU</button></div>
   <h2 data-t="login"></h2>
-  <input id="code" data-t="code" inputmode="numeric">
-  <input id="name" data-t="name">
+  <input id="code" data-t="code" inputmode="numeric" autocomplete="off">
+  <input id="pin" data-t="pin" inputmode="numeric" type="password" autocomplete="off">
   <button id="go" data-t="start"></button>
   <p class="err" id="err"></p>
 </div>
 <div id="work" hidden>
   <header>
     <b id="rname"></b><span id="who"></span>
+    <button id="shiftBtn"></button>
     <span class="langs"><button data-l="en">EN</button><button data-l="th">ไทย</button><button data-l="ru">RU</button></span>
     <button id="out" data-t="out"></button>
   </header>
   <main>
-    <p class="hint" data-t="hint"></p>
+    <div class="banner" id="pushBanner" hidden><span id="pushText"></span><br><button id="pushBtn" data-t="push"></button></div>
     <h3 data-t="calls"></h3><div id="calls"></div>
     <h3 data-t="orders"></h3><div id="orders"></div>
     <h3 data-t="tables"></h3><div id="tables"></div>
@@ -50,26 +55,37 @@
 </div>
 <script>
 const T = {
-  en: { login: 'Staff sign-in', code: 'Restaurant code', name: 'Your name', start: 'Start shift', out: 'Sign out',
+  en: { login: 'Staff sign-in', code: 'Restaurant code', pin: 'Your PIN', start: 'Sign in', out: 'Sign out',
         calls: 'Calls', orders: 'Orders', tables: 'Tables', table: 'Table', waiter: 'Waiter call', bill: 'Bill',
         going: 'On my way', done: 'Done', confirm: 'Confirm', reject: 'Reject', free: 'is free', none: 'Nothing yet',
-        pending: 'awaiting confirmation', confirmed: 'confirmed', rejected: 'rejected', wrong: 'Wrong restaurant code',
-        hint: 'Keep this page open to hear new calls' },
-  th: { login: 'เข้าสู่ระบบพนักงาน', code: 'รหัสร้าน', name: 'ชื่อของคุณ', start: 'เริ่มกะ', out: 'ออกจากระบบ',
+        pending: 'awaiting confirmation', confirmed: 'confirmed', rejected: 'rejected', wrong: 'Wrong restaurant code or PIN',
+        shiftOn: 'On shift', shiftOff: 'Off shift', push: 'Turn on notifications',
+        pushText: 'Turn on notifications to get calls even when the phone is locked.',
+        iosHint: 'iPhone: tap Share → Add to Home Screen, open the app from the home screen and turn on notifications there.',
+        noPush: 'This browser does not support notifications. Keep this page open.',
+        denied: 'Notifications are blocked. Allow them in the browser or phone settings.' },
+  th: { login: 'เข้าสู่ระบบพนักงาน', code: 'รหัสร้าน', pin: 'PIN ของคุณ', start: 'เข้าสู่ระบบ', out: 'ออกจากระบบ',
         calls: 'การเรียก', orders: 'ออร์เดอร์', tables: 'โต๊ะ', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'เช็คบิล',
         going: 'กำลังไป', done: 'เสร็จแล้ว', confirm: 'ยืนยัน', reject: 'ปฏิเสธ', free: 'ว่างแล้ว', none: 'ยังไม่มี',
-        pending: 'รอยืนยัน', confirmed: 'ยืนยันแล้ว', rejected: 'ปฏิเสธแล้ว', wrong: 'รหัสร้านไม่ถูกต้อง',
-        hint: 'เปิดหน้านี้ไว้เพื่อรับเสียงแจ้งเตือน' },
-  ru: { login: 'Вход для персонала', code: 'Код ресторана', name: 'Ваше имя', start: 'Начать смену', out: 'Выйти',
+        pending: 'รอยืนยัน', confirmed: 'ยืนยันแล้ว', rejected: 'ปฏิเสธแล้ว', wrong: 'รหัสร้านหรือ PIN ไม่ถูกต้อง',
+        shiftOn: 'อยู่ในกะ', shiftOff: 'นอกกะ', push: 'เปิดการแจ้งเตือน',
+        pushText: 'เปิดการแจ้งเตือนเพื่อรับการเรียกแม้หน้าจอล็อกอยู่',
+        iosHint: 'iPhone: แตะ แชร์ → เพิ่มไปยังหน้าจอโฮม แล้วเปิดแอปจากหน้าจอโฮมและเปิดการแจ้งเตือน',
+        noPush: 'เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน กรุณาเปิดหน้านี้ไว้',
+        denied: 'การแจ้งเตือนถูกบล็อก กรุณาอนุญาตในการตั้งค่า' },
+  ru: { login: 'Вход для персонала', code: 'Код ресторана', pin: 'Ваш PIN', start: 'Войти', out: 'Выйти',
         calls: 'Вызовы', orders: 'Заказы', tables: 'Столы', table: 'Стол', waiter: 'Вызов', bill: 'Счёт',
         going: 'Иду', done: 'Готово', confirm: 'Подтвердить', reject: 'Отклонить', free: 'свободен', none: 'Пока пусто',
-        pending: 'ждёт подтверждения', confirmed: 'подтверждён', rejected: 'отклонён', wrong: 'Неверный код ресторана',
-        hint: 'Держите страницу открытой, чтобы слышать вызовы' },
+        pending: 'ждёт подтверждения', confirmed: 'подтверждён', rejected: 'отклонён', wrong: 'Неверный код ресторана или PIN',
+        shiftOn: 'На смене', shiftOff: 'Не на смене', push: 'Включить уведомления',
+        pushText: 'Включите уведомления, чтобы получать вызовы даже на заблокированный телефон.',
+        iosHint: 'iPhone: нажмите «Поделиться» → «На экран Домой», откройте приложение с главного экрана и включите уведомления там.',
+        noPush: 'Этот браузер не поддерживает уведомления. Держите страницу открытой.',
+        denied: 'Уведомления запрещены. Разрешите их в настройках браузера или телефона.' },
 };
 
 let lang = localStorage.lang || 'en';
-let code = localStorage.code || '';
-let staff = localStorage.staff || '';
+let token = localStorage.token || '';
 let seen = new Set(), first = true, audio = null, timer = null, last = null;
 
 const $ = (id) => document.getElementById(id);
@@ -77,6 +93,9 @@ const t = (k) => (T[lang] || T.en)[k] || k;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const ago = (ms) => `${Math.max(0, Math.floor((Date.now() - ms) / 60000))} min`;
 const itemName = (n) => (typeof n === 'string' ? n : n[lang] || n.en || n.th || Object.values(n)[0] || '');
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+const canPush = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 
 function texts() {
   document.querySelectorAll('[data-t]').forEach((el) => {
@@ -90,11 +109,11 @@ async function api(path, body) {
     ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
     : undefined);
   const j = await r.json();
-  if (!r.ok) throw new Error(j.error);
+  if (!r.ok) throw Object.assign(new Error(j.error), { status: r.status });
   return j;
 }
 
-// Два коротких сигнала и вибрация на новый вызов или заказ
+// Сигнал и вибрация, пока страница открыта; на заблокированном телефоне работают push-уведомления
 function beep() {
   if (audio) {
     for (const d of [0, 0.5]) {
@@ -110,41 +129,68 @@ function beep() {
   navigator.vibrate?.([300, 150, 300]);
 }
 
-async function start() {
+async function refresh() {
   try {
-    render(await api(`/api/staff/state?code=${encodeURIComponent(code)}`));
-    localStorage.code = code;
-    localStorage.staff = staff;
+    render(await api(`/api/staff/state?token=${encodeURIComponent(token)}`));
     $('login').hidden = true;
     $('work').hidden = false;
-    clearInterval(timer);
-    timer = setInterval(refresh, 3000);
-    navigator.wakeLock?.request('screen').catch(() => {});
+  } catch (e) {
+    if (e.status === 401) logout();
+  }
+}
+
+function logout() {
+  if (token) api('/api/staff/logout', { token }).catch(() => {});
+  clearInterval(timer);
+  localStorage.removeItem('token');
+  token = '';
+  $('work').hidden = true;
+  $('login').hidden = false;
+}
+
+async function login() {
+  try {
+    const r = await api('/api/staff/login', { code: $('code').value, pin: $('pin').value, lang });
+    token = localStorage.token = r.token;
+    localStorage.code = $('code').value;
+    $('pin').value = '';
+    startTimer();
+    await refresh();
   } catch {
     $('err').textContent = t('wrong');
   }
 }
 
-async function refresh() {
-  try {
-    render(await api(`/api/staff/state?code=${encodeURIComponent(code)}`));
-  } catch (e) {
-    if (e.message === 'wrong code') logout();
-  }
+function startTimer() {
+  clearInterval(timer);
+  timer = setInterval(refresh, 3000);
+  navigator.wakeLock?.request('screen').catch(() => {});
 }
 
-function logout() {
-  clearInterval(timer);
-  localStorage.removeItem('code');
-  code = '';
-  $('work').hidden = true;
-  $('login').hidden = false;
+function urlB64ToBytes(s) {
+  const raw = atob((s + '='.repeat((4 - (s.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+async function enablePush() {
+  if (!canPush) return alert(t(isIOS && !standalone ? 'iosHint' : 'noPush'));
+  if (await Notification.requestPermission() !== 'granted') return alert(t('denied'));
+  const reg = await navigator.serviceWorker.ready;
+  const sub = (await reg.pushManager.getSubscription())
+    || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToBytes(last.vapidKey) });
+  await api('/api/staff/subscribe', { token, sub: sub.toJSON(), lang });
+  refresh();
 }
 
 function render(s) {
   last = s;
   $('rname').textContent = s.restaurant.name;
-  $('who').textContent = staff;
+  $('who').textContent = s.me.name;
+  $('shiftBtn').textContent = t(s.me.onShift ? 'shiftOn' : 'shiftOff');
+  $('shiftBtn').className = s.me.onShift ? '' : 'off';
+  $('pushBanner').hidden = s.me.push;
+  $('pushText').textContent = t(isIOS && !standalone ? 'iosHint' : 'pushText');
+  $('pushBtn').hidden = isIOS && !standalone;
 
   let fresh = false;
   for (const x of [...s.calls.filter((c) => c.status === 'new'), ...s.orders.filter((o) => o.status === 'pending')]) {
@@ -184,25 +230,29 @@ document.addEventListener('click', async (e) => {
     lang = localStorage.lang = b.dataset.l;
     texts();
     if (last) render(last);
+    // язык push-уведомлений тоже меняем
+    if (last?.me.push) enablePush();
   } else if (b.dataset.act) {
     const [kind, id, action] = b.dataset.act.split('|');
-    await api('/api/staff/action', { code, staff, kind, id, action });
+    await api('/api/staff/action', { token, kind, id, action });
     refresh();
   } else if (b.id === 'go') {
-    code = $('code').value.trim();
-    staff = $('name').value.trim();
     $('err').textContent = '';
-    start();
+    login();
+  } else if (b.id === 'shiftBtn') {
+    await api('/api/staff/shift', { token, on: !last.me.onShift });
+    refresh();
+  } else if (b.id === 'pushBtn') {
+    enablePush();
   } else if (b.id === 'out') {
     logout();
   }
 });
 
-$('code').value = code;
-$('name').value = staff;
+$('code').value = localStorage.code || '';
 texts();
-if (code) start();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/staff/sw.js');
+if (token) { startTimer(); refresh(); }
 </script>
 </body>
 </html>
