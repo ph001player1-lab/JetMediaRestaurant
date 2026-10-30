@@ -124,7 +124,8 @@ async function loadDevices() {
     const t = d.telemetry || {};
     return `<tr>
       <td>${esc(t.model)}<br><small>${esc(d.id)}</small></td>
-      <td class="${d.online ? 'online' : 'offline'}">${d.online ? 'онлайн' : 'офлайн'}${d.pending ? ` · в очереди: ${d.pending}` : ''}</td>
+      <td class="${d.online ? 'online' : 'offline'}">${d.online ? 'онлайн' : 'офлайн'}${d.pending ? ` · в очереди: ${d.pending}` : ''}
+        ${t.wifi ? `<br><small>Wi-Fi: ${esc(t.wifi)} · ${esc(t.rssi)} dBm</small>` : ''}</td>
       <td>${t.battery ?? '—'}%${t.charging ? ' ⚡' : ''}</td>
       <td>${esc(t.version)}</td>
       <td><select onchange="assign(${i}, this.value)">${placeOptions(d)}</select><br><small>${esc(t.url || 'экран статуса')}</small></td>

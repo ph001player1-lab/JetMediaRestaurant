@@ -13,14 +13,22 @@
   .box { max-width: 420px; margin: 12vh auto; padding: 24px; background: #fff; border-radius: 16px; display: flex; flex-direction: column; gap: 12px; }
   input, button { font: inherit; font-size: 18px; padding: 12px; border-radius: 10px; border: 1px solid #ddd; }
   button { background: #1f1a17; color: #fff; border: 0; cursor: pointer; }
-  header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 16px; background: #fff; position: sticky; top: 0; }
-  header b { flex: 1; }
+  .top { position: sticky; top: 0; z-index: 10; background: #fff; box-shadow: 0 1px 0 #eee; }
+  header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; }
+  header .who { flex: 1; min-width: 140px; display: flex; flex-direction: column; }
+  header .who b { font-size: 17px; }
+  header .who span { color: #8a7f76; font-size: 14px; }
+  header .ctrl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   header button { font-size: 14px; padding: 8px 12px; }
   .langs button { background: none; color: inherit; border: 1px solid #ddd; padding: 6px 10px; font-size: 14px; }
   #shiftBtn { background: #2e7d32; }
   #shiftBtn.off { background: #c62828; }
   [hidden] { display: none !important; }
-  .tabs { display: flex; gap: 4px; overflow-x: auto; padding: 0 16px; background: #fff; border-top: 1px solid #eee; position: sticky; top: 0; }
+  .tabs { display: flex; gap: 4px; overflow-x: auto; padding: 0 16px; border-top: 1px solid #eee; }
+  .line { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #eee; }
+  .line span { flex: 1; }
+  .line button { width: 40px; padding: 8px 0; }
+  .results button { display: block; width: 100%; text-align: left; margin: 4px 0; background: #efe7df; color: #1f1a17; font-size: 15px; padding: 10px; }
   .tabs button { background: none; color: inherit; font-size: 15px; padding: 10px 12px; border-radius: 0; border-bottom: 2px solid transparent; white-space: nowrap; }
   .tabs button.on { border-color: #1f1a17; font-weight: 600; }
   .ed { background: #fff; border-radius: 12px; padding: 12px; margin: 8px 0; display: grid; gap: 8px; }
@@ -66,15 +74,19 @@
   <p class="err" id="err"></p>
 </div>
 <div id="work" hidden>
+  <div class="top">
   <header>
-    <b id="rname"></b><span id="who"></span>
-    <button id="shiftBtn"></button>
-    <span class="langs"><button data-l="en">EN</button><button data-l="th">ไทย</button><button data-l="ru">RU</button></span>
-    <button id="out" data-t="out"></button>
+    <div class="who"><b id="rname"></b><span id="who"></span></div>
+    <div class="ctrl">
+      <button id="shiftBtn"></button>
+      <span class="langs"><button data-l="en">EN</button><button data-l="th">ไทย</button><button data-l="ru">RU</button></span>
+      <button id="out" data-t="out"></button>
+    </div>
   </header>
   <nav class="tabs" id="tabs" hidden>
     <button data-tab="tWork" class="on" data-t="tabWork"></button><button data-tab="tStaff" data-t="tabStaff"></button><button data-tab="tMenu" data-t="tabMenu"></button><button data-tab="tPromos" data-t="tabPromos"></button><button data-tab="tAds" data-t="tabAds"></button>
   </nav>
+  </div>
   <main><section id="tWork">
     <div class="banner" id="pushBanner" hidden><span id="pushText"></span><br><button id="pushBtn" data-t="push"></button></div>
     <h3 data-t="calls"></h3><div id="calls"></div>
@@ -109,7 +121,7 @@ const T = {
         srcLang: 'Source language', srcInterval: 'Check for changes', int_hourly: 'Every hour', int_daily: 'Once a day', int_off: 'Only by button',
         syncNow: 'Sync now', syncing: 'Syncing…', lastSync: 'Last sync', items: 'items', search: 'Search by name or code', all: 'All',
         upload: 'Upload photo', hide: 'Hide from tablets', close: 'Close', synced: 'Fields from the source are updated on every sync',
-        display: 'Display on tablets', idleSec: 'Start the slideshow after idle, seconds', slideSec: 'Seconds per slide', titleSize: 'Title size, px', textSize: 'Text size, px', textColor: 'Text color', bgColor: 'Caption background', sampleTitle: 'Sample title', sampleText: 'Sample text under the title' },
+        edit: 'Edit', addDish: 'Add a dish — search by name or code', total: 'Total', editedBy: 'edited', display: 'Display on tablets', idleSec: 'Start the slideshow after idle, seconds', slideSec: 'Seconds per slide', titleSize: 'Title size, px', textSize: 'Text size, px', textColor: 'Text color', bgColor: 'Caption background', sampleTitle: 'Sample title', sampleText: 'Sample text under the title' },
   th: { login: 'เข้าสู่ระบบพนักงาน', code: 'รหัสร้าน', pin: 'PIN ของคุณ', start: 'เข้าสู่ระบบ', out: 'ออกจากระบบ',
         calls: 'การเรียก', orders: 'ออร์เดอร์', tables: 'โต๊ะ', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'เช็คบิล',
         going: 'กำลังไป', done: 'เสร็จแล้ว', confirm: 'ยืนยัน', reject: 'ปฏิเสธ', free: 'ว่างแล้ว', none: 'ยังไม่มี',
@@ -131,7 +143,7 @@ const T = {
         srcLang: 'ภาษาของแหล่งที่มา', srcInterval: 'ตรวจสอบการเปลี่ยนแปลง', int_hourly: 'ทุกชั่วโมง', int_daily: 'วันละครั้ง', int_off: 'เมื่อกดปุ่มเท่านั้น',
         syncNow: 'ซิงก์ตอนนี้', syncing: 'กำลังซิงก์…', lastSync: 'ซิงก์ล่าสุด', items: 'รายการ', search: 'ค้นหาตามชื่อหรือรหัส', all: 'ทั้งหมด',
         upload: 'อัปโหลดรูป', hide: 'ซ่อนจากแท็บเล็ต', close: 'ปิด', synced: 'ข้อมูลจากแหล่งที่มาจะอัปเดตทุกครั้งที่ซิงก์',
-        display: 'การแสดงผลบนแท็บเล็ต', idleSec: 'เริ่มสไลด์เมื่อไม่มีการใช้งาน (วินาที)', slideSec: 'วินาทีต่อสไลด์', titleSize: 'ขนาดหัวข้อ (px)', textSize: 'ขนาดข้อความ (px)', textColor: 'สีข้อความ', bgColor: 'สีพื้นหลังข้อความ', sampleTitle: 'ตัวอย่างหัวข้อ', sampleText: 'ตัวอย่างข้อความใต้หัวข้อ' },
+        edit: 'แก้ไข', addDish: 'เพิ่มเมนู — ค้นหาตามชื่อหรือรหัส', total: 'รวม', editedBy: 'แก้ไขโดย', display: 'การแสดงผลบนแท็บเล็ต', idleSec: 'เริ่มสไลด์เมื่อไม่มีการใช้งาน (วินาที)', slideSec: 'วินาทีต่อสไลด์', titleSize: 'ขนาดหัวข้อ (px)', textSize: 'ขนาดข้อความ (px)', textColor: 'สีข้อความ', bgColor: 'สีพื้นหลังข้อความ', sampleTitle: 'ตัวอย่างหัวข้อ', sampleText: 'ตัวอย่างข้อความใต้หัวข้อ' },
   ru: { login: 'Вход для персонала', code: 'Код ресторана', pin: 'Ваш PIN', start: 'Войти', out: 'Выйти',
         calls: 'Вызовы', orders: 'Заказы', tables: 'Столы', table: 'Стол', waiter: 'Вызов', bill: 'Счёт',
         going: 'Иду', done: 'Готово', confirm: 'Подтвердить', reject: 'Отклонить', free: 'свободен', none: 'Пока пусто',
@@ -153,7 +165,7 @@ const T = {
         srcLang: 'Язык источника', srcInterval: 'Проверять изменения', int_hourly: 'Каждый час', int_daily: 'Раз в день', int_off: 'Только по кнопке',
         syncNow: 'Синхронизировать сейчас', syncing: 'Синхронизация…', lastSync: 'Последняя синхронизация', items: 'блюд', search: 'Поиск по названию или коду', all: 'Все',
         upload: 'Загрузить фото', hide: 'Скрыть с планшетов', close: 'Закрыть', synced: 'Поля из источника обновляются при каждой синхронизации',
-        display: 'Показ на планшетах', idleSec: 'Через сколько секунд простоя начинать показ', slideSec: 'Секунд на один слайд', titleSize: 'Размер заголовка, px', textSize: 'Размер текста, px', textColor: 'Цвет текста', bgColor: 'Цвет фона подписи', sampleTitle: 'Пример заголовка', sampleText: 'Пример текста под заголовком' },
+        edit: 'Изменить', addDish: 'Добавить блюдо — поиск по названию или коду', total: 'Итого', editedBy: 'изменил', display: 'Показ на планшетах', idleSec: 'Через сколько секунд простоя начинать показ', slideSec: 'Секунд на один слайд', titleSize: 'Размер заголовка, px', textSize: 'Размер текста, px', textColor: 'Цвет текста', bgColor: 'Цвет фона подписи', sampleTitle: 'Пример заголовка', sampleText: 'Пример текста под заголовком' },
 };
 
 let lang = localStorage.lang || 'en';
@@ -256,7 +268,7 @@ async function enablePush() {
 
 function render(s) {
   // Вышла новая версия приложения — перезагружаемся, если ничего не редактируется
-  if (appBuild && s.build !== appBuild && !$('tWork').hidden) return location.reload();
+  if (appBuild && s.build !== appBuild && !$('tWork').hidden && $('modal').hidden) return location.reload();
   appBuild ??= s.build;
   last = s;
   $('rname').textContent = s.restaurant.name;
@@ -283,11 +295,17 @@ function render(s) {
       <div>${c.status === 'new' ? btn('call', c.id, 'ack', 'going') : ''}${btn('call', c.id, 'done', 'done')}</div>
     </div>`).join('') || `<p class="empty">${t('none')}</p>`;
 
-  $('orders').innerHTML = s.orders.map((o) => `<div class="card ${o.status}">
+  $('orders').innerHTML = s.orders.map((o) => `<div class="card ${o.ackAt && o.status === 'pending' ? 'ack' : o.status}">
       <b>${t('table')} ${esc(o.table)}</b> · ${ago(o.at)} · ${t(o.status)}${by(o)}
+      ${o.ackBy ? ` · ${t('going')}: ${esc(o.ackBy)}` : ''}${o.editedBy ? ` · ${t('editedBy')}: ${esc(o.editedBy)}` : ''}
       <ul>${o.items.map((i) => `<li>${i.qty} × ${esc(itemName(i.name))}</li>`).join('')}</ul>
       <b>฿${o.total.toLocaleString('en')}</b>
-      <div>${o.status === 'pending' ? btn('order', o.id, 'confirm', 'confirm') + btn('order', o.id, 'reject', 'reject') : ''}</div>
+      <div>
+        ${o.status === 'pending' && !o.ackAt ? btn('order', o.id, 'ack', 'going') : ''}
+        ${o.status === 'pending' ? btn('order', o.id, 'confirm', 'confirm') : ''}
+        ${o.status !== 'rejected' ? `<button data-oedit="${esc(o.id)}">${t('edit')}</button>` : ''}
+        ${o.status === 'pending' ? btn('order', o.id, 'reject', 'reject') : ''}
+      </div>
     </div>`).join('') || `<p class="empty">${t('none')}</p>`;
 
   const busy = [...new Set([...s.calls, ...s.orders].map((x) => x.table))];
@@ -315,6 +333,23 @@ document.addEventListener('click', async (e) => {
     const [kind, id, action] = b.dataset.act.split('|');
     await api('/api/staff/action', { token, kind, id, action });
     refresh();
+  } else if (b.dataset.oedit) {
+    openOrderEditor(b.dataset.oedit);
+  } else if (b.dataset.oinc || b.dataset.odec) {
+    const l = oedit.lines[Number(b.dataset.oinc ?? b.dataset.odec)];
+    l.qty += b.dataset.oinc ? 1 : -1;
+    oedit.lines = oedit.lines.filter((x) => x.qty > 0);
+    renderOrderEditor();
+  } else if (b.dataset.oadd) {
+    addOrderLine(b.dataset.oadd);
+    oedit.q = '';
+    renderOrderEditor();
+  } else if (b.dataset.osave) {
+    if (oedit.lines.length) await api('/api/staff/action', { token, kind: 'order', id: oedit.id, action: 'edit', items: oedit.lines });
+    closeItem();
+    refresh();
+  } else if (b.dataset.oclose) {
+    closeItem();
   } else if (b.dataset.mcat !== undefined) {
     mcat = b.dataset.mcat;
     renderGrid();
@@ -371,6 +406,50 @@ document.addEventListener('click', async (e) => {
     logout();
   }
 });
+
+// ---------- Правка заказа официантом: количество, удаление, новые блюда из меню
+
+let staffMenuCache = null, oedit = null;
+
+async function openOrderEditor(id) {
+  const o = last.orders.find((x) => x.id === id);
+  if (!o) return;
+  staffMenuCache ??= await api(`/api/staff/menu?token=${encodeURIComponent(token)}`);
+  oedit = { id, table: o.table, lines: o.items.map((i) => ({ id: i.id, opt: i.opt || '', qty: i.qty, name: itemName(i.name), price: i.price })), q: '' };
+  renderOrderEditor();
+}
+
+function renderOrderEditor() {
+  const total = oedit.lines.reduce((s, l) => s + l.price * l.qty, 0);
+  $('modal').innerHTML = `<div class="ed">
+      <b>${t('table')} ${esc(oedit.table)} — ${t('edit')}</b>
+      ${oedit.lines.map((l, i) => `<div class="line"><span>${esc(l.name)}</span>
+        <button data-odec="${i}">−</button><b>${l.qty}</b><button data-oinc="${i}">+</button></div>`).join('')}
+      <b>${t('total')}: ฿${total.toLocaleString('en')}</b>
+      <input class="osearch msearch" placeholder="${t('addDish')}" value="${esc(oedit.q)}">
+      <div class="results" id="ores"></div>
+      <div class="bar"><button data-osave="1">${t('save')}</button><button class="ghostbtn" data-oclose="1">${t('close')}</button></div>
+    </div>`;
+  $('modal').hidden = false;
+  renderOrderResults();
+}
+
+function renderOrderResults() {
+  const q = oedit.q.trim().toLowerCase();
+  const found = !q ? [] : staffMenuCache.filter((m) => `${m.sku || ''} ${Object.values(m.name || {}).join(' ')}`.toLowerCase().includes(q)).slice(0, 8);
+  $('ores').innerHTML = found.flatMap((m) => ((m.options || []).length
+    ? m.options.map((o) => `<button data-oadd="${esc(m.id)}|${esc(o.key)}">${esc(itemName(m.name))} · ${esc(itemName(o.label))} · ฿${o.price}</button>`)
+    : [`<button data-oadd="${esc(m.id)}|">${esc(itemName(m.name))} · ฿${m.price}</button>`])).join('');
+}
+
+function addOrderLine(key) {
+  const [id, opt] = key.split('|');
+  const line = oedit.lines.find((l) => l.id === id && l.opt === opt);
+  if (line) { line.qty++; return; }
+  const m = staffMenuCache.find((x) => x.id === id);
+  const o = opt ? m.options.find((x) => x.key === opt) : null;
+  oedit.lines.push({ id, opt, qty: 1, name: itemName(m.name) + (o ? ` · ${itemName(o.label)}` : ''), price: Number(o ? o.price : m.price) || 0 });
+}
 
 // ---------- Кабинет менеджера: персонал и столы, меню, акции, внешняя реклама
 
@@ -551,6 +630,7 @@ async function onEdit(e) {
     if (e.type === 'change') { elang = el.value; mcat = ''; renderManager(); }
     return;
   }
+  if (el.classList.contains('osearch')) { oedit.q = el.value; renderOrderResults(); return; }
   if (el.classList.contains('msearch')) { mq = el.value; renderGrid(); return; }
   if (el.dataset.df && mgr) {
     mgr.restaurant.display[el.dataset.df] = el.type === 'number' ? Number(el.value) : el.value;

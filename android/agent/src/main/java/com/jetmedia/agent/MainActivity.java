@@ -1,5 +1,6 @@
 package com.jetmedia.agent;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.admin.DevicePolicyManager;
@@ -10,6 +11,12 @@ import android.content.SharedPreferences;
 import android.app.PendingIntent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -23,6 +30,8 @@ import android.util.Base64;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -39,6 +48,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -60,6 +70,8 @@ public class MainActivity extends Activity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newSingleThreadExecutor();
+    private final Runnable retryLoad = this::load;
+    private long offlineSince;
     private DevicePolicyManager dpm;
     private ComponentName admin;
     private SharedPreferences prefs;
@@ -81,7 +93,16 @@ public class MainActivity extends Activity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
-        web.setWebViewClient(new WebViewClient());
+        web.setWebViewClient(new WebViewClient() {
+            // Страница не загрузилась (нет сети при включении) — показываем заглушку и пробуем снова через 10 секунд
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (!request.isForMainFrame()) return;
+                view.loadDataWithBaseURL(null, offlinePage(), "text/html", "utf-8", null);
+                handler.removeCallbacks(retryLoad);
+                handler.postDelayed(retryLoad, 10000);
+            }
+        });
 
         View corner = new View(this);
         corner.setOnClickListener(v -> onCornerTap());
@@ -154,6 +175,14 @@ public class MainActivity extends Activity {
                 + "<p>Сервер: " + server() + "</p><p>ID: " + deviceId() + "</p></body></html>";
     }
 
+    private String offlinePage() {
+        return "<html><body style='margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;"
+                + "justify-content:center;text-align:center;background:#1f1a17;color:#fff;font-family:sans-serif;font-size:22px;line-height:1.6'>"
+                + "<h1>📶</h1><p>Нет связи — восстанавливаем подключение<br>No connection — reconnecting<br>"
+                + "ไม่มีการเชื่อมต่อ — กำลังเชื่อมต่อใหม่<br>网络中断——正在重新连接</p>"
+                + "<p style='opacity:.7'>Пожалуйста, позовите официанта жестом · Please wave to the waiter</p></body></html>";
+    }
+
     private String server() {
         String s = prefs.getString("server", "");
         return s.isEmpty() ? DEFAULT_SERVER : s;
@@ -172,8 +201,13 @@ public class MainActivity extends Activity {
     }
 
     private void pollServer() {
+        checkWifi();
         try {
             JSONObject t = new JSONObject();
+            WifiInfo wifiInfo = wifi().getConnectionInfo();
+            if (wifiInfo != null && wifiInfo.getNetworkId() != -1) {
+                t.put("wifi", wifiInfo.getSSID().replace("\"", "")).put("rssi", wifiInfo.getRssi());
+            }
             Intent battery = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
             if (battery != null) {
                 int scale = Math.max(1, battery.getIntExtra(BatteryManager.EXTRA_SCALE, 100));
@@ -198,6 +232,63 @@ public class MainActivity extends Activity {
             }
         } catch (Exception ignored) {
             // нет сети или сервера — попробуем в следующий раз
+        }
+    }
+
+    private WifiManager wifi() {
+        return (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+    }
+
+    // Интернета нет дольше минуты — подключаемся к сохранённой сети, а если её не видно — к самой сильной открытой.
+    // Владельцу устройства Android разрешает управлять Wi-Fi напрямую.
+    private void checkWifi() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            NetworkCapabilities caps = cm.getNetworkCapabilities(cm.getActiveNetwork());
+            if (caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                offlineSince = 0;
+                return;
+            }
+            long now = System.currentTimeMillis();
+            if (offlineSince == 0) offlineSince = now;
+            if (now - offlineSince < 60000 || !isOwner()) return;
+            offlineSince = now; // следующая попытка — через минуту
+
+            WifiManager wifi = wifi();
+            if (!wifi.isWifiEnabled()) {
+                wifi.setWifiEnabled(true);
+                return;
+            }
+            wifi.startScan();
+            String current = wifi.getConnectionInfo().getSSID();
+            List<WifiConfiguration> saved = wifi.getConfiguredNetworks();
+            ScanResult bestSaved = null, bestOpen = null;
+            int savedId = -1;
+            for (ScanResult s : wifi.getScanResults()) {
+                if (s.SSID == null || s.SSID.isEmpty()) continue;
+                String quoted = "\"" + s.SSID + "\"";
+                if (quoted.equals(current)) continue; // текущая сеть без интернета — ищем другую
+                for (WifiConfiguration c : saved) {
+                    if (quoted.equals(c.SSID) && (bestSaved == null || s.level > bestSaved.level)) {
+                        bestSaved = s;
+                        savedId = c.networkId;
+                    }
+                }
+                boolean open = !s.capabilities.matches(".*(WEP|PSK|EAP|SAE|OWE).*");
+                if (open && (bestOpen == null || s.level > bestOpen.level)) bestOpen = s;
+            }
+            if (bestSaved != null) {
+                wifi.enableNetwork(savedId, true);
+            } else if (bestOpen != null) {
+                WifiConfiguration c = new WifiConfiguration();
+                c.SSID = "\"" + bestOpen.SSID + "\"";
+                c.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+                int id = wifi.addNetwork(c);
+                if (id != -1) wifi.enableNetwork(id, true);
+            }
+            wifi.reconnect();
+        } catch (Exception ignored) {
+            // нет прав или Wi-Fi выключен политикой — попробуем позже
         }
     }
 
@@ -258,6 +349,10 @@ public class MainActivity extends Activity {
         dpm.setGlobalSetting(admin, Settings.Global.STAY_ON_WHILE_PLUGGED_IN, "7");
         for (String r : RESTRICTIONS) dpm.addUserRestriction(admin, r);
         setAppsHidden(true);
+        // Для выбора Wi-Fi нужны список сетей и имя текущей — это требует доступа к геолокации
+        dpm.setPermissionGrantState(admin, getPackageName(), Manifest.permission.ACCESS_FINE_LOCATION,
+                DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED);
+        if (Build.VERSION.SDK_INT >= 30) dpm.setLocationEnabled(admin, true);
     }
 
     // Chrome не прячем, если он и есть движок WebView на этой прошивке

@@ -61,6 +61,7 @@
   #attract .alangs button { font-size: 20px; padding: 12px 16px; margin-left: 8px; border-radius: 12px; border: 0; background: rgba(255,255,255,.88); color: var(--ink); }
   #attract .alangs button.on { background: var(--accent); color: #fff; }
   #attract .tag { position: absolute; top: 24px; left: 20px; background: rgba(0,0,0,.55); padding: 6px 12px; border-radius: 8px; font-size: 15px; display: none; }
+  #offline { position: fixed; top: 0; left: 0; right: 0; z-index: 40; background: #c62828; color: #fff; text-align: center; padding: 10px; font-size: 18px; display: none; }
   #msg { display: none; height: 100%; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 20px; line-height: 1.6; }
 </style>
 </head>
@@ -74,6 +75,7 @@
 </div>
 <div class="overlay" id="cart"><div class="sheet" id="sheet"></div></div>
 <div id="toast"></div>
+<div id="offline"></div>
 <div id="attract">
   <img id="aImg" alt="">
   <span class="tag" id="aTag"></span>
@@ -86,19 +88,23 @@ var T = {
   en: { call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
         sent: 'Order sent. A waiter will come to confirm it.', called: 'The waiter has been called', coming: 'The waiter is on the way',
         confirmed: 'Order confirmed', touch: 'Touch to see the menu', add: 'Add', close: 'Close', ordered: 'Ordered',
-        pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day', menu: 'Open menu', ad: 'Advertisement' },
+        pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day', menu: 'Open menu', ad: 'Advertisement',
+        offline: 'No connection. Please wave to the waiter — we are reconnecting.', offlineBar: 'No connection — reconnecting…', edited: 'The waiter updated your order' },
   ru: { call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
         sent: 'Заказ отправлен. Официант подойдёт подтвердить.', called: 'Официант вызван', coming: 'Официант идёт',
         confirmed: 'Заказ подтверждён', touch: 'Коснитесь, чтобы открыть меню', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
-        pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня', menu: 'Открыть меню', ad: 'Реклама' },
+        pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня', menu: 'Открыть меню', ad: 'Реклама',
+        offline: 'Нет связи. Пожалуйста, позовите официанта жестом — мы восстанавливаем подключение.', offlineBar: 'Нет связи — восстанавливаем подключение…', edited: 'Официант изменил ваш заказ' },
   th: { call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
         sent: 'ส่งรายการแล้ว พนักงานจะมายืนยัน', called: 'เรียกพนักงานแล้ว', coming: 'พนักงานกำลังมา',
         confirmed: 'ยืนยันรายการแล้ว', touch: 'แตะเพื่อดูเมนู', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
-        pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน', menu: 'ดูเมนู', ad: 'โฆษณา' },
+        pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน', menu: 'ดูเมนู', ad: 'โฆษณา',
+        offline: 'ไม่มีการเชื่อมต่อ กรุณาโบกมือเรียกพนักงาน ระบบกำลังเชื่อมต่อใหม่', offlineBar: 'ไม่มีการเชื่อมต่อ — กำลังเชื่อมต่อใหม่…', edited: 'พนักงานแก้ไขรายการของคุณแล้ว' },
   zh: { call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
         sent: '订单已发送，服务员将前来确认', called: '已呼叫服务员', coming: '服务员马上就来',
         confirmed: '订单已确认', touch: '点击查看菜单', add: '添加', close: '关闭', ordered: '已点',
-        pending: '待确认', rejected: '已取消', day: '★ 今日推荐', menu: '查看菜单', ad: '广告' }
+        pending: '待确认', rejected: '已取消', day: '★ 今日推荐', menu: '查看菜单', ad: '广告',
+        offline: '网络连接中断，请向服务员招手示意，我们正在重新连接', offlineBar: '网络中断——正在重新连接…', edited: '服务员已更新您的订单' }
 };
 var LANG_NAMES = { en: 'EN', th: 'ไทย', ru: 'RU', zh: '中文' };
 var IDLE_ATTRACT_MS = 60000, IDLE_RESET_MS = 180000, DAY = '\u2605day';
@@ -106,7 +112,7 @@ var IDLE_ATTRACT_MS = 60000, IDLE_RESET_MS = 180000, DAY = '\u2605day';
 var D = new URLSearchParams(location.search).get('d') || '';
 var lang = null, state = null, cart = {}, cat = null, lastTouch = Date.now(), slide = 0, menuSig = '', seen = {}, sending = false;
 // cart: ключ «id» или «id|вариант» → количество; MENU: id → блюдо; BUILD: версия интерфейса
-var MENU = {}, BUILD = null, sheetMode = 'cart', slideAt = 0;
+var MENU = {}, BUILD = null, sheetMode = 'cart', slideAt = 0, online = true;
 
 function $(id) { return document.getElementById(id); }
 function t(k) { return (T[lang] || T.en)[k] || T.en[k]; }
@@ -123,14 +129,28 @@ function toast(text) {
   toast.timer = setTimeout(function () { $('toast').style.display = 'none'; }, 4000);
 }
 
+// Запрос с таймаутом: без сети fetch может висеть долго, а гостю нужен быстрый ответ
+function request(path, options) {
+  return new Promise(function (resolve, reject) {
+    var timer = setTimeout(function () { reject(new Error('timeout')); }, 8000);
+    fetch(path, options).then(function (r) { return r.json(); }).then(function (j) { clearTimeout(timer); setOnline(true); resolve(j); },
+      function (e) { clearTimeout(timer); setOnline(false); reject(e); });
+  });
+}
+
 function post(path, body) {
   body.d = D;
-  return fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
-    .then(function (r) { return r.json(); });
+  return request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+}
+
+function setOnline(on) {
+  online = on;
+  $('offline').textContent = t('offlineBar');
+  $('offline').style.display = on ? 'none' : 'block';
 }
 
 function load() {
-  return fetch('/api/guest/state?d=' + encodeURIComponent(D)).then(function (r) { return r.json(); }).then(function (s) {
+  return request('/api/guest/state?d=' + encodeURIComponent(D)).then(function (s) {
     if (s.unassigned) {
       show('app', false); show('msg', true);
       $('msg').innerHTML = 'JET MEDIA<br>Устройство не привязано к столу<br>Device is not assigned to a table<br><small>' + esc(D) + '</small>';
@@ -158,11 +178,13 @@ function load() {
 // Гостю показываем, когда официант нажал «Иду» или подтвердил заказ
 function notifyChanges(first) {
   state.calls.concat(state.orders).forEach(function (x) {
-    var prev = seen[x.id];
-    seen[x.id] = x.status;
-    if (first || prev === x.status) return;
-    if (x.status === 'ack') toast(t('coming'));
-    if (x.status === 'confirmed') toast(t('confirmed'));
+    var prev = seen[x.id] || '';
+    var now = x.status + '|' + (x.editedAt || '');
+    seen[x.id] = now;
+    if (first || prev === now) return;
+    if (prev.split('|')[1] !== String(x.editedAt || '') && x.editedAt) toast(t('edited'));
+    else if (x.status === 'ack') toast(t('coming'));
+    else if (x.status === 'confirmed') toast(t('confirmed'));
   });
 }
 
@@ -277,18 +299,19 @@ function sendOrder() {
   post('/api/guest/order', { items: items }).then(function (o) {
     if (!o.id) return;
     cart = {};
-    seen[o.id] = o.status;
+    seen[o.id] = o.status + '|';
     $('cart').className = 'overlay';
     toast(t('sent'));
     renderAll();
     load();
-  }).catch(function () {}).then(function () { sending = false; });
+  }).catch(function () { toast(t('offline')); }).then(function () { sending = false; });
 }
 
 function call(type) {
+  if (!online) toast(t('offline'));
   post('/api/guest/call', { type: type }).then(function (c) {
-    if (c.id) { seen[c.id] = c.status; toast(t('called')); }
-  }).catch(function () {});
+    if (c.id) { seen[c.id] = c.status + '|'; toast(t('called')); }
+  }).catch(function () { toast(t('offline')); });
 }
 
 document.addEventListener('click', function (e) {

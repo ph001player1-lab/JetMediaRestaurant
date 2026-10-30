@@ -181,8 +181,22 @@ function guestCall(b) {
 function guestOrder(b) {
   const t = tableOf(b.d);
   if (!t) throw fail(400, 'device is not assigned');
-  const menu = new Map((t.r.menu || []).filter((i) => !i.hidden).map((i) => [i.id, i]));
-  const items = (b.items || [])
+  const items = buildItems(t.r, b.items);
+  if (!items.length) throw fail(400, 'empty order');
+  const o = {
+    id: uid(), restaurantId: t.r.id, table: t.table, items,
+    total: items.reduce((s, i) => s + i.price * i.qty, 0), status: 'pending', at: Date.now(), notifiedAt: Date.now(),
+  };
+  db.orders.push(o);
+  notify(t.r.id, t.table, 'order', ` · ฿${o.total}`);
+  save();
+  return o;
+}
+
+// Строки заказа по меню: цены и названия берём из меню, а не из запроса
+function buildItems(r, list) {
+  const menu = new Map((r.menu || []).filter((i) => !i.hidden).map((i) => [i.id, i]));
+  return (list || [])
     .filter((x) => menu.has(x.id) && x.qty > 0)
     .slice(0, 50)
     .map((x) => {
@@ -194,15 +208,6 @@ function guestOrder(b) {
         : m.name;
       return { id: m.id, opt: opt?.key || '', name, price: Number(opt ? opt.price : m.price) || 0, qty: Math.min(99, x.qty | 0) };
     });
-  if (!items.length) throw fail(400, 'empty order');
-  const o = {
-    id: uid(), restaurantId: t.r.id, table: t.table, items,
-    total: items.reduce((s, i) => s + i.price * i.qty, 0), status: 'pending', at: Date.now(), notifiedAt: Date.now(),
-  };
-  db.orders.push(o);
-  notify(t.r.id, t.table, 'order', ` · ฿${o.total}`);
-  save();
-  return o;
 }
 
 // ---------- Персонал: вход по коду ресторана + личному PIN, уведомления через Web Push
@@ -243,6 +248,12 @@ function staffState(b, q) {
   };
 }
 
+// Меню для правки заказа официантом
+function staffMenu(b, q) {
+  const { r } = session(q.token);
+  return (r.menu || []).filter((i) => !i.hidden).map(({ id, sku, name, price, options }) => ({ id, sku, name, price, options }));
+}
+
 function staffShift(b) {
   session(b.token).s.onShift = !!b.on;
   save();
@@ -272,6 +283,16 @@ function staffAction(b) {
     // «Стол свободен»: закрываем сессию стола
     for (const x of [...db.calls, ...db.orders]) {
       if (x.restaurantId === r.id && x.table === b.id && !x.closed) x.closed = Date.now();
+    }
+  } else if (b.kind === 'order' && (b.action === 'ack' || b.action === 'edit')) {
+    const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && !y.closed && y.status !== 'rejected');
+    if (!x) throw fail(400, 'bad action');
+    // «Иду» по заказу — останавливаем напоминания; правка заказа тоже значит, что официант им занялся
+    if (!x.ackAt) Object.assign(x, { ackAt: Date.now(), ackBy: member.name });
+    if (b.action === 'edit') {
+      const items = buildItems(r, b.items);
+      if (!items.length) throw fail(400, 'empty order');
+      Object.assign(x, { items, total: items.reduce((s, i) => s + i.price * i.qty, 0), editedAt: Date.now(), editedBy: member.name });
     }
   } else {
     const x = (b.kind === 'call' ? db.calls : db.orders).find((y) => y.id === b.id && y.restaurantId === r.id);
@@ -309,7 +330,7 @@ setInterval(() => {
   const now = Date.now();
   const waiting = [
     ...db.calls.filter((c) => c.status === 'new').map((c) => [c, c.type]),
-    ...db.orders.filter((o) => o.status === 'pending').map((o) => [o, 'order']),
+    ...db.orders.filter((o) => o.status === 'pending' && !o.ackAt).map((o) => [o, 'order']),
   ];
   for (const [x, kind] of waiting) {
     if (x.closed || (x.reminders || 0) >= MAX_REMINDERS || now - (x.notifiedAt || x.at) < REMIND_MS) continue;
@@ -584,6 +605,7 @@ const PUBLIC = {
   'POST /api/staff/shift': staffShift,
   'POST /api/staff/subscribe': staffSubscribe,
   'POST /api/staff/logout': staffLogout,
+  'GET /api/staff/menu': staffMenu,
   'POST /api/guest/impression': guestImpression,
   'GET /api/manager/restaurant': managerGet,
   'POST /api/manager/restaurant': managerSave,
