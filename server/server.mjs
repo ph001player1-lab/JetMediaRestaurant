@@ -431,7 +431,7 @@ function managerGet(b, q) {
     },
     ads: db.ads.filter((a) => a.active && (!a.restaurants?.length || a.restaurants.includes(r.id)))
       .map((a) => ({ id: a.id, title: a.title, advertiser: a.advertiser, image: a.image, views: views(a.id, r.id), scans: scans(a.id, r.id) })),
-    characters: db.characters.map((c) => ({ id: c.id, name: c.name, image: c.images.idle })),
+    characters: db.characters.map((c) => ({ id: c.id, name: c.name, image: c.images.idle, greeting: c.greeting })),
     devices: Object.values(db.devices).filter((d) => d.restaurantId === r.id).map((d) => ({
       id: d.id, entrance: d.role === 'entrance', table: d.table, online: Date.now() - d.lastSeen < ONLINE_MS,
       lastSeen: d.lastSeen, ...pick(d.telemetry, ['battery', 'charging', 'wifi', 'rssi', 'version']),
