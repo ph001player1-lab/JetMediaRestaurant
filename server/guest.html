@@ -1,0 +1,262 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Menu</title>
+<!-- Пишем под старый WebView на Android 11: без ?., ??, aspect-ratio, inset и flex-gap -->
+<style>
+  :root { --bg: #f7f3ee; --card: #fff; --ink: #1f1a17; --muted: #8a7f76; --accent: #c8553d; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
+    font-family: system-ui, -apple-system, "Noto Sans Thai", "Noto Sans SC", sans-serif; -webkit-user-select: none; user-select: none; }
+  #app { display: flex; flex-direction: column; height: 100%; }
+  header { display: flex; align-items: center; padding: 12px 16px; background: var(--card); box-shadow: 0 1px 0 rgba(0,0,0,.06); }
+  header h1 { font-size: 22px; margin: 0; flex: 1; }
+  .langs button { border: 1px solid #ddd; background: none; border-radius: 8px; padding: 8px 12px; font-size: 16px; margin-left: 6px; color: var(--ink); }
+  .langs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  main { flex: 1; display: flex; min-height: 0; }
+  nav { width: 200px; overflow-y: auto; padding: 8px; }
+  nav button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 14px 12px; font-size: 17px; border-radius: 10px; color: var(--ink); }
+  nav button.on { background: var(--card); font-weight: 600; }
+  #items { flex: 1; overflow-y: auto; padding: 8px 16px 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); grid-gap: 14px; align-content: start; }
+  .item { background: var(--card); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+  .item img, .ph { width: 100%; height: 150px; object-fit: cover; background: #eee4da; display: block; }
+  .item .b { padding: 10px 12px; flex: 1; display: flex; flex-direction: column; }
+  .item .n { font-weight: 600; font-size: 17px; margin-bottom: 4px; }
+  .item .d { color: var(--muted); font-size: 13px; flex: 1; }
+  .row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+  .price { font-weight: 700; font-size: 17px; }
+  .add { border: 0; background: var(--accent); color: #fff; border-radius: 10px; padding: 10px 14px; font-size: 16px; }
+  footer { display: flex; padding: 12px 16px; background: var(--card); box-shadow: 0 -1px 0 rgba(0,0,0,.06); }
+  footer button { flex: 1; border: 0; border-radius: 12px; font-size: 18px; font-weight: 600; padding: 18px 8px; margin-left: 12px; background: #efe7df; color: var(--ink); }
+  footer button:first-child { margin-left: 0; }
+  footer #cartBtn { background: var(--accent); color: #fff; }
+  .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.4); display: none; align-items: flex-end; justify-content: center; }
+  .overlay.show { display: flex; }
+  .sheet { background: var(--card); width: 640px; max-width: 100%; max-height: 85%; overflow: auto; border-radius: 18px 18px 0 0; padding: 20px; }
+  .line { display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; }
+  .line .n { flex: 1; padding-right: 10px; }
+  .qty { white-space: nowrap; margin-right: 12px; }
+  .qty button { width: 44px; height: 44px; border-radius: 10px; border: 1px solid #ddd; background: none; font-size: 20px; color: var(--ink); }
+  .big { width: 100%; border: 0; border-radius: 12px; padding: 16px; font-size: 18px; font-weight: 600; background: var(--accent); color: #fff; margin-top: 14px; }
+  .big.ghost { background: #efe7df; color: var(--ink); }
+  .status { font-size: 14px; color: var(--muted); }
+  #toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 14px 22px; border-radius: 12px; font-size: 18px; display: none; z-index: 5; text-align: center; }
+  #attract { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #000; display: none; z-index: 10; color: #fff; }
+  #attract img { width: 100%; height: 100%; object-fit: cover; opacity: .85; }
+  #attract .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 32px; background: linear-gradient(transparent, rgba(0,0,0,.8)); }
+  #attract .cap b { display: block; font-size: 40px; }
+  #attract .cap span { font-size: 22px; opacity: .9; }
+  #msg { display: none; height: 100%; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 20px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div id="msg"></div>
+<div id="app" style="display:none">
+  <header><h1 id="title"></h1><div class="langs" id="langs"></div></header>
+  <main><nav id="cats"></nav><section id="items"></section></main>
+  <footer><button id="callBtn"></button><button id="billBtn"></button><button id="cartBtn"></button></footer>
+</div>
+<div class="overlay" id="cart"><div class="sheet" id="sheet"></div></div>
+<div id="toast"></div>
+<div id="attract"><img id="aImg" alt=""><div class="cap"><b id="aName"></b><span id="aText"></span></div></div>
+<script>
+var T = {
+  en: { call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
+        sent: 'Order sent. A waiter will come to confirm it.', called: 'The waiter has been called', coming: 'The waiter is on the way',
+        confirmed: 'Order confirmed', touch: 'Touch to see the menu', add: 'Add', close: 'Close', ordered: 'Ordered',
+        pending: 'awaiting confirmation', rejected: 'cancelled' },
+  ru: { call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
+        sent: 'Заказ отправлен. Официант подойдёт подтвердить.', called: 'Официант вызван', coming: 'Официант идёт',
+        confirmed: 'Заказ подтверждён', touch: 'Коснитесь, чтобы открыть меню', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
+        pending: 'ждёт подтверждения', rejected: 'отменён' },
+  th: { call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
+        sent: 'ส่งรายการแล้ว พนักงานจะมายืนยัน', called: 'เรียกพนักงานแล้ว', coming: 'พนักงานกำลังมา',
+        confirmed: 'ยืนยันรายการแล้ว', touch: 'แตะเพื่อดูเมนู', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
+        pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว' },
+  zh: { call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
+        sent: '订单已发送，服务员将前来确认', called: '已呼叫服务员', coming: '服务员马上就来',
+        confirmed: '订单已确认', touch: '点击查看菜单', add: '添加', close: '关闭', ordered: '已点',
+        pending: '待确认', rejected: '已取消' }
+};
+var LANG_NAMES = { en: 'EN', th: 'ไทย', ru: 'RU', zh: '中文' };
+var IDLE_ATTRACT_MS = 60000, IDLE_RESET_MS = 180000;
+
+var D = new URLSearchParams(location.search).get('d') || '';
+var lang = null, state = null, cart = {}, cat = null, lastTouch = Date.now(), slide = 0, menuSig = '', seen = {}, sending = false;
+
+function $(id) { return document.getElementById(id); }
+function t(k) { return (T[lang] || T.en)[k] || T.en[k]; }
+function tr(o) { if (!o) return ''; if (typeof o === 'string') return o; return o[lang] || o.en || o[Object.keys(o)[0]] || ''; }
+function money(n) { return '฿' + Number(n || 0).toLocaleString('en'); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+function defLang() { return (state.restaurant.langs || ['en'])[0]; }
+function show(el, on) { $(el).style.display = on ? (el === 'msg' ? 'flex' : '') : 'none'; }
+
+function toast(text) {
+  $('toast').textContent = text;
+  $('toast').style.display = 'block';
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(function () { $('toast').style.display = 'none'; }, 4000);
+}
+
+function post(path, body) {
+  body.d = D;
+  return fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function (r) { return r.json(); });
+}
+
+function load() {
+  return fetch('/api/guest/state?d=' + encodeURIComponent(D)).then(function (r) { return r.json(); }).then(function (s) {
+    if (s.unassigned) {
+      show('app', false); show('msg', true);
+      $('msg').innerHTML = 'JET MEDIA<br>Устройство не привязано к столу<br>Device is not assigned to a table<br><small>' + esc(D) + '</small>';
+      return;
+    }
+    show('msg', false); show('app', true);
+    var first = !state;
+    state = s;
+    if (!lang) lang = defLang();
+    notifyChanges(first);
+    var sig = JSON.stringify(s.menu) + s.restaurant.name;
+    if (sig !== menuSig) { menuSig = sig; renderAll(); } else renderFooter();
+    if ($('cart').className.indexOf('show') >= 0) renderCart();
+  }).catch(function () { /* нет сети — пробуем снова через 5 с */ });
+}
+
+// Гостю показываем, когда официант нажал «Иду» или подтвердил заказ
+function notifyChanges(first) {
+  state.calls.concat(state.orders).forEach(function (x) {
+    var prev = seen[x.id];
+    seen[x.id] = x.status;
+    if (first || prev === x.status) return;
+    if (x.status === 'ack') toast(t('coming'));
+    if (x.status === 'confirmed') toast(t('confirmed'));
+  });
+}
+
+function categories() {
+  var known = {}, out = [];
+  state.menu.forEach(function (i) { var c = tr(i.cat) || '—'; if (!known[c]) { known[c] = 1; out.push(c); } });
+  return out;
+}
+
+function renderAll() {
+  $('title').textContent = state.restaurant.name;
+  $('langs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {
+    return '<button data-lang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
+  }).join('');
+  var list = categories();
+  if (list.indexOf(cat) < 0) cat = list[0];
+  $('cats').innerHTML = list.map(function (c) {
+    return '<button data-cat="' + esc(c) + '" class="' + (c === cat ? 'on' : '') + '">' + esc(c) + '</button>';
+  }).join('');
+  $('items').innerHTML = state.menu.filter(function (i) { return (tr(i.cat) || '—') === cat; }).map(function (i) {
+    return '<div class="item">' + (i.photo ? '<img src="' + esc(i.photo) + '" alt="">' : '<div class="ph"></div>') +
+      '<div class="b"><div class="n">' + esc(tr(i.name)) + '</div><div class="d">' + esc(tr(i.desc)) + '</div>' +
+      '<div class="row"><span class="price">' + (i.price ? money(i.price) : '') + '</span>' +
+      '<button class="add" data-add="' + esc(i.id) + '">' + t('add') + (cart[i.id] ? ' · ' + cart[i.id] : '') + '</button></div></div></div>';
+  }).join('');
+  renderFooter();
+}
+
+function cartCount() { var n = 0; for (var k in cart) n += cart[k]; return n; }
+function cartTotal() { return state.menu.reduce(function (s, i) { return s + (cart[i.id] || 0) * (Number(i.price) || 0); }, 0); }
+
+function renderFooter() {
+  $('callBtn').textContent = t('call');
+  $('billBtn').textContent = t('bill');
+  var n = cartCount();
+  $('cartBtn').textContent = t('cart') + (n ? ' (' + n + ') · ' + money(cartTotal()) : '');
+}
+
+function renderCart() {
+  var byId = {};
+  state.menu.forEach(function (i) { byId[i.id] = i; });
+  var lines = Object.keys(cart).filter(function (id) { return byId[id]; }).map(function (id) {
+    var i = byId[id];
+    return '<div class="line"><span class="n">' + esc(tr(i.name)) + '</span>' +
+      '<span class="qty"><button data-dec="' + esc(id) + '">−</button> ' + cart[id] + ' <button data-inc="' + esc(id) + '">+</button></span>' +
+      '<span class="price">' + money(i.price * cart[id]) + '</span></div>';
+  }).join('');
+  var ordered = state.orders.map(function (o) {
+    return '<div class="line"><span class="n">' + o.items.map(function (i) { return i.qty + ' × ' + esc(tr(i.name)); }).join(', ') +
+      '</span><span class="status">' + t(o.status) + '</span></div>';
+  }).join('');
+  $('sheet').innerHTML = '<h2>' + t('cart') + '</h2>' + (lines || '<p class="status">' + t('empty') + '</p>') +
+    (lines ? '<p><b>' + t('total') + ': ' + money(cartTotal()) + '</b></p><button class="big" data-send="1">' + t('send') + '</button>' : '') +
+    (ordered ? '<h3>' + t('ordered') + '</h3>' + ordered : '') +
+    '<button class="big ghost" data-close="1">' + t('close') + '</button>';
+}
+
+function sendOrder() {
+  if (sending) return;
+  sending = true;
+  var items = Object.keys(cart).map(function (id) { return { id: id, qty: cart[id] }; });
+  post('/api/guest/order', { items: items }).then(function (o) {
+    if (!o.id) return;
+    cart = {};
+    seen[o.id] = o.status;
+    $('cart').className = 'overlay';
+    toast(t('sent'));
+    renderAll();
+    load();
+  }).catch(function () {}).then(function () { sending = false; });
+}
+
+function call(type) {
+  post('/api/guest/call', { type: type }).then(function (c) {
+    if (c.id) { seen[c.id] = c.status; toast(t('called')); }
+  }).catch(function () {});
+}
+
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('button');
+  if (!b || !state) return;
+  var d = b.dataset;
+  if (d.lang) { lang = d.lang; renderAll(); }
+  else if (d.cat) { cat = d.cat; renderAll(); }
+  else if (d.add) { cart[d.add] = (cart[d.add] || 0) + 1; renderAll(); }
+  else if (d.inc) { cart[d.inc]++; renderCart(); renderAll(); }
+  else if (d.dec) { if (--cart[d.dec] <= 0) delete cart[d.dec]; renderCart(); renderAll(); }
+  else if (d.send) sendOrder();
+  else if (d.close) $('cart').className = 'overlay';
+  else if (b.id === 'cartBtn') { renderCart(); $('cart').className = 'overlay show'; }
+  else if (b.id === 'callBtn') call('waiter');
+  else if (b.id === 'billBtn') call('bill');
+});
+
+document.addEventListener('pointerdown', function () {
+  lastTouch = Date.now();
+  $('attract').style.display = 'none';
+}, true);
+
+// Простой: через минуту — карусель акций, через 3 минуты — сброс языка и неотправленной корзины
+setInterval(function () {
+  if (!state) return;
+  var idle = Date.now() - lastTouch;
+  if (idle > IDLE_RESET_MS && (cartCount() || lang !== defLang())) {
+    cart = {};
+    lang = defLang();
+    $('cart').className = 'overlay';
+    renderAll();
+  }
+  var promos = state.menu.filter(function (i) { return i.promo && i.photo; });
+  if (idle > IDLE_ATTRACT_MS && promos.length) {
+    var a = $('attract');
+    if (a.style.display !== 'block' || idle % 7000 < 1000) {
+      var p = promos[slide++ % promos.length];
+      $('aImg').src = p.photo;
+      $('aName').textContent = tr(p.name) + (p.price ? ' · ' + money(p.price) : '');
+      $('aText').textContent = t('touch');
+    }
+    a.style.display = 'block';
+  }
+}, 1000);
+
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>

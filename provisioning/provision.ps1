@@ -138,6 +138,13 @@ function Provision($s) {
 }
 
 & $Adb start-server | Out-Null
+# Ключ регистрации: спрашиваем один раз и запоминаем рядом со скриптом
+$KeyFile = "$PSScriptRoot\device-key.txt"
+if (-not $EnrollCode -and (Test-Path $KeyFile)) { $EnrollCode = (Get-Content $KeyFile -Raw).Trim() }
+if (-not $EnrollCode -and -not $CheckOnly) {
+  $EnrollCode = (Read-Host "Ключ регистрации устройств (его показывает install.sh на сервере)").Trim()
+  if ($EnrollCode) { Set-Content $KeyFile $EnrollCode }
+}
 if (-not $CheckOnly) { Get-Agent }
 $done = @{}; $warned = @{}
 Say "Подключите планшеты по USB. Отладка по USB должна быть включена." Cyan

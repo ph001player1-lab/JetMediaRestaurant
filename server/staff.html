@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JET MEDIA Staff</title>
+<link rel="manifest" href="/staff/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1f1a17">
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; background: #f7f3ee; color: #1f1a17; }
+  .box { max-width: 420px; margin: 12vh auto; padding: 24px; background: #fff; border-radius: 16px; display: flex; flex-direction: column; gap: 12px; }
+  input, button { font: inherit; font-size: 18px; padding: 12px; border-radius: 10px; border: 1px solid #ddd; }
+  button { background: #1f1a17; color: #fff; border: 0; cursor: pointer; }
+  header { display: flex; gap: 8px; align-items: center; padding: 12px 16px; background: #fff; position: sticky; top: 0; }
+  header b { flex: 1; }
+  .langs button { background: none; color: inherit; border: 1px solid #ddd; padding: 6px 10px; font-size: 14px; }
+  main { padding: 0 16px 32px; max-width: 720px; margin: auto; }
+  .card { background: #fff; border-radius: 12px; padding: 12px; margin: 8px 0; border-left: 6px solid #c8553d; }
+  .card.ack, .card.confirmed { border-color: #2e7d32; }
+  .card.rejected { border-color: #999; opacity: .6; }
+  .card ul { margin: 6px 0; padding-left: 20px; }
+  .card button { margin: 8px 8px 0 0; font-size: 16px; padding: 10px 14px; }
+  #tables button { margin: 4px; background: #efe7df; color: #1f1a17; }
+  .empty, .hint { color: #8a7f76; }
+  .err { color: #c62828; min-height: 1em; }
+</style>
+</head>
+<body>
+<div id="login" class="box">
+  <div class="langs"><button data-l="en">EN</button> <button data-l="th">ไทย</button> <button data-l="ru">RU</button></div>
+  <h2 data-t="login"></h2>
+  <input id="code" data-t="code" inputmode="numeric">
+  <input id="name" data-t="name">
+  <button id="go" data-t="start"></button>
+  <p class="err" id="err"></p>
+</div>
+<div id="work" hidden>
+  <header>
+    <b id="rname"></b><span id="who"></span>
+    <span class="langs"><button data-l="en">EN</button><button data-l="th">ไทย</button><button data-l="ru">RU</button></span>
+    <button id="out" data-t="out"></button>
+  </header>
+  <main>
+    <p class="hint" data-t="hint"></p>
+    <h3 data-t="calls"></h3><div id="calls"></div>
+    <h3 data-t="orders"></h3><div id="orders"></div>
+    <h3 data-t="tables"></h3><div id="tables"></div>
+  </main>
+</div>
+<script>
+const T = {
+  en: { login: 'Staff sign-in', code: 'Restaurant code', name: 'Your name', start: 'Start shift', out: 'Sign out',
+        calls: 'Calls', orders: 'Orders', tables: 'Tables', table: 'Table', waiter: 'Waiter call', bill: 'Bill',
+        going: 'On my way', done: 'Done', confirm: 'Confirm', reject: 'Reject', free: 'is free', none: 'Nothing yet',
+        pending: 'awaiting confirmation', confirmed: 'confirmed', rejected: 'rejected', wrong: 'Wrong restaurant code',
+        hint: 'Keep this page open to hear new calls' },
+  th: { login: 'เข้าสู่ระบบพนักงาน', code: 'รหัสร้าน', name: 'ชื่อของคุณ', start: 'เริ่มกะ', out: 'ออกจากระบบ',
+        calls: 'การเรียก', orders: 'ออร์เดอร์', tables: 'โต๊ะ', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'เช็คบิล',
+        going: 'กำลังไป', done: 'เสร็จแล้ว', confirm: 'ยืนยัน', reject: 'ปฏิเสธ', free: 'ว่างแล้ว', none: 'ยังไม่มี',
+        pending: 'รอยืนยัน', confirmed: 'ยืนยันแล้ว', rejected: 'ปฏิเสธแล้ว', wrong: 'รหัสร้านไม่ถูกต้อง',
+        hint: 'เปิดหน้านี้ไว้เพื่อรับเสียงแจ้งเตือน' },
+  ru: { login: 'Вход для персонала', code: 'Код ресторана', name: 'Ваше имя', start: 'Начать смену', out: 'Выйти',
+        calls: 'Вызовы', orders: 'Заказы', tables: 'Столы', table: 'Стол', waiter: 'Вызов', bill: 'Счёт',
+        going: 'Иду', done: 'Готово', confirm: 'Подтвердить', reject: 'Отклонить', free: 'свободен', none: 'Пока пусто',
+        pending: 'ждёт подтверждения', confirmed: 'подтверждён', rejected: 'отклонён', wrong: 'Неверный код ресторана',
+        hint: 'Держите страницу открытой, чтобы слышать вызовы' },
+};
+
+let lang = localStorage.lang || 'en';
+let code = localStorage.code || '';
+let staff = localStorage.staff || '';
+let seen = new Set(), first = true, audio = null, timer = null, last = null;
+
+const $ = (id) => document.getElementById(id);
+const t = (k) => (T[lang] || T.en)[k] || k;
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const ago = (ms) => `${Math.max(0, Math.floor((Date.now() - ms) / 60000))} min`;
+const itemName = (n) => (typeof n === 'string' ? n : n[lang] || n.en || n.th || Object.values(n)[0] || '');
+
+function texts() {
+  document.querySelectorAll('[data-t]').forEach((el) => {
+    el[el.tagName === 'INPUT' ? 'placeholder' : 'textContent'] = t(el.dataset.t);
+  });
+  document.querySelectorAll('[data-l]').forEach((b) => (b.style.fontWeight = b.dataset.l === lang ? '700' : '400'));
+}
+
+async function api(path, body) {
+  const r = await fetch(path, body
+    ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+    : undefined);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error);
+  return j;
+}
+
+// Два коротких сигнала и вибрация на новый вызов или заказ
+function beep() {
+  if (audio) {
+    for (const d of [0, 0.5]) {
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = 880;
+      g.gain.value = 0.3;
+      o.connect(g);
+      g.connect(audio.destination);
+      o.start(audio.currentTime + d);
+      o.stop(audio.currentTime + d + 0.3);
+    }
+  }
+  navigator.vibrate?.([300, 150, 300]);
+}
+
+async function start() {
+  try {
+    render(await api(`/api/staff/state?code=${encodeURIComponent(code)}`));
+    localStorage.code = code;
+    localStorage.staff = staff;
+    $('login').hidden = true;
+    $('work').hidden = false;
+    clearInterval(timer);
+    timer = setInterval(refresh, 3000);
+    navigator.wakeLock?.request('screen').catch(() => {});
+  } catch {
+    $('err').textContent = t('wrong');
+  }
+}
+
+async function refresh() {
+  try {
+    render(await api(`/api/staff/state?code=${encodeURIComponent(code)}`));
+  } catch (e) {
+    if (e.message === 'wrong code') logout();
+  }
+}
+
+function logout() {
+  clearInterval(timer);
+  localStorage.removeItem('code');
+  code = '';
+  $('work').hidden = true;
+  $('login').hidden = false;
+}
+
+function render(s) {
+  last = s;
+  $('rname').textContent = s.restaurant.name;
+  $('who').textContent = staff;
+
+  let fresh = false;
+  for (const x of [...s.calls.filter((c) => c.status === 'new'), ...s.orders.filter((o) => o.status === 'pending')]) {
+    if (!seen.has(x.id)) { seen.add(x.id); fresh = true; }
+  }
+  if (fresh && !first) beep();
+  first = false;
+
+  const btn = (kind, id, action, label) => `<button data-act="${kind}|${esc(id)}|${action}">${t(label)}</button>`;
+  const by = (x) => (x.by ? ` · ${esc(x.by)}` : '');
+
+  $('calls').innerHTML = s.calls.map((c) => `<div class="card ${c.status}">
+      <b>${t('table')} ${esc(c.table)}</b> · ${t(c.type)} · ${ago(c.at)}${by(c)}
+      <div>${c.status === 'new' ? btn('call', c.id, 'ack', 'going') : ''}${btn('call', c.id, 'done', 'done')}</div>
+    </div>`).join('') || `<p class="empty">${t('none')}</p>`;
+
+  $('orders').innerHTML = s.orders.map((o) => `<div class="card ${o.status}">
+      <b>${t('table')} ${esc(o.table)}</b> · ${ago(o.at)} · ${t(o.status)}${by(o)}
+      <ul>${o.items.map((i) => `<li>${i.qty} × ${esc(itemName(i.name))}</li>`).join('')}</ul>
+      <b>฿${o.total.toLocaleString('en')}</b>
+      <div>${o.status === 'pending' ? btn('order', o.id, 'confirm', 'confirm') + btn('order', o.id, 'reject', 'reject') : ''}</div>
+    </div>`).join('') || `<p class="empty">${t('none')}</p>`;
+
+  const busy = [...new Set([...s.calls, ...s.orders].map((x) => x.table))];
+  $('tables').innerHTML = busy.map((tb) =>
+    `<button data-act="table|${esc(tb)}|close">${t('table')} ${esc(tb)} ${t('free')}</button>`).join('')
+    || `<p class="empty">${t('none')}</p>`;
+}
+
+document.addEventListener('click', async (e) => {
+  // Звук в браузере разрешён только после касания
+  audio ??= new (window.AudioContext || window.webkitAudioContext)();
+  audio.resume?.();
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.l) {
+    lang = localStorage.lang = b.dataset.l;
+    texts();
+    if (last) render(last);
+  } else if (b.dataset.act) {
+    const [kind, id, action] = b.dataset.act.split('|');
+    await api('/api/staff/action', { code, staff, kind, id, action });
+    refresh();
+  } else if (b.id === 'go') {
+    code = $('code').value.trim();
+    staff = $('name').value.trim();
+    $('err').textContent = '';
+    start();
+  } else if (b.id === 'out') {
+    logout();
+  }
+});
+
+$('code').value = code;
+$('name').value = staff;
+texts();
+if (code) start();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/staff/sw.js');
+</script>
+</body>
+</html>

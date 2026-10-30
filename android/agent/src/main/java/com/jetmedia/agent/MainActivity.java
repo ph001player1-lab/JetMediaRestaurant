@@ -183,7 +183,7 @@ public class MainActivity extends Activity {
             t.put("version", BuildConfig.VERSION_NAME).put("model", Build.MODEL)
                     .put("android", Build.VERSION.RELEASE).put("owner", isOwner())
                     .put("url", prefs.getString("url", ""));
-            JSONObject body = new JSONObject().put("id", deviceId()).put("telemetry", t);
+            JSONObject body = new JSONObject().put("id", deviceId()).put("key", prefs.getString("enroll", "")).put("telemetry", t);
 
             HttpURLConnection c = (HttpURLConnection) new URL(server() + "/api/device/poll").openConnection();
             c.setConnectTimeout(10000);

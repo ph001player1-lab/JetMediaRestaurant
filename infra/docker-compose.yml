@@ -9,6 +9,8 @@ services:
     environment:
       - DATA_DIR=/data
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - DEVICE_KEY=${DEVICE_KEY}
+      - PUBLIC_URL=https://app.jetmedia.dev
     restart: unless-stopped
 
   caddy:

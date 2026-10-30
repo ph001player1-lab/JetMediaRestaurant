@@ -1,3 +1,4 @@
 platform-tools/
 apk/
 provision-log.csv
+device-key.txt

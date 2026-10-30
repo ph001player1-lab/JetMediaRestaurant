@@ -1,0 +1,9 @@
+{
+  "name": "JET MEDIA Staff",
+  "short_name": "JET Staff",
+  "start_url": "/staff/",
+  "scope": "/staff/",
+  "display": "standalone",
+  "background_color": "#f7f3ee",
+  "theme_color": "#1f1a17"
+}
