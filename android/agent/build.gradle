@@ -1,0 +1,26 @@
+plugins { id 'com.android.application' }
+
+def code = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+
+android {
+    namespace 'com.jetmedia.agent'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'com.jetmedia.agent'
+        minSdk 26
+        targetSdk 34
+        versionCode code
+        versionName "0.1.$code"
+    }
+    // Ключ разработки лежит в репозитории. Перед боевыми ресторанами — свой ключ через GitHub Secrets.
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('KEYSTORE_PATH') ?: '../dev.keystore')
+            storePassword System.getenv('KEYSTORE_PASS') ?: 'jetmedia'
+            keyAlias System.getenv('KEY_ALIAS') ?: 'jetmedia'
+            keyPassword System.getenv('KEY_PASS') ?: 'jetmedia'
+        }
+    }
+    buildTypes { release { minifyEnabled false; signingConfig signingConfigs.release } }
+    buildFeatures { buildConfig true }
+}

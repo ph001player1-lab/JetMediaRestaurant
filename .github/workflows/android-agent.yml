@@ -1,0 +1,32 @@
+name: Android agent
+
+on:
+  push:
+    paths: ['android/**', '.github/workflows/android-agent.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - run: gradle -p android :agent:assembleRelease
+      # Постоянная ссылка для provision.ps1: releases/download/agent-latest/jet-agent.apk
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/agent/build/outputs/apk/release/agent-release.apk jet-agent.apk
+          gh release delete agent-latest -y --cleanup-tag || true
+          gh release create agent-latest jet-agent.apk --prerelease --target "$GITHUB_SHA" \
+            --title "Agent (latest)" --notes "Build $GITHUB_RUN_NUMBER from $GITHUB_REF_NAME"

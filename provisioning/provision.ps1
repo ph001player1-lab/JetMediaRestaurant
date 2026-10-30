@@ -10,13 +10,16 @@
 
   Что делает с каждым планшетом:
     1. проверяет модель, Android, аккаунты, пользователей, текущего владельца устройства;
-    2. ставит агент (apk\jet-agent.apk) и делает его владельцем устройства (Device Owner);
+    2. скачивает свежий агент с GitHub, ставит его и делает его владельцем устройства (Device Owner);
     3. подключает Wi-Fi (если задан), включает «не гаснуть на зарядке»;
     4. запускает агент и передаёт ему адрес сервера и код регистрации;
     5. пишет результат в provision-log.csv.
 #>
 param(
   [string]$AgentApk   = "$PSScriptRoot\apk\jet-agent.apk",
+  [string]$AgentUrl   = "https://github.com/ph001player1-lab/JetMediaRestaurant/releases/download/agent-latest/jet-agent.apk",
+  [string]$StartUrl   = "",      # какую страницу показывать; пусто — экран статуса агента
+  [string]$Pin        = "1234",  # PIN сервисного меню
   [string]$Admin      = "com.jetmedia.agent/.AdminReceiver",
   [string]$ServerUrl  = "https://api.jetmedia.dev",
   [string]$EnrollCode = "",
@@ -29,6 +32,8 @@ param(
 
 $Pkg = $Admin.Split('/')[0]
 $Log = "$PSScriptRoot\provision-log.csv"
+$ProgressPreference = 'SilentlyContinue'
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 function Say($text, $color = 'Gray') { Write-Host $text -ForegroundColor $color }
 
@@ -40,12 +45,21 @@ function Get-Adb {
   if ($cmd) { return $cmd.Source }
   Say "ADB не найден, скачиваю Android platform-tools..." Yellow
   $zip = "$env:TEMP\platform-tools.zip"
-  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
   Invoke-WebRequest "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile $zip -UseBasicParsing
   Expand-Archive $zip -DestinationPath $PSScriptRoot -Force
   return $local
 }
 $Adb = Get-Adb
+
+# Свежий агент с GitHub; если сети нет — берём тот, что уже лежит в apk\
+function Get-Agent {
+  New-Item -ItemType Directory -Force (Split-Path $AgentApk) | Out-Null
+  try {
+    Invoke-WebRequest $AgentUrl -OutFile "$AgentApk.tmp" -UseBasicParsing
+    Move-Item -Force "$AgentApk.tmp" $AgentApk
+    Say "Агент скачан: $AgentApk" Green
+  } catch { Say "Не удалось скачать агент, беру локальный файл" Yellow }
+}
 
 # Команда adb для одного планшета; stderr тоже собираем в текст
 function Run($serial) { (& $Adb -s $serial @args 2>&1 | ForEach-Object { "$_" }) -join "`n" }
@@ -114,7 +128,7 @@ function Provision($s) {
   Sh $s 'settings put global stay_on_while_plugged_in 7' | Out-Null
 
   # Конфиг агенту: JSON в base64, чтобы не мучиться с кавычками в командной строке
-  $json = @{ server = $ServerUrl; enroll = $EnrollCode; provisionedAt = (Get-Date -Format s) } | ConvertTo-Json -Compress
+  $json = @{ server = $ServerUrl; enroll = $EnrollCode; url = $StartUrl; pin = $Pin; provisionedAt = (Get-Date -Format s) } | ConvertTo-Json -Compress
   $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json))
   Sh $s "am start -n $Pkg/.MainActivity --es config $b64" | Out-Null
 
@@ -124,6 +138,7 @@ function Provision($s) {
 }
 
 & $Adb start-server | Out-Null
+if (-not $CheckOnly) { Get-Agent }
 $done = @{}; $warned = @{}
 Say "Подключите планшеты по USB. Отладка по USB должна быть включена." Cyan
 do {
