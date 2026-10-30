@@ -25,7 +25,7 @@
 </style>
 </head>
 <body>
-<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button><button data-tab="adsTab">Реклама</button>
+<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button><button data-tab="adsTab">Реклама</button><button data-tab="charTab">ИИ-персонажи</button>
   <button onclick="logout()" style="float:right">Выйти</button></nav>
 
 <section id="devices">
@@ -84,10 +84,20 @@
 <section id="adsTab" hidden>
   <p class="hint">Внешняя реклама показывается на планшетах ресторанов с тарифом Standard, в паузах между акциями ресторана. Пустой список ресторанов — показ во всех. Менеджер ресторана может заблокировать рекламу у себя.</p>
   <div class="wrap"><table>
-    <thead><tr><th>Рекламодатель</th><th>Заголовок</th><th>Картинка (ссылка)</th><th>Рестораны</th><th>Включена</th><th>Показов за 7 дней</th><th></th></tr></thead>
+    <thead><tr><th>Рекламодатель</th><th>Заголовок</th><th>Картинка (ссылка)</th><th>Ссылка для QR</th><th>Телефон</th><th>Рестораны</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
     <tbody id="ads"></tbody>
   </table></div>
   <p><button id="addAdBtn">+ Реклама</button></p>
+</section>
+
+<section id="charTab" hidden>
+  <p class="hint">Пакет персонажа — JSON-файл с картинками, голосом и сценарием (формат: docs/character-pack.md в репозитории).
+    Повторная загрузка с тем же id заменяет персонажа. Менеджер ресторана включает и выбирает персонажа в своём кабинете.</p>
+  <p><label>Загрузить пакет <input type="file" id="charFile" accept=".json,application/json"></label></p>
+  <div class="wrap"><table>
+    <thead><tr><th>Персонаж</th><th>Имя</th><th>id</th><th></th></tr></thead>
+    <tbody id="chars"></tbody>
+  </table></div>
 </section>
 
 <script>
@@ -104,15 +114,17 @@ let devices = [], rests = [], cur = null;
 
 document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => {
   document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
-  for (const id of ['devices', 'rest', 'adsTab']) $(id).hidden = id !== b.dataset.tab;
+  for (const id of ['devices', 'rest', 'adsTab', 'charTab']) $(id).hidden = id !== b.dataset.tab;
   if (b.dataset.tab === 'adsTab') loadAds();
+  if (b.dataset.tab === 'charTab') loadChars();
 }));
 
 // ---------- Устройства
 
 function placeOptions(d) {
   return '<option value="">— не привязано —</option>' + rests.map((r) => `<optgroup label="${esc(r.name)}">${
-    (r.tables || []).map((t) => `<option value="${esc(r.id)}|${esc(t)}" ${d.restaurantId === r.id && d.table === t ? 'selected' : ''}>${esc(r.name)} · стол ${esc(t)}</option>`).join('')
+    `<option value="${esc(r.id)}|entrance" ${d.restaurantId === r.id && d.role === 'entrance' ? 'selected' : ''}>${esc(r.name)} · вход</option>`
+    + (r.tables || []).map((t) => `<option value="${esc(r.id)}|${esc(t)}" ${d.restaurantId === r.id && d.role !== 'entrance' && d.table === t ? 'selected' : ''}>${esc(r.name)} · стол ${esc(t)}</option>`).join('')
   }</optgroup>`).join('');
 }
 
@@ -354,10 +366,12 @@ function renderAds() {
     <td><input data-f="advertiser" value="${esc(a.advertiser)}"></td>
     <td><input data-f="title" value="${esc(a.title)}"></td>
     <td><input data-f="image" value="${esc(a.image)}"><input type="file" accept="image/*" data-upload="image"></td>
+    <td><input data-f="link" value="${esc(a.link || '')}" placeholder="https://"></td>
+    <td><input data-f="phone" value="${esc(a.phone || '')}"></td>
     <td><select data-f="restaurants" multiple size="3">${rests.map((r) =>
       `<option value="${esc(r.id)}" ${(a.restaurants || []).includes(r.id) ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></td>
     <td><input data-f="active" type="checkbox" ${a.active ? 'checked' : ''}></td>
-    <td>${a.views ?? 0}</td>
+    <td>${a.views ?? 0} показов<br>${a.scans ?? 0} сканов QR</td>
     <td><button data-save="${i}">Сохранить</button><button data-del="${i}">✕</button></td></tr>`).join('');
 }
 
@@ -384,6 +398,36 @@ $('ads').onclick = async (e) => {
 };
 
 $('addAdBtn').onclick = () => { ads.push({ active: true, restaurants: [] }); renderAds(); };
+
+// ---------- ИИ-персонажи
+
+async function loadChars() {
+  const list = await api('/api/characters');
+  $('chars').innerHTML = list.map((c) => `<tr>
+    <td><img src="${esc(c.images.idle)}" alt="" style="height:120px"></td>
+    <td>${esc(Object.values(c.name || {}).join(' / '))}</td>
+    <td>${esc(c.id)}</td>
+    <td><button data-delchar="${esc(c.id)}">Удалить</button></td></tr>`).join('');
+}
+
+$('charFile').onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  let pack;
+  try { pack = JSON.parse(await file.text()); } catch { return alert('Это не JSON-файл пакета'); }
+  const r = await api('/api/characters', 'POST', pack);
+  e.target.value = '';
+  if (r.error) return alert(`Ошибка: ${r.error}`);
+  loadChars();
+};
+
+$('chars').onclick = async (e) => {
+  const id = e.target.dataset.delchar;
+  if (id && confirm('Удалить персонажа? У ресторанов, где он выбран, персонаж пропадёт.')) {
+    await api(`/api/characters/${encodeURIComponent(id)}`, 'DELETE');
+    loadChars();
+  }
+};
 
 loadRests().then(loadDevices);
 setInterval(loadDevices, 5000);

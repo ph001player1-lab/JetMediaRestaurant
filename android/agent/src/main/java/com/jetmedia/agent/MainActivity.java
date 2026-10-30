@@ -26,11 +26,14 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.os.UserManager;
 import android.provider.Settings;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.text.InputType;
 import android.util.Base64;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -50,6 +53,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -74,6 +78,7 @@ public class MainActivity extends Activity {
     private final Runnable retryLoad = this::load;
     private long offlineSince;
     private boolean showingOffline;
+    private TextToSpeech tts;
     private DevicePolicyManager dpm;
     private ComponentName admin;
     private SharedPreferences prefs;
@@ -106,6 +111,15 @@ public class MainActivity extends Activity {
                 handler.postDelayed(retryLoad, 10000);
             }
         });
+
+        // Голос ИИ-персонажа: страница вызывает JetAgent.speak(...), по окончании фразы — jetSpeechDone()
+        tts = new TextToSpeech(this, status -> { });
+        tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+            @Override public void onStart(String id) { }
+            @Override public void onDone(String id) { speechDone(); }
+            @Override public void onError(String id) { speechDone(); }
+        });
+        web.addJavascriptInterface(new SpeechBridge(), "JetAgent");
 
         View corner = new View(this);
         corner.setOnClickListener(v -> onCornerTap());
@@ -149,6 +163,31 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
         if (web.canGoBack()) web.goBack();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (tts != null) tts.shutdown();
+        super.onDestroy();
+    }
+
+    private void speechDone() {
+        runOnUiThread(() -> web.evaluateJavascript("window.jetSpeechDone && jetSpeechDone()", null));
+    }
+
+    private class SpeechBridge {
+        @JavascriptInterface
+        public void speak(String text, String lang, double pitch, double rate) {
+            tts.setLanguage(Locale.forLanguageTag(lang));
+            tts.setPitch((float) pitch);
+            tts.setSpeechRate((float) rate);
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jet");
+        }
+
+        @JavascriptInterface
+        public void stop() {
+            tts.stop();
+        }
     }
 
     private boolean isOwner() {

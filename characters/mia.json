@@ -1,0 +1,103 @@
+{
+ "id": "mia",
+ "version": 1,
+ "name": {
+  "en": "Mia",
+  "ru": "Мия",
+  "th": "มีอา",
+  "zh": "米娅"
+ },
+ "images": {
+  "idle": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMDAgNDIwIj4KPGVsbGlwc2UgY3g9IjE1MCIgY3k9IjE0MCIgcng9Ijk4IiByeT0iMTA0IiBmaWxsPSIjNWEzNDIyIi8+CjxwYXRoIGQ9Ik02MiAxNTAgUTU1IDI2MCA5NSAzMDAgTDIwNSAzMDAgUTI0NSAyNjAgMjM4IDE1MCBaIiBmaWxsPSIjNWEzNDIyIi8+CjxyZWN0IHg9IjEyOCIgeT0iMjE1IiB3aWR0aD0iNDQiIGhlaWdodD0iNDAiIGZpbGw9IiNmMmMzOWIiLz4KPHBhdGggZD0iTTYwIDQyMCBRNjIgMjkwIDE1MCAyNjggUTIzOCAyOTAgMjQwIDQyMCBaIiBmaWxsPSIjZmRmYmY3Ii8+CjxwYXRoIGQ9Ik05NSA0MjAgTDExMCAzMDAgTDE1MCAzMzAgTDE5MCAzMDAgTDIwNSA0MjAgWiIgZmlsbD0iIzJmMmEyNiIvPgo8cGF0aCBkPSJNMTUwIDI4NSBMMTMyIDI3MiBMMTMyIDI5OCBaIE0xNTAgMjg1IEwxNjggMjcyIEwxNjggMjk4IFoiIGZpbGw9IiNjODU1M2QiLz4KPHJlY3QgeD0iMTEyIiB5PSIzNDUiIHdpZHRoPSI3NiIgaGVpZ2h0PSI3NSIgcng9IjgiIGZpbGw9IiNmZmYiIHN0cm9rZT0iI2U4ZTBkNiIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxlbGxpcHNlIGN4PSIxNTAiIGN5PSIxNTAiIHJ4PSI3OCIgcnk9Ijg0IiBmaWxsPSIjZjZjZmE5Ii8+CjxwYXRoIGQ9Ik03MiAxMzUgUTkwIDYwIDE2MCA2MiBRMjIyIDY2IDIzMCAxMzAgUTIwMCA5NSAxNTAgOTggUTExMCAxMDAgNzIgMTM1IFoiIGZpbGw9IiM1YTM0MjIiLz4KPGVsbGlwc2UgY3g9IjEyMCIgY3k9IjE1NSIgcng9IjExIiByeT0iMTQiIGZpbGw9IiMyYjFjMTQiLz48ZWxsaXBzZSBjeD0iMTgwIiBjeT0iMTU1IiByeD0iMTEiIHJ5PSIxNCIgZmlsbD0iIzJiMWMxNCIvPgo8Y2lyY2xlIGN4PSIxMjQiIGN5PSIxNTAiIHI9IjQiIGZpbGw9IiNmZmYiLz48Y2lyY2xlIGN4PSIxODQiIGN5PSIxNTAiIHI9IjQiIGZpbGw9IiNmZmYiLz4KPHBhdGggZD0iTTEwNCAxMzQgUTEyMCAxMjYgMTM0IDEzNCBNMTY2IDEzNCBRMTgwIDEyNiAxOTYgMTM0IiBzdHJva2U9IiM1YTM0MjIiIHN0cm9rZS13aWR0aD0iNSIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CjxlbGxpcHNlIGN4PSIxMDIiIGN5PSIxODQiIHJ4PSIxMyIgcnk9IjgiIGZpbGw9IiNmMTljOGYiIG9wYWNpdHk9Ii42Ii8+PGVsbGlwc2UgY3g9IjE5OCIgY3k9IjE4NCIgcng9IjEzIiByeT0iOCIgZmlsbD0iI2YxOWM4ZiIgb3BhY2l0eT0iLjYiLz4KPHBhdGggZD0iTTEzMiAxOTIgUTE1MCAyMDggMTY4IDE5MiIgc3Ryb2tlPSIjOWMzYjJjIiBzdHJva2Utd2lkdGg9IjUiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4=",
+  "talk": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMDAgNDIwIj4KPGVsbGlwc2UgY3g9IjE1MCIgY3k9IjE0MCIgcng9Ijk4IiByeT0iMTA0IiBmaWxsPSIjNWEzNDIyIi8+CjxwYXRoIGQ9Ik02MiAxNTAgUTU1IDI2MCA5NSAzMDAgTDIwNSAzMDAgUTI0NSAyNjAgMjM4IDE1MCBaIiBmaWxsPSIjNWEzNDIyIi8+CjxyZWN0IHg9IjEyOCIgeT0iMjE1IiB3aWR0aD0iNDQiIGhlaWdodD0iNDAiIGZpbGw9IiNmMmMzOWIiLz4KPHBhdGggZD0iTTYwIDQyMCBRNjIgMjkwIDE1MCAyNjggUTIzOCAyOTAgMjQwIDQyMCBaIiBmaWxsPSIjZmRmYmY3Ii8+CjxwYXRoIGQ9Ik05NSA0MjAgTDExMCAzMDAgTDE1MCAzMzAgTDE5MCAzMDAgTDIwNSA0MjAgWiIgZmlsbD0iIzJmMmEyNiIvPgo8cGF0aCBkPSJNMTUwIDI4NSBMMTMyIDI3MiBMMTMyIDI5OCBaIE0xNTAgMjg1IEwxNjggMjcyIEwxNjggMjk4IFoiIGZpbGw9IiNjODU1M2QiLz4KPHJlY3QgeD0iMTEyIiB5PSIzNDUiIHdpZHRoPSI3NiIgaGVpZ2h0PSI3NSIgcng9IjgiIGZpbGw9IiNmZmYiIHN0cm9rZT0iI2U4ZTBkNiIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxlbGxpcHNlIGN4PSIxNTAiIGN5PSIxNTAiIHJ4PSI3OCIgcnk9Ijg0IiBmaWxsPSIjZjZjZmE5Ii8+CjxwYXRoIGQ9Ik03MiAxMzUgUTkwIDYwIDE2MCA2MiBRMjIyIDY2IDIzMCAxMzAgUTIwMCA5NSAxNTAgOTggUTExMCAxMDAgNzIgMTM1IFoiIGZpbGw9IiM1YTM0MjIiLz4KPGVsbGlwc2UgY3g9IjEyMCIgY3k9IjE1NSIgcng9IjExIiByeT0iMTQiIGZpbGw9IiMyYjFjMTQiLz48ZWxsaXBzZSBjeD0iMTgwIiBjeT0iMTU1IiByeD0iMTEiIHJ5PSIxNCIgZmlsbD0iIzJiMWMxNCIvPgo8Y2lyY2xlIGN4PSIxMjQiIGN5PSIxNTAiIHI9IjQiIGZpbGw9IiNmZmYiLz48Y2lyY2xlIGN4PSIxODQiIGN5PSIxNTAiIHI9IjQiIGZpbGw9IiNmZmYiLz4KPHBhdGggZD0iTTEwNCAxMzQgUTEyMCAxMjYgMTM0IDEzNCBNMTY2IDEzNCBRMTgwIDEyNiAxOTYgMTM0IiBzdHJva2U9IiM1YTM0MjIiIHN0cm9rZS13aWR0aD0iNSIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CjxlbGxpcHNlIGN4PSIxMDIiIGN5PSIxODQiIHJ4PSIxMyIgcnk9IjgiIGZpbGw9IiNmMTljOGYiIG9wYWNpdHk9Ii42Ii8+PGVsbGlwc2UgY3g9IjE5OCIgY3k9IjE4NCIgcng9IjEzIiByeT0iOCIgZmlsbD0iI2YxOWM4ZiIgb3BhY2l0eT0iLjYiLz4KPHBhdGggZD0iTTEzMCAxOTAgUTE1MCAyMjIgMTcwIDE5MCBaIiBmaWxsPSIjOWMzYjJjIi8+PHBhdGggZD0iTTEzNyAyMDMgUTE1MCAyMTIgMTYzIDIwMyBRMTUwIDIyMCAxMzcgMjAzIFoiIGZpbGw9IiNmMDhhN2UiLz4KPC9zdmc+"
+ },
+ "voice": {
+  "pitch": 1.25,
+  "rate": 1.0
+ },
+ "greeting": {
+  "en": "Hi! I'm Mia. Hungry? I'll help you choose!",
+  "ru": "Привет! Я Мия. Проголодались? Помогу выбрать!",
+  "th": "สวัสดีค่ะ หนูชื่อมีอา หิวไหมคะ ให้หนูช่วยเลือกนะคะ",
+  "zh": "你好！我是米娅。饿了吗？我来帮你选！"
+ },
+ "dialog": {
+  "start": "hello",
+  "nodes": {
+   "hello": {
+    "say": {
+     "en": "Hi! I'm Mia. Hungry? I'll help you choose!",
+     "ru": "Привет! Я Мия. Проголодались? Помогу выбрать!",
+     "th": "สวัสดีค่ะ หนูชื่อมีอา หิวไหมคะ ให้หนูช่วยเลือกนะคะ",
+     "zh": "你好！我是米娅。饿了吗？我来帮你选！"
+    },
+    "buttons": [
+     {
+      "label": {
+       "en": "What do you recommend?",
+       "ru": "Что посоветуешь?",
+       "th": "แนะนำอะไรดี?",
+       "zh": "有什么推荐？"
+      },
+      "go": "recommend"
+     },
+     {
+      "label": {
+       "en": "Something for kids",
+       "ru": "Что-нибудь для детей",
+       "th": "เมนูสำหรับเด็ก",
+       "zh": "儿童餐"
+      },
+      "go": "kids"
+     },
+     {
+      "label": {
+       "en": "Call the waiter",
+       "ru": "Позови официанта",
+       "th": "เรียกพนักงาน",
+       "zh": "叫服务员"
+      },
+      "go": "waiter"
+     },
+     {
+      "label": {
+       "en": "Open the menu",
+       "ru": "Открой меню",
+       "th": "เปิดเมนู",
+       "zh": "打开菜单"
+      },
+      "go": "menu"
+     }
+    ]
+   },
+   "kids": {
+    "say": {
+     "en": "We have a kids menu with fun dishes — take a look!",
+     "ru": "У нас есть детское меню с весёлыми блюдами — загляните!",
+     "th": "เรามีเมนูสำหรับเด็กแสนสนุก ลองดูนะคะ",
+     "zh": "我们有好玩的儿童菜单，快来看看！"
+    },
+    "buttons": [
+     {
+      "label": {
+       "en": "Show the menu",
+       "ru": "Показать меню",
+       "th": "ดูเมนู",
+       "zh": "查看菜单"
+      },
+      "go": "menu"
+     },
+     {
+      "label": {
+       "en": "Back",
+       "ru": "Назад",
+       "th": "กลับ",
+       "zh": "返回"
+      },
+      "go": "hello"
+     }
+    ]
+   }
+  }
+ }
+}

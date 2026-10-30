@@ -84,7 +84,7 @@
     </div>
   </header>
   <nav class="tabs" id="tabs" hidden>
-    <button data-tab="tWork" class="on" data-t="tabWork"></button><button data-tab="tStaff" data-t="tabStaff"></button><button data-tab="tMenu" data-t="tabMenu"></button><button data-tab="tPromos" data-t="tabPromos"></button><button data-tab="tAds" data-t="tabAds"></button>
+    <button data-tab="tWork" class="on" data-t="tabWork"></button><button data-tab="tStaff" data-t="tabStaff"></button><button data-tab="tMenu" data-t="tabMenu"></button><button data-tab="tPromos" data-t="tabPromos"></button><button data-tab="tAds" data-t="tabAds"></button><button data-tab="tAI" data-t="tabAI"></button><button data-tab="tDev" data-t="tabDev"></button>
   </nav>
   </div>
   <main><section id="tWork">
@@ -95,6 +95,7 @@
   </section>
   <section id="tStaff" hidden></section><section id="tMenu" hidden></section>
   <section id="tPromos" hidden></section><section id="tAds" hidden></section>
+  <section id="tAI" hidden></section><section id="tDev" hidden></section>
   </main>
   <div class="modal" id="modal" hidden></div>
 </div>
@@ -121,7 +122,7 @@ const T = {
         srcLang: 'Source language', srcInterval: 'Check for changes', int_hourly: 'Every hour', int_daily: 'Once a day', int_off: 'Only by button',
         syncNow: 'Sync now', syncing: 'Syncing…', lastSync: 'Last sync', items: 'items', search: 'Search by name or code', all: 'All',
         upload: 'Upload photo', hide: 'Hide from tablets', close: 'Close', synced: 'Fields from the source are updated on every sync',
-        edit: 'Edit', addDish: 'Add a dish — search by name or code', total: 'Total', editedBy: 'edited', display: 'Display on tablets', idleSec: 'Start the slideshow after idle, seconds', slideSec: 'Seconds per slide', titleSize: 'Title size, px', textSize: 'Text size, px', textColor: 'Text color', bgColor: 'Caption background', sampleTitle: 'Sample title', sampleText: 'Sample text under the title' },
+        paid: 'Bill paid', tabAI: 'AI host', tabDev: 'Devices', aiOn: 'Show the AI host on tablets', aiChar: 'Character', aiSpeak: 'Speak out loud', aiNone: 'No characters yet — JET MEDIA adds them', entrance: 'Entrance', online: 'online', offline: 'offline', scansL: 'QR scans', link: 'Link for the QR code', phone: 'Phone on the slide', edit: 'Edit', addDish: 'Add a dish — search by name or code', total: 'Total', editedBy: 'edited', display: 'Display on tablets', idleSec: 'Start the slideshow after idle, seconds', slideSec: 'Seconds per slide', titleSize: 'Title size, px', textSize: 'Text size, px', textColor: 'Text color', bgColor: 'Caption background', sampleTitle: 'Sample title', sampleText: 'Sample text under the title' },
   th: { login: 'เข้าสู่ระบบพนักงาน', code: 'รหัสร้าน', pin: 'PIN ของคุณ', start: 'เข้าสู่ระบบ', out: 'ออกจากระบบ',
         calls: 'การเรียก', orders: 'ออร์เดอร์', tables: 'โต๊ะ', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'เช็คบิล',
         going: 'กำลังไป', done: 'เสร็จแล้ว', confirm: 'ยืนยัน', reject: 'ปฏิเสธ', free: 'ว่างแล้ว', none: 'ยังไม่มี',
@@ -143,7 +144,7 @@ const T = {
         srcLang: 'ภาษาของแหล่งที่มา', srcInterval: 'ตรวจสอบการเปลี่ยนแปลง', int_hourly: 'ทุกชั่วโมง', int_daily: 'วันละครั้ง', int_off: 'เมื่อกดปุ่มเท่านั้น',
         syncNow: 'ซิงก์ตอนนี้', syncing: 'กำลังซิงก์…', lastSync: 'ซิงก์ล่าสุด', items: 'รายการ', search: 'ค้นหาตามชื่อหรือรหัส', all: 'ทั้งหมด',
         upload: 'อัปโหลดรูป', hide: 'ซ่อนจากแท็บเล็ต', close: 'ปิด', synced: 'ข้อมูลจากแหล่งที่มาจะอัปเดตทุกครั้งที่ซิงก์',
-        edit: 'แก้ไข', addDish: 'เพิ่มเมนู — ค้นหาตามชื่อหรือรหัส', total: 'รวม', editedBy: 'แก้ไขโดย', display: 'การแสดงผลบนแท็บเล็ต', idleSec: 'เริ่มสไลด์เมื่อไม่มีการใช้งาน (วินาที)', slideSec: 'วินาทีต่อสไลด์', titleSize: 'ขนาดหัวข้อ (px)', textSize: 'ขนาดข้อความ (px)', textColor: 'สีข้อความ', bgColor: 'สีพื้นหลังข้อความ', sampleTitle: 'ตัวอย่างหัวข้อ', sampleText: 'ตัวอย่างข้อความใต้หัวข้อ' },
+        paid: 'ชำระเงินแล้ว', tabAI: 'ผู้ช่วย AI', tabDev: 'อุปกรณ์', aiOn: 'แสดงผู้ช่วย AI บนแท็บเล็ต', aiChar: 'ตัวละคร', aiSpeak: 'พูดออกเสียง', aiNone: 'ยังไม่มีตัวละคร — JET MEDIA จะเพิ่มให้', entrance: 'ทางเข้า', online: 'ออนไลน์', offline: 'ออฟไลน์', scansL: 'สแกน QR', link: 'ลิงก์สำหรับ QR โค้ด', phone: 'เบอร์โทรบนสไลด์', edit: 'แก้ไข', addDish: 'เพิ่มเมนู — ค้นหาตามชื่อหรือรหัส', total: 'รวม', editedBy: 'แก้ไขโดย', display: 'การแสดงผลบนแท็บเล็ต', idleSec: 'เริ่มสไลด์เมื่อไม่มีการใช้งาน (วินาที)', slideSec: 'วินาทีต่อสไลด์', titleSize: 'ขนาดหัวข้อ (px)', textSize: 'ขนาดข้อความ (px)', textColor: 'สีข้อความ', bgColor: 'สีพื้นหลังข้อความ', sampleTitle: 'ตัวอย่างหัวข้อ', sampleText: 'ตัวอย่างข้อความใต้หัวข้อ' },
   ru: { login: 'Вход для персонала', code: 'Код ресторана', pin: 'Ваш PIN', start: 'Войти', out: 'Выйти',
         calls: 'Вызовы', orders: 'Заказы', tables: 'Столы', table: 'Стол', waiter: 'Вызов', bill: 'Счёт',
         going: 'Иду', done: 'Готово', confirm: 'Подтвердить', reject: 'Отклонить', free: 'свободен', none: 'Пока пусто',
@@ -165,7 +166,7 @@ const T = {
         srcLang: 'Язык источника', srcInterval: 'Проверять изменения', int_hourly: 'Каждый час', int_daily: 'Раз в день', int_off: 'Только по кнопке',
         syncNow: 'Синхронизировать сейчас', syncing: 'Синхронизация…', lastSync: 'Последняя синхронизация', items: 'блюд', search: 'Поиск по названию или коду', all: 'Все',
         upload: 'Загрузить фото', hide: 'Скрыть с планшетов', close: 'Закрыть', synced: 'Поля из источника обновляются при каждой синхронизации',
-        edit: 'Изменить', addDish: 'Добавить блюдо — поиск по названию или коду', total: 'Итого', editedBy: 'изменил', display: 'Показ на планшетах', idleSec: 'Через сколько секунд простоя начинать показ', slideSec: 'Секунд на один слайд', titleSize: 'Размер заголовка, px', textSize: 'Размер текста, px', textColor: 'Цвет текста', bgColor: 'Цвет фона подписи', sampleTitle: 'Пример заголовка', sampleText: 'Пример текста под заголовком' },
+        paid: 'Счёт оплачен', tabAI: 'ИИ-персонаж', tabDev: 'Устройства', aiOn: 'Показывать ИИ-персонажа на планшетах', aiChar: 'Персонаж', aiSpeak: 'Говорить вслух', aiNone: 'Персонажей пока нет — их добавляет JET MEDIA', entrance: 'Вход', online: 'онлайн', offline: 'офлайн', scansL: 'сканов QR', link: 'Ссылка для QR-кода', phone: 'Телефон на слайде', edit: 'Изменить', addDish: 'Добавить блюдо — поиск по названию или коду', total: 'Итого', editedBy: 'изменил', display: 'Показ на планшетах', idleSec: 'Через сколько секунд простоя начинать показ', slideSec: 'Секунд на один слайд', titleSize: 'Размер заголовка, px', textSize: 'Размер текста, px', textColor: 'Цвет текста', bgColor: 'Цвет фона подписи', sampleTitle: 'Пример заголовка', sampleText: 'Пример текста под заголовком' },
 };
 
 let lang = localStorage.lang || 'en';
@@ -304,13 +305,14 @@ function render(s) {
         ${o.status === 'pending' && !o.ackAt ? btn('order', o.id, 'ack', 'going') : ''}
         ${o.status === 'pending' ? btn('order', o.id, 'confirm', 'confirm') : ''}
         ${o.status !== 'rejected' ? `<button data-oedit="${esc(o.id)}">${t('edit')}</button>` : ''}
+        ${o.status === 'confirmed' && !s.restaurant.pos ? btn('table', o.table, 'paid', 'paid') : ''}
         ${o.status === 'pending' ? btn('order', o.id, 'reject', 'reject') : ''}
       </div>
     </div>`).join('') || `<p class="empty">${t('none')}</p>`;
 
   const busy = [...new Set([...s.calls, ...s.orders].map((x) => x.table))];
-  $('tables').innerHTML = busy.map((tb) =>
-    `<button data-act="table|${esc(tb)}|close">${t('table')} ${esc(tb)} ${t('free')}</button>`).join('')
+  $('tables').innerHTML = busy.map((tb) => `<div>${s.restaurant.pos ? '' : `<button data-act="table|${esc(tb)}|paid">${t('table')} ${esc(tb)}: ${t('paid')}</button>`}
+    <button data-act="table|${esc(tb)}|close">${t('table')} ${esc(tb)} ${t('free')}</button></div>`).join('')
     || `<p class="empty">${t('none')}</p>`;
 }
 
@@ -366,6 +368,10 @@ document.addEventListener('click', async (e) => {
     mgr.restaurant.menu.splice(medit, 1);
     closeItem();
     await saveManager(false);
+  } else if (b.dataset.aisave) {
+    await api('/api/manager/restaurant', { token, avatar: mgr.restaurant.avatar });
+    await loadManager();
+    alert(t('saved'));
   } else if (b.dataset.dsave) {
     await api('/api/manager/restaurant', { token, display: mgr.restaurant.display });
     await loadManager();
@@ -467,7 +473,7 @@ const parseTables = (s) => String(s || '').split(',').map((x) => x.trim()).filte
 
 function showTab(id) {
   document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('on', x.dataset.tab === id));
-  for (const s of ['tWork', 'tStaff', 'tMenu', 'tPromos', 'tAds']) $(s).hidden = s !== id;
+  for (const s of ['tWork', 'tStaff', 'tMenu', 'tPromos', 'tAds', 'tAI', 'tDev']) $(s).hidden = s !== id;
   if (id !== 'tWork') loadManager();
 }
 
@@ -509,6 +515,7 @@ function renderManager() {
 
   $('tPromos').innerHTML = `${langBar()}<div data-list="promos">${r.promos.map((p, i) => `<div class="ed" data-i="${i}">
       ${img(p.image)}${uploader('image')}${inp('image', p.image, 'image')}${inp('title', val(p.title), 'title')}${inp('text', val(p.text), 'text')}
+      ${inp('link', p.link || '', 'link')}${inp('phone', p.phone || '', 'phone')}
       ${chk('active', p.active, 'active')}${del(i)}</div>`).join('')}</div>${saveBar('promos')}`;
 
   const d = r.display;
@@ -522,10 +529,27 @@ function renderManager() {
     + (r.tariff === 'premium' ? `<p class="empty">${t('premium')}</p>` : mgr.ads.map((a) => {
     const blocked = r.blockedAds.includes(a.id);
     return `<div class="ed">${img(a.image)}<b>${esc(a.title)}</b>
-      <span class="empty">${esc(a.advertiser)} · ${a.views} ${t('views')}</span>
+      <span class="empty">${esc(a.advertiser)} · ${a.views} ${t('views')} · ${a.scans} ${t('scansL')}</span>
       <button data-block="${esc(a.id)}" style="background:${blocked ? '#c62828' : '#2e7d32'}">${t(blocked ? 'blocked' : 'shown')}</button></div>`;
   }).join('') || `<p class="empty">${t('noAds')}</p>`);
   renderPreview();
+
+  // ИИ-персонаж: включить, выбрать из библиотеки, говорить ли вслух
+  const av = r.avatar, chosen = mgr.characters.find((c) => c.id === av.characterId);
+  $('tAI').innerHTML = !mgr.characters.length ? `<p class="empty">${t('aiNone')}</p>` : `<div class="ed">
+      <label class="chk"><input type="checkbox" data-ai="enabled" ${av.enabled ? 'checked' : ''}>${t('aiOn')}</label>
+      <label>${t('aiChar')}<select data-ai="characterId"><option value=""></option>${mgr.characters.map((c) =>
+        `<option value="${esc(c.id)}" ${c.id === av.characterId ? 'selected' : ''}>${esc(val(c.name) || c.name.en || c.id)}</option>`).join('')}</select></label>
+      ${chosen ? `<img src="${esc(chosen.image)}" alt="" style="max-height:260px;object-fit:contain;background:#f9e7d2">` : ''}
+      <label class="chk"><input type="checkbox" data-ai="speak" ${av.speak !== false ? 'checked' : ''}>${t('aiSpeak')}</label>
+      <div class="bar"><button data-aisave="1">${t('save')}</button></div></div>`;
+
+  // Устройства ресторана: столы и вход
+  $('tDev').innerHTML = mgr.devices.map((d) => `<div class="card ${d.online ? 'ack' : 'rejected'}">
+      <b>${d.entrance ? t('entrance') : `${t('table')} ${esc(d.table || '—')}`}</b> · ${t(d.online ? 'online' : 'offline')}
+      · ${d.battery ?? '—'}%${d.charging ? ' ⚡' : ''}${d.wifi ? ` · Wi-Fi ${esc(d.wifi)} (${esc(d.rssi)} dBm)` : ''}
+      <br><small class="empty">${esc(d.id)} · ${esc(d.version || '')} · ${new Date(d.lastSeen).toLocaleString()}</small></div>`).join('')
+    || `<p class="empty">${t('none')}</p>`;
 }
 
 // Как подпись слайда будет выглядеть на планшете
@@ -632,6 +656,11 @@ async function onEdit(e) {
   }
   if (el.classList.contains('osearch')) { oedit.q = el.value; renderOrderResults(); return; }
   if (el.classList.contains('msearch')) { mq = el.value; renderGrid(); return; }
+  if (el.dataset.ai && mgr) {
+    mgr.restaurant.avatar[el.dataset.ai] = el.type === 'checkbox' ? el.checked : el.value;
+    if (el.dataset.ai === 'characterId' && e.type === 'change') renderManager();
+    return;
+  }
   if (el.dataset.df && mgr) {
     mgr.restaurant.display[el.dataset.df] = el.type === 'number' ? Number(el.value) : el.value;
     renderPreview();

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Menu</title>
 <link rel="icon" href="/favicon.svg">
-<!-- Пишем под старый WebView на Android 11: без ?., ??, aspect-ratio, inset и flex-gap -->
+<!-- Пишем под старый WebView на Android 11: var и function, без ?., ??, aspect-ratio, inset, flex-gap и CSS grid -->
 <style>
   :root { --bg: #f7f3ee; --card: #fff; --ink: #1f1a17; --muted: #8a7f76; --accent: #c8553d; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -14,105 +14,143 @@
   #app { display: flex; flex-direction: column; height: 100%; }
   header { display: flex; align-items: center; padding: 14px 16px; background: var(--card); }
   header h1 { font-size: 26px; margin: 0; flex: 1; }
+  #avBtn { border: 0; background: #efe7df; color: var(--ink); border-radius: 22px; padding: 10px 16px; font-size: 18px; margin-left: 8px; display: none; }
   .langs button { border: 1px solid #ddd; background: none; border-radius: 10px; padding: 10px 14px; font-size: 18px; margin-left: 8px; color: var(--ink); }
   .langs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
-  /* Категории — горизонтальная лента */
   #cats { white-space: nowrap; overflow-x: auto; padding: 10px 12px; background: var(--card); box-shadow: 0 1px 0 rgba(0,0,0,.06); flex: none; }
   #cats button { display: inline-block; border: 1px solid #e3d9cf; background: var(--bg); color: var(--ink); border-radius: 24px; padding: 12px 18px; font-size: 18px; margin-right: 8px; }
   #cats button.on { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: 600; }
   main { flex: 1; min-height: 0; display: flex; }
   #items { flex: 1; overflow-y: auto; padding: 8px; }
-  /* Карточки — flex-wrap вместо grid: старый WebView сжимает строки grid по высоте экрана */
   .grid { display: flex; flex-wrap: wrap; align-items: flex-start; }
   .item { flex: none; width: calc(50% - 16px); margin: 8px; background: var(--card); border-radius: 16px; overflow: hidden; }
   .item img, .ph { width: 100%; height: 260px; object-fit: cover; background: #eee4da; display: block; }
   .item .b { padding: 12px 14px 14px; }
   .item .n { font-weight: 600; font-size: 21px; line-height: 1.25; margin-bottom: 6px; }
   .item .d { color: var(--muted); font-size: 15px; line-height: 1.3; }
-  .row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
-  .price { font-weight: 700; font-size: 22px; }
+  .row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; min-height: 48px; }
+  .price { font-weight: 700; font-size: 22px; white-space: nowrap; }
   .add { border: 0; background: var(--accent); color: #fff; border-radius: 12px; padding: 14px 20px; font-size: 18px; font-weight: 600; }
   @media (min-width: 1000px) { .item { width: calc(33.333% - 16px); } }
   footer { display: flex; padding: 12px 16px; background: var(--card); box-shadow: 0 -1px 0 rgba(0,0,0,.06); flex: none; }
   footer button { flex: 1; border: 0; border-radius: 14px; font-size: 20px; font-weight: 600; padding: 22px 8px; margin-left: 12px; background: #efe7df; color: var(--ink); }
   footer button:first-child { margin-left: 0; }
-  footer #cartBtn { background: var(--accent); color: #fff; }
+  footer .main { background: var(--accent); color: #fff; }
   .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.4); display: none; align-items: flex-end; justify-content: center; z-index: 4; }
   .overlay.show { display: flex; }
-  .sheet { background: var(--card); width: 680px; max-width: 100%; max-height: 85%; overflow: auto; border-radius: 20px 20px 0 0; padding: 22px; font-size: 18px; }
+  .sheet { background: var(--card); width: 680px; max-width: 100%; max-height: 88%; overflow: auto; border-radius: 20px 20px 0 0; padding: 22px; font-size: 18px; }
+  .sheet h2 { margin: 0 0 8px; }
   .line { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
   .line .n { flex: 1; padding-right: 10px; }
   .qty { white-space: nowrap; margin-right: 12px; }
   .qty button { width: 48px; height: 48px; border-radius: 12px; border: 1px solid #ddd; background: none; font-size: 22px; color: var(--ink); }
+  .order { background: var(--bg); border-radius: 14px; padding: 6px 14px 12px; margin-top: 12px; }
+  .order .line { border-color: #e6ddd3; }
+  .ohead { display: flex; justify-content: space-between; padding: 10px 0 4px; color: var(--muted); font-size: 16px; }
+  .total { display: flex; justify-content: space-between; font-weight: 700; padding-top: 10px; }
+  .grand { display: flex; justify-content: space-between; font-weight: 700; font-size: 22px; padding: 16px 2px 0; }
   .big { width: 100%; border: 0; border-radius: 14px; padding: 18px; font-size: 20px; font-weight: 600; background: var(--accent); color: #fff; margin-top: 14px; }
   .big.ghost { background: #efe7df; color: var(--ink); }
   .status { font-size: 15px; color: var(--muted); }
-  #toast { position: fixed; top: 90px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 16px 24px; border-radius: 14px; font-size: 20px; display: none; z-index: 30; text-align: center; }
-  /* Экран простоя: акции и реклама, крупные кнопки и выбор языка */
-  #attract { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #000; display: none; z-index: 10; color: #fff; }
-  #attract img { width: 100%; height: 100%; object-fit: cover; opacity: .9; }
-  #attract .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 32px 32px 150px; background: linear-gradient(transparent, rgba(0,0,0,.85)); }
-  #attract .cap b { display: block; font-size: 38px; line-height: 1.2; }
-  #attract .cap span { display: block; font-size: 22px; opacity: .9; margin-top: 8px; }
-  #attract .acts { position: absolute; left: 16px; right: 16px; bottom: 24px; display: flex; }
-  #attract .abtn { flex: 1; margin: 0 8px; border: 0; border-radius: 18px; padding: 28px 12px; font-size: 24px; font-weight: 700; background: rgba(255,255,255,.94); color: var(--ink); }
-  #attract .abtn.main { background: var(--accent); color: #fff; }
-  #attract .alangs { position: absolute; top: 20px; right: 16px; }
-  #attract .alangs button { font-size: 20px; padding: 12px 16px; margin-left: 8px; border-radius: 12px; border: 0; background: rgba(255,255,255,.88); color: var(--ink); }
-  #attract .alangs button.on { background: var(--accent); color: #fff; }
-  #attract .tag { position: absolute; top: 24px; left: 20px; background: rgba(0,0,0,.55); padding: 6px 12px; border-radius: 8px; font-size: 15px; display: none; }
+  #toast { position: fixed; top: 90px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 16px 24px; border-radius: 14px; font-size: 20px; display: none; z-index: 30; text-align: center; max-width: 90%; }
   #offline { position: fixed; top: 0; left: 0; right: 0; z-index: 40; background: #c62828; color: #fff; text-align: center; padding: 10px; font-size: 18px; display: none; }
   #msg { display: none; height: 100%; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 20px; line-height: 1.6; }
+
+  /* Карусель: три слайда (следующий, текущий, предыдущий), лента едет слева направо */
+  #attract { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #000; display: none; z-index: 10; color: #fff; overflow: hidden; }
+  #ctrack { position: absolute; top: 0; bottom: 0; left: 0; width: 300%; display: flex; }
+  .slide { position: relative; width: 33.3333%; height: 100%; overflow: hidden; flex: none; }
+  .slide .bg { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .slide .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 32px 32px 200px; }
+  .slide .cap b { display: block; line-height: 1.2; }
+  .slide .cap span { display: block; margin-top: 8px; opacity: .92; }
+  .slide .tag { position: absolute; top: 24px; left: 20px; background: rgba(0,0,0,.55); padding: 6px 12px; border-radius: 8px; font-size: 15px; }
+  .contact { position: absolute; right: 20px; top: 90px; background: #fff; color: var(--ink); border-radius: 16px; padding: 12px; text-align: center; width: 220px; }
+  .contact .qr svg { width: 196px; height: 196px; display: block; }
+  .contact .small { font-size: 15px; margin-top: 4px; }
+  .contact .phone { font-size: 22px; font-weight: 700; margin-top: 8px; }
+  .arrow { position: absolute; top: 45%; width: 64px; height: 64px; border-radius: 32px; border: 0; background: rgba(0,0,0,.3); color: #fff; font-size: 40px; line-height: 60px; padding: 0; z-index: 2; }
+  .arrow.left { left: 12px; } .arrow.right { right: 12px; }
+  #cdots { position: absolute; left: 0; right: 0; bottom: 140px; text-align: center; z-index: 2; }
+  #cdots i { display: inline-block; width: 10px; height: 10px; border-radius: 5px; background: rgba(255,255,255,.45); margin: 0 4px; }
+  #cdots i.on { background: #fff; width: 26px; }
+  #attract .acts { position: absolute; left: 16px; right: 16px; bottom: 24px; display: flex; z-index: 2; }
+  #attract .abtn { flex: 1; margin: 0 8px; border: 0; border-radius: 18px; padding: 28px 12px; font-size: 24px; font-weight: 700; background: rgba(255,255,255,.94); color: var(--ink); }
+  #attract .abtn.main { background: var(--accent); color: #fff; }
+  #aLangs { position: absolute; top: 20px; right: 16px; z-index: 2; }
+  #aLangs button { font-size: 20px; padding: 12px 16px; margin-left: 8px; border-radius: 12px; border: 0; background: rgba(255,255,255,.88); color: var(--ink); }
+  #aLangs button.on { background: var(--accent); color: #fff; }
+
+  /* ИИ-персонаж: картинка и «пузырь» с репликой, как в комиксе */
+  .avatar { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(#f9e7d2, #f2c9a5); color: var(--ink); }
+  .avatar .char { position: absolute; left: 50%; bottom: 120px; height: 58%; transform: translateX(-50%); }
+  .bubble { position: absolute; left: 24px; right: 24px; top: 90px; background: #fff; border-radius: 26px; padding: 22px 24px; box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+  .bubble:after { content: ''; position: absolute; left: 50%; bottom: -22px; margin-left: -18px; border: 18px solid transparent; border-top-color: #fff; border-bottom: 0; }
+  .bubble .say { font-size: 26px; line-height: 1.35; margin: 0 0 6px; }
+  .bubble .who { color: var(--accent); font-weight: 700; font-size: 18px; }
+  .bubble button { display: inline-block; border: 0; border-radius: 22px; background: #efe7df; color: var(--ink); padding: 14px 18px; font-size: 19px; margin: 8px 8px 0 0; }
 </style>
 </head>
 <body>
 <div id="msg"></div>
 <div id="app" style="display:none">
-  <header><h1 id="title"></h1><div class="langs" id="langs"></div></header>
+  <header><h1 id="title"></h1><button id="avBtn"></button><div class="langs" id="langs"></div></header>
   <nav id="cats"></nav>
   <main><section id="items"></section></main>
-  <footer><button id="callBtn"></button><button id="billBtn"></button><button id="cartBtn"></button></footer>
+  <footer id="foot"></footer>
 </div>
 <div class="overlay" id="cart"><div class="sheet" id="sheet"></div></div>
+<div id="attract">
+  <div id="ctrack"></div>
+  <button class="arrow left" data-cgo="-1">‹</button><button class="arrow right" data-cgo="1">›</button>
+  <div id="aLangs"></div>
+  <div id="cdots"></div>
+  <div class="acts" id="acts"></div>
+</div>
 <div id="toast"></div>
 <div id="offline"></div>
-<div id="attract">
-  <img id="aImg" alt="">
-  <span class="tag" id="aTag"></span>
-  <div class="alangs" id="aLangs"></div>
-  <div class="cap"><b id="aName"></b><span id="aText"></span></div>
-  <div class="acts"><button class="abtn" id="aCall"></button><button class="abtn main" id="aMenu"></button></div>
-</div>
+<script src="/vendor/qrcode.js"></script>
 <script>
 var T = {
   en: { call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
         sent: 'Order sent. A waiter will come to confirm it.', called: 'The waiter has been called', coming: 'The waiter is on the way',
-        confirmed: 'Order confirmed', touch: 'Touch to see the menu', add: 'Add', close: 'Close', ordered: 'Ordered',
+        confirmed: 'Order confirmed', touch: 'Swipe to see more', add: 'Add', close: 'Close', ordered: 'Ordered',
         pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day', menu: 'Open menu', ad: 'Advertisement',
-        offline: 'No connection. Please wave to the waiter — we are reconnecting.', offlineBar: 'No connection — reconnecting…', edited: 'The waiter updated your order' },
+        offline: 'No connection. Please wave to the waiter — we are reconnecting.', offlineBar: 'No connection — reconnecting…',
+        edited: 'The waiter updated your order', scan: 'Scan the QR code', tableTotal: 'Table total', back: 'Back to the slideshow',
+        recommend: 'I recommend', showDish: 'Show me', another: 'Something else', askRec: 'What do you recommend?', order: 'Order' },
   ru: { call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
         sent: 'Заказ отправлен. Официант подойдёт подтвердить.', called: 'Официант вызван', coming: 'Официант идёт',
-        confirmed: 'Заказ подтверждён', touch: 'Коснитесь, чтобы открыть меню', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
+        confirmed: 'Заказ подтверждён', touch: 'Листайте, чтобы посмотреть ещё', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
         pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня', menu: 'Открыть меню', ad: 'Реклама',
-        offline: 'Нет связи. Пожалуйста, позовите официанта жестом — мы восстанавливаем подключение.', offlineBar: 'Нет связи — восстанавливаем подключение…', edited: 'Официант изменил ваш заказ' },
+        offline: 'Нет связи. Пожалуйста, позовите официанта жестом — мы восстанавливаем подключение.', offlineBar: 'Нет связи — восстанавливаем подключение…',
+        edited: 'Официант изменил ваш заказ', scan: 'Отсканируйте QR-код', tableTotal: 'Итого по столу', back: 'На главный экран',
+        recommend: 'Советую попробовать', showDish: 'Показать', another: 'Что-нибудь ещё', askRec: 'Что посоветуешь?', order: 'Заказ' },
   th: { call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
         sent: 'ส่งรายการแล้ว พนักงานจะมายืนยัน', called: 'เรียกพนักงานแล้ว', coming: 'พนักงานกำลังมา',
-        confirmed: 'ยืนยันรายการแล้ว', touch: 'แตะเพื่อดูเมนู', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
+        confirmed: 'ยืนยันรายการแล้ว', touch: 'ปัดเพื่อดูเพิ่มเติม', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
         pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน', menu: 'ดูเมนู', ad: 'โฆษณา',
-        offline: 'ไม่มีการเชื่อมต่อ กรุณาโบกมือเรียกพนักงาน ระบบกำลังเชื่อมต่อใหม่', offlineBar: 'ไม่มีการเชื่อมต่อ — กำลังเชื่อมต่อใหม่…', edited: 'พนักงานแก้ไขรายการของคุณแล้ว' },
+        offline: 'ไม่มีการเชื่อมต่อ กรุณาโบกมือเรียกพนักงาน ระบบกำลังเชื่อมต่อใหม่', offlineBar: 'ไม่มีการเชื่อมต่อ — กำลังเชื่อมต่อใหม่…',
+        edited: 'พนักงานแก้ไขรายการของคุณแล้ว', scan: 'สแกน QR โค้ด', tableTotal: 'รวมทั้งโต๊ะ', back: 'กลับหน้าหลัก',
+        recommend: 'แนะนำให้ลอง', showDish: 'ดูเมนูนี้', another: 'อย่างอื่น', askRec: 'แนะนำอะไรดี?', order: 'ออร์เดอร์' },
   zh: { call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
         sent: '订单已发送，服务员将前来确认', called: '已呼叫服务员', coming: '服务员马上就来',
-        confirmed: '订单已确认', touch: '点击查看菜单', add: '添加', close: '关闭', ordered: '已点',
+        confirmed: '订单已确认', touch: '滑动查看更多', add: '添加', close: '关闭', ordered: '已点',
         pending: '待确认', rejected: '已取消', day: '★ 今日推荐', menu: '查看菜单', ad: '广告',
-        offline: '网络连接中断，请向服务员招手示意，我们正在重新连接', offlineBar: '网络中断——正在重新连接…', edited: '服务员已更新您的订单' }
+        offline: '网络连接中断，请向服务员招手示意，我们正在重新连接', offlineBar: '网络中断——正在重新连接…',
+        edited: '服务员已更新您的订单', scan: '扫描二维码', tableTotal: '本桌合计', back: '返回首页',
+        recommend: '推荐您尝试', showDish: '查看', another: '换一个', askRec: '有什么推荐？', order: '订单' }
 };
 var LANG_NAMES = { en: 'EN', th: 'ไทย', ru: 'RU', zh: '中文' };
-var IDLE_ATTRACT_MS = 60000, IDLE_RESET_MS = 180000, DAY = '\u2605day';
+var SPEECH_LANG = { en: 'en-US', th: 'th-TH', ru: 'ru-RU', zh: 'zh-CN' };
+var IDLE_RESET_MS = 180000, HOLD_AFTER_SWIPE_MS = 20000, DAY = '★day';
 
 var D = new URLSearchParams(location.search).get('d') || '';
-var lang = null, state = null, cart = {}, cat = null, lastTouch = Date.now(), slide = 0, menuSig = '', seen = {}, sending = false;
-// cart: ключ «id» или «id|вариант» → количество; MENU: id → блюдо; BUILD: версия интерфейса
-var MENU = {}, BUILD = null, sheetMode = 'cart', slideAt = 0, online = true;
+var lang = null, state = null, cart = {}, cat = null, lastTouch = Date.now(), menuSig = '', seen = {}, sending = false;
+// cart: «id» или «id|вариант» → количество; MENU: id → блюдо; BUILD: версия интерфейса
+var MENU = {}, BUILD = null, sheetMode = 'cart', online = true;
+// Карусель: номер слайда, когда он показан, перетаскивание пальцем, пауза после ручной прокрутки
+var cIdx = 0, slideAt = 0, holdUntil = 0, cDrag = null, cBusy = false;
 
 function $(id) { return document.getElementById(id); }
 function t(k) { return (T[lang] || T.en)[k] || T.en[k]; }
@@ -120,6 +158,7 @@ function tr(o) { if (!o) return ''; if (typeof o === 'string') return o; return 
 function money(n) { return '฿' + Number(n || 0).toLocaleString('en'); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
 function defLang() { return (state.restaurant.langs || ['en'])[0]; }
+function isEntrance() { return state && state.mode === 'entrance'; }
 function show(el, on) { $(el).style.display = on ? (el === 'msg' ? 'flex' : '') : 'none'; }
 
 function toast(text) {
@@ -129,10 +168,11 @@ function toast(text) {
   toast.timer = setTimeout(function () { $('toast').style.display = 'none'; }, 4000);
 }
 
-// Запрос с таймаутом: без сети fetch может висеть долго, а гостю нужен быстрый ответ
+// ---------- Сеть: запрос с таймаутом, без сети fetch может висеть долго
+
 function request(path, options) {
   return new Promise(function (resolve, reject) {
-    var timer = setTimeout(function () { reject(new Error('timeout')); }, 8000);
+    var timer = setTimeout(function () { setOnline(false); reject(new Error('timeout')); }, 8000);
     fetch(path, options).then(function (r) { return r.json(); }).then(function (j) { clearTimeout(timer); setOnline(true); resolve(j); },
       function (e) { clearTimeout(timer); setOnline(false); reject(e); });
   });
@@ -162,9 +202,11 @@ function load() {
     BUILD = BUILD || s.build;
     var first = !state;
     state = s;
+    state.calls = s.calls || [];
+    state.orders = s.orders || [];
     if (!lang) lang = defLang();
     notifyChanges(first);
-    var sig = JSON.stringify(s.menu) + s.restaurant.name;
+    var sig = JSON.stringify(s.menu) + s.restaurant.name + s.mode;
     if (sig !== menuSig) {
       menuSig = sig;
       MENU = {};
@@ -172,10 +214,11 @@ function load() {
       renderAll();
     } else renderFooter();
     if (sheetMode === 'cart' && $('cart').className.indexOf('show') >= 0) renderCart();
+    if (first && isEntrance()) showAttract();
   }).catch(function () { /* нет сети — пробуем снова через 5 с */ });
 }
 
-// Гостю показываем, когда официант нажал «Иду» или подтвердил заказ
+// Гостю показываем, когда официант идёт, подтвердил или изменил заказ
 function notifyChanges(first) {
   state.calls.concat(state.orders).forEach(function (x) {
     var prev = seen[x.id] || '';
@@ -188,6 +231,8 @@ function notifyChanges(first) {
   });
 }
 
+// ---------- Меню
+
 function categories() {
   var known = {}, out = state.menu.some(function (i) { return i.dayDish; }) ? [DAY] : [];
   state.menu.forEach(function (i) { var c = tr(i.cat) || '—'; if (!known[c]) { known[c] = 1; out.push(c); } });
@@ -199,6 +244,8 @@ function renderAll() {
   $('langs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {
     return '<button data-lang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
   }).join('');
+  $('avBtn').style.display = state.avatar ? 'inline-block' : 'none';
+  if (state.avatar) $('avBtn').textContent = '💬 ' + tr(state.avatar.name);
   var list = categories();
   if (list.indexOf(cat) < 0) cat = list[0];
   $('cats').innerHTML = list.map(function (c) {
@@ -208,40 +255,35 @@ function renderAll() {
     return '<div class="item">' + (i.photo ? '<img src="' + esc(i.photo) + '" alt="">' : '<div class="ph"></div>') +
       '<div class="b"><div class="n">' + esc(tr(i.name)) + '</div><div class="d">' + esc(tr(i.desc)) + '</div>' +
       '<div class="row"><span class="price">' + priceLabel(i) + '</span>' +
-      '<button class="add" data-add="' + esc(i.id) + '">' + t('add') + (inCart(i.id) ? ' · ' + inCart(i.id) : '') + '</button></div></div></div>';
+      (isEntrance() ? '' : '<button class="add" data-add="' + esc(i.id) + '">' + t('add') + (inCart(i.id) ? ' · ' + inCart(i.id) : '') + '</button>') +
+      '</div></div></div>';
   }).join('') + '</div>';
-  renderAttractTexts();
   renderFooter();
+  if ($('attract').style.display === 'block') renderAttract();
 }
 
-function renderAttractTexts() {
-  $('aCall').textContent = t('call');
-  $('aMenu').textContent = t('menu');
-  $('aTag').textContent = t('ad');
-  $('aLangs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {
-    return '<button data-alang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
-  }).join('');
+function renderFooter() {
+  if (isEntrance()) {
+    $('foot').innerHTML = '<button class="main" id="backBtn">' + t('back') + '</button>';
+    return;
+  }
+  var n = cartCount();
+  $('foot').innerHTML = '<button id="callBtn">' + t('call') + '</button><button id="billBtn">' + t('bill') + '</button>' +
+    '<button class="main" id="cartBtn">' + t('cart') + (n ? ' (' + n + ') · ' + money(cartTotal()) : '') + '</button>';
 }
 
-// Оформление подписи слайда из настроек менеджера
-function styleCaption(ds) {
-  var hex = /^#[0-9a-f]{6}$/i.test(ds.bgColor) ? ds.bgColor : '#000000';
-  var rgb = [1, 3, 5].map(function (i) { return parseInt(hex.substr(i, 2), 16); }).join(',');
-  var cap = document.querySelector('#attract .cap');
-  cap.style.color = ds.textColor || '#fff';
-  cap.style.background = 'linear-gradient(rgba(' + rgb + ',0), rgba(' + rgb + ',.88) 45%)';
-  $('aName').style.fontSize = (ds.titleSize || 38) + 'px';
-  $('aText').style.fontSize = (ds.textSize || 22) + 'px';
+function priceLabel(i) {
+  var prices = (i.options || []).map(function (o) { return Number(o.price) || 0; }).filter(Boolean);
+  if (!prices.length) return i.price ? money(i.price) : '';
+  var min = Math.min.apply(null, prices);
+  return money(min) + (Math.max.apply(null, prices) > min ? '+' : '');
 }
 
-function hideAttract() {
-  $('attract').style.display = 'none';
-  lastTouch = Date.now();
-}
+// ---------- Корзина и заказы
 
 function cartCount() { var n = 0; for (var k in cart) n += cart[k]; return n; }
 function inCart(id) { var n = 0; for (var k in cart) if (k.split('|')[0] === id) n += cart[k]; return n; }
-// Строка корзины: блюдо, выбранный вариант, цена и название
+
 function lineOf(key) {
   var p = key.split('|'), i = MENU[p[0]];
   if (!i) return null;
@@ -249,15 +291,11 @@ function lineOf(key) {
   if (p[1] && !o) return null;
   return { price: Number(o ? o.price : i.price) || 0, name: tr(i.name) + (o ? ' · ' + tr(o.label) : '') };
 }
+
 function cartTotal() {
   return Object.keys(cart).reduce(function (s, k) { var l = lineOf(k); return s + (l ? l.price * cart[k] : 0); }, 0);
 }
-function priceLabel(i) {
-  var prices = (i.options || []).map(function (o) { return Number(o.price) || 0; }).filter(Boolean);
-  if (!prices.length) return i.price ? money(i.price) : '';
-  var min = Math.min.apply(null, prices);
-  return money(min) + (Math.max.apply(null, prices) > min ? '+' : '');
-}
+
 function openOptions(id) {
   var i = MENU[id];
   sheetMode = 'opts';
@@ -265,13 +303,6 @@ function openOptions(id) {
     return '<button class="big ghost" data-opt="' + esc(id + '|' + o.key) + '">' + esc(tr(o.label)) + ' · ' + money(o.price) + '</button>';
   }).join('') + '<button class="big ghost" data-close="1">' + t('close') + '</button>';
   $('cart').className = 'overlay show';
-}
-
-function renderFooter() {
-  $('callBtn').textContent = t('call');
-  $('billBtn').textContent = t('bill');
-  var n = cartCount();
-  $('cartBtn').textContent = t('cart') + (n ? ' (' + n + ') · ' + money(cartTotal()) : '');
 }
 
 function renderCart() {
@@ -282,13 +313,19 @@ function renderCart() {
       '<span class="qty"><button data-dec="' + esc(k) + '">−</button> ' + cart[k] + ' <button data-inc="' + esc(k) + '">+</button></span>' +
       '<span class="price">' + money(l.price * cart[k]) + '</span></div>';
   }).join('');
-  var ordered = state.orders.map(function (o) {
-    return '<div class="line"><span class="n">' + o.items.map(function (i) { return i.qty + ' × ' + esc(tr(i.name)); }).join(', ') +
-      '</span><span class="status">' + t(o.status) + '</span></div>';
+  // Уже отправленные заказы: каждое блюдо отдельной строкой с ценой, итог заказа и итог по столу
+  var active = state.orders.filter(function (o) { return o.status !== 'rejected'; });
+  var grand = active.reduce(function (s, o) { return s + o.total; }, 0);
+  var ordered = state.orders.map(function (o, n) {
+    return '<div class="order"><div class="ohead"><span>' + t('order') + ' ' + (n + 1) + '</span><span>' + t(o.status) + '</span></div>' +
+      o.items.map(function (i) {
+        return '<div class="line"><span class="n">' + i.qty + ' × ' + esc(tr(i.name)) + '</span><span class="price">' + money(i.price * i.qty) + '</span></div>';
+      }).join('') +
+      '<div class="total"><span>' + t('total') + '</span><span>' + money(o.total) + '</span></div></div>';
   }).join('');
   $('sheet').innerHTML = '<h2>' + t('cart') + '</h2>' + (lines || '<p class="status">' + t('empty') + '</p>') +
-    (lines ? '<p><b>' + t('total') + ': ' + money(cartTotal()) + '</b></p><button class="big" data-send="1">' + t('send') + '</button>' : '') +
-    (ordered ? '<h3>' + t('ordered') + '</h3>' + ordered : '') +
+    (lines ? '<div class="total"><span>' + t('total') + '</span><span>' + money(cartTotal()) + '</span></div><button class="big" data-send="1">' + t('send') + '</button>' : '') +
+    (ordered ? '<h3>' + t('ordered') + '</h3>' + ordered + '<div class="grand"><span>' + t('tableTotal') + '</span><span>' + money(grand) + '</span></div>' : '') +
     '<button class="big ghost" data-close="1">' + t('close') + '</button>';
 }
 
@@ -308,23 +345,252 @@ function sendOrder() {
 }
 
 function call(type) {
+  if (isEntrance()) return;
   if (!online) toast(t('offline'));
   post('/api/guest/call', { type: type }).then(function (c) {
     if (c.id) { seen[c.id] = c.status + '|'; toast(t('called')); }
   }).catch(function () { toast(t('offline')); });
 }
 
+// ---------- Карусель акций, рекламы и ИИ-персонажа
+
+function slides() { return (state && state.slides) || []; }
+function width() { return $('attract').clientWidth; }
+
+function qrSvg(text) {
+  try {
+    var q = qrcode(0, 'M');
+    q.addData(text);
+    q.make();
+    return q.createSvgTag(4, 8);
+  } catch (e) { return ''; }
+}
+
+function slideHtml(s, current) {
+  if (!s) return '';
+  if (s.type === 'avatar') return avatarHtml(current);
+  return '<img class="bg" src="' + esc(s.image) + '" alt="">' +
+    (s.type === 'ad' ? '<span class="tag">' + t('ad') + '</span>' : '') +
+    (s.qr || s.phone ? '<div class="contact">' +
+      (s.qr ? '<div class="qr">' + qrSvg(s.qr) + '</div><div class="small">' + t('scan') + '</div>' : '') +
+      (s.phone ? '<div class="phone">📞 ' + esc(s.phone) + '</div>' : '') + '</div>' : '') +
+    '<div class="cap"><b>' + esc(tr(s.title)) + (s.price ? ' · ' + money(s.price) : '') + '</b><span>' + esc(tr(s.text) || t('touch')) + '</span></div>';
+}
+
+// Слева — следующий слайд, справа — предыдущий: показ «переезжает» слева направо
+function renderCarousel() {
+  var list = slides(), n = list.length;
+  if (!n) return;
+  cIdx = ((cIdx % n) + n) % n;
+  var at = function (k) { return list[((cIdx + k) % n + n) % n]; };
+  $('ctrack').innerHTML = '<div class="slide">' + slideHtml(n > 1 ? at(1) : null) + '</div>' +
+    '<div class="slide" id="curSlide">' + slideHtml(at(0), true) + '</div>' +
+    '<div class="slide">' + slideHtml(n > 1 ? at(-1) : null) + '</div>';
+  setTrack(0, false);
+  $('cdots').innerHTML = n > 1 ? list.map(function (s, i) { return '<i class="' + (i === cIdx ? 'on' : '') + '"></i>'; }).join('') : '';
+  styleCaptions(state.display || {});
+  onSlideShown(at(0));
+}
+
+function setTrack(dx, animate) {
+  var tk = $('ctrack');
+  tk.style.transition = animate ? 'transform .6s ease' : 'none';
+  tk.style.transform = 'translateX(' + (dx - width()) + 'px)';
+}
+
+// dir = 1 — следующий (лента уезжает вправо), -1 — предыдущий
+function slideGo(dir) {
+  if (cBusy || slides().length < 2) return;
+  cBusy = true;
+  stopSpeech();
+  setTrack(dir > 0 ? width() : -width(), true);
+  setTimeout(function () { cIdx += dir; cBusy = false; renderCarousel(); }, 620);
+}
+
+function onSlideShown(s) {
+  slideAt = Date.now();
+  if (s.type === 'ad') post('/api/guest/impression', { id: s.id }).catch(function () {});
+  if (s.type === 'avatar') { holdUntil = Math.max(holdUntil, Date.now() + 15000); avatarStart(); }
+}
+
+// Оформление подписей слайдов из настроек менеджера
+function styleCaptions(ds) {
+  var hex = /^#[0-9a-f]{6}$/i.test(ds.bgColor) ? ds.bgColor : '#000000';
+  var rgb = [1, 3, 5].map(function (i) { return parseInt(hex.substr(i, 2), 16); }).join(',');
+  var caps = document.querySelectorAll('#ctrack .cap');
+  for (var i = 0; i < caps.length; i++) {
+    caps[i].style.color = ds.textColor || '#fff';
+    caps[i].style.background = 'linear-gradient(rgba(' + rgb + ',0), rgba(' + rgb + ',.88) 45%)';
+    caps[i].querySelector('b').style.fontSize = (ds.titleSize || 38) + 'px';
+    caps[i].querySelector('span').style.fontSize = (ds.textSize || 22) + 'px';
+  }
+}
+
+function renderAttract() {
+  $('acts').innerHTML = (isEntrance() ? '' : '<button class="abtn" id="aCall">' + t('call') + '</button>') +
+    '<button class="abtn main" id="aMenu">' + t('menu') + '</button>';
+  $('aLangs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {
+    return '<button data-alang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
+  }).join('');
+  renderCarousel();
+}
+
+function showAttract(index) {
+  if (!slides().length) return;
+  if (index !== undefined) cIdx = index;
+  $('attract').style.display = 'block';
+  holdUntil = 0;
+  renderAttract();
+}
+
+function hideAttract() {
+  stopSpeech();
+  $('attract').style.display = 'none';
+  lastTouch = Date.now();
+}
+
+// Листание пальцем: вправо — следующий слайд, влево — предыдущий
+$('attract').addEventListener('touchstart', function (e) {
+  if (e.target.closest('button')) return;
+  cDrag = { x: e.touches[0].clientX, dx: 0 };
+}, { passive: true });
+$('attract').addEventListener('touchmove', function (e) {
+  if (!cDrag || cBusy) return;
+  cDrag.dx = e.touches[0].clientX - cDrag.x;
+  if (Math.abs(cDrag.dx) > 10) setTrack(cDrag.dx, false);
+}, { passive: true });
+$('attract').addEventListener('touchend', function () {
+  if (!cDrag) return;
+  var dx = cDrag.dx;
+  cDrag = null;
+  holdUntil = Date.now() + HOLD_AFTER_SWIPE_MS;
+  if (dx > 60) slideGo(1);
+  else if (dx < -60) slideGo(-1);
+  else setTrack(0, true);
+});
+
+// ---------- ИИ-персонаж: говорит голосом через динамик и дублирует реплику в «пузыре»; гость отвечает кнопками
+
+var avNode = null, avTalkTimer = null, avDoneTimer = null;
+
+// У соседних (уезжающих) слайдов персонаж без id: управляем только текущим
+function avatarHtml(current) {
+  var a = state.avatar, id = function (name) { return current ? ' id="' + name + '"' : ''; };
+  return '<div class="avatar"><img class="char"' + id('avImg') + ' src="' + esc(a.images.idle) + '" alt="">' +
+    '<div class="bubble"><div class="who">' + esc(tr(a.name)) + '</div><p class="say"' + id('avSay') + '>' +
+    (current ? '' : esc(tr(a.greeting))) + '</p><div' + id('avOpts') + '></div></div></div>';
+}
+
+function avatarStart() {
+  var d = state.avatar.dialog || {};
+  avatarShow((d.nodes || {})[d.start] ? d.start : 'hello');
+}
+
+// Узел сценария: { say: {ru, en…}, buttons: [{ label: {…}, go: 'узел' | 'recommend' | 'menu' | 'waiter' | 'dish:<id>' }] }
+function avatarShow(id) {
+  var a = state.avatar, nodes = (a.dialog || {}).nodes || {};
+  var node = id === 'recommend' ? recommendNode() : nodes[id];
+  if (!node) {
+    node = {
+      say: a.greeting,
+      buttons: [{ label: t('askRec'), go: 'recommend' }, { label: t('call'), go: 'waiter' }, { label: t('menu'), go: 'menu' }],
+    };
+  }
+  avNode = node;
+  if (!$('avSay')) return;
+  $('avSay').textContent = tr(node.say);
+  $('avOpts').innerHTML = (node.buttons || []).filter(function (b) { return !(isEntrance() && b.go === 'waiter'); }).map(function (b, i) {
+    return '<button data-av="' + i + '">' + esc(tr(b.label)) + '</button>';
+  }).join('');
+  speak(tr(node.say));
+}
+
+// Совет из меню: блюдо дня, акционное или любое блюдо с фото
+function recommendNode() {
+  var pool = state.menu.filter(function (i) { return i.dayDish || i.promo; });
+  if (!pool.length) pool = state.menu.filter(function (i) { return i.photo; });
+  var dish = pool[Math.floor(Math.random() * pool.length)];
+  if (!dish) return null;
+  return {
+    say: t('recommend') + ': ' + tr(dish.name) + (dish.price ? ' — ' + money(dish.price) : '') + '!',
+    buttons: [{ label: t('showDish'), go: 'dish:' + dish.id }, { label: t('another'), go: 'recommend' }, { label: t('menu'), go: 'menu' }],
+  };
+}
+
+function avatarAction(go) {
+  holdUntil = Date.now() + 30000;
+  if (go === 'menu') return hideAttract();
+  if (go === 'waiter') { call('waiter'); return; }
+  if (go.indexOf('dish:') === 0) {
+    var dish = MENU[go.slice(5)];
+    hideAttract();
+    if (dish) { cat = dish.dayDish ? DAY : tr(dish.cat) || '—'; renderAll(); }
+    return;
+  }
+  avatarShow(go);
+}
+
+function speak(text) {
+  var a = state.avatar;
+  if (!a || !a.speak || !text) return;
+  var v = a.voice || {};
+  talking(true);
+  clearTimeout(avDoneTimer);
+  // страховка: если окончание речи не пришло, через расчётное время закрываем рот
+  avDoneTimer = setTimeout(function () { talking(false); }, Math.min(20000, 800 + text.length * 80));
+  if (window.JetAgent && window.JetAgent.speak) {
+    window.JetAgent.speak(text, SPEECH_LANG[lang] || 'en-US', v.pitch || 1, v.rate || 1);
+  } else if (window.speechSynthesis) {
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = SPEECH_LANG[lang] || 'en-US';
+    u.pitch = v.pitch || 1;
+    u.rate = v.rate || 1;
+    u.onend = function () { talking(false); };
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }
+}
+
+// Агент на планшете сообщает, что фраза произнесена
+window.jetSpeechDone = function () { talking(false); };
+
+function stopSpeech() {
+  talking(false);
+  if (window.JetAgent && window.JetAgent.stop) window.JetAgent.stop();
+  else if (window.speechSynthesis) window.speechSynthesis.cancel();
+}
+
+// Пока персонаж говорит — меняем картинки «рот закрыт / открыт»
+function talking(on) {
+  clearInterval(avTalkTimer);
+  var img = $('avImg'), a = state && state.avatar;
+  if (!img || !a) return;
+  img.src = a.images.idle;
+  if (!on) return;
+  var open = false;
+  avTalkTimer = setInterval(function () {
+    open = !open;
+    if ($('avImg')) $('avImg').src = open ? a.images.talk : a.images.idle;
+  }, 180);
+}
+
+// ---------- Касания
+
 document.addEventListener('click', function (e) {
-  // Экран простоя: язык, вызов официанта или переход к меню; касание в любом другом месте — тоже к меню
+  if (!state) return;
   if (e.target.closest('#attract')) {
     var a = e.target.closest('button');
-    if (a && a.dataset.alang) { lang = a.dataset.alang; renderAll(); return; }
-    hideAttract();
-    if (a && a.id === 'aCall') call('waiter');
+    holdUntil = Date.now() + HOLD_AFTER_SWIPE_MS;
+    if (!a) return;
+    if (a.dataset.alang) { lang = a.dataset.alang; renderAll(); }
+    else if (a.dataset.cgo) slideGo(Number(a.dataset.cgo));
+    else if (a.dataset.av !== undefined && avNode) avatarAction(avNode.buttons.filter(function (b) { return !(isEntrance() && b.go === 'waiter'); })[Number(a.dataset.av)].go);
+    else if (a.id === 'aMenu') hideAttract();
+    else if (a.id === 'aCall') { hideAttract(); call('waiter'); }
     return;
   }
   var b = e.target.closest('button');
-  if (!b || !state) return;
+  if (!b) return;
   var d = b.dataset;
   if (d.lang) { lang = d.lang; renderAll(); }
   else if (d.cat) { cat = d.cat; renderAll(); }
@@ -337,35 +603,29 @@ document.addEventListener('click', function (e) {
   else if (b.id === 'cartBtn') { renderCart(); $('cart').className = 'overlay show'; }
   else if (b.id === 'callBtn') call('waiter');
   else if (b.id === 'billBtn') call('bill');
+  else if (b.id === 'backBtn') showAttract();
+  else if (b.id === 'avBtn') {
+    var idx = -1;
+    slides().forEach(function (s, i) { if (s.type === 'avatar') idx = i; });
+    if (idx >= 0) showAttract(idx);
+  }
 });
 
 document.addEventListener('pointerdown', function () { lastTouch = Date.now(); }, true);
 
-// Простой: через минуту — карусель акций, через 3 минуты — сброс языка и неотправленной корзины
+// Простой: карусель после заданной паузы (у входа — всегда), автоперелистывание, сброс корзины и языка через 3 минуты
 setInterval(function () {
   if (!state) return;
-  var idle = Date.now() - lastTouch;
+  var now = Date.now(), idle = now - lastTouch, ds = state.display || {};
   if (idle > IDLE_RESET_MS && (cartCount() || lang !== defLang())) {
     cart = {};
     lang = defLang();
     $('cart').className = 'overlay';
     renderAll();
   }
-  var slides = state.slides || [], ds = state.display || {};
-  if (idle > (ds.idleSec || 60) * 1000 && slides.length) {
-    var a = $('attract');
-    if (a.style.display !== 'block' || Date.now() - slideAt >= (ds.slideSec || 7) * 1000) {
-      slideAt = Date.now();
-      styleCaption(ds);
-      var p = slides[slide++ % slides.length];
-      $('aImg').src = p.image;
-      $('aName').textContent = tr(p.title) + (p.price ? ' · ' + money(p.price) : '');
-      $('aText').textContent = tr(p.text) || t('touch');
-      $('aTag').style.display = p.type === 'ad' ? 'block' : 'none';
-      if (p.type === 'ad') post('/api/guest/impression', { id: p.id }).catch(function () {});
-    }
-    a.style.display = 'block';
-  }
+  var visible = $('attract').style.display === 'block';
+  if (!visible && idle > (ds.idleSec || 60) * 1000 && slides().length) showAttract();
+  else if (visible && now > holdUntil && now - slideAt >= (ds.slideSec || 7) * 1000) slideGo(1);
 }, 1000);
 
 load();
