@@ -51,7 +51,22 @@
   .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.4); display: flex; align-items: flex-end; justify-content: center; z-index: 20; }
   .modal .ed { width: 100%; max-width: 560px; max-height: 92vh; overflow: auto; margin: 0; border-radius: 16px 16px 0 0; }
   .ghostbtn { background: #efe7df; color: #1f1a17; }
-  main { padding: 0 16px 32px; max-width: 720px; margin: auto; }
+  main { padding: 0 16px 32px; max-width: 1100px; margin: auto; }
+  .ml { display: flex; align-items: center; gap: 6px; }
+  .ml span { width: 34px; font-size: 13px; color: #8a7f76; }
+  .ml input, .ml textarea { flex: 1; }
+  .views button { background: #fff; color: inherit; border: 1px solid #ddd; font-size: 14px; padding: 8px 14px; }
+  .views button.on { background: #1f1a17; color: #fff; }
+  /* Табличный вид, как в Excel: правка в ячейках, сортировка по заголовку */
+  .xlwrap { overflow: auto; max-height: 72vh; background: #fff; border-radius: 12px; }
+  .xl { border-collapse: collapse; width: 100%; font-size: 14px; }
+  .xl th, .xl td { border: 1px solid #eee; padding: 0; }
+  .xl th { position: sticky; top: 0; background: #f7f3ee; padding: 8px 6px; text-align: left; cursor: pointer; white-space: nowrap; z-index: 1; }
+  .xl td input:not([type=checkbox]), .xl td select { width: 100%; min-width: 60px; border: 0; padding: 8px 6px; font: inherit; font-size: 14px; background: transparent; box-sizing: border-box; }
+  .xl td input:focus, .xl td select:focus { outline: 2px solid #c8553d; outline-offset: -2px; }
+  .xl td.c { text-align: center; }
+  .xl tr.off td { color: #aaa; }
+  .xl button { font-size: 13px; padding: 6px 10px; margin: 2px; }
   .banner { background: #fff3cd; border-radius: 12px; padding: 12px; margin: 12px 0; }
   .banner button { margin-top: 8px; }
   .card { background: #fff; border-radius: 12px; padding: 12px; margin: 8px 0; border-left: 6px solid #c8553d; }
@@ -122,7 +137,7 @@ const T = {
         srcLang: 'Source language', srcInterval: 'Check for changes', int_hourly: 'Every hour', int_daily: 'Once a day', int_off: 'Only by button',
         syncNow: 'Sync now', syncing: 'Syncing…', lastSync: 'Last sync', items: 'items', search: 'Search by name or code', all: 'All',
         upload: 'Upload photo', hide: 'Hide from tablets', close: 'Close', synced: 'Fields from the source are updated on every sync',
-        paid: 'Bill paid', aiEvery: 'Show the character every N minutes', aiDuration: 'How long it stays on screen, seconds', aiStart: 'Start the slideshow with the character', aiGreetings: 'Greeting phrase (add several — a random one is said)', addGreeting: 'Add another greeting', aiFilters: 'Recommendations for special diets', tagged: 'dishes marked', tagsHint: 'Mark dishes in the menu (dish card → special diets) so the character can recommend them', dishTags: 'Special diets', showHint: 'Show a hint under the slide title', hintText: 'Hint text (empty — “Swipe to see more”)', tabAI: 'AI host', tabDev: 'Devices', aiOn: 'Show the AI host on tablets', aiChar: 'Character', aiSpeak: 'Speak out loud', aiNone: 'No characters yet — JET MEDIA adds them', entrance: 'Entrance', online: 'online', offline: 'offline', scansL: 'QR scans', link: 'Link for the QR code', phone: 'Phone on the slide', edit: 'Edit', addDish: 'Add a dish — search by name or code', total: 'Total', editedBy: 'edited', display: 'Display on tablets', idleSec: 'Start the slideshow after idle, seconds', slideSec: 'Seconds per slide', titleSize: 'Title size, px', textSize: 'Text size, px', textColor: 'Text color', bgColor: 'Caption background', sampleTitle: 'Sample title', sampleText: 'Sample text under the title' },
+        paid: 'Bill paid', viewGrid: 'Tiles', viewTable: 'Table', saveAll: 'Save changes', code: 'Code', aiEvery: 'Show the character every N minutes', aiDuration: 'How long it stays on screen, seconds', aiStart: 'Start the slideshow with the character', aiGreetings: 'Greeting phrase (add several — a random one is said)', addGreeting: 'Add another greeting', aiFilters: 'Recommendations for special diets', tagged: 'dishes marked', tagsHint: 'Mark dishes in the menu (dish card → special diets) so the character can recommend them', dishTags: 'Special diets', showHint: 'Show a hint under the slide title', hintText: 'Hint text (empty — “Swipe to see more”)', tabAI: 'AI host', tabDev: 'Devices', aiOn: 'Show the AI host on tablets', aiChar: 'Character', aiSpeak: 'Speak out loud', aiNone: 'No characters yet — JET MEDIA adds them', entrance: 'Entrance', online: 'online', offline: 'offline', scansL: 'QR scans', link: 'Link for the QR code', phone: 'Phone on the slide', edit: 'Edit', addDish: 'Add a dish — search by name or code', total: 'Total', editedBy: 'edited', display: 'Display on tablets', idleSec: 'Start the slideshow after idle, seconds', slideSec: 'Seconds per slide', titleSize: 'Title size, px', textSize: 'Text size, px', textColor: 'Text color', bgColor: 'Caption background', sampleTitle: 'Sample title', sampleText: 'Sample text under the title' },
   th: { login: 'เข้าสู่ระบบพนักงาน', code: 'รหัสร้าน', pin: 'PIN ของคุณ', start: 'เข้าสู่ระบบ', out: 'ออกจากระบบ',
         calls: 'การเรียก', orders: 'ออร์เดอร์', tables: 'โต๊ะ', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'เช็คบิล',
         going: 'กำลังไป', done: 'เสร็จแล้ว', confirm: 'ยืนยัน', reject: 'ปฏิเสธ', free: 'ว่างแล้ว', none: 'ยังไม่มี',
@@ -144,7 +159,7 @@ const T = {
         srcLang: 'ภาษาของแหล่งที่มา', srcInterval: 'ตรวจสอบการเปลี่ยนแปลง', int_hourly: 'ทุกชั่วโมง', int_daily: 'วันละครั้ง', int_off: 'เมื่อกดปุ่มเท่านั้น',
         syncNow: 'ซิงก์ตอนนี้', syncing: 'กำลังซิงก์…', lastSync: 'ซิงก์ล่าสุด', items: 'รายการ', search: 'ค้นหาตามชื่อหรือรหัส', all: 'ทั้งหมด',
         upload: 'อัปโหลดรูป', hide: 'ซ่อนจากแท็บเล็ต', close: 'ปิด', synced: 'ข้อมูลจากแหล่งที่มาจะอัปเดตทุกครั้งที่ซิงก์',
-        paid: 'ชำระเงินแล้ว', aiEvery: 'แสดงตัวละครทุก ๆ กี่นาที', aiDuration: 'แสดงบนจอนานกี่วินาที', aiStart: 'เริ่มสไลด์ด้วยตัวละคร', aiGreetings: 'คำทักทาย (เพิ่มได้หลายแบบ — สุ่มพูด)', addGreeting: 'เพิ่มคำทักทาย', aiFilters: 'แนะนำสำหรับอาหารพิเศษ', tagged: 'เมนูที่ทำเครื่องหมาย', tagsHint: 'ทำเครื่องหมายเมนู (การ์ดเมนู → อาหารพิเศษ) เพื่อให้ตัวละครแนะนำได้', dishTags: 'อาหารพิเศษ', showHint: 'แสดงคำแนะนำใต้หัวข้อสไลด์', hintText: 'ข้อความคำแนะนำ (ว่าง = “ปัดเพื่อดูเพิ่มเติม”)', tabAI: 'ผู้ช่วย AI', tabDev: 'อุปกรณ์', aiOn: 'แสดงผู้ช่วย AI บนแท็บเล็ต', aiChar: 'ตัวละคร', aiSpeak: 'พูดออกเสียง', aiNone: 'ยังไม่มีตัวละคร — JET MEDIA จะเพิ่มให้', entrance: 'ทางเข้า', online: 'ออนไลน์', offline: 'ออฟไลน์', scansL: 'สแกน QR', link: 'ลิงก์สำหรับ QR โค้ด', phone: 'เบอร์โทรบนสไลด์', edit: 'แก้ไข', addDish: 'เพิ่มเมนู — ค้นหาตามชื่อหรือรหัส', total: 'รวม', editedBy: 'แก้ไขโดย', display: 'การแสดงผลบนแท็บเล็ต', idleSec: 'เริ่มสไลด์เมื่อไม่มีการใช้งาน (วินาที)', slideSec: 'วินาทีต่อสไลด์', titleSize: 'ขนาดหัวข้อ (px)', textSize: 'ขนาดข้อความ (px)', textColor: 'สีข้อความ', bgColor: 'สีพื้นหลังข้อความ', sampleTitle: 'ตัวอย่างหัวข้อ', sampleText: 'ตัวอย่างข้อความใต้หัวข้อ' },
+        paid: 'ชำระเงินแล้ว', viewGrid: 'การ์ด', viewTable: 'ตาราง', saveAll: 'บันทึกการเปลี่ยนแปลง', code: 'รหัส', aiEvery: 'แสดงตัวละครทุก ๆ กี่นาที', aiDuration: 'แสดงบนจอนานกี่วินาที', aiStart: 'เริ่มสไลด์ด้วยตัวละคร', aiGreetings: 'คำทักทาย (เพิ่มได้หลายแบบ — สุ่มพูด)', addGreeting: 'เพิ่มคำทักทาย', aiFilters: 'แนะนำสำหรับอาหารพิเศษ', tagged: 'เมนูที่ทำเครื่องหมาย', tagsHint: 'ทำเครื่องหมายเมนู (การ์ดเมนู → อาหารพิเศษ) เพื่อให้ตัวละครแนะนำได้', dishTags: 'อาหารพิเศษ', showHint: 'แสดงคำแนะนำใต้หัวข้อสไลด์', hintText: 'ข้อความคำแนะนำ (ว่าง = “ปัดเพื่อดูเพิ่มเติม”)', tabAI: 'ผู้ช่วย AI', tabDev: 'อุปกรณ์', aiOn: 'แสดงผู้ช่วย AI บนแท็บเล็ต', aiChar: 'ตัวละคร', aiSpeak: 'พูดออกเสียง', aiNone: 'ยังไม่มีตัวละคร — JET MEDIA จะเพิ่มให้', entrance: 'ทางเข้า', online: 'ออนไลน์', offline: 'ออฟไลน์', scansL: 'สแกน QR', link: 'ลิงก์สำหรับ QR โค้ด', phone: 'เบอร์โทรบนสไลด์', edit: 'แก้ไข', addDish: 'เพิ่มเมนู — ค้นหาตามชื่อหรือรหัส', total: 'รวม', editedBy: 'แก้ไขโดย', display: 'การแสดงผลบนแท็บเล็ต', idleSec: 'เริ่มสไลด์เมื่อไม่มีการใช้งาน (วินาที)', slideSec: 'วินาทีต่อสไลด์', titleSize: 'ขนาดหัวข้อ (px)', textSize: 'ขนาดข้อความ (px)', textColor: 'สีข้อความ', bgColor: 'สีพื้นหลังข้อความ', sampleTitle: 'ตัวอย่างหัวข้อ', sampleText: 'ตัวอย่างข้อความใต้หัวข้อ' },
   ru: { login: 'Вход для персонала', code: 'Код ресторана', pin: 'Ваш PIN', start: 'Войти', out: 'Выйти',
         calls: 'Вызовы', orders: 'Заказы', tables: 'Столы', table: 'Стол', waiter: 'Вызов', bill: 'Счёт',
         going: 'Иду', done: 'Готово', confirm: 'Подтвердить', reject: 'Отклонить', free: 'свободен', none: 'Пока пусто',
@@ -166,7 +181,7 @@ const T = {
         srcLang: 'Язык источника', srcInterval: 'Проверять изменения', int_hourly: 'Каждый час', int_daily: 'Раз в день', int_off: 'Только по кнопке',
         syncNow: 'Синхронизировать сейчас', syncing: 'Синхронизация…', lastSync: 'Последняя синхронизация', items: 'блюд', search: 'Поиск по названию или коду', all: 'Все',
         upload: 'Загрузить фото', hide: 'Скрыть с планшетов', close: 'Закрыть', synced: 'Поля из источника обновляются при каждой синхронизации',
-        paid: 'Счёт оплачен', aiEvery: 'Показывать персонажа каждые N минут', aiDuration: 'Сколько секунд держать на экране', aiStart: 'Начинать показ с персонажа', aiGreetings: 'Фраза приветствия (можно добавить несколько — будет говорить случайную)', addGreeting: 'Добавить вариант приветствия', aiFilters: 'Подбор по особым пожеланиям', tagged: 'отмечено блюд', tagsHint: 'Отметьте блюда в меню (карточка блюда → особые пожелания), чтобы персонаж мог их советовать', dishTags: 'Особые пожелания', showHint: 'Показывать подсказку под заголовком слайда', hintText: 'Текст подсказки (пусто — «Листайте, чтобы посмотреть ещё»)', tabAI: 'ИИ-персонаж', tabDev: 'Устройства', aiOn: 'Показывать ИИ-персонажа на планшетах', aiChar: 'Персонаж', aiSpeak: 'Говорить вслух', aiNone: 'Персонажей пока нет — их добавляет JET MEDIA', entrance: 'Вход', online: 'онлайн', offline: 'офлайн', scansL: 'сканов QR', link: 'Ссылка для QR-кода', phone: 'Телефон на слайде', edit: 'Изменить', addDish: 'Добавить блюдо — поиск по названию или коду', total: 'Итого', editedBy: 'изменил', display: 'Показ на планшетах', idleSec: 'Через сколько секунд простоя начинать показ', slideSec: 'Секунд на один слайд', titleSize: 'Размер заголовка, px', textSize: 'Размер текста, px', textColor: 'Цвет текста', bgColor: 'Цвет фона подписи', sampleTitle: 'Пример заголовка', sampleText: 'Пример текста под заголовком' },
+        paid: 'Счёт оплачен', viewGrid: 'Плитка', viewTable: 'Таблица', saveAll: 'Сохранить изменения', code: 'Код', aiEvery: 'Показывать персонажа каждые N минут', aiDuration: 'Сколько секунд держать на экране', aiStart: 'Начинать показ с персонажа', aiGreetings: 'Фраза приветствия (можно добавить несколько — будет говорить случайную)', addGreeting: 'Добавить вариант приветствия', aiFilters: 'Подбор по особым пожеланиям', tagged: 'отмечено блюд', tagsHint: 'Отметьте блюда в меню (карточка блюда → особые пожелания), чтобы персонаж мог их советовать', dishTags: 'Особые пожелания', showHint: 'Показывать подсказку под заголовком слайда', hintText: 'Текст подсказки (пусто — «Листайте, чтобы посмотреть ещё»)', tabAI: 'ИИ-персонаж', tabDev: 'Устройства', aiOn: 'Показывать ИИ-персонажа на планшетах', aiChar: 'Персонаж', aiSpeak: 'Говорить вслух', aiNone: 'Персонажей пока нет — их добавляет JET MEDIA', entrance: 'Вход', online: 'онлайн', offline: 'офлайн', scansL: 'сканов QR', link: 'Ссылка для QR-кода', phone: 'Телефон на слайде', edit: 'Изменить', addDish: 'Добавить блюдо — поиск по названию или коду', total: 'Итого', editedBy: 'изменил', display: 'Показ на планшетах', idleSec: 'Через сколько секунд простоя начинать показ', slideSec: 'Секунд на один слайд', titleSize: 'Размер заголовка, px', textSize: 'Размер текста, px', textColor: 'Цвет текста', bgColor: 'Цвет фона подписи', sampleTitle: 'Пример заголовка', sampleText: 'Пример текста под заголовком' },
 };
 
 let lang = localStorage.lang || 'en';
@@ -322,6 +337,12 @@ document.addEventListener('click', async (e) => {
   audio.resume?.();
   const tile = e.target.closest('[data-edit]');
   if (tile) return openItem(Number(tile.dataset.edit));
+  // Сортировка таблицы меню по клику на заголовок столбца
+  const th = e.target.closest('th[data-sort]');
+  if (th) {
+    msort = { key: th.dataset.sort, dir: msort.key === th.dataset.sort ? -msort.dir : 1 };
+    return renderGrid();
+  }
   const b = e.target.closest('button');
   if (!b) return;
   if (b.dataset.l) {
@@ -352,6 +373,12 @@ document.addEventListener('click', async (e) => {
     refresh();
   } else if (b.dataset.oclose) {
     closeItem();
+  } else if (b.dataset.view) {
+    const [list, view] = b.dataset.view.split('|');
+    views[list] = localStorage[`${list}View`] = view;
+    renderManager();
+  } else if (b.dataset.medit !== undefined) {
+    openItem(Number(b.dataset.medit));
   } else if (b.dataset.mcat !== undefined) {
     mcat = b.dataset.mcat;
     renderGrid();
@@ -520,18 +547,26 @@ const saveBar = (list) => `<div class="bar"><button data-add="${list}">+ ${t('ad
 
 function renderManager() {
   const r = mgr.restaurant;
-  $('tStaff').innerHTML = `<div data-list="staff">${r.staff.map((m, i) => `<div class="ed" data-i="${i}">
+  const roleSel = (m) => `<select data-f="role"><option value="waiter">${t('roleWaiter')}</option>
+    <option value="manager" ${m.role === 'manager' ? 'selected' : ''}>${t('roleManager')}</option></select>`;
+  const tablesOf = (m) => (Array.isArray(m.tables) ? m.tables.join(', ') : m.tables || '');
+  $('tStaff').innerHTML = viewBar('staff') + (views.staff === 'table'
+    ? `<div class="xlwrap"><table class="xl"><thead><tr><th>${t('nameF')}</th><th>${t('role')}</th><th>PIN</th><th>${t('tables')}</th><th></th></tr></thead>
+        <tbody data-list="staff">${r.staff.map((m, i) => `<tr data-i="${i}">
+          <td><input data-f="name" value="${esc(m.name || '')}"></td><td>${roleSel(m)}</td>
+          <td><input data-f="pin" value="${esc(m.pin || '')}"></td><td><input data-f="tables" value="${esc(tablesOf(m))}"></td>
+          <td><button class="del" data-del="${i}">✕</button></td></tr>`).join('')}</tbody></table></div>`
+    : `<div data-list="staff">${r.staff.map((m, i) => `<div class="ed" data-i="${i}">
       ${inp('name', m.name, 'nameF')}
-      <label>${t('role')}<select data-f="role"><option value="waiter">${t('roleWaiter')}</option>
-        <option value="manager" ${m.role === 'manager' ? 'selected' : ''}>${t('roleManager')}</option></select></label>
+      <label>${t('role')}${roleSel(m)}</label>
       ${inp('pin', m.pin, 'pinF')}
-      ${inp('tables', Array.isArray(m.tables) ? m.tables.join(', ') : m.tables, 'tablesHint')}
-      ${del(i)}</div>`).join('')}</div>${saveBar('staff')}`;
+      ${inp('tables', tablesOf(m), 'tablesHint')}
+      ${del(i)}</div>`).join('')}</div>`) + saveBar('staff');
 
   renderMenuTab();
 
-  $('tPromos').innerHTML = `${langBar()}<div data-list="promos">${r.promos.map((p, i) => `<div class="ed" data-i="${i}">
-      ${img(p.image)}${uploader('image')}${inp('image', p.image, 'image')}${inp('title', val(p.title), 'title')}${inp('text', val(p.text), 'text')}
+  $('tPromos').innerHTML = `<div data-list="promos">${r.promos.map((p, i) => `<div class="ed" data-i="${i}">
+      ${img(p.image)}${uploader('image')}${inp('image', p.image, 'image')}${multi('title', p.title, 'title')}${multi('text', p.text, 'text')}
       ${inp('link', p.link || '', 'link')}${inp('phone', p.phone || '', 'phone')}
       ${chk('active', p.active, 'active')}${del(i)}</div>`).join('')}</div>${saveBar('promos')}`;
 
@@ -542,7 +577,8 @@ function renderManager() {
       ${dnum('idleSec', 'idleSec')}${dnum('slideSec', 'slideSec')}${dnum('titleSize', 'titleSize')}${dnum('textSize', 'textSize')}
       ${dcol('textColor', 'textColor')}${dcol('bgColor', 'bgColor')}
       <label class="chk"><input type="checkbox" data-df="showHint" ${d.showHint !== false ? 'checked' : ''}>${t('showHint')}</label>
-      ${langBar()}<label>${t('hintText')}<input data-dh="1" value="${esc((d.hint || {})[elang] || '')}"></label>
+      <label>${t('hintText')}</label>${LANGS.map((l) => `<div class="ml"><span>${l.toUpperCase()}</span>
+        <input data-dh="1" data-ln="${l}" value="${esc((d.hint || {})[l] || '')}"></div>`).join('')}
       <div id="dprev"></div>
       <div class="bar"><button data-dsave="1">${t('save')}</button></div></div>`
     + (r.tariff === 'premium' ? `<p class="empty">${t('premium')}</p>` : mgr.ads.map((a) => {
@@ -566,8 +602,9 @@ function renderManager() {
       <label>${t('aiEvery')}<input type="number" data-ai="everyMin" value="${esc(av.everyMin)}"></label>
       <label>${t('aiDuration')}<input type="number" data-ai="durationSec" value="${esc(av.durationSec)}"></label>
       <label class="chk"><input type="checkbox" data-ai="startWith" ${av.startWith !== false ? 'checked' : ''}>${t('aiStart')}</label>
-      <b>${t('aiGreetings')}</b>${langBar()}
-      ${(av.greetings || []).map((g, i) => `<div class="line"><textarea data-greet="${i}" rows="2" style="flex:1;font:inherit;font-size:16px;padding:10px;border-radius:10px;border:1px solid #ddd">${esc(g[elang] || '')}</textarea>
+      <b>${t('aiGreetings')}</b>
+      ${(av.greetings || []).map((g, i) => `<div class="ed" style="margin:0">${LANGS.map((l) => `<div class="ml"><span>${l.toUpperCase()}</span>
+        <input data-greet="${i}" data-ln="${l}" value="${esc(g[l] || '')}"></div>`).join('')}
         <button class="del" data-delgreet="${i}">✕</button></div>`).join('')}
       <div class="bar"><button class="ghostbtn" data-addgreet="1">+ ${t('addGreeting')}</button></div>
       <b>${t('aiFilters')}</b><span class="empty">${t('tagsHint')}</span>
@@ -588,8 +625,19 @@ function renderPreview() {
   const d = mgr.restaurant.display;
   $('dprev').innerHTML = `<div style="background:${esc(d.bgColor)};color:${esc(d.textColor)};padding:16px;border-radius:10px;overflow:hidden">
     <div style="font-size:${Number(d.titleSize) || 38}px;font-weight:700;line-height:1.2">${t('sampleTitle')}</div>
-    <div style="font-size:${Number(d.textSize) || 22}px;margin-top:6px">${d.showHint === false ? '' : esc((d.hint || {})[elang] || t('sampleText'))}</div></div>`;
+    <div style="font-size:${Number(d.textSize) || 22}px;margin-top:6px">${d.showHint === false ? '' : esc((d.hint || {})[elang] || Object.values(d.hint || {})[0] || t('sampleText'))}</div></div>`;
 }
+
+// Вид списков меню и персонала: плитка или таблица (запоминаем в браузере)
+const views = { menu: localStorage.menuView || 'grid', staff: localStorage.staffView || 'grid' };
+const viewBar = (list) => `<div class="bar views">
+  <button data-view="${list}|grid" class="${views[list] !== 'table' ? 'on' : ''}">${t('viewGrid')}</button>
+  <button data-view="${list}|table" class="${views[list] === 'table' ? 'on' : ''}">${t('viewTable')}</button></div>`;
+
+// Текст сразу на всех языках гостя — видно, что где заполнено
+const LANGS = ['ru', 'en', 'th', 'zh'];
+const multi = (f, o, label) => `<label>${t(label)}</label>${LANGS.map((l) => `<div class="ml"><span>${l.toUpperCase()}</span>
+  <input data-f="${f}" data-ln="${l}" value="${esc((o || {})[l] || '')}"></div>`).join('')}`;
 
 // ---------- Меню: источник, категории, поиск, плитка блюд и карточка редактирования
 
@@ -614,6 +662,7 @@ function renderMenuTab() {
       <span class="empty">${status}</span>
     </div>
     ${langBar()}
+    ${viewBar('menu')}
     <input class="msearch" placeholder="${t('search')}" value="${esc(mq)}">
     <div id="mgrid"></div>
     <div class="bar"><button data-newitem="1">+ ${t('add')}</button></div>`;
@@ -631,11 +680,35 @@ function renderGrid() {
       <button data-mcat="" class="${mcat ? '' : 'on'}">${t('all')} · ${menu.length}</button>
       ${[...cats].map(([c, n]) => `<button data-mcat="${esc(c)}" class="${c === mcat ? 'on' : ''}">${esc(c)} · ${n}</button>`).join('')}
     </div>
-    <div class="grid">${shown.map(([it, i]) => `<div class="tile ${it.hidden ? 'off' : ''}" data-edit="${i}">
+    ${views.menu === 'table' ? menuTable(shown) : `<div class="grid">${shown.map(([it, i]) => `<div class="tile ${it.hidden ? 'off' : ''}" data-edit="${i}">
       ${it.photo ? `<img src="${esc(it.photo)}" loading="lazy" alt="">` : '<div class="noimg"></div>'}
       <div><small>${esc(it.sku || '')}</small> ${esc(val(it.name) || '—')}</div>
       <b>${it.price ? `฿${it.price}` : ''}${(it.options || []).length ? '+' : ''}</b>
-      <span>${it.dayDish ? '★ ' : ''}${it.promo ? '📣 ' : ''}${it.hidden ? '⦸' : ''}</span></div>`).join('')}</div>`;
+      <span>${it.dayDish ? '★ ' : ''}${it.promo ? '📣 ' : ''}${it.hidden ? '⦸' : ''}</span></div>`).join('')}</div>`}`;
+}
+
+// Таблица меню: правка прямо в ячейках, ✎ — полная карточка (фото, описание, отметки)
+let msort = { key: '', dir: 1 };
+const sortValue = { sku: (it) => it.sku || '', cat: (it) => val(it.cat), name: (it) => val(it.name), price: (it) => Number(it.price) || 0 };
+
+function menuTable(shown) {
+  if (msort.key) {
+    const f = sortValue[msort.key];
+    shown = shown.slice().sort(([a], [b]) => (f(a) > f(b) ? 1 : f(a) < f(b) ? -1 : 0) * msort.dir);
+  }
+  const th = (key, label) => `<th data-sort="${key}">${label}${msort.key === key ? (msort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
+  const box = (f, on) => `<td class="c"><input type="checkbox" data-f="${f}" ${on ? 'checked' : ''}></td>`;
+  return `<div class="bar"><button data-save="1">${t('saveAll')}</button></div>
+    <div class="xlwrap"><table class="xl"><thead><tr>
+      ${th('sku', t('code'))}${th('cat', t('cat'))}${th('name', t('dish'))}${th('price', t('price'))}
+      <th>★</th><th>📣</th><th>⦸</th><th></th></tr></thead>
+    <tbody data-list="menu">${shown.map(([it, i]) => `<tr data-i="${i}" class="${it.hidden ? 'off' : ''}">
+      <td><input data-f="sku" value="${esc(it.sku || '')}" style="width:70px"></td>
+      <td><input data-f="cat" value="${esc(val(it.cat))}"></td>
+      <td><input data-f="name" value="${esc(val(it.name))}" style="min-width:220px"></td>
+      <td><input data-f="price" type="number" value="${esc(it.price ?? '')}" style="width:80px"></td>
+      ${box('dayDish', it.dayDish)}${box('promo', it.promo)}${box('hidden', it.hidden)}
+      <td><button data-medit="${i}">✎</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 
 // Правим копию блюда: «Сохранить» переносит её в меню, «Закрыть» — отменяет
@@ -691,7 +764,7 @@ async function onEdit(e) {
   if (el.classList.contains('msearch')) { mq = el.value; renderGrid(); return; }
   if (el.dataset.greet !== undefined && mgr) {
     const g = mgr.restaurant.avatar.greetings;
-    g[el.dataset.greet] = { ...g[el.dataset.greet], [elang]: el.value };
+    g[el.dataset.greet] = { ...g[el.dataset.greet], [el.dataset.ln || elang]: el.value };
     return;
   }
   if (el.dataset.filter && mgr && e.type === 'change') {
@@ -700,7 +773,7 @@ async function onEdit(e) {
     return;
   }
   if (el.dataset.dh && mgr) {
-    mgr.restaurant.display.hint = { ...mgr.restaurant.display.hint, [elang]: el.value };
+    mgr.restaurant.display.hint = { ...mgr.restaurant.display.hint, [el.dataset.ln || elang]: el.value };
     renderPreview();
     return;
   }
@@ -744,7 +817,7 @@ async function onEdit(e) {
   if (f === 'photo') item.photoManual = true;
   if (el.type === 'checkbox') item[f] = el.checked;
   else if (f === 'price') item[f] = Number(el.value) || 0;
-  else if (list.dataset.list !== 'staff' && LANG_FIELDS.includes(f)) item[f] = { ...(item[f] || {}), [elang]: el.value };
+  else if (list.dataset.list !== 'staff' && LANG_FIELDS.includes(f)) item[f] = { ...(item[f] || {}), [el.dataset.ln || elang]: el.value };
   else item[f] = el.value;
 }
 document.addEventListener('input', onEdit);
