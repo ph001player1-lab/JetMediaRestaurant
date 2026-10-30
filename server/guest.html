@@ -106,7 +106,7 @@ var IDLE_ATTRACT_MS = 60000, IDLE_RESET_MS = 180000, DAY = '\u2605day';
 var D = new URLSearchParams(location.search).get('d') || '';
 var lang = null, state = null, cart = {}, cat = null, lastTouch = Date.now(), slide = 0, menuSig = '', seen = {}, sending = false;
 // cart: ключ «id» или «id|вариант» → количество; MENU: id → блюдо; BUILD: версия интерфейса
-var MENU = {}, BUILD = null, sheetMode = 'cart';
+var MENU = {}, BUILD = null, sheetMode = 'cart', slideAt = 0;
 
 function $(id) { return document.getElementById(id); }
 function t(k) { return (T[lang] || T.en)[k] || T.en[k]; }
@@ -199,6 +199,17 @@ function renderAttractTexts() {
   $('aLangs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {
     return '<button data-alang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
   }).join('');
+}
+
+// Оформление подписи слайда из настроек менеджера
+function styleCaption(ds) {
+  var hex = /^#[0-9a-f]{6}$/i.test(ds.bgColor) ? ds.bgColor : '#000000';
+  var rgb = [1, 3, 5].map(function (i) { return parseInt(hex.substr(i, 2), 16); }).join(',');
+  var cap = document.querySelector('#attract .cap');
+  cap.style.color = ds.textColor || '#fff';
+  cap.style.background = 'linear-gradient(rgba(' + rgb + ',0), rgba(' + rgb + ',.88) 45%)';
+  $('aName').style.fontSize = (ds.titleSize || 38) + 'px';
+  $('aText').style.fontSize = (ds.textSize || 22) + 'px';
 }
 
 function hideAttract() {
@@ -317,10 +328,12 @@ setInterval(function () {
     $('cart').className = 'overlay';
     renderAll();
   }
-  var slides = state.slides || [];
-  if (idle > IDLE_ATTRACT_MS && slides.length) {
+  var slides = state.slides || [], ds = state.display || {};
+  if (idle > (ds.idleSec || 60) * 1000 && slides.length) {
     var a = $('attract');
-    if (a.style.display !== 'block' || idle % 7000 < 1000) {
+    if (a.style.display !== 'block' || Date.now() - slideAt >= (ds.slideSec || 7) * 1000) {
+      slideAt = Date.now();
+      styleCaption(ds);
       var p = slides[slide++ % slides.length];
       $('aImg').src = p.image;
       $('aName').textContent = tr(p.title) + (p.price ? ' · ' + money(p.price) : '');

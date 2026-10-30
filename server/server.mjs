@@ -40,6 +40,8 @@ const UPLOADS = path.join(DATA_DIR, 'uploads');
 const IMAGE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const MAX_UPLOAD = 8 * 1024 * 1024;
 const SYNC_EVERY = { hourly: 3600_000, daily: 24 * 3600_000 };
+// Показ акций и рекламы на планшете: задержка простоя, длительность слайда, шрифты и цвета подписи
+const DISPLAY = { idleSec: 60, slideSec: 7, titleSize: 38, textSize: 22, textColor: '#ffffff', bgColor: '#000000' };
 
 let db = { devices: {}, restaurants: {}, calls: [], orders: [], sessions: {}, vapid: null, ads: [], stats: {} };
 try {
@@ -151,6 +153,7 @@ function guestState(b, q) {
     build: BUILD,
     menu: (t.r.menu || []).filter((i) => !i.hidden),
     slides: slidesFor(t.r),
+    display: { ...DISPLAY, ...t.r.display },
     calls: openAt(db.calls, t.r, t.table).filter((c) => c.status !== 'done'),
     orders: openAt(db.orders, t.r, t.table),
   };
@@ -331,6 +334,7 @@ function managerGet(b, q) {
       name: r.name, tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
       menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [],
       menuSource: publicSource(r.menuSource),
+      display: { ...DISPLAY, ...r.display },
     },
     ads: db.ads.filter((a) => a.active && (!a.restaurants?.length || a.restaurants.includes(r.id)))
       .map((a) => ({ id: a.id, title: a.title, advertiser: a.advertiser, image: a.image, views: views(a.id, r.id) })),
@@ -344,6 +348,7 @@ function managerSave(b) {
   if (Array.isArray(b.promos)) r.promos = cleanPromos(b.promos);
   if (Array.isArray(b.blockedAds)) r.blockedAds = b.blockedAds.map(String);
   if (b.menuSource) r.menuSource = cleanSource(b.menuSource, r.menuSource);
+  if (b.display) r.display = cleanDisplay(b.display);
   save();
   return {};
 }
@@ -463,6 +468,16 @@ function cleanMenu(menu) {
       extId: i.extId || undefined, sku: String(i.sku || ''), options: Array.isArray(i.options) ? i.options : [],
       hidden: !!i.hidden, photoManual: !!i.photoManual,
     }));
+}
+
+function cleanDisplay(d) {
+  const num = (v, min, max, def) => Math.min(max, Math.max(min, Math.round(Number(v)) || def));
+  const color = (v, def) => (/^#[0-9a-f]{6}$/i.test(v) ? v : def);
+  return {
+    idleSec: num(d.idleSec, 10, 600, DISPLAY.idleSec), slideSec: num(d.slideSec, 3, 60, DISPLAY.slideSec),
+    titleSize: num(d.titleSize, 16, 80, DISPLAY.titleSize), textSize: num(d.textSize, 12, 48, DISPLAY.textSize),
+    textColor: color(d.textColor, DISPLAY.textColor), bgColor: color(d.bgColor, DISPLAY.bgColor),
+  };
 }
 
 function cleanPromos(list) {
