@@ -7,8 +7,14 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.app.PendingIntent;
 import android.content.pm.PackageInfo;
+import android.content.pm.PackageInstaller;
+import android.os.BatteryManager;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.os.UserManager;
 import android.provider.Settings;
@@ -23,10 +29,18 @@ import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Киоск: блокирует планшет (если агент — владелец устройства) и показывает веб-страницу.
@@ -39,6 +53,13 @@ public class MainActivity extends Activity {
     private static final String[] HIDDEN_APPS = {
             "com.android.vending", "com.google.android.youtube", "com.android.chrome" };
 
+    private static final String DEFAULT_SERVER = "https://api.jetmedia.dev";
+    private static final String DEFAULT_APK =
+            "https://github.com/ph001player1-lab/JetMediaRestaurant/releases/download/agent-latest/jet-agent.apk";
+    private static final long POLL_MS = 15000;
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final ExecutorService io = Executors.newSingleThreadExecutor();
     private DevicePolicyManager dpm;
     private ComponentName admin;
     private SharedPreferences prefs;
@@ -71,6 +92,7 @@ public class MainActivity extends Activity {
 
         if (isOwner()) applyPolicies();
         load();
+        schedulePoll();
     }
 
     @Override
@@ -129,7 +151,99 @@ public class MainActivity extends Activity {
                 + "justify-content:center;background:#111;color:#eee;font-family:sans-serif'>"
                 + "<h1>JET MEDIA</h1><p>Агент " + BuildConfig.VERSION_NAME + "</p>"
                 + "<p>Владелец устройства: " + (isOwner() ? "да" : "НЕТ") + "</p>"
-                + "<p>Сервер: " + prefs.getString("server", "—") + "</p></body></html>";
+                + "<p>Сервер: " + server() + "</p><p>ID: " + deviceId() + "</p></body></html>";
+    }
+
+    private String server() {
+        String s = prefs.getString("server", "");
+        return s.isEmpty() ? DEFAULT_SERVER : s;
+    }
+
+    // Серийный номер передаёт provision.ps1; если его нет — ANDROID_ID
+    private String deviceId() {
+        String id = prefs.getString("serial", "");
+        return id.isEmpty() ? Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID) : id;
+    }
+
+    // Раз в 15 секунд: отправить телеметрию, получить и выполнить команды
+    private void schedulePoll() {
+        io.execute(this::pollServer);
+        handler.postDelayed(this::schedulePoll, POLL_MS);
+    }
+
+    private void pollServer() {
+        try {
+            JSONObject t = new JSONObject();
+            Intent battery = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            if (battery != null) {
+                int scale = Math.max(1, battery.getIntExtra(BatteryManager.EXTRA_SCALE, 100));
+                t.put("battery", battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) * 100 / scale);
+                t.put("charging", battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0);
+            }
+            t.put("version", BuildConfig.VERSION_NAME).put("model", Build.MODEL)
+                    .put("android", Build.VERSION.RELEASE).put("owner", isOwner())
+                    .put("url", prefs.getString("url", ""));
+            JSONObject body = new JSONObject().put("id", deviceId()).put("telemetry", t);
+
+            HttpURLConnection c = (HttpURLConnection) new URL(server() + "/api/device/poll").openConnection();
+            c.setConnectTimeout(10000);
+            c.setReadTimeout(10000);
+            c.setDoOutput(true);
+            c.setRequestProperty("Content-Type", "application/json");
+            c.getOutputStream().write(body.toString().getBytes(StandardCharsets.UTF_8));
+            JSONArray commands = new JSONObject(read(c.getInputStream())).optJSONArray("commands");
+            for (int i = 0; commands != null && i < commands.length(); i++) {
+                JSONObject cmd = commands.getJSONObject(i);
+                runOnUiThread(() -> execute(cmd));
+            }
+        } catch (Exception ignored) {
+            // нет сети или сервера — попробуем в следующий раз
+        }
+    }
+
+    private void execute(JSONObject cmd) {
+        switch (cmd.optString("type")) {
+            case "url":
+                prefs.edit().putString("url", cmd.optString("url")).apply();
+                load();
+                break;
+            case "reload":
+                load();
+                break;
+            case "reboot":
+                if (isOwner()) dpm.reboot(admin);
+                break;
+            case "update":
+                io.execute(() -> installUpdate(cmd.optString("url", DEFAULT_APK)));
+                break;
+        }
+    }
+
+    // Тихая установка новой версии агента: владельцу устройства подтверждение не нужно
+    private void installUpdate(String apkUrl) {
+        try {
+            PackageInstaller installer = getPackageManager().getPackageInstaller();
+            int id = installer.createSession(
+                    new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL));
+            PackageInstaller.Session session = installer.openSession(id);
+            try (InputStream in = new URL(apkUrl).openStream();
+                 OutputStream out = session.openWrite("agent.apk", 0, -1)) {
+                byte[] buf = new byte[65536];
+                for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
+                session.fsync(out);
+            }
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0);
+            Intent done = new Intent(this, UpdateReceiver.class);
+            session.commit(PendingIntent.getBroadcast(this, id, done, flags).getIntentSender());
+            session.close();
+        } catch (Exception ignored) { }
+    }
+
+    private static String read(InputStream in) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
+        return out.toString("UTF-8");
     }
 
     private void applyPolicies() {

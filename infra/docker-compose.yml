@@ -1,0 +1,26 @@
+services:
+  api:
+    image: node:22-alpine
+    working_dir: /app
+    command: node server.mjs
+    volumes:
+      - ../server:/app:ro
+      - data:/data
+    environment:
+      - DATA_DIR=/data
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    restart: unless-stopped
+
+volumes:
+  data:
+  caddy_data:

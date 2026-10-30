@@ -1,0 +1,4 @@
+# HTTPS-сертификаты Caddy получает сам, как только DNS указывает на сервер
+api.jetmedia.dev, app.jetmedia.dev {
+	reverse_proxy api:3000
+}

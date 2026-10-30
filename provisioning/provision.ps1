@@ -128,7 +128,7 @@ function Provision($s) {
   Sh $s 'settings put global stay_on_while_plugged_in 7' | Out-Null
 
   # Конфиг агенту: JSON в base64, чтобы не мучиться с кавычками в командной строке
-  $json = @{ server = $ServerUrl; enroll = $EnrollCode; url = $StartUrl; pin = $Pin; provisionedAt = (Get-Date -Format s) } | ConvertTo-Json -Compress
+  $json = @{ server = $ServerUrl; enroll = $EnrollCode; url = $StartUrl; pin = $Pin; serial = $s; provisionedAt = (Get-Date -Format s) } | ConvertTo-Json -Compress
   $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json))
   Sh $s "am start -n $Pkg/.MainActivity --es config $b64" | Out-Null
 

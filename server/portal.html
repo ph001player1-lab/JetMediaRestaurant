@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JET MEDIA — устройства</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; background: #f6f6f4; color: #222; }
+  .wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; background: #fff; }
+  td, th { padding: 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; vertical-align: top; }
+  small { color: #777; }
+  .on { color: #1a7f37; } .off { color: #c62828; }
+  button { margin: 2px; padding: 4px 8px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>Устройства</h1>
+<p>
+  <button onclick="toAll('url')">Страница для всех</button>
+  <button onclick="toAll('update')">Обновить агент на всех</button>
+</p>
+<div class="wrap"><table>
+  <thead><tr><th>Устройство</th><th>Статус</th><th>Заряд</th><th>Агент</th><th>Страница</th><th>На связи</th><th></th></tr></thead>
+  <tbody id="list"></tbody>
+</table></div>
+<script>
+let devices = [];
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+async function load() {
+  devices = await (await fetch('/api/devices')).json();
+  document.getElementById('list').innerHTML = devices.map((d, i) => {
+    const t = d.telemetry || {};
+    return `<tr>
+      <td>${esc(t.model)}<br><small>${esc(d.id)}</small></td>
+      <td class="${d.online ? 'on' : 'off'}">${d.online ? 'онлайн' : 'офлайн'}${d.pending ? ` · команд в очереди: ${d.pending}` : ''}</td>
+      <td>${t.battery ?? '—'}%${t.charging ? ' ⚡' : ''}</td>
+      <td>${esc(t.version)}</td>
+      <td>${esc(t.url || 'экран статуса')}</td>
+      <td>${new Date(d.lastSeen).toLocaleString()}</td>
+      <td>
+        <button onclick="send(${i}, 'url')">Страница</button>
+        <button onclick="send(${i}, 'reload')">Обновить страницу</button>
+        <button onclick="send(${i}, 'reboot')">Перезагрузить</button>
+        <button onclick="send(${i}, 'update')">Обновить агент</button>
+        <button onclick="remove(${i})">Удалить</button>
+      </td></tr>`;
+  }).join('');
+}
+
+function ask(type) {
+  if (type !== 'url') return { type };
+  const url = prompt('Адрес страницы (пусто — экран статуса):', 'https://');
+  return url === null ? null : { type, url: url.trim() === 'https://' ? '' : url.trim() };
+}
+
+async function command(id, cmd) {
+  await fetch(`/api/devices/${encodeURIComponent(id)}/command`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cmd),
+  });
+}
+
+async function send(i, type) {
+  const cmd = ask(type);
+  if (cmd) { await command(devices[i].id, cmd); load(); }
+}
+
+async function toAll(type) {
+  const cmd = ask(type);
+  if (!cmd) return;
+  for (const d of devices) await command(d.id, cmd);
+  load();
+}
+
+async function remove(i) {
+  if (!confirm('Удалить устройство из списка?')) return;
+  await fetch(`/api/devices/${encodeURIComponent(devices[i].id)}`, { method: 'DELETE' });
+  load();
+}
+
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>
