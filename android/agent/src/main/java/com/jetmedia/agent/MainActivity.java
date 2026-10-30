@@ -76,7 +76,7 @@ public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Runnable retryLoad = this::load;
-    private long offlineSince;
+    private long offlineSince, lastPreferCheck;
     private boolean showingOffline;
     private TextToSpeech tts;
     private DevicePolicyManager dpm;
@@ -295,6 +295,7 @@ public class MainActivity extends Activity {
     // Владельцу устройства Android разрешает управлять Wi-Fi напрямую.
     private void checkWifi() {
         try {
+            preferSavedWifi();
             ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
             NetworkCapabilities caps = cm.getNetworkCapabilities(cm.getActiveNetwork());
             if (caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
@@ -342,6 +343,42 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) {
             // нет прав или Wi-Fi выключен политикой — попробуем позже
         }
+    }
+
+    // Сидим на открытой сети, а рядом снова видна сохранённая сеть с паролем — раз в минуту проверяем
+    // и возвращаемся на неё; открытые запасные сети удаляем, чтобы Android сам не перескакивал на них обратно.
+    private void preferSavedWifi() {
+        long now = System.currentTimeMillis();
+        if (now - lastPreferCheck < 60000 || !isOwner()) return;
+        lastPreferCheck = now;
+        WifiManager wifi = wifi();
+        WifiInfo info = wifi.getConnectionInfo();
+        if (info == null || info.getNetworkId() == -1) return;
+        List<WifiConfiguration> saved = wifi.getConfiguredNetworks();
+        WifiConfiguration current = null;
+        for (WifiConfiguration c : saved) if (c.networkId == info.getNetworkId()) current = c;
+        if (current == null || !isOpen(current)) return; // уже на сети с паролем
+        wifi.startScan();
+        ScanResult best = null;
+        int bestId = -1;
+        for (ScanResult s : wifi.getScanResults()) {
+            if (s.level < -85) continue; // слишком слабый сигнал — не меняем шило на мыло
+            for (WifiConfiguration c : saved) {
+                if (!isOpen(c) && ("\"" + s.SSID + "\"").equals(c.SSID) && (best == null || s.level > best.level)) {
+                    best = s;
+                    bestId = c.networkId;
+                }
+            }
+        }
+        if (best == null) return;
+        for (WifiConfiguration c : saved) if (isOpen(c)) wifi.removeNetwork(c.networkId);
+        wifi.enableNetwork(bestId, true);
+        wifi.reconnect();
+    }
+
+    private static boolean isOpen(WifiConfiguration c) {
+        boolean noKeyMgmt = c.allowedKeyManagement.isEmpty() || c.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE);
+        return noKeyMgmt && (c.wepKeys == null || c.wepKeys[0] == null);
     }
 
     private void execute(JSONObject cmd) {

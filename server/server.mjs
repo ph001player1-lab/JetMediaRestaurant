@@ -46,7 +46,14 @@ const MAX_BODY = 25 * 1024 * 1024;
 const MAX_UPLOAD = 8 * 1024 * 1024;
 const SYNC_EVERY = { hourly: 3600_000, daily: 24 * 3600_000 };
 // Показ акций и рекламы на планшете: задержка простоя, длительность слайда, шрифты и цвета подписи
-const DISPLAY = { idleSec: 60, slideSec: 7, titleSize: 38, textSize: 22, textColor: '#ffffff', bgColor: '#000000' };
+const DISPLAY = {
+  idleSec: 60, slideSec: 7, titleSize: 38, textSize: 22, textColor: '#ffffff', bgColor: '#000000',
+  showHint: true, hint: {}, // подпись под заголовком слайда; пустой текст — стандартная «Листайте, чтобы посмотреть ещё»
+};
+// ИИ-персонаж: как часто появляется в карусели, сколько держится, приветствия и подбор блюд по пожеланиям
+const AVATAR = { enabled: false, characterId: '', speak: true, everyMin: 3, durationSec: 20, startWith: true, greetings: [], filters: [] };
+// Отметки блюд для подбора по особым пожеланиям
+const DISH_TAGS = ['vegan', 'vegetarian', 'gluten_free', 'lactose_free', 'nut_free', 'seafood_free', 'spicy', 'mild', 'kids', 'halal'];
 
 let db = { devices: {}, restaurants: {}, calls: [], orders: [], sessions: {}, vapid: null, ads: [], stats: {}, characters: [] };
 try {
@@ -153,8 +160,9 @@ function slidesFor(r) {
     .filter((a) => a.active && a.image && (!a.restaurants?.length || a.restaurants.includes(r.id)) && !(r.blockedAds || []).includes(a.id))
     .map((a) => ({ type: 'ad', id: a.id, image: a.image, title: a.title, phone: a.phone || '', qr: a.link ? `${PUBLIC_URL}/go/a/${a.id}?r=${r.id}` : '' }));
   // ИИ-персонаж — первым слайдом карусели
-  const out = avatarFor(r) ? [{ type: 'avatar', id: 'avatar' }] : [];
-  if (!own.length) return out.concat(ads);
+  // ИИ-персонаж в список не входит: планшет вставляет его в карусель по своему расписанию
+  const out = [];
+  if (!own.length) return ads;
   own.forEach((s, i) => { out.push(s); if (i % 2 === 1 && ads.length) out.push(ads[Math.floor(i / 2) % ads.length]); });
   if (own.length === 1 && ads.length) out.push(ads[0]);
   return out;
@@ -185,9 +193,9 @@ function qrRedirect(kind, id, rid) {
 
 // ИИ-персонаж ресторана: включён и выбран из библиотеки персонажей
 function avatarFor(r) {
-  const a = r.avatar;
-  const c = a?.enabled && db.characters.find((x) => x.id === a.characterId);
-  return c ? { ...c, speak: a.speak !== false } : null;
+  const a = { ...AVATAR, ...r.avatar };
+  const c = a.enabled && db.characters.find((x) => x.id === a.characterId);
+  return c ? { ...c, ...pick(a, ['speak', 'everyMin', 'durationSec', 'startWith', 'greetings', 'filters']) } : null;
 }
 
 function guestImpression(b) {
@@ -419,7 +427,7 @@ function managerGet(b, q) {
       menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [],
       menuSource: publicSource(r.menuSource),
       display: { ...DISPLAY, ...r.display },
-      avatar: { enabled: false, characterId: '', speak: true, ...r.avatar },
+      avatar: { ...AVATAR, ...r.avatar },
     },
     ads: db.ads.filter((a) => a.active && (!a.restaurants?.length || a.restaurants.includes(r.id)))
       .map((a) => ({ id: a.id, title: a.title, advertiser: a.advertiser, image: a.image, views: views(a.id, r.id), scans: scans(a.id, r.id) })),
@@ -439,7 +447,7 @@ function managerSave(b) {
   if (Array.isArray(b.blockedAds)) r.blockedAds = b.blockedAds.map(String);
   if (b.menuSource) r.menuSource = cleanSource(b.menuSource, r.menuSource);
   if (b.display) r.display = cleanDisplay(b.display);
-  if (b.avatar) r.avatar = { enabled: !!b.avatar.enabled, characterId: String(b.avatar.characterId || ''), speak: b.avatar.speak !== false };
+  if (b.avatar) r.avatar = cleanAvatar(b.avatar);
   save();
   return {};
 }
@@ -555,6 +563,7 @@ function cleanMenu(menu) {
       price: Number(i.price) || 0, photo: String(i.photo || ''), promo: !!i.promo, dayDish: !!i.dayDish,
       extId: i.extId || undefined, sku: String(i.sku || ''), options: Array.isArray(i.options) ? i.options : [],
       hidden: !!i.hidden, photoManual: !!i.photoManual,
+      tags: (Array.isArray(i.tags) ? i.tags : []).filter((x) => DISH_TAGS.includes(x)),
     }));
 }
 
@@ -565,6 +574,25 @@ function cleanDisplay(d) {
     idleSec: num(d.idleSec, 10, 600, DISPLAY.idleSec), slideSec: num(d.slideSec, 3, 60, DISPLAY.slideSec),
     titleSize: num(d.titleSize, 16, 80, DISPLAY.titleSize), textSize: num(d.textSize, 12, 48, DISPLAY.textSize),
     textColor: color(d.textColor, DISPLAY.textColor), bgColor: color(d.bgColor, DISPLAY.bgColor),
+    showHint: d.showHint !== false, hint: texts(d.hint),
+  };
+}
+
+// Текст на языках гостя: { en, th, ru, zh }, не длиннее 300 символов
+function texts(o) {
+  const out = {};
+  for (const l of ['en', 'th', 'ru', 'zh']) if (o && typeof o[l] === 'string' && o[l].trim()) out[l] = o[l].trim().slice(0, 300);
+  return out;
+}
+
+function cleanAvatar(a) {
+  const num = (v, min, max, def) => Math.min(max, Math.max(min, Math.round(Number(v)) || def));
+  return {
+    enabled: !!a.enabled, characterId: String(a.characterId || ''), speak: a.speak !== false,
+    everyMin: num(a.everyMin, 1, 60, AVATAR.everyMin), durationSec: num(a.durationSec, 10, 180, AVATAR.durationSec),
+    startWith: a.startWith !== false,
+    greetings: (Array.isArray(a.greetings) ? a.greetings : []).map(texts).filter((g) => Object.keys(g).length).slice(0, 20),
+    filters: (Array.isArray(a.filters) ? a.filters : []).filter((f) => DISH_TAGS.includes(f)),
   };
 }
 
