@@ -54,6 +54,14 @@
   .grand { display: flex; justify-content: space-between; font-weight: 700; font-size: 22px; padding: 16px 2px 0; }
   .big { width: 100%; border: 0; border-radius: 14px; padding: 18px; font-size: 20px; font-weight: 600; background: var(--accent); color: #fff; margin-top: 14px; }
   .big.ghost { background: #efe7df; color: var(--ink); }
+  /* Особые пожелания: кнопка в ленте категорий и окно с вариантами */
+  #cats button.diet { background: #e8f3e3; border-color: #9cc48a; color: #2d5a1e; font-weight: 600; }
+  #cats button.diet.on { background: #2d5a1e; border-color: #2d5a1e; color: #fff; }
+  .dietgrid { display: flex; flex-wrap: wrap; margin: 0 -6px; }
+  .dietgrid button { flex: none; width: calc(50% - 12px); margin: 6px; text-align: left; border: 0; border-radius: 14px; padding: 16px; font-size: 19px; background: #e8f3e3; color: var(--ink); }
+  .dietgrid button small { display: block; color: var(--muted); font-size: 15px; margin-top: 2px; }
+  .dietgrid button:disabled { background: #f1eeea; color: #b7aea6; }
+  .dietgrid button:disabled small { color: #c8c0b8; }
   .status { font-size: 15px; color: var(--muted); }
   #toast { position: fixed; top: 90px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 16px 24px; border-radius: 14px; font-size: 20px; display: none; z-index: 30; text-align: center; max-width: 90%; }
   #offline { position: fixed; top: 0; left: 0; right: 0; z-index: 40; background: #c62828; color: #fff; text-align: center; padding: 10px; font-size: 18px; display: none; }
@@ -135,31 +143,32 @@ var T = {
         pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day', menu: 'Open menu', ad: 'Advertisement',
         offline: 'No connection. Please wave to the waiter — we are reconnecting.', offlineBar: 'No connection — reconnecting…',
         edited: 'The waiter updated your order', scan: 'Scan the QR code', tableTotal: 'Table total', back: 'Back to the slideshow',
-        recommend: 'I recommend', showDish: 'Show me', another: 'Something else', askRec: 'What do you recommend?', order: 'Order', diet: 'Special diet', dietAsk: 'What suits you?', noDish: 'Sorry, there is nothing like that on the menu yet — please ask the waiter!', prev: 'Back', dayRec: 'Today\'s dish of the day', alreadyOrdered: 'We have already ordered', needMe: 'Great! If you need me, tap my round button at the bottom of the screen.' },
+        recommend: 'I recommend', showDish: 'Show me', another: 'Something else', askRec: 'What do you recommend?', order: 'Order', diet: 'Special diet', dietAsk: 'What suits you?', noDish: 'Sorry, there is nothing like that on the menu yet — please ask the waiter!', prev: 'Back', dayRec: 'Today\'s dish of the day', noneYet: 'none yet', allMenu: 'Show the whole menu', alreadyOrdered: 'We have already ordered', needMe: 'Great! If you need me, tap my round button at the bottom of the screen.' },
   ru: { call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
         sent: 'Заказ отправлен. Официант подойдёт подтвердить.', called: 'Официант вызван', coming: 'Официант идёт',
         confirmed: 'Заказ подтверждён', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
         pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня', menu: 'Открыть меню', ad: 'Реклама',
         offline: 'Нет связи. Пожалуйста, позовите официанта жестом — мы восстанавливаем подключение.', offlineBar: 'Нет связи — восстанавливаем подключение…',
         edited: 'Официант изменил ваш заказ', scan: 'Отсканируйте QR-код', tableTotal: 'Итого по столу', back: 'На главный экран',
-        recommend: 'Советую попробовать', showDish: 'Показать', another: 'Что-нибудь ещё', askRec: 'Что посоветуешь?', order: 'Заказ', diet: 'Особые пожелания', dietAsk: 'Что вам подходит?', noDish: 'Пока таких блюд в меню нет — спросите официанта, он подскажет!', prev: 'Назад', dayRec: 'Сегодня блюдо дня', alreadyOrdered: 'Уже заказали', needMe: 'Отлично! Если понадоблюсь — нажмите мою круглую кнопку внизу экрана.' },
+        recommend: 'Советую попробовать', showDish: 'Показать', another: 'Что-нибудь ещё', askRec: 'Что посоветуешь?', order: 'Заказ', diet: 'Особые пожелания', dietAsk: 'Что вам подходит?', noDish: 'Пока таких блюд в меню нет — спросите официанта, он подскажет!', prev: 'Назад', dayRec: 'Сегодня блюдо дня', noneYet: 'пока нет', allMenu: 'Показать всё меню', alreadyOrdered: 'Уже заказали', needMe: 'Отлично! Если понадоблюсь — нажмите мою круглую кнопку внизу экрана.' },
   th: { call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
         sent: 'ส่งรายการแล้ว พนักงานจะมายืนยัน', called: 'เรียกพนักงานแล้ว', coming: 'พนักงานกำลังมา',
         confirmed: 'ยืนยันรายการแล้ว', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
         pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน', menu: 'ดูเมนู', ad: 'โฆษณา',
         offline: 'ไม่มีการเชื่อมต่อ กรุณาโบกมือเรียกพนักงาน ระบบกำลังเชื่อมต่อใหม่', offlineBar: 'ไม่มีการเชื่อมต่อ — กำลังเชื่อมต่อใหม่…',
         edited: 'พนักงานแก้ไขรายการของคุณแล้ว', scan: 'สแกน QR โค้ด', tableTotal: 'รวมทั้งโต๊ะ', back: 'กลับหน้าหลัก',
-        recommend: 'แนะนำให้ลอง', showDish: 'ดูเมนูนี้', another: 'อย่างอื่น', askRec: 'แนะนำอะไรดี?', order: 'ออร์เดอร์', diet: 'อาหารพิเศษ', dietAsk: 'แบบไหนเหมาะกับคุณคะ?', noDish: 'ขออภัย ยังไม่มีเมนูแบบนี้ กรุณาถามพนักงานนะคะ', prev: 'กลับ', dayRec: 'เมนูแนะนำของวันนี้', alreadyOrdered: 'สั่งแล้ว', needMe: 'เยี่ยมเลย! ถ้าต้องการหนู แตะปุ่มกลมของหนูด้านล่างจอนะคะ' },
+        recommend: 'แนะนำให้ลอง', showDish: 'ดูเมนูนี้', another: 'อย่างอื่น', askRec: 'แนะนำอะไรดี?', order: 'ออร์เดอร์', diet: 'อาหารพิเศษ', dietAsk: 'แบบไหนเหมาะกับคุณคะ?', noDish: 'ขออภัย ยังไม่มีเมนูแบบนี้ กรุณาถามพนักงานนะคะ', prev: 'กลับ', dayRec: 'เมนูแนะนำของวันนี้', noneYet: 'ยังไม่มี', allMenu: 'แสดงเมนูทั้งหมด', alreadyOrdered: 'สั่งแล้ว', needMe: 'เยี่ยมเลย! ถ้าต้องการหนู แตะปุ่มกลมของหนูด้านล่างจอนะคะ' },
   zh: { call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
         sent: '订单已发送，服务员将前来确认', called: '已呼叫服务员', coming: '服务员马上就来',
         confirmed: '订单已确认', add: '添加', close: '关闭', ordered: '已点',
         pending: '待确认', rejected: '已取消', day: '★ 今日推荐', menu: '查看菜单', ad: '广告',
         offline: '网络连接中断，请向服务员招手示意，我们正在重新连接', offlineBar: '网络中断——正在重新连接…',
         edited: '服务员已更新您的订单', scan: '扫描二维码', tableTotal: '本桌合计', back: '返回首页',
-        recommend: '推荐您尝试', showDish: '查看', another: '换一个', askRec: '有什么推荐？', order: '订单', diet: '特殊饮食', dietAsk: '您需要哪一种？', noDish: '抱歉，菜单上暂时没有这类菜品，请询问服务员！', prev: '返回', dayRec: '今日推荐菜', alreadyOrdered: '已经点好了', needMe: '好的！如果需要我，请点击屏幕下方我的圆形按钮。' }
+        recommend: '推荐您尝试', showDish: '查看', another: '换一个', askRec: '有什么推荐？', order: '订单', diet: '特殊饮食', dietAsk: '您需要哪一种？', noDish: '抱歉，菜单上暂时没有这类菜品，请询问服务员！', prev: '返回', dayRec: '今日推荐菜', noneYet: '暂无', allMenu: '显示全部菜单', alreadyOrdered: '已经点好了', needMe: '好的！如果需要我，请点击屏幕下方我的圆形按钮。' }
 };
 var LANG_NAMES = { en: 'EN', th: 'ไทย', ru: 'RU', zh: '中文' };
 // Отметки блюд для подбора по особым пожеланиям
+var TAG_ICONS = { vegan: '🌱', vegetarian: '🥗', gluten_free: '🌾', lactose_free: '🥛', nut_free: '🥜', seafood_free: '🦐', spicy: '🌶', mild: '🍃', kids: '🧸', halal: '☪' };
 var TAGS = {
   vegan: { en: 'Vegan', ru: 'Веганское', th: 'วีแกน', zh: '纯素' },
   vegetarian: { en: 'Vegetarian', ru: 'Вегетарианское', th: 'มังสวิรัติ', zh: '素食' },
@@ -281,11 +290,17 @@ function renderAll() {
     return '<button data-lang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
   }).join('');
   var list = categories();
-  if (list.indexOf(cat) < 0) cat = list[0];
-  $('cats').innerHTML = list.map(function (c) {
-    return '<button data-cat="' + esc(c) + '" class="' + (c === cat ? 'on' : '') + '">' + esc(c === DAY ? t('day') : c) + '</button>';
-  }).join('');
-  $('items').innerHTML = '<div class="grid">' + state.menu.filter(function (i) { return cat === DAY ? i.dayDish : (tr(i.cat) || '—') === cat; }).map(function (i) {
+  // cat — категория, ★ блюдо дня или «tag:…» — особое пожелание (пока такие блюда есть в меню)
+  var tag = String(cat || '').indexOf('tag:') === 0 ? cat.slice(4) : '';
+  if (tag ? !tagCount(tag) : list.indexOf(cat) < 0) { cat = list[0]; tag = ''; }
+  $('cats').innerHTML = '<button data-diet="1" class="diet' + (tag ? ' on' : '') + '">' +
+      (tag ? TAG_ICONS[tag] + ' ' + esc(tr(TAGS[tag])) : '🌿 ' + t('diet')) + '</button>' +
+    list.map(function (c) {
+      return '<button data-cat="' + esc(c) + '" class="' + (c === cat ? 'on' : '') + '">' + esc(c === DAY ? t('day') : c) + '</button>';
+    }).join('');
+  $('items').innerHTML = '<div class="grid">' + state.menu.filter(function (i) {
+    return tag ? (i.tags || []).indexOf(tag) >= 0 : cat === DAY ? i.dayDish : (tr(i.cat) || '—') === cat;
+  }).map(function (i) {
     return '<div class="item">' + (i.photo ? '<img src="' + esc(i.photo) + '" alt="">' : '<div class="ph"></div>') +
       '<div class="b"><div class="n">' + esc(tr(i.name)) + '</div><div class="d">' + esc(tr(i.desc)) + '</div>' +
       '<div class="row"><span class="price">' + priceLabel(i) + '</span>' +
@@ -299,6 +314,33 @@ function renderAll() {
 function avatarChatBtn() {
   var a = state.avatar;
   return a ? '<button class="avchat" data-avchat="1" title="' + esc(tr(a.name)) + '"><img src="' + esc(a.images.idle) + '" alt=""></button>' : '';
+}
+
+// «1 блюдо», «2 блюда», «5 блюд»; «1 dish», «2 dishes»
+function dishCount(n) {
+  if (lang === 'ru') {
+    var m10 = n % 10, m100 = n % 100;
+    return n + ' ' + (m10 === 1 && m100 !== 11 ? 'блюдо' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'блюда' : 'блюд');
+  }
+  return n + ' ' + ({ th: 'เมนู', zh: '道菜' }[lang] || (n === 1 ? 'dish' : 'dishes'));
+}
+
+function tagCount(tag) {
+  return state.menu.filter(function (i) { return (i.tags || []).indexOf(tag) >= 0; }).length;
+}
+
+// Окно «Особые пожелания»: варианты без подходящих блюд неактивны
+function openDiet() {
+  sheetMode = 'diet';
+  $('sheet').innerHTML = '<h2>🌿 ' + t('diet') + '</h2><p class="status">' + t('dietAsk') + '</p><div class="dietgrid">' +
+    Object.keys(TAGS).map(function (k) {
+      var n = tagCount(k);
+      return '<button data-tagf="' + k + '"' + (n ? '' : ' disabled') + '>' + TAG_ICONS[k] + ' ' + esc(tr(TAGS[k])) +
+        '<small>' + (n ? dishCount(n) : t('noneYet')) + '</small></button>';
+    }).join('') + '</div>' +
+    (String(cat).indexOf('tag:') === 0 ? '<button class="big ghost" data-tagf="">' + t('allMenu') + '</button>' : '') +
+    '<button class="big ghost" data-close="1">' + t('close') + '</button>';
+  $('cart').className = 'overlay show';
 }
 
 function renderFooter() {
@@ -739,6 +781,8 @@ document.addEventListener('click', function (e) {
   var d = b.dataset;
   if (d.lang) { lang = d.lang; renderAll(); }
   else if (d.cat) { cat = d.cat; renderAll(); }
+  else if (d.diet) openDiet();
+  else if (d.tagf !== undefined) { cat = d.tagf ? 'tag:' + d.tagf : null; $('cart').className = 'overlay'; renderAll(); $('items').scrollTop = 0; }
   else if (d.add) { if ((MENU[d.add].options || []).length) openOptions(d.add); else { cart[d.add] = (cart[d.add] || 0) + 1; renderAll(); } }
   else if (d.opt) { cart[d.opt] = (cart[d.opt] || 0) + 1; $('cart').className = 'overlay'; renderAll(); }
   else if (d.inc) { cart[d.inc]++; renderCart(); renderAll(); }
