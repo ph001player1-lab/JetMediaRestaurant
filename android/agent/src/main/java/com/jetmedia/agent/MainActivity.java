@@ -12,6 +12,7 @@ import android.app.PendingIntent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.net.ConnectivityManager;
+import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
@@ -72,6 +73,7 @@ public class MainActivity extends Activity {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Runnable retryLoad = this::load;
     private long offlineSince;
+    private boolean showingOffline;
     private DevicePolicyManager dpm;
     private ComponentName admin;
     private SharedPreferences prefs;
@@ -98,6 +100,7 @@ public class MainActivity extends Activity {
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 if (!request.isForMainFrame()) return;
+                showingOffline = true;
                 view.loadDataWithBaseURL(null, offlinePage(), "text/html", "utf-8", null);
                 handler.removeCallbacks(retryLoad);
                 handler.postDelayed(retryLoad, 10000);
@@ -114,6 +117,14 @@ public class MainActivity extends Activity {
         if (isOwner()) applyPolicies();
         load();
         schedulePoll();
+        // Сеть появилась, а на экране заглушка «Нет связи» — сразу загружаем страницу, не ждём повтора
+        ((ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE)).registerDefaultNetworkCallback(
+                new ConnectivityManager.NetworkCallback() {
+                    @Override
+                    public void onAvailable(Network network) {
+                        handler.postDelayed(() -> { if (showingOffline) load(); }, 2000);
+                    }
+                });
     }
 
     @Override
@@ -162,6 +173,8 @@ public class MainActivity extends Activity {
     }
 
     private void load() {
+        showingOffline = false;
+        handler.removeCallbacks(retryLoad);
         String url = prefs.getString("url", "");
         if (url.isEmpty()) web.loadDataWithBaseURL(null, statusPage(), "text/html", "utf-8", null);
         else web.loadUrl(url);
