@@ -417,13 +417,17 @@ function slideHtml(s, current) {
 }
 
 // Картинка слайда с кадром из настроек: режим, сдвиг по вертикали, масштаб
+// Сдвиг выбирает, какую часть исходной картинки показать (вниз — открывается верх картинки),
+// масштаб увеличивает или уменьшает вокруг этой точки
 function frameHtml(s) {
-  var tf = 'translateY(' + (Number(s.imgY) || 0) + '%) scale(' + (Number(s.imgScale) || 100) / 100 + ')';
+  var y = 50 - (Number(s.imgY) || 0), scale = (Number(s.imgScale) || 100) / 100;
   var fit = s.fit === 'contain' ? 'contain' : 'cover';
-  // Размытая подложка нужна, только если картинка не закрывает экран целиком — так дешевле для планшета
-  var gaps = fit === 'contain' || Number(s.imgY) || (Number(s.imgScale) || 100) < 100;
+  var style = 'object-fit:' + fit + ';object-position:50% ' + y + '%;-webkit-transform-origin:50% ' + y + '%;transform-origin:50% ' + y + '%;' +
+    '-webkit-transform:scale(' + scale + ');transform:scale(' + scale + ')';
+  // Размытая подложка нужна, только если картинка не закрывает область целиком — так дешевле для планшета
+  var gaps = fit === 'contain' || scale < 1;
   return (gaps ? '<img class="bgblur" src="' + esc(s.image) + '" alt="">' : '') +
-    '<img class="bg" src="' + esc(s.image) + '" alt="" style="object-fit:' + fit + ';-webkit-transform:' + tf + ';transform:' + tf + '">';
+    '<img class="bg" src="' + esc(s.image) + '" alt="" style="' + style + '">';
 }
 
 // «top-right» → ряд top, столбец right; старые «middle-…» — это ряд «выше центра»

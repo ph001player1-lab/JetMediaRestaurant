@@ -24,6 +24,14 @@
   #shiftBtn { background: #2e7d32; }
   #shiftBtn.off { background: #c62828; }
   [hidden] { display: none !important; }
+  /* Мини-копия слайда в списке: планки, картинка с кадром и блок QR на своём месте */
+  .mini { position: relative; background: #141110; border-radius: 8px; overflow: hidden; flex: none; }
+  .mstage { position: absolute; left: 0; right: 0; overflow: hidden; background: #000; }
+  .mimg, .mblur { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
+  .mblur { object-fit: cover; filter: blur(6px) brightness(.55); transform: scale(1.15); }
+  .mqr { position: absolute; background: #fff; color: #1f1a17; text-align: center; line-height: 1.1; }
+  .pf input, .pf select, .pf label { box-sizing: border-box; min-width: 0; max-width: 100%; }
+  .dset { align-items: end; }
   .sizehint { background: #fff3cd; border-radius: 10px; padding: 10px 14px; line-height: 1.5; margin: 8px 0; font-size: 14px; }
   .frame input[type=range], .pf input[type=range] { width: 100%; padding: 0; border: 0; }
   /* Компактные карточки акций и рекламы: слева превью в пропорции экрана планшета 800×1280 */
@@ -151,6 +159,7 @@
 </div>
 
 </div>
+<script src="/vendor/qrcode.js"></script>
 <script>
 const T = {
   en: { login: 'Staff sign-in', code: 'Restaurant code', pin: 'Your PIN', start: 'Sign in', out: 'Sign out',
@@ -612,12 +621,11 @@ function renderManager() {
 
   renderMenuTab();
 
-  const thumb = (src) => (src ? `<img class="thumb" src="${esc(src)}" alt="">` : '<div class="thumb none"></div>');
   const small = (f, v, label) => `<label>${t(label)}<input data-f="${f}" value="${esc(v || '')}"></label>`;
   const multiSmall = (f, o, label) => `<label class="full">${t(label)}</label>${LANGS.map((l) => `<div class="ml"><span>${l.toUpperCase()}</span>
     <input data-f="${f}" data-ln="${l}" value="${esc((o || {})[l] || '')}"></div>`).join('')}`;
   $('tPromos').innerHTML = `<p class="sizehint">${t('sizeHint')}</p><div data-list="promos">${r.promos.map((p, i) => `<div class="pcard" data-i="${i}">
-      ${thumb(p.image)}
+      ${miniSlide(slideOf('promo', p))}
       <div class="pf">
         <label>${t('uploadSize')}<input type="file" accept="image/*" data-upload="image"></label>${small('image', p.image, 'image')}
         ${multiSmall('title', p.title, 'title')}${multiSmall('text', p.text, 'text')}
@@ -635,11 +643,11 @@ function renderManager() {
   const d = r.display;
   const dnum = (f, label) => `<label>${t(label)}<input data-df="${f}" type="number" value="${esc(d[f])}"></label>`;
   $('tAds').innerHTML = `<div class="ed"><b>${t('display')}</b>
-      <div class="dset">${dnum('idleSec', 'idleSec')}${dnum('slideSec', 'slideSec')}${dnum('titleSize', 'titleSize')}${dnum('textSize', 'textSize')}</div>
+      <div class="dset">${dnum('idleSec', 'idleSec')}${dnum('slideSec', 'slideSec')}</div>
       <div class="bar"><button data-dsave="1">${t('save')}</button></div></div>`
     + (r.tariff === 'premium' ? `<p class="empty">${t('premium')}</p>` : mgr.ads.map((a) => {
     const blocked = r.blockedAds.includes(a.id);
-    return `<div class="pcard">${thumb(a.image)}<div class="pf">
+    return `<div class="pcard">${miniSlide(slideOf('ad', a))}<div class="pf">
       <div class="full"><b>${esc(a.title || a.advertiser)}</b><br>
         <span class="empty">${esc(a.advertiser)} · ${a.views} ${t('views')} · ${a.scans} ${t('scansL')}</span></div>
       <div class="row full"><button class="ghostbtn" data-pvad="${esc(a.id)}">👁 ${t('preview')}</button>
@@ -690,6 +698,36 @@ const slideOf = (type, x) => ({
   type, image: x.image, title: x.title, text: x.text, phone: x.phone, qr: x.link, qrPos: x.qrPos, qrSize: x.qrSize,
   fit: x.fit, imgY: x.imgY, imgScale: x.imgScale,
 });
+
+// ---------- Мини-копия слайда: те же доли экрана, что на планшете (экран 800×1280, область показа 800×986)
+
+function qrSvg(text, px) {
+  try {
+    const q = qrcode(0, 'M');
+    q.addData(text);
+    q.make();
+    return q.createSvgTag(2, 0).replace('<svg ', `<svg style="width:${px}px;height:${px}px;display:block" `);
+  } catch { return ''; }
+}
+
+function miniSlide(s, w = 120) {
+  const h = w * 1.6, k = w / 800, stage = h * 0.77;
+  const y = 50 - (Number(s.imgY) || 0), scale = (Number(s.imgScale) || 100) / 100;
+  const fit = s.fit === 'contain' ? 'contain' : 'cover';
+  let qr = '';
+  if (s.qr || s.phone) {
+    const [row, col] = String(s.qrPos || 'top-right').replace('middle', 'upper').split('-');
+    const side = (row === 'upper' || row === 'lower' ? 88 : 24) * k;
+    const pos = [row === 'bottom' ? `bottom:${stage * 0.04}px` : `top:${stage * { top: 0.03, upper: 0.27, lower: 0.51 }[row]}px`,
+      col === 'left' ? `left:${side}px` : col === 'right' ? `right:${side}px` : 'left:50%;transform:translateX(-50%)'];
+    qr = `<div class="mqr" style="${pos.join(';')};padding:${12 * k}px;border-radius:${16 * k}px">
+      ${s.qr ? qrSvg(s.qr, ({ s: 130, m: 196, l: 260 }[s.qrSize] || 196) * k) : ''}
+      ${s.phone ? `<div style="font-size:${22 * k}px;font-weight:700;white-space:nowrap;margin-top:${6 * k}px">📞 ${esc(s.phone)}</div>` : ''}</div>`;
+  }
+  const img = s.image ? `${fit === 'contain' || scale < 1 ? `<img class="mblur" src="${esc(s.image)}" alt="">` : ''}
+    <img class="mimg" src="${esc(s.image)}" alt="" style="object-fit:${fit};object-position:50% ${y}%;transform-origin:50% ${y}%;transform:scale(${scale})">` : '';
+  return `<div class="mini" style="width:${w}px;height:${h}px"><div class="mstage" style="top:${h * 0.08}px;height:${stage}px">${img}${qr}</div></div>`;
+}
 
 // Вид списков меню и персонала: плитка или таблица (запоминаем в браузере)
 const views = { menu: localStorage.menuView || 'grid', staff: localStorage.staffView || 'grid' };
@@ -879,6 +917,10 @@ async function onEdit(e) {
   if (!f || !card || !list || !mgr) return;
   const item = mgr.restaurant[list.dataset.list][card.dataset.i];
   if (f === 'photo') item.photoManual = true;
+  if (list.dataset.list === 'promos') setTimeout(() => {
+    const mini = card.querySelector('.mini');
+    if (mini) mini.outerHTML = miniSlide(slideOf('promo', item));
+  });
   if (el.type === 'checkbox') item[f] = el.checked;
   else if (f === 'price') item[f] = Number(el.value) || 0;
   else if (list.dataset.list !== 'staff' && LANG_FIELDS.includes(f)) item[f] = { ...(item[f] || {}), [el.dataset.ln || elang]: el.value };
