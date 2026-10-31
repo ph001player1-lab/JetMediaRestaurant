@@ -77,6 +77,7 @@ try {
 db.sessions ??= {};
 db.ads ??= [];
 db.characters ??= [];
+db.pending ??= {};
 db.stats ??= {};
 db.vapid ??= createVapidKeys();
 
@@ -137,8 +138,16 @@ function send(res, code, data, type = 'application/json') {
 
 function devicePoll(b, q, req) {
   if (!b.id) throw fail(400, 'id required');
-  // Новые устройства — только с ключом регистрации; уже известные пускаем как есть
-  if (DEVICE_KEY && b.key !== DEVICE_KEY && !db.devices[b.id]) throw fail(403, 'bad device key');
+  // Новые устройства — только с ключом регистрации; уже известные пускаем как есть.
+  // Без ключа или с неверным устройство ждёт в портале: администратор может добавить его вручную.
+  if (DEVICE_KEY && b.key !== DEVICE_KEY && !db.devices[b.id]) {
+    db.pending[b.id] = {
+      id: b.id, telemetry: b.telemetry || {}, lastSeen: Date.now(), keyGiven: !!b.key,
+      ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+    };
+    save();
+    throw fail(403, 'bad device key');
+  }
   const d = (db.devices[b.id] ??= { id: b.id, firstSeen: Date.now(), queue: [] });
   d.telemetry = b.telemetry || {};
   d.lastSeen = Date.now();
@@ -663,6 +672,22 @@ function cleanStaff(list) {
 }
 
 function admin(method, p, b) {
+  if (method === 'GET' && p === '/api/pending') {
+    // Ожидающие подтверждения за последние сутки
+    return Object.values(db.pending).filter((d) => Date.now() - d.lastSeen < 864e5);
+  }
+  let pm = p.match(/^\/api\/pending\/([^/]+)(\/approve)?$/);
+  if (pm && db.pending[decodeURIComponent(pm[1])]) {
+    const pd = db.pending[decodeURIComponent(pm[1])];
+    if (method === 'POST' && pm[2]) {
+      db.devices[pd.id] = { id: pd.id, firstSeen: Date.now(), queue: [], telemetry: pd.telemetry, lastSeen: pd.lastSeen, ip: pd.ip };
+    }
+    if ((method === 'POST' && pm[2]) || (method === 'DELETE' && !pm[2])) {
+      delete db.pending[pd.id];
+      save();
+      return {};
+    }
+  }
   if (method === 'GET' && p === '/api/devices') {
     const now = Date.now();
     return Object.values(db.devices).map(({ queue, ...d }) =>

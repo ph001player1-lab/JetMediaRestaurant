@@ -41,6 +41,11 @@
   <button onclick="logout()" style="float:right">Выйти</button></nav>
 
 <section id="devices">
+  <div id="pendingBox" class="sizehint" hidden>
+    <b>Новые устройства — ожидают подтверждения</b>
+    <p class="hint" style="margin:4px 0">Планшет подготовлен, но подключился без ключа регистрации или с неверным ключом. Если это ваш планшет — нажмите «Добавить», затем выберите ему стол.</p>
+    <div class="wrap"><table><tbody id="pending"></tbody></table></div>
+  </div>
   <p>
     <button onclick="toAll('url')">Страница для всех</button>
     <button onclick="toAll('update')">Обновить агент на всех</button>
@@ -151,7 +156,27 @@ function placeOptions(d) {
   }</optgroup>`).join('');
 }
 
+async function loadPending() {
+  const list = await api('/api/pending');
+  $('pendingBox').hidden = !list.length;
+  $('pending').innerHTML = list.map((d) => {
+    const t = d.telemetry || {};
+    return `<tr><td>${esc(t.model || '')}<br><small>${esc(d.id)}</small></td>
+      <td>${t.wifi ? `Wi-Fi: ${esc(t.wifi)}` : ''}<br><small>${d.keyGiven ? 'неверный ключ' : 'ключ не указан'}</small></td>
+      <td>${new Date(d.lastSeen).toLocaleString()}</td>
+      <td><button data-approve="${esc(d.id)}">Добавить</button><button data-dismiss="${esc(d.id)}">Скрыть</button></td></tr>`;
+  }).join('');
+}
+
+$('pending').onclick = async (e) => {
+  const { approve, dismiss } = e.target.dataset;
+  if (approve) await api(`/api/pending/${encodeURIComponent(approve)}/approve`, 'POST');
+  if (dismiss) await api(`/api/pending/${encodeURIComponent(dismiss)}`, 'DELETE');
+  if (approve || dismiss) { loadPending(); loadDevices(); }
+};
+
 async function loadDevices() {
+  loadPending();
   // Пока выбирают стол в списке, не перерисовываем таблицу
   if (document.activeElement?.closest('#list select')) return;
   devices = await api('/api/devices');
