@@ -320,7 +320,7 @@ function renderAll() {
   $('items').innerHTML = '<div class="grid">' + state.menu.filter(function (i) {
     return tag ? (i.tags || []).indexOf(tag) >= 0 : cat === DAY ? i.dayDish : (tr(i.cat) || '—') === cat;
   }).map(function (i) {
-    return '<div class="item">' + (i.photo ? '<img src="' + esc(i.photo) + '" alt="">' : '<div class="ph"></div>') +
+    return '<div class="item">' + (i.photo ? '<img src="' + esc(i.photo) + '" loading="lazy" alt="">' : '<div class="ph"></div>') +
       '<div class="b"><div class="n">' + esc(tr(i.name)) + '</div><div class="d">' + esc(tr(i.desc)) + '</div>' +
       '<div class="row"><span class="price">' + priceLabel(i) + '</span>' +
       (isEntrance() ? '' : '<button class="add" data-add="' + esc(i.id) + '">' + t('add') + (inCart(i.id) ? ' · ' + inCart(i.id) : '') + '</button>') +

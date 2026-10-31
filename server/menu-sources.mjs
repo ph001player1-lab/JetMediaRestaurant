@@ -118,6 +118,44 @@ async function wooProducts(url, lang) {
   return items.length ? items : null;
 }
 
+// ---------- Сайт на foodmenu.online: меню лежит в странице готовым JSON (const DISHES = {…}),
+// переводы — та же страница с ?lang=en|ru|th|cn
+
+const dishesJson = (html) => {
+  const m = html.match(/const DISHES = (\{[\s\S]*?\});\n/);
+  try { return m ? JSON.parse(m[1]) : null; } catch { return null; }
+};
+
+async function fromFoodmenu(src, html) {
+  const base = dishesJson(html);
+  if (!base) return null;
+  const LANGS = { en: 'en', ru: 'ru', th: 'th', zh: 'cn' };
+  const tr = { [src.lang || 'en']: base };
+  for (const [ours, theirs] of Object.entries(LANGS)) {
+    const u = new URL(src.url);
+    u.searchParams.set('lang', theirs);
+    try { tr[ours] = dishesJson(await (await get(u)).text()) || tr[ours]; } catch { /* без этого перевода */ }
+  }
+  const pick = (get) => Object.fromEntries(Object.keys(tr).map((l) => [l, String(get(tr[l]) ?? '').trim()]).filter(([, v]) => v));
+  return Object.values(base).map((d) => {
+    const groups = d.opts || [];
+    // одна группа «выберите одно» — варианты с ценой; несколько групп и добавки уточнит официант
+    const one = groups.length === 1 && groups[0].type === 'radio';
+    return {
+      extId: String(d.id), sku: d.sku || '',
+      cat: pick((t) => t[d.id]?.cat), name: pick((t) => t[d.id]?.name), desc: pick((t) => t[d.id]?.desc),
+      price: Number(d.min || d.price) || 0,
+      photo: d.img ? new URL(d.img, src.url).href : '',
+      options: one ? groups[0].opts.map((o, k) => ({
+        key: String(o.id),
+        label: pick((t) => t[d.id]?.opts?.[0]?.opts?.[k]?.n),
+        price: (Number(d.price) || 0) + (Number(o.p) || 0),
+      })) : [],
+      available: !d.off,
+    };
+  });
+}
+
 async function fromWebsite(src) {
   const lang = src.lang || 'en';
   const html = await (await get(src.url)).text();
@@ -133,6 +171,8 @@ async function fromWebsite(src) {
     }
     return cards;
   }
+  const fm = await fromFoodmenu(src, html);
+  if (fm) return fm;
   const items = parseJsonLd(html, lang) || (await wooProducts(src.url, lang));
   if (!items) throw new Error('на странице не найдено меню в понятном формате — пришлите адрес нам, добавим разбор этого сайта');
   return items;
