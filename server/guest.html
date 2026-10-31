@@ -128,6 +128,9 @@
   .avinfo span { font-size: 2.2vw; color: var(--muted); margin-top: 1vw; flex: 1; overflow: hidden; }
   .avrow { display: flex; align-items: center; justify-content: space-between; margin-top: 1vw; }
   .avrow .price { font-size: 2.8vw; }
+  .slide .cap.withbtn { padding-right: 38vw; }
+  .iorder { position: absolute; right: 4vw; bottom: 2.6vw; z-index: 2; border: 0; border-radius: 3vw; padding: 2.2vw 4.5vw; font-size: 3.4vw; font-weight: 700;
+    background: var(--accent); color: var(--accent-ink); box-shadow: 0 1vw 3vw rgba(0,0,0,.35); white-space: nowrap; }
   .porder { position: absolute; left: 50%; bottom: 4vw; -webkit-transform: translateX(-50%); transform: translateX(-50%); z-index: 2; border: 0; border-radius: 3vw;
     padding: 2.2vw 6vw; font-size: 3.4vw; font-weight: 700; background: var(--accent); color: var(--accent-ink); box-shadow: 0 1vw 3vw rgba(0,0,0,.35); white-space: nowrap; }
   .avadd { border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 1.5vw; padding: 1.5vw 2.5vw; font-size: 2.3vw; font-weight: 600; }
@@ -504,7 +507,15 @@ function slideHtml(s, current) {
     (s.qr || s.phone ? '<div class="contact ' + qrClass(s.qrPos) + ' size-' + (s.qrSize || 'm') + '">' +
       (s.qr ? '<div class="qr">' + qrSvg(s.qr) + '</div><div class="small">' + t('scan') + '</div>' : '') +
       (s.phone ? '<div class="phone">📞 ' + esc(s.phone) + '</div>' : '') + '</div>' : '') +
-    (tr(s.title) || tr(s.text) ? '<div class="cap"><b>' + esc(tr(s.title)) + (s.price ? ' · ' + money(s.price) : '') + '</b><span>' + esc(tr(s.text)) + '</span></div>' : '');
+    (tr(s.title) || tr(s.text) ? captionHtml(s) : '');
+}
+
+// Подпись слайда. У блюда из меню (блюдо дня, «в показе акций») — кнопка «Заказать · цена» справа в строке названия
+function captionHtml(s) {
+  var order = s.type === 'item' && !isEntrance() && !PREVIEW && MENU[s.id];
+  return '<div class="cap' + (order ? ' withbtn' : '') + '"><b>' + esc(tr(s.title)) + (s.price && !order ? ' · ' + money(s.price) : '') + '</b>' +
+    '<span>' + esc(tr(s.text)) + '</span>' +
+    (order ? '<button class="iorder" data-porder="' + esc(s.id) + '">' + t('orderPromo') + ' · ' + money(s.price) + '</button>' : '') + '</div>';
 }
 
 // Картинка слайда с кадром из настроек: режим, сдвиг по вертикали, масштаб
@@ -771,6 +782,7 @@ function gEvent(k, dish) {
 function promoOrder(id) {
   if (!MENU[id]) return;
   hideAttract();
+  if ((MENU[id].options || []).length) { openOptions(id); return; } // сначала выбрать вариант
   cart[id] = (cart[id] || 0) + 1;
   renderAll();
   renderCart();
