@@ -771,6 +771,13 @@ function dietNode() {
 
 // Совет из меню: по отметке (без глютена, веганское…) или сначала блюда дня, потом случайные блюда.
 // Уже предложенные в этом разговоре пропускаем; когда всё перебрали — начинаем заново.
+function recPhrase(day, name) {
+  var list = (((state.avatar || {}).phrases || {})[day ? 'dayDish' : 'recommend'] || [])
+    .map(function (o) { return o[lang] || ''; }).filter(function (s) { return s.indexOf('{dish}') >= 0; });
+  if (!list.length) return (day ? t('dayRec') : t('recommend')) + ': ' + name + '!';
+  return list[Math.floor(Math.random() * list.length)].replace('{dish}', name);
+}
+
 function recommendNode(tag) {
   var pick = function () {
     var fresh = function (i) { return avSuggested.indexOf(i.id) < 0; };
@@ -785,9 +792,10 @@ function recommendNode(tag) {
   var dish = p.list[Math.floor(Math.random() * p.list.length)];
   if (!dish) return { say: t('noDish'), buttons: [{ label: t('call'), go: 'waiter' }, { label: t('prev'), go: 'hello' }] };
   avSuggested.push(dish.id);
-  var lead = p.day ? t('dayRec') : t('recommend') + (tag ? ' (' + tr(TAGS[tag]) + ')' : '');
+  // Цену не произносим — она на карточке блюда; фраза — случайный вариант из пакета персонажа
+  var say = tag ? t('recommend') + ' (' + tr(TAGS[tag]) + '): ' + tr(dish.name) + '!' : recPhrase(p.day, tr(dish.name));
   return {
-    say: lead + ': ' + tr(dish.name) + (dish.price ? ' — ' + money(dish.price) : '') + '!',
+    say: say,
     dish: dish.id,
     buttons: [{ label: t('showDish'), go: 'dish:' + dish.id }, { label: t('another'), go: tag ? 'tag:' + tag : 'recommend' }, { label: t('menu'), go: 'menu' }],
   };
@@ -812,10 +820,13 @@ function avatarAction(go) {
 }
 
 var avAudio = null;
-function speak(text, audioUrl) {
+// audioUrl — записанная фраза; иначе, если у персонажа голос ElevenLabs, фразу озвучивает сервер;
+// local — говорить синтезом планшета (запасной путь, когда файл не проигрался)
+function speak(text, audioUrl, local) {
   var a = state.avatar;
   if (!a || !a.speak || !text) return;
   var v = a.voice || {};
+  if (!audioUrl && !local && a.tts) audioUrl = '/api/tts?d=' + encodeURIComponent(D) + '&t=' + encodeURIComponent(text);
   if (avAudio) { avAudio.pause(); avAudio = null; }
   talking(true);
   clearTimeout(avDoneTimer);
@@ -824,7 +835,7 @@ function speak(text, audioUrl) {
     if (window.JetAgent && window.JetAgent.stop) window.JetAgent.stop();
     else if (window.speechSynthesis) window.speechSynthesis.cancel();
     var au = avAudio = new Audio(audioUrl);
-    var fallback = function () { if (avAudio === au) { avAudio = null; speak(text); } };
+    var fallback = function () { if (avAudio === au) { avAudio = null; speak(text, null, true); } };
     au.onended = function () { if (avAudio === au) { avAudio = null; talking(false); } };
     au.onerror = fallback;
     avDoneTimer = setTimeout(function () { talking(false); }, 30000);

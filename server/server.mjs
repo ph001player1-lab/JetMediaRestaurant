@@ -12,6 +12,7 @@ import { createVapidKeys, sendPush } from './push.mjs';
 import { fetchMenu, POS_VENDORS } from './menu-sources.mjs';
 import { tgApi, tgSend, tgFindChats } from './telegram.mjs';
 import { THEMES, themeOf } from './themes.mjs';
+import { ELEVEN_MODELS, elevenVoices, elevenUsage, cachedTts, synthesize } from './eleven.mjs';
 
 const PORT = 3000;
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -90,6 +91,7 @@ db.characters ??= [];
 db.pending ??= {};
 db.stats ??= {};
 db.telegram ??= { token: '', bot: '', chats: [] };
+db.eleven ??= { key: '', model: 'eleven_v3' };
 db.vapid ??= createVapidKeys();
 
 let saveTimer;
@@ -295,7 +297,7 @@ function qrRedirect(kind, id, rid) {
 function avatarFor(r) {
   const a = { ...AVATAR, ...r.avatar };
   const c = a.enabled && db.characters.find((x) => x.id === a.characterId);
-  return c ? { ...c, ...pick(a, ['speak', 'everyMin', 'durationSec', 'startWith', 'greetings', 'filters']) } : null;
+  return c ? { ...c, tts: !!(db.eleven.key && c.voice?.eleven), ...pick(a, ['speak', 'everyMin', 'durationSec', 'startWith', 'greetings', 'filters']) } : null;
 }
 
 function guestImpression(b) {
@@ -749,6 +751,41 @@ function cleanPromos(list) {
 const voiceNames = (o) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {})
   .filter(([l, v]) => ['en', 'th', 'ru', 'zh'].includes(l) && typeof v === 'string' && v).map(([l, v]) => [l, v.slice(0, 80)]));
 
+// ---------- ElevenLabs
+
+async function elevenAdmin(method, p, b) {
+  const el = db.eleven;
+  if (method === 'POST' && p === '/api/eleven') {
+    const key = String(b.key ?? '').trim();
+    if (key) { await elevenVoices(key); el.key = key; } // ключ проверяем запросом списка голосов
+    else if (b.key === '') el.key = '';
+    if (ELEVEN_MODELS.includes(b.model)) el.model = b.model;
+    save();
+  }
+  if (method === 'POST' && p === '/api/eleven/preview') {
+    if (!el.key) throw fail(400, 'Сначала сохраните ключ ElevenLabs');
+    return { url: await synthesize(UPLOADS, el.key, String(b.voice || ''), el.model, String(b.text || '').slice(0, 400)) };
+  }
+  if (!el.key) return { connected: false, model: el.model, voices: [] };
+  const [voices, usage] = await Promise.all([elevenVoices(el.key).catch((e) => ({ error: e.message })), elevenUsage(el.key)]);
+  return { connected: true, model: el.model, voices: voices.error ? [] : voices, error: voices.error, usage };
+}
+
+// Планшет просит фразу голосом персонажа: готовый файл — сразу, новый — синтез (не больше 60 новых фраз в час на планшет)
+const ttsBudget = new Map();
+async function guestTts(q) {
+  const d = db.devices[q.d], r = d && db.restaurants[d.restaurantId];
+  const c = r && avatarFor(r), text = String(q.t || '').trim().slice(0, 400);
+  if (!c?.tts || !text) throw fail(404, 'no cloud voice');
+  if (!cachedTts(UPLOADS, c.voice.eleven, db.eleven.model, text).cached) {
+    const hour = Math.floor(Date.now() / 3600e3), bud = ttsBudget.get(d.id);
+    const n = bud?.hour === hour ? bud.n : 0;
+    if (n >= 60) throw fail(429, 'tts limit');
+    ttsBudget.set(d.id, { hour, n: n + 1 });
+  }
+  return synthesize(UPLOADS, db.eleven.key, c.voice.eleven, db.eleven.model, text);
+}
+
 function cleanCharacter(p) {
   if (!p || !p.images?.idle) throw fail(400, 'pack needs images.idle');
   const lines = (o) => (o && typeof o === 'object' ? o : {});
@@ -756,8 +793,12 @@ function cleanCharacter(p) {
     id: String(p.id || uid()).replace(/[^\w-]/g, '').slice(0, 40) || uid(),
     name: lines(p.name),
     images: { idle: storeDataUri(p.images.idle), talk: storeDataUri(p.images.talk || p.images.idle) },
-    voice: { pitch: Number(p.voice?.pitch) || 1, rate: Number(p.voice?.rate) || 1, names: voiceNames(p.voice?.names) },
+    voice: { pitch: Number(p.voice?.pitch) || 1, rate: Number(p.voice?.rate) || 1, names: voiceNames(p.voice?.names), eleven: String(p.voice?.eleven || '').slice(0, 64) },
     greeting: lines(p.greeting),
+    // Варианты рекомендаций в стиле персонажа: { recommend: [{ru,en,th,zh}], dayDish: [...] }, {dish} — название блюда
+    phrases: Object.fromEntries(['recommend', 'dayDish'].map((k) => [k, (Array.isArray(p.phrases?.[k]) ? p.phrases[k] : [])
+      .slice(0, 20).map(lines).map((o) => Object.fromEntries(Object.entries(o).filter(([l, v]) => typeof v === 'string' && v.includes('{dish}')).map(([l, v]) => [l, v.slice(0, 200)])))
+      .filter((o) => Object.keys(o).length)])),
     // Записанное приветствие (MP3) по языкам: играет вместо синтеза; остальные фразы — синтез, как раньше
     audio: { greeting: Object.fromEntries(Object.entries(lines(p.audio?.greeting))
       .filter(([l, v]) => ['en', 'th', 'ru', 'zh'].includes(l) && v).map(([l, v]) => [l, storeDataUri(v)])) },
@@ -839,6 +880,8 @@ function admin(method, p, b) {
   }
   if (method === 'GET' && p === '/api/ads') return db.ads.map((a) => ({ ...a, views: views(a.id), scans: scans(a.id) }));
   if (method === 'GET' && p === '/api/characters') return db.characters;
+  // ElevenLabs: ключ (наружу не отдаём), модель, голоса аккаунта, остаток символов
+  if (p.startsWith('/api/eleven')) return elevenAdmin(method, p, b);
   // Голоса, которые есть на планшетах (по языкам), и планшеты, на которых можно прослушать
   if (method === 'GET' && p === '/api/voices') {
     const voices = { en: [], ru: [], th: [], zh: [] }, devices = [];
@@ -854,7 +897,7 @@ function admin(method, p, b) {
   let vm = p.match(/^\/api\/characters\/([^/]+)\/voice$/);
   const vc = vm && db.characters.find((x) => x.id === decodeURIComponent(vm[1]));
   if (method === 'POST' && vc) {
-    vc.voice = { ...vc.voice, names: voiceNames(b.names) };
+    vc.voice = { ...vc.voice, names: voiceNames(b.names), eleven: String(b.eleven || '').slice(0, 64) };
     save();
     return vc;
   }
@@ -863,6 +906,7 @@ function admin(method, p, b) {
     // Повторная загрузка пакета не сбрасывает голоса, выбранные в портале
     const prev = db.characters.find((x) => x.id === c.id);
     if (prev && !Object.keys(c.voice.names).length) c.voice.names = prev.voice?.names || {};
+    if (prev && !c.voice.eleven) c.voice.eleven = prev.voice?.eleven || '';
     db.characters = db.characters.filter((x) => x.id !== c.id).concat(c);
     save();
     return c;
@@ -985,6 +1029,11 @@ http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/admin/logout') {
       res.setHeader('set-cookie', 'jm_admin=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
       return send(res, 200, {});
+    }
+    // Озвучка фразы голосом персонажа → переадресация на готовый MP3
+    if (req.method === 'GET' && url.pathname === '/api/tts') {
+      res.writeHead(302, { location: await guestTts(Object.fromEntries(url.searchParams)), 'cache-control': 'no-store' });
+      return res.end();
     }
     const route = PUBLIC[`${req.method} ${url.pathname}`];
     if (route) return send(res, 200, await route(body, Object.fromEntries(url.searchParams), req));

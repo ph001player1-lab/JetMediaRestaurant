@@ -1,6 +1,6 @@
 {
  "id": "masha",
- "version": 2,
+ "version": 3,
  "name": {
   "en": "Masha",
   "ru": "Маша",
@@ -99,5 +99,41 @@
     ]
    }
   }
+ },
+ "phrases": {
+  "recommend": [
+   {
+    "ru": "Ой, а попробуйте {dish}! Это очень-очень вкусно!",
+    "en": "Ooh, try {dish}! It's super-duper tasty!",
+    "th": "ลอง {dish} ดูสิคะ! อร่อยมาก ๆ เลยค่ะ!",
+    "zh": "尝尝{dish}吧！超级超级好吃！"
+   },
+   {
+    "ru": "Я знаю секрет: {dish} — самое вкусное!",
+    "en": "I know a secret: {dish} is the yummiest!",
+    "th": "หนูรู้ความลับนะคะ {dish} อร่อยที่สุดเลยค่ะ!",
+    "zh": "告诉你一个秘密：{dish}最好吃！"
+   },
+   {
+    "ru": "Моё любимое — {dish}! Закажем?",
+    "en": "My favourite is {dish}! Shall we order it?",
+    "th": "ของโปรดหนูคือ {dish} ค่ะ! สั่งกันไหมคะ?",
+    "zh": "我最喜欢{dish}！我们点吧？"
+   }
+  ],
+  "dayDish": [
+   {
+    "ru": "Сегодня самое-самое вкусное — {dish}!",
+    "en": "Today the yummiest thing is {dish}!",
+    "th": "วันนี้ที่อร่อยที่สุดคือ {dish} ค่ะ!",
+    "zh": "今天最最好吃的是{dish}！"
+   },
+   {
+    "ru": "Ура! Сегодня есть {dish} — блюдо дня!",
+    "en": "Hooray! Today we have {dish} — the dish of the day!",
+    "th": "เย้! วันนี้มี {dish} เป็นเมนูประจำวันค่ะ!",
+    "zh": "太好了！今天的每日特色菜是{dish}！"
+   }
+  ]
  }
 }
