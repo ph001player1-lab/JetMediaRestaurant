@@ -21,6 +21,8 @@
   .form label { display: flex; flex-direction: column; font-size: 13px; gap: 4px; }
   textarea { width: 100%; box-sizing: border-box; height: 90px; }
   [hidden] { display: none !important; }
+  .athumb { display: block; width: 64px; height: 79px; object-fit: cover; border-radius: 6px; margin-bottom: 4px; cursor: zoom-in; background: #222; }
+  .rchk label { display: block; white-space: nowrap; font-size: 13px; }
   .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
   .filters input { width: 240px; }
   tr.grp td { background: #efe9e1; font-size: 13px; padding: 6px 8px; }
@@ -128,9 +130,15 @@
     Это область между верхней и нижней планками планшета, а не весь экран 800 × 1280. Важный текст — не ближе 40 px к краям;
     по центру слева и справа лежат стрелки листания, место блока с QR выбирается отдельно. Как макет ляжет на экран, показывает «👁».</p>
   <p class="hint">
-    Внешняя реклама показывается на планшетах ресторанов с тарифом Standard, в паузах между акциями ресторана. Пустой список ресторанов — показ во всех. Менеджер ресторана может заблокировать рекламу у себя.</p>
+    Внешняя реклама показывается на планшетах ресторанов с тарифом Standard, в паузах между акциями ресторана. В колонке «Рестораны» отметьте, где показывать: «Во всех» или конкретные рестораны. Менеджер ресторана может заблокировать рекламу у себя. Рекламодатель и название на планшете не показываются — они для поиска.</p>
+  <div class="filters">
+    <input id="aText" placeholder="Поиск: рекламодатель или название" oninput="renderAds()">
+    <select id="aRest" onchange="renderAds()"></select>
+    <select id="aState" onchange="renderAds()"><option value="">Включённые и выключенные</option><option value="on">Только включённые</option><option value="off">Только выключенные</option></select>
+    <span id="aCount" class="hint"></span>
+  </div>
   <div class="wrap"><table>
-    <thead><tr><th>Рекламодатель</th><th>Заголовок</th><th>Картинка 800×986 (ссылка)</th><th>Ссылка для QR</th><th>Телефон</th><th>QR и телефон: место / размер</th><th>Кадр: режим, сдвиг ↕, масштаб</th><th>Рестораны</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
+    <thead><tr><th>Рекламодатель</th><th>Название</th><th>Картинка 800×986</th><th>Ссылка для QR</th><th>Телефон</th><th>QR и телефон: место / размер</th><th>Кадр: режим, сдвиг ↕, масштаб</th><th>Рестораны</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
     <tbody id="ads"></tbody>
   </table></div>
   <p><button id="addAdBtn">+ Реклама</button></p>
@@ -478,11 +486,21 @@ async function loadAds() {
   renderAds();
 }
 
+// Поиск и фильтры рекламы; «Рестораны» — галочки: «Во всех» или выбранные
 function renderAds() {
-  $('ads').innerHTML = ads.map((a, i) => `<tr data-i="${i}">
+  const q = $('aText').value.trim().toLowerCase(), rf = $('aRest').value, st = $('aState').value;
+  $('aRest').innerHTML = '<option value="">Все рестораны</option>' + rests.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
+  $('aRest').value = rf;
+  const shown = ads.map((a, i) => ({ a, i })).filter(({ a }) =>
+    (!q || `${a.advertiser} ${a.title}`.toLowerCase().includes(q))
+    && (!rf || !(a.restaurants || []).length || a.restaurants.includes(rf))
+    && (!st || (st === 'on' ? a.active : !a.active)));
+  $('aCount').textContent = `Показано ${shown.length} из ${ads.length}`;
+  $('ads').innerHTML = shown.map(({ a, i }) => `<tr data-i="${i}">
     <td><input data-f="advertiser" value="${esc(a.advertiser)}"></td>
-    <td><input data-f="title" value="${esc(a.title)}"></td>
-    <td><input data-f="image" value="${esc(a.image)}"><input type="file" accept="image/*" data-upload="image"></td>
+    <td><input data-f="title" value="${esc(a.title)}" placeholder="для поиска"></td>
+    <td>${a.image ? `<img class="athumb" src="${esc(a.image)}" data-pv="${i}" title="Предпросмотр">` : ''}
+      <input data-f="image" value="${esc(a.image)}"><input type="file" accept="image/*" data-upload="image"></td>
     <td><input data-f="link" value="${esc(a.link || '')}" placeholder="https://"></td>
     <td><input data-f="phone" value="${esc(a.phone || '')}"></td>
     <td>${qrGrid(a.qrPos)}
@@ -490,8 +508,8 @@ function renderAds() {
     <td class="frame"><select data-f="fit"><option value="cover">заполнить экран</option><option value="contain" ${a.fit === 'contain' ? 'selected' : ''}>показать целиком</option></select>
       <input type="range" data-f="imgY" min="-50" max="50" value="${Number(a.imgY) || 0}" title="Сдвиг вверх / вниз">
       <input type="range" data-f="imgScale" min="50" max="200" value="${Number(a.imgScale) || 100}" title="Масштаб"></td>
-    <td><select data-f="restaurants" multiple size="3">${rests.map((r) =>
-      `<option value="${esc(r.id)}" ${(a.restaurants || []).includes(r.id) ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></td>
+    <td class="rchk"><label><input type="checkbox" data-allrest="1" ${(a.restaurants || []).length ? '' : 'checked'}> <b>Во всех</b></label>
+      ${rests.map((r) => `<label><input type="checkbox" data-rest="${esc(r.id)}" ${(a.restaurants || []).includes(r.id) ? 'checked' : ''}> ${esc(r.name)}</label>`).join('')}</td>
     <td><input data-f="active" type="checkbox" ${a.active ? 'checked' : ''}></td>
     <td>${a.views ?? 0} показов<br>${a.scans ?? 0} сканов QR</td>
     <td><button data-pv="${i}">👁</button><button data-save="${i}">Сохранить</button><button data-del="${i}">✕</button></td></tr>`).join('');
@@ -507,7 +525,7 @@ const qrGrid = (cur) => {
 };
 const QR_SIZE = { s: 'маленький', m: 'средний', l: 'большой' };
 const adSlide = (a) => ({
-  type: 'ad', image: a.image, title: a.title, phone: a.phone, qr: a.link, qrPos: a.qrPos, qrSize: a.qrSize,
+  type: 'ad', image: a.image, phone: a.phone, qr: a.link, qrPos: a.qrPos, qrSize: a.qrSize,
   fit: a.fit, imgY: a.imgY, imgScale: a.imgScale,
 });
 
@@ -517,10 +535,16 @@ $('ads').oninput = $('ads').onchange = async (e) => {
     if (e.type === 'change' && e.target.files[0]) { a.image = await uploadImage(e.target.files[0]); renderAds(); }
     return;
   }
+  // Рестораны: «Во всех» снимает выбор; выбрали конкретные — «Во всех» гаснет; сняли все — снова «Во всех»
+  if (e.type === 'change' && (e.target.dataset.rest || e.target.dataset.allrest)) {
+    if (e.target.dataset.allrest) a.restaurants = [];
+    else a.restaurants = [...e.target.closest('td').querySelectorAll('[data-rest]:checked')].map((x) => x.dataset.rest);
+    renderAds();
+    return;
+  }
   const f = e.target.dataset.f;
   if (!f) return;
   if (f === 'active') a.active = e.target.checked;
-  else if (f === 'restaurants') a.restaurants = [...e.target.selectedOptions].map((o) => o.value);
   else a[f] = e.target.value.trim();
   sendPreview();
 };

@@ -248,7 +248,7 @@ const openAt = (list, r, table) => list.filter((x) => x.restaurantId === r.id &&
 function slidesFor(r) {
   const own = [
     ...(r.promos || []).filter((p) => p.active && p.image).map((p) => ({
-      type: 'promo', id: p.id, image: p.image, title: p.title, text: p.text, phone: p.phone || '',
+      type: 'promo', id: p.id, image: p.image, phone: p.phone || '', // текст акции — на самой картинке
       qr: p.link ? `${PUBLIC_URL}/go/p/${p.id}?r=${r.id}` : '', ...qrPlace(p), ...framing(p),
     })),
     ...(r.menu || []).filter((i) => (i.promo || i.dayDish) && i.photo).map((i) => ({ type: 'item', id: i.id, image: i.photo, title: i.name, price: i.price })),
@@ -256,7 +256,7 @@ function slidesFor(r) {
   const ads = r.tariff === 'premium' ? [] : db.ads
     .filter((a) => a.active && a.image && (!a.restaurants?.length || a.restaurants.includes(r.id)) && !(r.blockedAds || []).includes(a.id))
     .map((a) => ({
-      type: 'ad', id: a.id, image: a.image, title: a.title, phone: a.phone || '',
+      type: 'ad', id: a.id, image: a.image, phone: a.phone || '', // рекламодатель и название — только для поиска в портале
       qr: a.link ? `${PUBLIC_URL}/go/a/${a.id}?r=${r.id}` : '', ...qrPlace(a), ...framing(a),
     }));
   // ИИ-персонаж — первым слайдом карусели
@@ -734,9 +734,11 @@ function cleanAvatar(a) {
   };
 }
 
+// Название акции — только для поиска в ЛК; у старых акций берём его из прежнего заголовка
 function cleanPromos(list) {
+  const old = (p) => (p.title && typeof p.title === 'object' ? p.title.ru || p.title.en || Object.values(p.title)[0] : '') || '';
   return list.filter((p) => p && p.image).map((p) => ({
-    id: p.id || uid(), image: String(p.image), title: p.title || {}, text: p.text || {}, active: !!p.active,
+    id: p.id || uid(), image: String(p.image), name: String(p.name || old(p)).trim().slice(0, 80), active: !!p.active,
     link: String(p.link || '').trim(), phone: String(p.phone || '').trim(), ...qrPlace(p), ...framing(p),
   }));
 }
@@ -897,6 +899,7 @@ const PUBLIC = {
   'POST /api/menu/webhook': menuWebhook,
 };
 
+for (const r of Object.values(db.restaurants)) if (r.promos?.some((p) => p.name === undefined)) r.promos = cleanPromos(r.promos);
 // Однократно: столы «1», «B1» → «Стол 1», «Стол B1» (вместе с планшетами, официантами и заказами)
 for (const r of Object.values(db.restaurants)) {
   if ((r.tables || []).some((n) => fullTable(n) !== n)) saveTables(r, r.tables.map((n) => ({ from: n, to: fullTable(n) })));
