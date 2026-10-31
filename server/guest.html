@@ -700,9 +700,12 @@ function avatarShow(id, greet) {
   var buttons = (node.buttons || []).slice();
   // Приветствие: случайная фраза менеджера; плюс кнопка особых пожеланий, если они включены
   var say = tr(node.say);
+  // Есть запись приветствия на языке гостя — играем её и показываем её текст (фразы менеджера — когда записи нет)
+  var rec = greet && a.audio && a.audio.greeting && a.audio.greeting[lang];
+  if (rec) say = (a.greeting || {})[lang] || say;
   if (greet) {
     avSuggested = [];
-    if ((a.greetings || []).length) say = tr(a.greetings[Math.floor(Math.random() * a.greetings.length)]) || say;
+    if (!rec && (a.greetings || []).length) say = tr(a.greetings[Math.floor(Math.random() * a.greetings.length)]) || say;
     if ((a.filters || []).length) buttons.splice(1, 0, { label: t('diet'), go: 'diet' });
     if (!isEntrance()) buttons.push({ label: t('alreadyOrdered'), go: 'ordered' });
   }
@@ -713,7 +716,7 @@ function avatarShow(id, greet) {
     return '<button data-av="' + i + '">' + esc(tr(b.label)) + '</button>';
   }).join('');
   renderAvatarPanel(node);
-  speak(say);
+  speak(say, rec);
 }
 
 // Все блюда с выбранной отметкой — лентой в панели
@@ -807,12 +810,27 @@ function avatarAction(go) {
   avatarShow(go, go === ((state.avatar.dialog || {}).start || 'hello'));
 }
 
-function speak(text) {
+var avAudio = null;
+function speak(text, audioUrl) {
   var a = state.avatar;
   if (!a || !a.speak || !text) return;
   var v = a.voice || {};
+  if (avAudio) { avAudio.pause(); avAudio = null; }
   talking(true);
   clearTimeout(avDoneTimer);
+  // Записанная фраза: рот двигается, пока играет файл; не получилось проиграть — говорим синтезом
+  if (audioUrl) {
+    if (window.JetAgent && window.JetAgent.stop) window.JetAgent.stop();
+    else if (window.speechSynthesis) window.speechSynthesis.cancel();
+    var au = avAudio = new Audio(audioUrl);
+    var fallback = function () { if (avAudio === au) { avAudio = null; speak(text); } };
+    au.onended = function () { if (avAudio === au) { avAudio = null; talking(false); } };
+    au.onerror = fallback;
+    avDoneTimer = setTimeout(function () { talking(false); }, 30000);
+    var p = au.play();
+    if (p && p.catch) p.catch(fallback);
+    return;
+  }
   // страховка: если окончание речи не пришло, через расчётное время закрываем рот
   avDoneTimer = setTimeout(function () { talking(false); }, Math.min(20000, 800 + text.length * 80));
   if (window.JetAgent && window.JetAgent.speak) {
@@ -833,6 +851,7 @@ window.jetSpeechDone = function () { talking(false); };
 
 function stopSpeech() {
   talking(false);
+  if (avAudio) { avAudio.pause(); avAudio = null; }
   if (window.JetAgent && window.JetAgent.stop) window.JetAgent.stop();
   else if (window.speechSynthesis) window.speechSynthesis.cancel();
 }

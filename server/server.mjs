@@ -754,6 +754,9 @@ function cleanCharacter(p) {
     images: { idle: storeDataUri(p.images.idle), talk: storeDataUri(p.images.talk || p.images.idle) },
     voice: { pitch: Number(p.voice?.pitch) || 1, rate: Number(p.voice?.rate) || 1 },
     greeting: lines(p.greeting),
+    // Записанное приветствие (MP3) по языкам: играет вместо синтеза; остальные фразы — синтез, как раньше
+    audio: { greeting: Object.fromEntries(Object.entries(lines(p.audio?.greeting))
+      .filter(([l, v]) => ['en', 'th', 'ru', 'zh'].includes(l) && v).map(([l, v]) => [l, storeDataUri(v)])) },
     dialog: p.dialog && typeof p.dialog === 'object' ? p.dialog : { start: 'hello', nodes: {} },
   };
 }
