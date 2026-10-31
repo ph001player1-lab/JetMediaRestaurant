@@ -622,8 +622,11 @@ const LANG_FIELDS = ['cat', 'name', 'desc', 'title', 'text'];
 const val = (o) => (o && typeof o === 'object' ? o[elang] || '' : o ?? '');
 
 // «1-5, 8» → 1, 2, 3, 4, 5, 8
-// Подпись стола: название целиком («Стол B1»), старые чисто числовые — с «Стол»
-const tbl = (x) => (/^\d+$/.test(String(x)) ? `${t('table')} ${x}` : String(x || '—'));
+// Подпись стола: слово «Стол» — на языке приложения, номер — как написал менеджер; «VIP-зал» — как есть
+const tbl = (x) => {
+  const n = String(x || '—'), m = n.match(/^(?:стол|table|โต๊ะ|桌)\s+(.+)$/i);
+  return /^\d+$/.test(n) ? `${t('table')} ${n}` : m ? `${t('table')} ${m[1]}` : n;
+};
 const parseTables = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean).flatMap((x) => {
   const m = x.match(/^(\d+)\s*-\s*(\d+)$/);
   if (!m) return [x];

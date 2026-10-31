@@ -379,11 +379,12 @@ function applyTheme(ds) {
   }
 }
 
-// Плашка стола в шапке меню и на экране рекламы: название целиком («Стол B1»), старые числовые — «Стол 5» на языке гостя
+// Плашка стола в шапке меню и на экране рекламы. Слово «Стол» — на языке гостя (Table, โต๊ะ, 桌),
+// номер или буква — как написал менеджер; название без этого слова («VIP-зал») — как есть
 function tableBadge() {
-  var n = state.table || '';
+  var n = state.table || '', m = n.match(/^(?:стол|table|โต๊ะ|桌)\s+(.+)$/i);
   if (!n) return '';
-  return '<span class="tno">' + esc(/^\d+$/.test(n) ? t('table') + ' ' + n : n) + '</span>';
+  return '<span class="tno">' + esc(/^\d+$/.test(n) ? t('table') + ' ' + n : m ? t('table') + ' ' + m[1] : n) + '</span>';
 }
 
 function renderFooter() {

@@ -559,8 +559,11 @@ function managerSave(b) {
 
 // Название стола целиком задаёт менеджер («Стол B1», «VIP-зал»); короткий номер («5», «B1») → «Стол 5»
 const fullTable = (n) => (/^[A-Za-zА-Яа-я]?\d+[A-Za-zА-Яа-я]?$/.test(n) ? `Стол ${n}` : n);
-// Подпись стола для уведомлений: старые чисто числовые названия — с «Стол»
-const tableLabel = (n, word = 'Стол') => (/^\d+$/.test(String(n)) ? `${word} ${n}` : String(n));
+// Подпись стола для уведомлений: слово «Стол» — на языке сотрудника, номер — как написал менеджер
+const tableLabel = (n, word = 'Стол') => {
+  const m = String(n).match(/^(?:стол|table|โต๊ะ|桌)\s+(.+)$/i);
+  return /^\d+$/.test(String(n)) ? `${word} ${n}` : m ? `${word} ${m[1]}` : String(n);
+};
 // Официант с отметкой «1-5, B1» обслуживает «Стол 1»…«Стол 5» и «Стол B1»: сравниваем и целиком, и по последнему слову
 const servesTable = (list, table) => list.includes(table) || list.includes(String(table).split(/\s+/).pop());
 
