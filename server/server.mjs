@@ -552,8 +552,28 @@ function managerSave(b) {
   if (b.menuSource) r.menuSource = cleanSource(b.menuSource, r.menuSource);
   if (b.display) r.display = cleanDisplay(b.display);
   if (b.avatar) r.avatar = cleanAvatar(b.avatar);
+  if (Array.isArray(b.tables)) saveTables(r, b.tables);
   save();
   return {};
+}
+
+// Столы из ЛК менеджера: [{ from: 'старое имя' или '' для нового, to: 'новое имя' }].
+// Переименование переносится на планшеты, официантов и открытые вызовы и заказы;
+// планшет удалённого стола остаётся в ресторане без стола (его можно привязать в портале).
+function saveTables(r, list) {
+  const old = r.tables || [];
+  const rows = list.map((x) => ({ from: String(x.from ?? '').trim(), to: String(x.to ?? '').trim().slice(0, 20) })).filter((x) => x.to);
+  if (new Set(rows.map((x) => x.to)).size !== rows.length) throw fail(400, 'duplicate table');
+  const map = new Map(rows.filter((x) => old.includes(x.from)).map((x) => [x.from, x.to]));
+  const move = (t) => (map.has(t) ? map.get(t) : old.includes(t) ? '' : t);
+  for (const d of Object.values(db.devices)) {
+    if (d.restaurantId === r.id && d.role !== 'entrance' && d.table) d.table = move(d.table);
+  }
+  for (const m of r.staff || []) if (Array.isArray(m.tables)) m.tables = m.tables.map(move).filter(Boolean);
+  for (const x of [...db.calls, ...db.orders]) {
+    if (x.restaurantId === r.id && !x.closed) x.table = move(x.table) || x.table;
+  }
+  r.tables = rows.map((x) => x.to);
 }
 
 async function managerSync(b) {
