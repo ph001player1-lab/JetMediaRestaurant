@@ -59,9 +59,10 @@ const SYNC_EVERY = { hourly: 3600_000, daily: 24 * 3600_000 };
 // Показ акций и рекламы на планшете: задержка простоя, длительность слайда, шрифты и цвета подписи
 const DISPLAY = {
   idleSec: 60, slideSec: 7, titleSize: 38, textSize: 22, textColor: '#ffffff', bgColor: '#000000',
+  adEvery: 2, // реклама после каждых N слайдов ресторана (1 — каждый второй слайд)
   theme: 'classic', // цветовая тема планшета (themes.mjs), выбирается во вкладке «Дизайн»
 };
-const DISPLAY_RANGE = { idleSec: [10, 600], slideSec: [3, 60], titleSize: [16, 80], textSize: [12, 48] };
+const DISPLAY_RANGE = { idleSec: [10, 600], slideSec: [3, 60], titleSize: [16, 80], textSize: [12, 48], adEvery: [1, 10] };
 // ИИ-персонаж: как часто появляется в карусели, сколько держится, приветствия и подбор блюд по пожеланиям
 // lines — фразы ресторана для каждого персонажа: { [id персонажа]: { greetings, recommend, dayDish } };
 // пустой список — говорит фразы из пакета персонажа
@@ -404,7 +405,8 @@ function slidesFor(r, dev) {
       price: promoMode(p) === 'price' ? p.price : 0,
       qr: p.link ? `${PUBLIC_URL}/go/p/${p.id}?r=${r.id}` : '', ...qrPlace(p), ...framing(p),
     })),
-    ...(r.menu || []).filter((i) => (i.promo || i.dayDish) && i.photo).map((i) => ({ type: 'item', id: i.id, image: i.photo, title: i.name, price: i.price })),
+    // блюдо — только с галочкой «В показе акций» (блюдо дня без неё остаётся в меню и в советах персонажа)
+    ...(r.menu || []).filter((i) => i.promo && i.photo && !i.hidden).map((i) => ({ type: 'item', id: i.id, image: i.photo, title: i.name, price: i.price })),
   ];
   const ads = r.tariff === 'premium' ? [] : db.ads
     .filter((a) => a.active && a.image && (!a.restaurants?.length || a.restaurants.includes(r.id)) && !(r.blockedAds || []).includes(a.id))
@@ -417,8 +419,10 @@ function slidesFor(r, dev) {
   // ИИ-персонаж в список не входит: планшет вставляет его в карусель по своему расписанию
   const out = [];
   if (!own.length) return ads;
-  own.forEach((s, i) => { out.push(s); if (i % 2 === 1 && ads.length) out.push(ads[Math.floor(i / 2) % ads.length]); });
-  if (own.length === 1 && ads.length) out.push(ads[0]);
+  // реклама — после каждых N слайдов ресторана (настройка менеджера во вкладке «Реклама»)
+  const n = { ...DISPLAY, ...r.display }.adEvery;
+  own.forEach((s, i) => { out.push(s); if ((i + 1) % n === 0 && ads.length) out.push(ads[Math.floor(i / n) % ads.length]); });
+  if (own.length < n && ads.length) out.push(ads[0]);
   return out;
 }
 
