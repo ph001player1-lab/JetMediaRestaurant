@@ -1340,6 +1340,51 @@ if (!db.migrations.testAll) {
   save();
 }
 
+// Однократно: новые постеры акций Чехова — без цены на картинке, низ свободен под кнопку «Заказать»; названия и цены.
+// Старые постеры узнаём по размеру: 1600 × 1972, пережатые ЛК при загрузке до 1039 × 1280. Другие акции не трогаем
+const L4 = (ru, en, th, zh) => ({ ru, en, th, zh });
+const CHEKHOFF_PROMOS = [
+  { name: 'Гиннесс + креветки', price: 640, title: L4('Гиннесс 0,5 л + отварные креветки 500 г', 'Guinness 0.5 L + Boiled Shrimps 500 g', 'กินเนสส์ 0.5 ลิตร + กุ้งต้ม 500 กรัม', '健力士 0.5升 + 水煮虾 500克') },
+  { name: 'Гиннесс + лосось', price: 480, title: L4('Гиннесс 0,5 л + копчёный лосось', 'Guinness 0.5 L + Smoked Salmon', 'กินเนสส์ 0.5 ลิตร + แซลมอนรมควัน', '健力士 0.5升 + 烟熏三文鱼') },
+  { name: 'Паэлья + бокал вина', price: 630, title: L4('Паэлья на одного + бокал испанского вина', 'Paella for One + a Glass of Spanish Wine', 'ปาเอยาสำหรับ 1 ท่าน + ไวน์สเปน 1 แก้ว', '单人西班牙海鲜饭 + 一杯西班牙葡萄酒') },
+  { name: 'Большая паэлья + бутылка вина', price: 2000, title: L4('Большая паэлья на 4–6 человек + бутылка вина', 'Big Paella for 4–6 + a Bottle of Wine', 'ปาเอยาใหญ่ 4–6 ท่าน + ไวน์ 1 ขวด', '4–6人大份西班牙海鲜饭 + 一瓶葡萄酒') },
+  { name: 'Гуакамоле + 8 шотов текилы', price: 1200, title: L4('Гуакамоле + 8 шотов текилы', 'Guacamole + 8 Shots of Tequila', 'กัวคาโมเล่ + เตกีล่า 8 ช็อต', '牛油果酱 + 8杯龙舌兰') },
+  { name: 'Водка + мясное ассорти', price: 900, title: L4('Водка «Русский Стандарт» 200 мл + мясное ассорти', 'Russian Standard Vodka 200 ml + Meat Platter', 'วอดก้า Russian Standard 200 มล. + เนื้อรวม', '俄罗斯标准伏特加 200毫升 + 肉类拼盘') },
+  { name: 'Гиннесс + бургер', price: 450, title: L4('Гиннесс 0,5 л + бургер с говядиной', 'Guinness 0.5 L + Beef Burger', 'กินเนสส์ 0.5 ลิตร + เบอร์เกอร์เนื้อ', '健力士 0.5升 + 牛肉汉堡') },
+];
+function jpegSize(buf) {
+  for (let i = 2; i + 9 < buf.length;) {
+    if (buf[i] !== 0xff) return null;
+    const m = buf[i + 1];
+    if (m >= 0xc0 && m <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(m)) return { h: buf.readUInt16BE(i + 5), w: buf.readUInt16BE(i + 7) };
+    i += 2 + buf.readUInt16BE(i + 2);
+  }
+  return null;
+}
+const isOldPoster = (p) => {
+  const f = String(p.image || '').match(/^\/uploads\/([a-f0-9]+\.jpg)$/);
+  try {
+    const sz = f && jpegSize(fs.readFileSync(path.join(UPLOADS, f[1])));
+    return !!sz && ((Math.abs(sz.w - 1039) <= 2 && Math.abs(sz.h - 1280) <= 2) || (sz.w === 1600 && sz.h === 1972));
+  } catch { return false; }
+};
+if (!db.migrations.chekhoffPromos) {
+  for (const r of Object.values(db.restaurants).filter((x) => /чех|chek/i.test(x.name))) {
+    const old = (r.promos || []).filter(isOldPoster);
+    if (!old.length) { audit('сервер', 'Новые постеры акций Чехова: старых постеров не найдено, ничего не менял', r.id); continue; }
+    const fresh = CHEKHOFF_PROMOS.map((x, i) => ({
+      id: uid(), name: x.name, price: x.price, active: true, link: '', phone: '', ...qrPlace({}), ...framing({}),
+      image: storeFile(fs.readFileSync(new URL(`./assets/chekhoff/promo-${i + 1}.jpg`, import.meta.url)), 'jpg'),
+    }));
+    r.promos = [...fresh, ...(r.promos || []).filter((p) => !old.includes(p))];
+    syncPromoItems(r);
+    fresh.forEach((p, i) => { const it = r.menu.find((m) => m.id === `promo-${p.id}`); if (it) it.name = { ...CHEKHOFF_PROMOS[i].title }; });
+    audit('сервер', `Акции Чехова: ${old.length} старых постеров заменены на 7 новых (названия и цены заданы)`, r.id);
+  }
+  db.migrations.chekhoffPromos = Date.now();
+  save();
+}
+
 // Однократно: столы «1», «B1» → «Стол 1», «Стол B1» (вместе с планшетами, официантами и заказами)
 for (const r of Object.values(db.restaurants)) {
   if ((r.tables || []).some((n) => fullTable(n) !== n)) saveTables(r, r.tables.map((n) => ({ from: n, to: fullTable(n) })));
