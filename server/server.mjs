@@ -975,15 +975,23 @@ function syncPromoItems(r) {
       it = { id, fromPromo: p.id, cat: { ...PROMO_CAT }, name: { ru: nm, en: nm, th: nm, zh: nm }, desc: {}, options: [], tags: [] };
       menu.push(it);
     }
+    if (Object.values(it.name || {}).some((v) => v === BROKEN) && p.name) it.name = { ru: p.name, en: p.name, th: p.name, zh: p.name };
     Object.assign(it, { price: p.price, photo: p.image, hidden: !p.active, cat: { ...PROMO_CAT, ...it.cat } });
   }
   r.menu = menu;
 }
 
+// Название акции — строка; если пришёл объект { ru: … } (старая ошибка ЛК) — берём его текст
+const BROKEN = '[object Object]';
+function promoName(p, old) {
+  const n = p.name && typeof p.name === 'object' ? Object.values(p.name).find(Boolean) : p.name;
+  return n && n !== BROKEN ? String(n) : old(p);
+}
+
 function cleanPromos(list) {
   const old = (p) => (p.title && typeof p.title === 'object' ? p.title.ru || p.title.en || Object.values(p.title)[0] : '') || '';
   return list.filter((p) => p && p.image).map((p) => ({
-    id: p.id || uid(), image: String(p.image), name: String(p.name || old(p)).trim().slice(0, 80), active: !!p.active,
+    id: p.id || uid(), image: String(p.image), name: promoName(p, old).trim().slice(0, 80), active: !!p.active,
     price: Math.max(0, Math.round(Number(p.price)) || 0), // цена > 0 — акцию можно заказать с планшета
     link: String(p.link || '').trim(), phone: String(p.phone || '').trim(), ...qrPlace(p), ...framing(p),
   }));
@@ -1309,6 +1317,15 @@ if (!fs.existsSync(path.join(DATA_DIR, 'events'))) {
   }
   fs.mkdirSync(path.join(DATA_DIR, 'events'), { recursive: true });
   for (const e of old.filter((x) => x.t).sort((x, y) => x.t - y.t)) events.add(e);
+}
+
+// Починка названий акций «[object Object]»: берём название из строки меню акции, если оно уцелело
+for (const r of Object.values(db.restaurants)) {
+  for (const p of r.promos || []) {
+    if (p.name !== BROKEN) continue;
+    const it = (r.menu || []).find((i) => i.id === `promo-${p.id}`);
+    p.name = (it && Object.values(it.name || {}).find((v) => v && v !== BROKEN)) || '';
+  }
 }
 
 // Однократно: всё, что было до этого обновления (пилотные тесты), и все нынешние сотрудники — тестовые

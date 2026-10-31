@@ -1095,7 +1095,8 @@ async function onEdit(e) {
   });
   if (el.type === 'checkbox') item[f] = el.checked;
   else if (f === 'price') item[f] = Number(el.value) || 0;
-  else if (list.dataset.list !== 'staff' && LANG_FIELDS.includes(f)) item[f] = { ...(item[f] || {}), [el.dataset.ln || elang]: el.value };
+  // Многоязычные поля — у блюд; у сотрудников и акций «name» — обычная строка
+  else if (!['staff', 'promos'].includes(list.dataset.list) && LANG_FIELDS.includes(f)) item[f] = { ...(item[f] || {}), [el.dataset.ln || elang]: el.value };
   else item[f] = el.value;
 }
 document.addEventListener('input', onEdit);
