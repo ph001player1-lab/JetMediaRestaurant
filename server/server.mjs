@@ -786,6 +786,8 @@ async function guestTts(q) {
   return synthesize(UPLOADS, db.eleven.key, c.voice.eleven, db.eleven.model, text);
 }
 
+const LANG4 = ['en', 'th', 'ru', 'zh'];
+
 function cleanCharacter(p) {
   if (!p || !p.images?.idle) throw fail(400, 'pack needs images.idle');
   const lines = (o) => (o && typeof o === 'object' ? o : {});
@@ -796,9 +798,12 @@ function cleanCharacter(p) {
     voice: { pitch: Number(p.voice?.pitch) || 1, rate: Number(p.voice?.rate) || 1, names: voiceNames(p.voice?.names), eleven: String(p.voice?.eleven || '').slice(0, 64) },
     greeting: lines(p.greeting),
     // Варианты рекомендаций в стиле персонажа: { recommend: [{ru,en,th,zh}], dayDish: [...] }, {dish} — название блюда
-    phrases: Object.fromEntries(['recommend', 'dayDish'].map((k) => [k, (Array.isArray(p.phrases?.[k]) ? p.phrases[k] : [])
-      .slice(0, 20).map(lines).map((o) => Object.fromEntries(Object.entries(o).filter(([l, v]) => typeof v === 'string' && v.includes('{dish}')).map(([l, v]) => [l, v.slice(0, 200)])))
-      .filter((o) => Object.keys(o).length)])),
+    // У варианта может быть запись начала фразы (audio: { ru: MP3 }) — тогда после неё звучит только название блюда
+    phrases: Object.fromEntries(['recommend', 'dayDish'].map((k) => [k, (Array.isArray(p.phrases?.[k]) ? p.phrases[k] : []).slice(0, 20).map((o) => {
+      const text = Object.fromEntries(Object.entries(lines(o)).filter(([l, v]) => LANG4.includes(l) && typeof v === 'string' && v.includes('{dish}')).map(([l, v]) => [l, v.slice(0, 200)]));
+      const audio = Object.fromEntries(Object.entries(lines(o?.audio)).filter(([l, v]) => LANG4.includes(l) && v).map(([l, v]) => [l, storeDataUri(v)]));
+      return Object.keys(audio).length ? { ...text, audio } : text;
+    }).filter((o) => Object.keys(o).some((l) => l !== 'audio'))])),
     // Записанное приветствие (MP3) по языкам: играет вместо синтеза; остальные фразы — синтез, как раньше
     audio: { greeting: Object.fromEntries(Object.entries(lines(p.audio?.greeting))
       .filter(([l, v]) => ['en', 'th', 'ru', 'zh'].includes(l) && v).map(([l, v]) => [l, storeDataUri(v)])) },

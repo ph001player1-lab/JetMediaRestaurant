@@ -717,7 +717,8 @@ function avatarShow(id, greet) {
     return '<button data-av="' + i + '">' + esc(tr(b.label)) + '</button>';
   }).join('');
   renderAvatarPanel(node);
-  speak(say, rec);
+  if (node.lead) speakLead(node.lead, node.rest, say);
+  else speak(say, rec);
 }
 
 // Все блюда с выбранной отметкой — лентой в панели
@@ -771,11 +772,29 @@ function dietNode() {
 
 // Совет из меню: по отметке (без глютена, веганское…) или сначала блюда дня, потом случайные блюда.
 // Уже предложенные в этом разговоре пропускаем; когда всё перебрали — начинаем заново.
+// Вариант фразы персонажа. Если у него есть запись начала («Я вам рекомендую…») и блюдо стоит в конце —
+// играем запись, а название блюда договаривает голос сервера или планшета
 function recPhrase(day, name) {
   var list = (((state.avatar || {}).phrases || {})[day ? 'dayDish' : 'recommend'] || [])
-    .map(function (o) { return o[lang] || ''; }).filter(function (s) { return s.indexOf('{dish}') >= 0; });
-  if (!list.length) return (day ? t('dayRec') : t('recommend')) + ': ' + name + '!';
-  return list[Math.floor(Math.random() * list.length)].replace('{dish}', name);
+    .filter(function (o) { return (o[lang] || '').indexOf('{dish}') >= 0; });
+  if (!list.length) return { say: (day ? t('dayRec') : t('recommend')) + ': ' + name + '!' };
+  var o = list[Math.floor(Math.random() * list.length)], text = o[lang];
+  var lead = o.audio && o.audio[lang], tail = text.split('{dish}')[1].replace(/[\s.!?…]/g, '');
+  return { say: text.replace('{dish}', name), lead: lead && !tail ? lead : '', rest: name };
+}
+
+function speakLead(leadUrl, rest, full) {
+  var a = state.avatar;
+  if (!a || !a.speak) return;
+  if (avAudio) { avAudio.pause(); avAudio = null; }
+  talking(true);
+  clearTimeout(avDoneTimer);
+  avDoneTimer = setTimeout(function () { talking(false); }, 30000);
+  var au = avAudio = new Audio(leadUrl);
+  au.onended = function () { if (avAudio === au) { avAudio = null; speak(rest); } };
+  au.onerror = function () { if (avAudio === au) { avAudio = null; speak(full); } };
+  var pr = au.play();
+  if (pr && pr.catch) pr.catch(au.onerror);
 }
 
 function recommendNode(tag) {
@@ -793,9 +812,9 @@ function recommendNode(tag) {
   if (!dish) return { say: t('noDish'), buttons: [{ label: t('call'), go: 'waiter' }, { label: t('prev'), go: 'hello' }] };
   avSuggested.push(dish.id);
   // Цену не произносим — она на карточке блюда; фраза — случайный вариант из пакета персонажа
-  var say = tag ? t('recommend') + ' (' + tr(TAGS[tag]) + '): ' + tr(dish.name) + '!' : recPhrase(p.day, tr(dish.name));
+  var rp = tag ? { say: t('recommend') + ' (' + tr(TAGS[tag]) + '): ' + tr(dish.name) + '!' } : recPhrase(p.day, tr(dish.name));
   return {
-    say: say,
+    say: rp.say, lead: rp.lead, rest: rp.rest,
     dish: dish.id,
     buttons: [{ label: t('showDish'), go: 'dish:' + dish.id }, { label: t('another'), go: tag ? 'tag:' + tag : 'recommend' }, { label: t('menu'), go: 'menu' }],
   };
