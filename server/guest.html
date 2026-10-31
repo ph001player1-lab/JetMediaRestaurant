@@ -128,6 +128,8 @@
   .avinfo span { font-size: 2.2vw; color: var(--muted); margin-top: 1vw; flex: 1; overflow: hidden; }
   .avrow { display: flex; align-items: center; justify-content: space-between; margin-top: 1vw; }
   .avrow .price { font-size: 2.8vw; }
+  .porder { position: absolute; left: 50%; bottom: 4vw; -webkit-transform: translateX(-50%); transform: translateX(-50%); z-index: 2; border: 0; border-radius: 3vw;
+    padding: 2.2vw 6vw; font-size: 3.4vw; font-weight: 700; background: var(--accent); color: var(--accent-ink); box-shadow: 0 1vw 3vw rgba(0,0,0,.35); white-space: nowrap; }
   .avadd { border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 1.5vw; padding: 1.5vw 2.5vw; font-size: 2.3vw; font-weight: 600; }
   .avone { display: flex; height: 100%; background: var(--card); border-radius: 2vw; overflow: hidden; }
   .avone img, .avone .ph { width: 55%; height: 100%; object-fit: cover; flex: none; }
@@ -159,28 +161,28 @@
 <script src="/vendor/qrcode.js"></script>
 <script>
 var T = {
-  en: { table: 'Table', call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
+  en: { orderPromo: 'Order', table: 'Table', call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
         sent: 'Order sent. A waiter will come to confirm it.', called: 'The waiter has been called', coming: 'The waiter is on the way',
         confirmed: 'Order confirmed', add: 'Add', close: 'Close', ordered: 'Ordered',
         pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day', menu: 'Open menu', ad: 'Advertisement',
         offline: 'No connection. Please wave to the waiter — we are reconnecting.', offlineBar: 'No connection — reconnecting…',
         edited: 'The waiter updated your order', scan: 'Scan the QR code', tableTotal: 'Table total', back: 'Back to the slideshow',
         recommend: 'I recommend', showDish: 'Show me', another: 'Something else', askRec: 'What do you recommend?', order: 'Order', diet: 'Special diet', dietAsk: 'What suits you?', noDish: 'Sorry, there is nothing like that on the menu yet — please ask the waiter!', prev: 'Back', dayRec: 'Today\'s dish of the day', noneYet: 'none yet', allMenu: 'Show the whole menu', paid: 'paid', dietHere: 'Here is what suits you', otherDiet: 'Another option', added: 'Added to your order', alreadyOrdered: 'We have already ordered', needMe: 'Great! If you need me, tap my round button at the bottom of the screen.' },
-  ru: { table: 'Стол', call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
+  ru: { orderPromo: 'Заказать', table: 'Стол', call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
         sent: 'Заказ отправлен. Официант подойдёт подтвердить.', called: 'Официант вызван', coming: 'Официант идёт',
         confirmed: 'Заказ подтверждён', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
         pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня', menu: 'Открыть меню', ad: 'Реклама',
         offline: 'Нет связи. Пожалуйста, позовите официанта жестом — мы восстанавливаем подключение.', offlineBar: 'Нет связи — восстанавливаем подключение…',
         edited: 'Официант изменил ваш заказ', scan: 'Отсканируйте QR-код', tableTotal: 'Итого по столу', back: 'На главный экран',
         recommend: 'Советую попробовать', showDish: 'Показать', another: 'Что-нибудь ещё', askRec: 'Что посоветуешь?', order: 'Заказ', diet: 'Особые пожелания', dietAsk: 'Что вам подходит?', noDish: 'Пока таких блюд в меню нет — спросите официанта, он подскажет!', prev: 'Назад', dayRec: 'Сегодня блюдо дня', noneYet: 'пока нет', allMenu: 'Показать всё меню', paid: 'оплачен', dietHere: 'Вот что вам подойдёт', otherDiet: 'Другое пожелание', added: 'Добавлено в заказ', alreadyOrdered: 'Уже заказали', needMe: 'Отлично! Если понадоблюсь — нажмите мою круглую кнопку внизу экрана.' },
-  th: { table: 'โต๊ะ', call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
+  th: { orderPromo: 'สั่งเลย', table: 'โต๊ะ', call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
         sent: 'ส่งรายการแล้ว พนักงานจะมายืนยัน', called: 'เรียกพนักงานแล้ว', coming: 'พนักงานกำลังมา',
         confirmed: 'ยืนยันรายการแล้ว', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
         pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน', menu: 'ดูเมนู', ad: 'โฆษณา',
         offline: 'ไม่มีการเชื่อมต่อ กรุณาโบกมือเรียกพนักงาน ระบบกำลังเชื่อมต่อใหม่', offlineBar: 'ไม่มีการเชื่อมต่อ — กำลังเชื่อมต่อใหม่…',
         edited: 'พนักงานแก้ไขรายการของคุณแล้ว', scan: 'สแกน QR โค้ด', tableTotal: 'รวมทั้งโต๊ะ', back: 'กลับหน้าหลัก',
         recommend: 'แนะนำให้ลอง', showDish: 'ดูเมนูนี้', another: 'อย่างอื่น', askRec: 'แนะนำอะไรดี?', order: 'ออร์เดอร์', diet: 'อาหารพิเศษ', dietAsk: 'แบบไหนเหมาะกับคุณคะ?', noDish: 'ขออภัย ยังไม่มีเมนูแบบนี้ กรุณาถามพนักงานนะคะ', prev: 'กลับ', dayRec: 'เมนูแนะนำของวันนี้', noneYet: 'ยังไม่มี', allMenu: 'แสดงเมนูทั้งหมด', paid: 'ชำระแล้ว', dietHere: 'นี่คือเมนูที่เหมาะกับคุณ', otherDiet: 'ตัวเลือกอื่น', added: 'เพิ่มในรายการแล้ว', alreadyOrdered: 'สั่งแล้ว', needMe: 'เยี่ยมเลย! ถ้าต้องการหนู แตะปุ่มกลมของหนูด้านล่างจอนะคะ' },
-  zh: { table: '桌', call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
+  zh: { orderPromo: '立即点单', table: '桌', call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
         sent: '订单已发送，服务员将前来确认', called: '已呼叫服务员', coming: '服务员马上就来',
         confirmed: '订单已确认', add: '添加', close: '关闭', ordered: '已点',
         pending: '待确认', rejected: '已取消', day: '★ 今日推荐', menu: '查看菜单', ad: '广告',
@@ -247,6 +249,7 @@ function request(path, options) {
 
 function post(path, body) {
   body.d = D;
+  body.lang = lang; // язык гостя — для статистики
   return request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 }
 
@@ -496,6 +499,8 @@ function slideHtml(s, current) {
   if (s.type === 'avatar') return avatarHtml(current);
   return frameHtml(s) +
     (s.type === 'ad' ? '<span class="tag">' + t('ad') + '</span>' : '') +
+    // Акция с ценой: заказ прямо со слайда
+    (s.order && !isEntrance() && !PREVIEW ? '<button class="porder" data-porder="' + esc(s.order) + '">' + t('orderPromo') + ' · ' + money(s.price) + '</button>' : '') +
     (s.qr || s.phone ? '<div class="contact ' + qrClass(s.qrPos) + ' size-' + (s.qrSize || 'm') + '">' +
       (s.qr ? '<div class="qr">' + qrSvg(s.qr) + '</div><div class="small">' + t('scan') + '</div>' : '') +
       (s.phone ? '<div class="phone">📞 ' + esc(s.phone) + '</div>' : '') + '</div>' : '') +
@@ -589,7 +594,8 @@ function slideGo(dir) {
 
 function onSlideShown(s) {
   slideAt = Date.now();
-  if (s.type === 'ad' && !PREVIEW) post('/api/guest/impression', { id: s.id }).catch(function () {});
+  if ((s.type === 'ad' || s.type === 'promo') && !PREVIEW) post('/api/guest/impression', { id: s.id }).catch(function () {});
+  if (s.type === 'avatar' && !PREVIEW) post('/api/guest/impression', { kind: 'avatar' }).catch(function () {});
   if (s.type === 'avatar') {
     lastAvatarAt = Date.now();
     holdUntil = Math.max(holdUntil, Date.now() + (state.avatar.durationSec || 20) * 1000);
@@ -678,6 +684,7 @@ function avatarHtml(current) {
 }
 
 function avatarStart() {
+  avTalked = false;
   var d = state.avatar.dialog || {};
   avatarShow((d.nodes || {})[d.start] ? d.start : 'hello', true);
 }
@@ -753,9 +760,27 @@ function avDishHtml(i, big) {
 }
 
 // «Добавить» из разговора: блюдо с вариантами — выбор варианта в меню, без вариантов — сразу в заказ
+// Действия гостя с персонажем — в статистику (у планшета на входе стола нет — не считаем)
+var avTalked = false;
+function gEvent(k, dish) {
+  if (PREVIEW || isEntrance()) return;
+  post('/api/guest/event', { k: k, dish: dish || '' }).catch(function () {});
+}
+
+// «Заказать» на слайде акции: строка акции — в корзину, сразу показываем корзину
+function promoOrder(id) {
+  if (!MENU[id]) return;
+  hideAttract();
+  cart[id] = (cart[id] || 0) + 1;
+  renderAll();
+  renderCart();
+  $('cart').className = 'overlay show';
+}
+
 function avatarAdd(id) {
   var i = MENU[id];
   if (!i) return;
+  gEvent('av_add', id);
   if ((i.options || []).length) { hideAttract(); openOptions(id); return; }
   cart[id] = (cart[id] || 0) + 1;
   renderFooter();
@@ -811,6 +836,7 @@ function recommendNode(tag) {
   var dish = p.list[Math.floor(Math.random() * p.list.length)];
   if (!dish) return { say: t('noDish'), buttons: [{ label: t('call'), go: 'waiter' }, { label: t('prev'), go: 'hello' }] };
   avSuggested.push(dish.id);
+  gEvent('av_rec', dish.id);
   // Цену не произносим — она на карточке блюда; фраза — случайный вариант из пакета персонажа
   var rp = tag ? { say: t('recommend') + ' (' + tr(TAGS[tag]) + '): ' + tr(dish.name) + '!' } : recPhrase(p.day, tr(dish.name));
   return {
@@ -822,6 +848,8 @@ function recommendNode(tag) {
 
 function avatarAction(go) {
   holdUntil = Date.now() + 30000;
+  if (!avTalked) { avTalked = true; gEvent('av_talk'); }
+  if (go.indexOf('dish:') === 0) gEvent('av_dish', go.slice(5));
   if (go === 'ordered') {
     avDismissedAt = Date.now();
     holdUntil = Date.now() + 8000; // договорит и уступит место карусели
@@ -918,6 +946,7 @@ document.addEventListener('click', function (e) {
     if (a.dataset.alang) { lang = a.dataset.alang; renderAll(); }
     else if (a.dataset.cgo) slideGo(Number(a.dataset.cgo));
     else if (a.dataset.avadd) avatarAdd(a.dataset.avadd);
+    else if (a.dataset.porder) promoOrder(a.dataset.porder);
     else if (a.dataset.av !== undefined && avNode) avatarAction(avNode.buttons[Number(a.dataset.av)].go);
     else if (a.dataset.avchat) { if (!avShowing) { avShowing = true; renderCarousel(); } }
     else if (a.id === 'aMenu') hideAttract();

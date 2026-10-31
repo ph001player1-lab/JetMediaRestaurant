@@ -16,7 +16,8 @@
 <body>
 <form id="f">
   <h2>JET MEDIA — портал</h2>
-  <input id="pass" type="password" placeholder="Пароль администратора" autocomplete="current-password" autofocus>
+  <input id="email" type="email" placeholder="Почта" autocomplete="username" autofocus>
+  <input id="pass" type="password" placeholder="Пароль" autocomplete="current-password">
   <button>Войти</button>
   <p class="err" id="err"></p>
 </form>
@@ -25,10 +26,10 @@ document.getElementById('f').onsubmit = async (e) => {
   e.preventDefault();
   const r = await fetch('/api/admin/login', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ password: document.getElementById('pass').value }),
+    body: JSON.stringify({ email: document.getElementById('email').value, password: document.getElementById('pass').value }),
   });
   if (r.ok) location.href = '/';
-  else document.getElementById('err').textContent = 'Неверный пароль';
+  else document.getElementById('err').textContent = 'Неверная почта или пароль';
 };
 </script>
 </body>

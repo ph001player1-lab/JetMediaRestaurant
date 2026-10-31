@@ -13,6 +13,7 @@ import { fetchMenu, POS_VENDORS } from './menu-sources.mjs';
 import { tgApi, tgSend, tgFindChats } from './telegram.mjs';
 import { THEMES, themeOf } from './themes.mjs';
 import { ELEVEN_MODELS, elevenVoices, elevenUsage, cachedTts, synthesize } from './eleven.mjs';
+import { eventLog, thDay, restaurantReport, networkReport } from './stats.mjs';
 
 const PORT = 3000;
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -41,6 +42,7 @@ const STATIC = {
   '/favicon.ico': 'favicon.svg',
   '/favicon.svg': 'favicon.svg',
   '/vendor/qrcode.js': 'vendor/qrcode.js',
+  '/vendor/stats.js': 'vendor/stats.js',
 };
 const TYPES = { html: 'text/html; charset=utf-8', json: 'application/manifest+json', js: 'text/javascript', svg: 'image/svg+xml', png: 'image/png' };
 const FILES = Object.fromEntries(Object.values(STATIC).map((f) => [f, fs.readFileSync(new URL(`./${f}`, import.meta.url))]));
@@ -107,12 +109,126 @@ function save() {
 }
 
 const uid = () => crypto.randomBytes(6).toString('hex');
-const day = (ts = Date.now()) => new Date(ts).toISOString().slice(0, 10);
+const day = thDay; // дни считаем по тайскому времени
+// Журнал событий для статистики и счётчики по дням
+const events = eventLog(path.join(DATA_DIR, 'events'));
+const logEvent = (rid, k, data = {}) => events.add({ t: Date.now(), r: rid, k, ...data });
+const bump = (key, n = 1) => { db.stats[key] = (db.stats[key] || 0) + n; };
 const fail = (status, message) => Object.assign(new Error(message), { status });
-// Вход администратора — страница /login и cookie; cookie меняется вместе с паролем
-const ADMIN_COOKIE = crypto.createHmac('sha256', PASS).update('jetmedia-admin').digest('base64url');
-const sha = (s) => crypto.createHash('sha256').update(String(s)).digest();
-const isAdmin = (req) => (req.headers.cookie || '').split(/;\s*/).includes(`jm_admin=${ADMIN_COOKIE}`);
+// ---------- Администраторы портала: вход по почте и паролю, роли, журнал изменений
+//   super  — всё, включая список админов;  admin — всё, кроме админов (или только свои рестораны, если список задан);
+//   viewer — только статистика (всех ресторанов или своих)
+const SUPER_EMAIL = (process.env.SUPERADMIN_EMAIL || 'ph001player1@gmail.com').toLowerCase();
+const ROLES = ['super', 'admin', 'viewer'];
+const hashPass = (pass, salt = crypto.randomBytes(16).toString('hex')) => ({ salt, hash: crypto.scryptSync(String(pass), salt, 32).toString('hex') });
+const passOk = (a, pass) => !!a?.hash && crypto.timingSafeEqual(Buffer.from(a.hash, 'hex'), crypto.scryptSync(String(pass ?? ''), a.salt, 32));
+const ADMIN_SESSION_MS = 30 * 864e5;
+db.admins ??= [];
+db.adminSessions ??= {};
+// Первый запуск: суперадмин с паролем из ADMIN_PASSWORD (дальше пароль меняется в портале)
+if (!db.admins.length) db.admins.push({ id: uid(), email: SUPER_EMAIL, name: 'Суперадмин', role: 'super', restaurants: [], ...hashPass(PASS), at: Date.now() });
+for (const [k, s] of Object.entries(db.adminSessions)) if (Date.now() - s.at > ADMIN_SESSION_MS) delete db.adminSessions[k];
+
+const cookieToken = (req) => (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith('jm_admin='))?.slice(9) || '';
+function currentAdmin(req) {
+  const s = db.adminSessions[cookieToken(req)];
+  return s && Date.now() - s.at < ADMIN_SESSION_MS ? db.admins.find((a) => a.id === s.adminId && !a.disabled) || null : null;
+}
+const publicAdmin = ({ hash, salt, ...a }) => a;
+const scopeOf = (a) => (a.role !== 'super' && a.restaurants?.length ? new Set(a.restaurants) : null);
+function allowed(a, method, p) {
+  if (p.startsWith('/api/me')) return true;
+  if (a.role === 'super') return true;
+  if (p.startsWith('/api/admins')) return false;
+  if (a.role === 'viewer') return method === 'GET' && (p === '/api/stats' || p === '/api/restaurants');
+  if (!scopeOf(a)) return true;
+  return /^\/api\/(devices|restaurants|stats)(\/|$)/.test(p);
+}
+
+// Журнал изменений: кто, когда, что (админы портала и менеджеры ресторанов)
+const AUDIT_FILE = path.join(DATA_DIR, 'audit.jsonl');
+function audit(who, action, r) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.appendFileSync(AUDIT_FILE, `${JSON.stringify({ t: Date.now(), who, action, r: r || undefined })}\n`);
+}
+function readAudit(q, scope) {
+  let lines = [];
+  try { lines = fs.readFileSync(AUDIT_FILE, 'utf8').split('\n').filter(Boolean); } catch {}
+  const text = String(q.q || '').toLowerCase();
+  const out = [];
+  for (let i = lines.length - 1; i >= 0 && out.length < Math.min(Number(q.limit) || 300, 2000); i--) {
+    try {
+      const e = JSON.parse(lines[i]);
+      if ((q.r && e.r !== q.r) || (scope && !scope.has(e.r))) continue;
+      if (text && !`${e.who} ${e.action} ${db.restaurants[e.r]?.name || ''}`.toLowerCase().includes(text)) continue;
+      out.push({ ...e, rest: db.restaurants[e.r]?.name || '' });
+    } catch {}
+  }
+  return out;
+}
+// Описание действия админа для журнала (секреты — ключи, пароли, токены — не пишем)
+function auditText(method, p, b) {
+  let m;
+  const dev = (x) => decodeURIComponent(x);
+  if (p === '/api/restaurants') return [`Ресторан сохранён: ${b.name || ''}`, b.id];
+  if ((m = p.match(/^\/api\/restaurants\/([^/]+)\/sync$/))) return ['Синхронизация меню', m[1]];
+  if ((m = p.match(/^\/api\/restaurants\/([^/]+)$/))) return [`Ресторан удалён: ${m[1]}`, m[1]];
+  if ((m = p.match(/^\/api\/devices\/([^/]+)\/command$/))) return [`Команда «${b.type}» устройству ${dev(m[1])}`, db.devices[dev(m[1])]?.restaurantId];
+  if ((m = p.match(/^\/api\/devices\/([^/]+)\/assign$/))) return [`Устройство ${dev(m[1])} → ${db.restaurants[b.restaurantId]?.name || 'не привязано'}${b.table ? ` · ${b.table}` : ''}`, b.restaurantId];
+  if ((m = p.match(/^\/api\/devices\/([^/]+)$/))) return [`Устройство удалено: ${dev(m[1])}`];
+  if ((m = p.match(/^\/api\/pending\/([^/]+)\/approve$/))) return [`Новое устройство добавлено: ${dev(m[1])}`];
+  if ((m = p.match(/^\/api\/pending\/([^/]+)$/))) return [`Новое устройство скрыто: ${dev(m[1])}`];
+  if (p === '/api/ads') return [`Реклама сохранена: ${b.advertiser || ''}${b.title ? ` — ${b.title}` : ''}`];
+  if ((m = p.match(/^\/api\/ads\/([^/]+)$/))) return [`Реклама удалена: ${db.ads.find((a) => a.id === m[1])?.advertiser || m[1]}`];
+  if (p === '/api/characters') return [`Персонаж загружен: ${b.id || ''}`];
+  if ((m = p.match(/^\/api\/characters\/([^/]+)\/voice$/))) return [`Голос персонажа ${m[1]} изменён`];
+  if ((m = p.match(/^\/api\/characters\/([^/]+)$/))) return [`Персонаж удалён: ${m[1]}`];
+  if (p === '/api/eleven') return [b.key ? 'ElevenLabs: ключ изменён' : 'ElevenLabs: настройки изменены'];
+  if (p === '/api/eleven/preview') return null;
+  if (p.startsWith('/api/telegram')) return [`Telegram: ${{ '/api/telegram': 'бот изменён', '/api/telegram/find': 'поиск чатов', '/api/telegram/test': 'тест', '/api/telegram/remove': 'получатель удалён' }[p] || p}`];
+  return [`${method} ${p}`];
+}
+
+// Администраторы: список, добавление и изменение (почта, имя, роль, рестораны, пароль, отключение), удаление
+function adminsApi(method, p, b, me) {
+  if (method === 'GET') return db.admins.map(publicAdmin);
+  const supers = (except) => db.admins.filter((a) => a.role === 'super' && !a.disabled && a.id !== except).length;
+  const m = p.match(/^\/api\/admins\/([^/]+)$/);
+  if (method === 'DELETE' && m) {
+    const a = db.admins.find((x) => x.id === m[1]);
+    if (!a) throw fail(404, 'not found');
+    if (a.role === 'super' && !supers(a.id)) throw fail(400, 'Нельзя удалить последнего суперадмина');
+    db.admins = db.admins.filter((x) => x.id !== a.id);
+    for (const [k, s] of Object.entries(db.adminSessions)) if (s.adminId === a.id) delete db.adminSessions[k];
+    save();
+    audit(me.email, `Админ удалён: ${a.email}`);
+    return {};
+  }
+  if (method !== 'POST' || p !== '/api/admins') return undefined;
+  const email = String(b.email || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw fail(400, 'Неверная почта');
+  if (db.admins.some((a) => a.email === email && a.id !== b.id)) throw fail(400, 'Такая почта уже есть');
+  const role = ROLES.includes(b.role) ? b.role : 'admin';
+  const pass = String(b.password || '');
+  if (pass && pass.length < 8) throw fail(400, 'Пароль — не короче 8 символов');
+  let a = db.admins.find((x) => x.id === b.id);
+  if (!a) {
+    if (!pass) throw fail(400, 'Задайте пароль');
+    a = { id: uid(), at: Date.now() };
+    db.admins.push(a);
+  }
+  if (a.role === 'super' && (role !== 'super' || b.disabled) && !supers(a.id)) throw fail(400, 'Нужен хотя бы один суперадмин');
+  const was = a.email ? `${a.email} (${a.role}${a.disabled ? ', отключён' : ''})` : '';
+  Object.assign(a, {
+    email, name: String(b.name || '').slice(0, 60), role, disabled: !!b.disabled,
+    restaurants: role === 'super' ? [] : (Array.isArray(b.restaurants) ? b.restaurants : []).filter((id) => db.restaurants[id]),
+  }, pass ? hashPass(pass) : {});
+  if (a.disabled || pass) for (const [k, s] of Object.entries(db.adminSessions)) if (s.adminId === a.id && a.id !== me.id) delete db.adminSessions[k];
+  save();
+  audit(me.email, `${was ? 'Админ изменён' : 'Админ добавлен'}: ${email} — ${{ super: 'суперадмин', admin: 'админ', viewer: 'просмотр статистики' }[role]}`
+    + `${a.restaurants.length ? `, рестораны: ${a.restaurants.map((id) => db.restaurants[id].name).join(', ')}` : ''}${a.disabled ? ', отключён' : ''}${pass ? ', пароль задан' : ''}`);
+  return publicAdmin(a);
+}
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -162,6 +278,7 @@ function devicePoll(b, q, req) {
     throw fail(403, 'bad device key');
   }
   const d = (db.devices[b.id] ??= { id: b.id, firstSeen: Date.now(), queue: [] });
+  if (d.restaurantId) bump(`up|${d.restaurantId}|${day()}`);
   if (d.offlineAlert) {
     tgAlert(`🟢 ${deviceName(d)}: снова на связи (не было ${Math.round((Date.now() - d.lastSeen) / 60_000)} мин)`);
     d.offlineAlert = 0;
@@ -171,6 +288,7 @@ function devicePoll(b, q, req) {
     const text = String(e).slice(0, 300);
     d.events = [{ at: Date.now(), text }, ...(d.events || [])].slice(0, 10);
     tgAlert(`⚠️ ${deviceName(d)}: ${text}`);
+    if (d.restaurantId) logEvent(d.restaurantId, 'dev_crash', { dev: d.id });
   }
   d.telemetry = b.telemetry || {};
   d.lastSeen = Date.now();
@@ -209,7 +327,10 @@ setInterval(() => {
   const now = Date.now();
   const lost = Object.values(db.devices).filter((d) => d.lastSeen && !d.offlineAlert && now - d.lastSeen > OFFLINE_ALERT_MS);
   if (!lost.length) return;
-  for (const d of lost) d.offlineAlert = now;
+  for (const d of lost) {
+    d.offlineAlert = now;
+    if (d.restaurantId) logEvent(d.restaurantId, 'dev_offline', { dev: d.id });
+  }
   save();
   tgAlert('🔴 Нет связи с устройствами:\n' + lost.map((d) => {
     const t = d.telemetry || {};
@@ -251,6 +372,8 @@ function slidesFor(r) {
   const own = [
     ...(r.promos || []).filter((p) => p.active && p.image).map((p) => ({
       type: 'promo', id: p.id, image: p.image, phone: p.phone || '', // текст акции — на самой картинке
+      // кнопка «Заказать» на слайде, если у акции есть цена (строка меню создаётся сама)
+      order: p.price > 0 && (r.menu || []).some((i) => i.id === `promo-${p.id}` && !i.hidden) ? `promo-${p.id}` : '', price: p.price || 0,
       qr: p.link ? `${PUBLIC_URL}/go/p/${p.id}?r=${r.id}` : '', ...qrPlace(p), ...framing(p),
     })),
     ...(r.menu || []).filter((i) => (i.promo || i.dayDish) && i.photo).map((i) => ({ type: 'item', id: i.id, image: i.photo, title: i.name, price: i.price })),
@@ -300,14 +423,34 @@ function avatarFor(r) {
   return c ? { ...c, tts: !!(db.eleven.key && c.voice?.eleven), ...pick(a, ['speak', 'everyMin', 'durationSec', 'startWith', 'greetings', 'filters']) } : null;
 }
 
+// Показ слайда: реклама (как раньше), акция ресторана или появление ИИ-персонажа
 function guestImpression(b) {
   const d = db.devices[b.d];
-  const rid = d?.restaurantId;
-  if (!db.restaurants[rid] || !db.ads.some((a) => a.id === b.id)) throw fail(400, 'bad impression');
-  for (const key of [`${b.id}|${rid}|${day()}`, `${b.id}|*|${day()}`]) db.stats[key] = (db.stats[key] || 0) + 1;
+  const rid = d?.restaurantId, r = db.restaurants[rid];
+  if (!r) throw fail(400, 'bad impression');
+  if (b.kind === 'avatar') bump(`avshow|${rid}|${day()}`);
+  else if ((r.promos || []).some((p) => p.id === b.id)) bump(`imp|${b.id}|${rid}|${day()}`);
+  else if (db.ads.some((a) => a.id === b.id)) for (const key of [`${b.id}|${rid}|${day()}`, `${b.id}|*|${day()}`]) bump(key);
+  else throw fail(400, 'bad impression');
   save();
   return {};
 }
+
+// Действия гостя с ИИ-персонажем: разговор, рекомендация, «Показать блюдо», «Добавить» (не больше 200 в час на планшет)
+const guestEventBudget = new Map();
+function guestEvent(b) {
+  const t = tableOf(b.d);
+  if (!t || !['av_talk', 'av_rec', 'av_dish', 'av_add'].includes(b.k)) throw fail(400, 'bad event');
+  const hour = Math.floor(Date.now() / 3600e3), bud = guestEventBudget.get(b.d);
+  const n = bud?.hour === hour ? bud.n : 0;
+  if (n >= 200) return {};
+  guestEventBudget.set(b.d, { hour, n: n + 1 });
+  logEvent(t.r.id, b.k, { table: t.table, dish: String(b.dish || '').slice(0, 40) || undefined, lang: b.lang });
+  return {};
+}
+
+// Первый вызов или заказ за свободным столом — «стол открыт» (до «Закрыть стол»)
+const tableIsFree = (r, table) => !openAt(db.calls, r, table).length && !openAt(db.orders, r, table).length;
 
 function guestState(b, q) {
   const d = db.devices[q.d];
@@ -337,8 +480,10 @@ function guestCall(b) {
   // Повторное нажатие не создаёт второй вызов
   let c = openAt(db.calls, t.r, t.table).find((x) => x.type === b.type && x.status !== 'done');
   if (!c) {
+    if (tableIsFree(t.r, t.table)) logEvent(t.r.id, 'open', { table: t.table });
     c = { id: uid(), restaurantId: t.r.id, table: t.table, type: b.type, status: 'new', at: Date.now() };
     db.calls.push(c);
+    logEvent(t.r.id, 'call', { id: c.id, table: t.table, type: b.type, lang: b.lang });
   }
   // Гость нажал ещё раз — напоминаем, но не чаще раза в 20 секунд
   if (Date.now() - (c.notifiedAt || 0) > 20_000) {
@@ -354,11 +499,13 @@ function guestOrder(b) {
   if (!t) throw fail(400, 'device is not assigned');
   const items = buildItems(t.r, b.items);
   if (!items.length) throw fail(400, 'empty order');
+  if (tableIsFree(t.r, t.table)) logEvent(t.r.id, 'open', { table: t.table });
   const o = {
     id: uid(), restaurantId: t.r.id, table: t.table, items,
     total: items.reduce((s, i) => s + i.price * i.qty, 0), status: 'pending', at: Date.now(), notifiedAt: Date.now(),
   };
   db.orders.push(o);
+  logEvent(t.r.id, 'order', { id: o.id, table: t.table, total: o.total, items: items.map((i) => [i.id, i.qty, i.price]), lang: b.lang });
   notify(t.r.id, t.table, 'order', ` · ฿${o.total}`);
   save();
   return o;
@@ -403,6 +550,7 @@ function staffLogin(b) {
   if (!member) throw fail(403, 'wrong code or pin');
   const token = crypto.randomBytes(18).toString('base64url');
   db.sessions[token] = { restaurantId: r.id, staffId: member.id, at: Date.now(), onShift: true, subs: [], lang: b.lang || 'en' };
+  logEvent(r.id, 'shift', { by: member.id, bn: member.name, on: true });
   save();
   return { token };
 }
@@ -426,7 +574,9 @@ function staffMenu(b, q) {
 }
 
 function staffShift(b) {
-  session(b.token).s.onShift = !!b.on;
+  const { s, r, member } = session(b.token);
+  if (s.onShift !== !!b.on) logEvent(r.id, 'shift', { by: member.id, bn: member.name, on: !!b.on });
+  s.onShift = !!b.on;
   save();
   return {};
 }
@@ -441,6 +591,8 @@ function staffSubscribe(b) {
 }
 
 function staffLogout(b) {
+  const s = db.sessions[b.token];
+  if (s?.onShift) logEvent(s.restaurantId, 'shift', { by: s.staffId, on: false });
   delete db.sessions[b.token];
   save();
   return {};
@@ -450,32 +602,53 @@ const NEXT = { call: { ack: 'ack', done: 'done' }, order: { confirm: 'confirmed'
 
 function staffAction(b) {
   const { r, member } = session(b.token);
+  const who = { by: member.id, bn: member.name };
+  const ackOrder = (x) => {
+    if (x.ackAt) return;
+    Object.assign(x, { ackAt: Date.now(), ackBy: member.name });
+    logEvent(r.id, 'order_ack', { ...who, id: x.id, table: x.table, ms: x.ackAt - x.at, total: x.total });
+  };
   if (b.kind === 'table') {
     // «Стол свободен» или «Счёт оплачен» (когда касса не подключена): закрываем сессию стола
     for (const x of [...db.calls, ...db.orders]) {
       if (x.restaurantId !== r.id || x.table !== b.id || x.closed) continue;
-      if (b.action === 'paid' && x.items) Object.assign(x, { paidAt: Date.now(), paidBy: member.name });
+      if (b.action === 'paid' && x.items && !x.paidAt) {
+        Object.assign(x, { paidAt: Date.now(), paidBy: member.name });
+        logEvent(r.id, 'paid', { ...who, id: x.id, table: x.table, total: x.total });
+      }
       x.closed = Date.now();
     }
+    logEvent(r.id, 'close', { ...who, table: b.id });
   } else if (b.kind === 'order' && b.action === 'paid') {
     // Оплачен один счёт стола; стол остаётся открытым, пока его не закроют
     const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && !y.closed && y.status !== 'rejected');
     if (!x) throw fail(400, 'bad action');
+    if (!x.paidAt) logEvent(r.id, 'paid', { ...who, id: x.id, table: x.table, total: x.total });
     Object.assign(x, { paidAt: Date.now(), paidBy: member.name });
   } else if (b.kind === 'order' && (b.action === 'ack' || b.action === 'edit')) {
     const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && !y.closed && y.status !== 'rejected');
     if (!x) throw fail(400, 'bad action');
     // «Иду» по заказу — останавливаем напоминания; правка заказа тоже значит, что официант им занялся
-    if (!x.ackAt) Object.assign(x, { ackAt: Date.now(), ackBy: member.name });
+    ackOrder(x);
     if (b.action === 'edit') {
       const items = buildItems(r, b.items);
       if (!items.length) throw fail(400, 'empty order');
       Object.assign(x, { items, total: items.reduce((s, i) => s + i.price * i.qty, 0), editedAt: Date.now(), editedBy: member.name });
+      logEvent(r.id, 'order_edit', { ...who, id: x.id, table: x.table, total: x.total });
     }
   } else {
     const x = (b.kind === 'call' ? db.calls : db.orders).find((y) => y.id === b.id && y.restaurantId === r.id);
     const status = NEXT[b.kind]?.[b.action];
     if (!x || !status) throw fail(400, 'bad action');
+    if (b.kind === 'call' && status === 'ack' && x.status === 'new') logEvent(r.id, 'call_ack', { ...who, id: x.id, table: x.table, type: x.type, ms: Date.now() - x.at });
+    if (b.kind === 'call' && status === 'done') {
+      if (x.status === 'new') logEvent(r.id, 'call_ack', { ...who, id: x.id, table: x.table, type: x.type, ms: Date.now() - x.at });
+      logEvent(r.id, 'call_done', { ...who, id: x.id, table: x.table });
+    }
+    if (b.kind === 'order') {
+      ackOrder(x);
+      if (status === 'rejected') logEvent(r.id, 'order_reject', { ...who, id: x.id, table: x.table });
+    }
     Object.assign(x, { status, by: member.name, [`${status}At`]: Date.now() });
   }
   save();
@@ -515,6 +688,7 @@ setInterval(() => {
     x.reminders = (x.reminders || 0) + 1;
     x.notifiedAt = now;
     notify(x.restaurantId, x.table, kind, '', true);
+    logEvent(x.restaurantId, 'remind', { table: x.table, kind });
   }
 }, 15_000);
 
@@ -550,11 +724,15 @@ function managerGet(b, q) {
   };
 }
 
+const SECTIONS = { staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы' };
 function managerSave(b) {
-  const { r } = managerSession(b.token);
+  const { r, member } = managerSession(b.token);
+  const changed = Object.keys(SECTIONS).filter((k) => b[k] !== undefined).map((k) => SECTIONS[k]);
+  if (changed.length) audit(`${member.name} (менеджер)`, `ЛК: сохранено — ${changed.join(', ')}`, r.id);
   if (Array.isArray(b.staff)) r.staff = cleanStaff(b.staff);
   if (Array.isArray(b.menu)) r.menu = cleanMenu(b.menu);
   if (Array.isArray(b.promos)) r.promos = cleanPromos(b.promos);
+  if (Array.isArray(b.promos) || Array.isArray(b.menu)) syncPromoItems(r);
   if (Array.isArray(b.blockedAds)) r.blockedAds = b.blockedAds.map(String);
   if (b.menuSource) r.menuSource = cleanSource(b.menuSource, r.menuSource);
   if (b.display) r.display = cleanDisplay(b.display);
@@ -593,8 +771,16 @@ function saveTables(r, list) {
   r.tables = rows.map((x) => x.to);
 }
 
+// Статистика ресторана для ЛК менеджера (без внешней рекламы)
+function managerStats(b, q) {
+  const { r } = managerSession(q.token);
+  const { from, to } = period(q);
+  return restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r) });
+}
+
 async function managerSync(b) {
-  const { r } = managerSession(b.token);
+  const { r, member } = managerSession(b.token);
+  audit(`${member.name} (менеджер)`, 'ЛК: синхронизация меню', r.id);
   await syncMenu(r);
   return publicSource(r.menuSource);
 }
@@ -703,7 +889,7 @@ function cleanMenu(menu) {
       id: i.id || uid(), cat: i.cat || {}, name: i.name, desc: i.desc || {},
       price: Number(i.price) || 0, photo: String(i.photo || ''), promo: !!i.promo, dayDish: !!i.dayDish,
       extId: i.extId || undefined, sku: String(i.sku || ''), options: Array.isArray(i.options) ? i.options : [],
-      hidden: !!i.hidden, photoManual: !!i.photoManual,
+      hidden: !!i.hidden, photoManual: !!i.photoManual, fromPromo: i.fromPromo ? String(i.fromPromo) : undefined,
       tags: (Array.isArray(i.tags) ? i.tags : []).filter((x) => DISH_TAGS.includes(x)),
     }));
 }
@@ -737,10 +923,29 @@ function cleanAvatar(a) {
 }
 
 // Название акции — только для поиска в ЛК; у старых акций берём его из прежнего заголовка
+// Акция с ценой — строка меню «promo-<id>» в категории «Акции»: её заказывают с планшета и учитывают в статистике.
+// Название берём из акции при создании строки (переводы можно поправить в меню); цену, фото и видимость — всегда из акции.
+const PROMO_CAT = { ru: 'Акции', en: 'Promotions', th: 'โปรโมชั่น', zh: '优惠活动' };
+function syncPromoItems(r) {
+  const promos = new Map((r.promos || []).filter((p) => p.price > 0).map((p) => [`promo-${p.id}`, p]));
+  const menu = (r.menu || []).filter((i) => !i.fromPromo || promos.has(i.id));
+  for (const [id, p] of promos) {
+    let it = menu.find((i) => i.id === id);
+    if (!it) {
+      const nm = p.name || 'Promo';
+      it = { id, fromPromo: p.id, cat: { ...PROMO_CAT }, name: { ru: nm, en: nm, th: nm, zh: nm }, desc: {}, options: [], tags: [] };
+      menu.push(it);
+    }
+    Object.assign(it, { price: p.price, photo: p.image, hidden: !p.active, cat: { ...PROMO_CAT, ...it.cat } });
+  }
+  r.menu = menu;
+}
+
 function cleanPromos(list) {
   const old = (p) => (p.title && typeof p.title === 'object' ? p.title.ru || p.title.en || Object.values(p.title)[0] : '') || '';
   return list.filter((p) => p && p.image).map((p) => ({
     id: p.id || uid(), image: String(p.image), name: String(p.name || old(p)).trim().slice(0, 80), active: !!p.active,
+    price: Math.max(0, Math.round(Number(p.price)) || 0), // цена > 0 — акцию можно заказать с планшета
     link: String(p.link || '').trim(), phone: String(p.phone || '').trim(), ...qrPlace(p), ...framing(p),
   }));
 }
@@ -782,6 +987,7 @@ async function guestTts(q) {
     const n = bud?.hour === hour ? bud.n : 0;
     if (n >= 60) throw fail(429, 'tts limit');
     ttsBudget.set(d.id, { hour, n: n + 1 });
+    logEvent(r.id, 'tts', { chars: text.length });
   }
   return synthesize(UPLOADS, db.eleven.key, c.voice.eleven, db.eleven.model, text);
 }
@@ -833,7 +1039,35 @@ function cleanStaff(list) {
   });
 }
 
-function admin(method, p, b) {
+const staffNamesOf = (r) => Object.fromEntries((r.staff || []).map((m) => [m.id, m.name]));
+const period = (q) => {
+  const now = Date.now(), to = Math.min(Number(q.to) || now, now + 864e5);
+  return { to, from: Math.max(Number(q.from) || to - 7 * 864e5, to - 400 * 864e5) };
+};
+
+function admin(method, p, b, me, q) {
+  const scope = scopeOf(me);
+  if (method === 'GET' && p === '/api/me') return publicAdmin(me);
+  if (method === 'POST' && p === '/api/me/password') {
+    if (!passOk(me, b.old)) throw fail(400, 'Текущий пароль неверный');
+    if (String(b.password || '').length < 8) throw fail(400, 'Новый пароль — не короче 8 символов');
+    Object.assign(me, hashPass(b.password));
+    save();
+    return {};
+  }
+  if (p.startsWith('/api/admins')) return adminsApi(method, p, b, me);
+  if (method === 'GET' && p === '/api/audit') return readAudit(q, scope);
+  // Статистика: сеть (все доступные рестораны) и, если выбран ресторан, его подробный отчёт
+  if (method === 'GET' && p === '/api/stats') {
+    const { from, to } = period(q);
+    const rids = new Set(Object.keys(db.restaurants).filter((id) => !scope || scope.has(id)));
+    const r = q.r && rids.has(q.r) ? db.restaurants[q.r] : null;
+    return {
+      restaurants: [...rids].map((id) => ({ id, name: db.restaurants[id].name })),
+      network: networkReport({ log: events, db, rids: r ? new Set([r.id]) : rids, from, to }),
+      restaurant: r ? restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r) }) : null,
+    };
+  }
   if (p.startsWith('/api/telegram') && (method === 'GET' || method === 'POST')) return telegramAdmin(method, p, b);
   if (method === 'GET' && p === '/api/pending') {
     // Ожидающие подтверждения за последние сутки
@@ -853,13 +1087,16 @@ function admin(method, p, b) {
   }
   if (method === 'GET' && p === '/api/devices') {
     const now = Date.now();
-    return Object.values(db.devices).map(({ queue, ...d }) =>
+    return Object.values(db.devices).filter((d) => !scope || scope.has(d.restaurantId)).map(({ queue, ...d }) =>
       ({ ...d, online: now - d.lastSeen < ONLINE_MS, pending: queue.length }));
   }
   if (method === 'GET' && p === '/api/restaurants') {
-    return Object.values(db.restaurants).map((r) => ({ ...r, menuSource: publicSource(r.menuSource) }));
+    const list = Object.values(db.restaurants).filter((r) => !scope || scope.has(r.id));
+    if (me.role === 'viewer') return list.map((r) => ({ id: r.id, name: r.name }));
+    return list.map((r) => ({ ...r, menuSource: publicSource(r.menuSource) }));
   }
   if (method === 'POST' && p === '/api/restaurants') {
+    if (scope && !scope.has(b.id)) throw fail(403, 'Нет доступа к этому ресторану');
     const id = b.id || uid();
     const prev = db.restaurants[id] || { staffCode: String(crypto.randomInt(100000, 1000000)) };
     db.restaurants[id] = {
@@ -928,15 +1165,20 @@ function admin(method, p, b) {
   m = p.match(/^\/api\/characters\/([^/]+)$/);
   if (m && method === 'DELETE') { db.characters = db.characters.filter((c) => c.id !== m[1]); save(); return {}; }
   m = p.match(/^\/api\/restaurants\/([^/]+)$/);
-  if (m && method === 'DELETE') { delete db.restaurants[m[1]]; save(); return {}; }
+  if (m && method === 'DELETE') {
+    if (scope) throw fail(403, 'Нет доступа');
+    delete db.restaurants[m[1]]; save(); return {};
+  }
   m = p.match(/^\/api\/restaurants\/([^/]+)\/sync$/);
   if (m && method === 'POST' && db.restaurants[m[1]]) {
+    if (scope && !scope.has(m[1])) throw fail(403, 'Нет доступа к этому ресторану');
     return syncMenu(db.restaurants[m[1]]).then(() => publicSource(db.restaurants[m[1]].menuSource));
   }
 
   m = p.match(/^\/api\/devices\/([^/]+)(?:\/(command|assign))?$/);
   const d = m && db.devices[decodeURIComponent(m[1])];
   if (!d) return undefined;
+  if (scope && (!scope.has(d.restaurantId) || (m[2] === 'assign' && b.restaurantId && !scope.has(b.restaurantId)))) throw fail(403, 'Нет доступа');
   if (method === 'DELETE' && !m[2]) { delete db.devices[d.id]; save(); return {}; }
   if (method === 'POST' && m[2] === 'command') {
     if (!COMMANDS.includes(b.type)) throw fail(400, 'unknown command');
@@ -971,13 +1213,32 @@ const PUBLIC = {
   'POST /api/staff/logout': staffLogout,
   'GET /api/staff/menu': staffMenu,
   'POST /api/guest/impression': guestImpression,
+  'POST /api/guest/event': guestEvent,
   'GET /api/manager/restaurant': managerGet,
   'POST /api/manager/restaurant': managerSave,
   'POST /api/manager/sync': managerSync,
+  'GET /api/manager/stats': managerStats,
   'POST /api/menu/webhook': menuWebhook,
 };
 
 for (const r of Object.values(db.restaurants)) if (r.promos?.some((p) => p.name === undefined)) r.promos = cleanPromos(r.promos);
+// Однократно при первом запуске статистики: вызовы и заказы, которые ещё хранятся (до 7 дней), — в журнал событий
+if (!fs.existsSync(path.join(DATA_DIR, 'events'))) {
+  const old = [];
+  for (const c of db.calls) {
+    old.push({ t: c.at, r: c.restaurantId, k: 'call', id: c.id, table: c.table, type: c.type });
+    const ack = c.ackAt || c.doneAt;
+    if (ack) old.push({ t: ack, r: c.restaurantId, k: 'call_ack', id: c.id, table: c.table, type: c.type, ms: ack - c.at, by: c.by && `name:${c.by}`, bn: c.by });
+  }
+  for (const o of db.orders) {
+    old.push({ t: o.at, r: o.restaurantId, k: 'order', id: o.id, table: o.table, total: o.total, items: (o.items || []).map((i) => [i.id, i.qty, i.price]) });
+    if (o.ackAt) old.push({ t: o.ackAt, r: o.restaurantId, k: 'order_ack', id: o.id, table: o.table, ms: o.ackAt - o.at, total: o.total, by: o.ackBy && `name:${o.ackBy}`, bn: o.ackBy });
+    if (o.paidAt) old.push({ t: o.paidAt, r: o.restaurantId, k: 'paid', id: o.id, table: o.table, total: o.total, by: o.paidBy && `name:${o.paidBy}`, bn: o.paidBy });
+  }
+  fs.mkdirSync(path.join(DATA_DIR, 'events'), { recursive: true });
+  for (const e of old.filter((x) => x.t).sort((x, y) => x.t - y.t)) events.add(e);
+}
+
 // Однократно: столы «1», «B1» → «Стол 1», «Стол B1» (вместе с планшетами, официантами и заказами)
 for (const r of Object.values(db.restaurants)) {
   if ((r.tables || []).some((n) => fullTable(n) !== n)) saveTables(r, r.tables.map((n) => ({ from: n, to: fullTable(n) })));
@@ -992,7 +1253,7 @@ http.createServer(async (req, res) => {
       res.writeHead(301, { location: url.pathname + '/' + url.search });
       return res.end();
     }
-    if (req.method === 'GET' && url.pathname === '/' && !isAdmin(req)) {
+    if (req.method === 'GET' && url.pathname === '/' && !currentAdmin(req)) {
       res.writeHead(302, { location: '/login' });
       return res.end();
     }
@@ -1018,20 +1279,29 @@ http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/upload') {
       const token = req.headers['x-staff-token'];
-      if (!isAdmin(req)) managerSession(token);
+      const me = currentAdmin(req);
+      if (!me || me.role === 'viewer') managerSession(token);
       return send(res, 200, await upload(req));
     }
 
     const body = req.method === 'POST' ? await readBody(req) : {};
     if (req.method === 'POST' && url.pathname === '/api/admin/login') {
-      if (!crypto.timingSafeEqual(sha(body.password), sha(PASS))) {
+      const a = db.admins.find((x) => x.email === String(body.email || '').trim().toLowerCase() && !x.disabled);
+      if (!passOk(a, body.password)) {
         await new Promise((r) => setTimeout(r, 1000)); // притормаживаем подбор пароля
-        return send(res, 403, { error: 'wrong password' });
+        return send(res, 403, { error: 'wrong email or password' });
       }
-      res.setHeader('set-cookie', `jm_admin=${ADMIN_COOKIE}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000`);
+      const token = crypto.randomBytes(24).toString('base64url');
+      db.adminSessions[token] = { adminId: a.id, at: Date.now() };
+      a.lastLogin = Date.now();
+      save();
+      audit(a.email, 'Вход в портал');
+      res.setHeader('set-cookie', `jm_admin=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${ADMIN_SESSION_MS / 1000}`);
       return send(res, 200, {});
     }
     if (req.method === 'POST' && url.pathname === '/api/admin/logout') {
+      delete db.adminSessions[cookieToken(req)];
+      save();
       res.setHeader('set-cookie', 'jm_admin=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
       return send(res, 200, {});
     }
@@ -1043,8 +1313,15 @@ http.createServer(async (req, res) => {
     const route = PUBLIC[`${req.method} ${url.pathname}`];
     if (route) return send(res, 200, await route(body, Object.fromEntries(url.searchParams), req));
 
-    if (!isAdmin(req)) return send(res, 401, { error: 'not signed in' });
-    const out = await admin(req.method, url.pathname, body);
+    const me = currentAdmin(req);
+    if (!me) return send(res, 401, { error: 'not signed in' });
+    if (!allowed(me, req.method, url.pathname)) return send(res, 403, { error: 'Нет доступа' });
+    const out = await admin(req.method, url.pathname, body, me, Object.fromEntries(url.searchParams));
+    if (out !== undefined && req.method !== 'GET' && !url.pathname.startsWith('/api/admins') && !url.pathname.startsWith('/api/me')) {
+      const a = auditText(req.method, url.pathname, body);
+      if (a) audit(me.email, a[0], a[1]);
+    }
+    if (out !== undefined && url.pathname === '/api/me/password') audit(me.email, 'Сменил свой пароль');
     send(res, out === undefined ? 404 : 200, out ?? { error: 'not found' });
   } catch (e) {
     send(res, e.status || 500, { error: e.message });

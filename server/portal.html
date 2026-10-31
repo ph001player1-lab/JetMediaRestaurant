@@ -7,6 +7,7 @@
 <link rel="icon" href="/favicon.svg">
 <style>
   body { font-family: system-ui, sans-serif; margin: 16px; background: #f6f6f4; color: #222; }
+  nav { display: flex; flex-wrap: wrap; align-items: center; }
   nav button { font-size: 16px; padding: 8px 14px; border: 0; background: none; border-bottom: 2px solid transparent; cursor: pointer; }
   nav button.on { border-color: #222; font-weight: 600; }
   .wrap { overflow-x: auto; }
@@ -42,8 +43,8 @@
 </style>
 </head>
 <body>
-<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button><button data-tab="adsTab">Реклама</button><button data-tab="charTab">ИИ-персонажи</button>
-  <button onclick="logout()" style="float:right">Выйти</button></nav>
+<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button><button data-tab="adsTab">Реклама</button><button data-tab="charTab">ИИ-персонажи</button><button data-tab="statsTab">Статистика</button><button data-tab="adminsTab">Администраторы</button><button data-tab="auditTab">Журнал</button>
+  <span style="margin-left:auto"><small id="meInfo" class="hint"></small> <button onclick="changePass()">Сменить пароль</button><button onclick="logout()">Выйти</button></span></nav>
 
 <section id="devices">
   <div id="pendingBox" class="sizehint" hidden>
@@ -70,7 +71,7 @@
     <thead><tr><th>Устройство</th><th>Статус</th><th>Заряд</th><th>Агент</th><th>Ресторан · стол</th><th>На связи</th><th></th></tr></thead>
     <tbody id="list"></tbody>
   </table></div>
-  <div class="form" style="display:block">
+  <div class="form" style="display:block" id="tgBox">
     <b>Оповещения в Telegram</b> <span id="tgState" class="hint"></span>
     <p class="hint" style="margin:6px 0">Бот пишет, если планшет пропал со связи больше чем на 3 минуты, вернулся, или приложение упало и перезапустилось.<br>
       1) В Telegram откройте @BotFather → /newbot → придумайте имя → скопируйте токен. 2) Вставьте токен сюда и сохраните.
@@ -163,6 +164,30 @@
   </table></div>
 </section>
 
+<section id="statsTab" hidden><div id="statsBox"></div></section>
+
+<section id="adminsTab" hidden>
+  <p class="hint">Суперадмин — всё, включая этот список. Админ — всё, кроме списка админов; если отмечены рестораны — только эти рестораны и их планшеты
+    (без рекламы, персонажей и общих настроек). «Только статистика» — просмотр статистики всех ресторанов или отмеченных. Пароль передайте человеку сами.</p>
+  <div class="form" id="admForm">
+    <input type="hidden" id="admId">
+    <label>Почта<input id="admEmail" type="email" style="width:220px"></label>
+    <label>Имя<input id="admName" style="width:160px"></label>
+    <label>Роль<select id="admRole"><option value="admin">Админ</option><option value="viewer">Только статистика</option><option value="super">Суперадмин</option></select></label>
+    <label>Пароль<input id="admPass" type="text" placeholder="новый — не короче 8 символов" style="width:220px" autocomplete="off"></label>
+    <label style="flex-direction:row;align-items:center"><input type="checkbox" id="admOff"> отключён</label>
+    <div style="width:100%"><small class="hint">Рестораны (ничего не отмечено — все):</small> <span id="admRests"></span></div>
+    <button onclick="saveAdmin()">Сохранить</button><button onclick="editAdmin()">Очистить форму</button>
+  </div>
+  <div class="wrap"><table><thead><tr><th>Почта</th><th>Имя</th><th>Роль</th><th>Рестораны</th><th>Последний вход</th><th></th></tr></thead><tbody id="admList"></tbody></table></div>
+</section>
+
+<section id="auditTab" hidden>
+  <div class="filters"><input id="audQ" placeholder="Поиск: кто или что" oninput="loadAudit()"><select id="audR" onchange="loadAudit()"></select>
+    <span class="hint">Последние 300 записей: изменения админов в портале и менеджеров в ЛК.</span></div>
+  <div class="wrap"><table><thead><tr><th>Когда</th><th>Кто</th><th>Что</th><th>Ресторан</th></tr></thead><tbody id="audList"></tbody></table></div>
+</section>
+
 <div class="pv" id="pvPanel" hidden>
   <div class="pvbar"><b>Предпросмотр</b>
     <select id="pvLang"><option value="ru">RU</option><option value="en">EN</option><option value="th">TH</option><option value="zh">ZH</option></select>
@@ -170,6 +195,7 @@
   <div class="pvframe"><iframe id="pvFrame" title="preview"></iframe></div>
 </div>
 
+<script src="/vendor/stats.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -184,9 +210,12 @@ let devices = [], rests = [], cur = null;
 
 document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => {
   document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
-  for (const id of ['devices', 'rest', 'adsTab', 'charTab']) $(id).hidden = id !== b.dataset.tab;
+  for (const id of ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'adminsTab', 'auditTab']) $(id).hidden = id !== b.dataset.tab;
   if (b.dataset.tab === 'adsTab') loadAds();
   if (b.dataset.tab === 'charTab') loadChars();
+  if (b.dataset.tab === 'statsTab') openStats();
+  if (b.dataset.tab === 'adminsTab') loadAdmins();
+  if (b.dataset.tab === 'auditTab') loadAudit();
 }));
 
 // ---------- Устройства
@@ -199,7 +228,9 @@ function placeOptions(d) {
 }
 
 async function loadPending() {
+  if (scoped()) return;
   const list = await api('/api/pending');
+  if (!Array.isArray(list)) return;
   $('pendingBox').hidden = !list.length;
   $('pending').innerHTML = list.map((d) => {
     const t = d.telemetry || {};
@@ -326,7 +357,7 @@ async function loadRests(selectId) {
   rests = await api('/api/restaurants');
   fillRestFilter();
   $('restSel').innerHTML = rests.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')
-    + '<option value="">+ Новый ресторан</option>';
+    + (scoped() ? '' : '<option value="">+ Новый ресторан</option>');
   edit(selectId ?? cur?.id ?? rests[0]?.id ?? '');
 }
 
@@ -690,11 +721,92 @@ async function tg(path, body) {
     ? 'Получатели: ' + out.chats.map((c) => `${esc(c.name)} <button onclick="tg('/api/telegram/remove', { id: ${Number(c.id)} })">×</button>`).join(' ')
     : (out.connected ? '<small>Получателей нет: напишите боту /start и нажмите «Найти чаты».</small>' : '');
 }
-tg('/api/telegram');
+// ---------- Статистика
 
-for (const k of ['fStatus', 'fSort']) if (localStorage[k]) $(k).value = localStorage[k];
-loadRests().then(loadDevices);
-setInterval(loadDevices, 5000);
+let statsMounted = false;
+function openStats() {
+  if (statsMounted) return;
+  statsMounted = true;
+  JetStats.mount($('statsBox'), { lang: 'ru', admin: true, load: (from, to, r) => api(`/api/stats?from=${from}&to=${to}&r=${encodeURIComponent(r || '')}`) });
+}
+
+// ---------- Администраторы и журнал
+
+let me = null, admins = [];
+const scoped = () => me && me.role !== 'super' && (me.restaurants || []).length > 0;
+const ROLE_NAMES = { super: 'Суперадмин', admin: 'Админ', viewer: 'Только статистика' };
+
+async function changePass() {
+  const old = prompt('Текущий пароль');
+  if (old == null) return;
+  const password = prompt('Новый пароль (не короче 8 символов)');
+  if (!password) return;
+  const r = await api('/api/me/password', 'POST', { old, password });
+  alert(r.error || 'Пароль изменён');
+}
+
+async function loadAdmins() {
+  if (!rests.length) rests = await api('/api/restaurants');
+  admins = await api('/api/admins');
+  $('admList').innerHTML = admins.map((a, i) => `<tr class="${a.disabled ? 'hint' : ''}"><td>${esc(a.email)}</td><td>${esc(a.name || '')}</td>
+    <td>${ROLE_NAMES[a.role]}${a.disabled ? ' · отключён' : ''}</td>
+    <td>${(a.restaurants || []).length ? esc(a.restaurants.map((id) => rests.find((r) => r.id === id)?.name || id).join(', ')) : 'все'}</td>
+    <td>${a.lastLogin ? new Date(a.lastLogin).toLocaleString() : '—'}</td>
+    <td><button onclick="editAdmin(${i})">Изменить</button><button onclick="delAdmin(${i})">✕</button></td></tr>`).join('');
+  if (!$('admRests').innerHTML) editAdmin();
+}
+function editAdmin(i) {
+  const a = admins[i] || { role: 'admin', restaurants: [] };
+  $('admId').value = a.id || '';
+  $('admEmail').value = a.email || '';
+  $('admName').value = a.name || '';
+  $('admRole').value = a.role;
+  $('admPass').value = '';
+  $('admOff').checked = !!a.disabled;
+  $('admRests').innerHTML = rests.map((r) => `<label style="display:inline-block;margin-right:10px"><input type="checkbox" value="${esc(r.id)}" ${(a.restaurants || []).includes(r.id) ? 'checked' : ''}> ${esc(r.name)}</label>`).join('');
+}
+async function saveAdmin() {
+  const r = await api('/api/admins', 'POST', {
+    id: $('admId').value || undefined, email: $('admEmail').value, name: $('admName').value, role: $('admRole').value,
+    password: $('admPass').value || undefined, disabled: $('admOff').checked,
+    restaurants: [...$('admRests').querySelectorAll('input:checked')].map((x) => x.value),
+  });
+  if (r.error) return alert(r.error);
+  alert('Сохранено');
+  editAdmin();
+  loadAdmins();
+}
+async function delAdmin(i) {
+  if (!confirm(`Удалить админа ${admins[i].email}?`)) return;
+  const r = await api(`/api/admins/${encodeURIComponent(admins[i].id)}`, 'DELETE');
+  if (r.error) alert(r.error);
+  loadAdmins();
+}
+
+async function loadAudit() {
+  if (!$('audR').options.length) {
+    $('audR').innerHTML = '<option value="">Все рестораны</option>' + rests.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
+  }
+  const list = await api(`/api/audit?q=${encodeURIComponent($('audQ').value)}&r=${encodeURIComponent($('audR').value)}`);
+  $('audList').innerHTML = (Array.isArray(list) ? list : []).map((e) => `<tr><td>${new Date(e.t).toLocaleString()}</td><td>${esc(e.who)}</td>
+    <td>${esc(e.action)}</td><td>${esc(e.rest || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="hint">Записей нет</td></tr>';
+}
+
+// Вкладки по роли: «Только статистика» — одна статистика; админ своих ресторанов — устройства, рестораны и статистика
+(async () => {
+  me = await api('/api/me');
+  $('meInfo').textContent = `${me.email} · ${ROLE_NAMES[me.role]}${scoped() ? ' (свои рестораны)' : ''}`;
+  const show = me.role === 'viewer' ? ['statsTab'] : scoped() ? ['devices', 'rest', 'statsTab']
+    : me.role === 'admin' ? ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'auditTab'] : null;
+  if (show) document.querySelectorAll('nav button[data-tab]').forEach((b) => { b.hidden = !show.includes(b.dataset.tab); });
+  else $('adminsTab').hidden = true;
+  if (me.role === 'viewer') return document.querySelector('nav button[data-tab="statsTab"]').click();
+  if (scoped()) $('tgBox').hidden = true; else tg('/api/telegram');
+  for (const k of ['fStatus', 'fSort']) if (localStorage[k]) $(k).value = localStorage[k];
+  await loadRests();
+  loadDevices();
+  setInterval(loadDevices, 5000);
+})();
 </script>
 </body>
 </html>
