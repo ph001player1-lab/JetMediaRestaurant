@@ -11,6 +11,7 @@ import crypto from 'node:crypto';
 import { createVapidKeys, sendPush } from './push.mjs';
 import { fetchMenu, POS_VENDORS } from './menu-sources.mjs';
 import { tgApi, tgSend, tgFindChats } from './telegram.mjs';
+import { THEMES, themeOf } from './themes.mjs';
 
 const PORT = 3000;
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -50,11 +51,9 @@ const SYNC_EVERY = { hourly: 3600_000, daily: 24 * 3600_000 };
 // Показ акций и рекламы на планшете: задержка простоя, длительность слайда, шрифты и цвета подписи
 const DISPLAY = {
   idleSec: 60, slideSec: 7, titleSize: 38, textSize: 22, textColor: '#ffffff', bgColor: '#000000',
-  // Оформление планшета: верхняя панель (название, языки, категории) и кнопки внизу
-  topBg: '#ffffff', topText: '#1f1a17', topBtnBg: '#f7f3ee', topBtnText: '#1f1a17', topOnBg: '#1f1a17', topOnText: '#ffffff', topSize: 18,
-  footBg: '#ffffff', footBtnBg: '#efe7df', footBtnText: '#1f1a17', footMainBg: '#c8553d', footMainText: '#ffffff', footSize: 20,
+  theme: 'classic', // цветовая тема планшета (themes.mjs), выбирается во вкладке «Дизайн»
 };
-const DISPLAY_RANGE = { idleSec: [10, 600], slideSec: [3, 60], titleSize: [16, 80], textSize: [12, 48], topSize: [12, 32], footSize: [14, 32] };
+const DISPLAY_RANGE = { idleSec: [10, 600], slideSec: [3, 60], titleSize: [16, 80], textSize: [12, 48] };
 // ИИ-персонаж: как часто появляется в карусели, сколько держится, приветствия и подбор блюд по пожеланиям
 const AVATAR = { enabled: false, characterId: '', speak: true, everyMin: 3, durationSec: 20, startWith: true, greetings: [], filters: [] };
 // Отметки блюд для подбора по особым пожеланиям
@@ -312,7 +311,7 @@ function guestState(b, q) {
     build: BUILD,
     menu: (r.menu || []).filter((i) => !i.hidden),
     slides: slidesFor(r),
-    display: { ...DISPLAY, ...r.display },
+    display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) },
     avatar: avatarFor(r),
   };
   // Планшет у входа: только витрина — карусель и просмотр меню, без заказов и вызовов
@@ -536,6 +535,7 @@ function managerGet(b, q) {
       views: views(a.id, r.id), scans: scans(a.id, r.id),
     })),
     characters: db.characters.map((c) => ({ id: c.id, name: c.name, image: c.images.idle, greeting: c.greeting })),
+    themes: THEMES,
     devices: Object.values(db.devices).filter((d) => d.restaurantId === r.id).map((d) => ({
       id: d.id, entrance: d.role === 'entrance', table: d.table, online: Date.now() - d.lastSeen < ONLINE_MS,
       lastSeen: d.lastSeen, ...pick(d.telemetry, ['battery', 'charging', 'wifi', 'rssi', 'version']),
@@ -671,9 +671,10 @@ function cleanMenu(menu) {
     }));
 }
 
-// Числа — в своих пределах, цвета — только #rrggbb; иначе значение по умолчанию
+// Числа — в своих пределах, цвета — только #rrggbb, тема — из списка; иначе значение по умолчанию
 function cleanDisplay(d) {
   return Object.fromEntries(Object.entries(DISPLAY).map(([k, def]) => {
+    if (k === 'theme') return [k, themeOf(d.theme).id];
     if (typeof def !== 'number') return [k, /^#[0-9a-f]{6}$/i.test(d[k]) ? d[k] : def];
     const [min, max] = DISPLAY_RANGE[k];
     return [k, Math.min(max, Math.max(min, Math.round(Number(d[k])) || def))];
