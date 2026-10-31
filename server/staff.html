@@ -110,6 +110,13 @@
   .card { background: #fff; border-radius: 12px; padding: 12px; margin: 8px 0; border-left: 6px solid #c8553d; }
   .card.ack, .card.confirmed { border-color: #2e7d32; }
   .card.rejected { border-color: #999; opacity: .6; }
+  .card.paid { border-color: #9e9e9e; background: #f4f2ef; }
+  .tgroup { margin: 14px 0; }
+  .thead { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 4px 2px; }
+  .thead b { font-size: 18px; }
+  .thead .due { color: #c8553d; font-weight: 700; }
+  .tline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: #fff; border-radius: 12px; padding: 10px 12px; margin: 6px 0; }
+  .tline span { flex: 1; }
   .card ul { margin: 6px 0; padding-left: 20px; }
   .card button { margin: 8px 8px 0 0; font-size: 16px; padding: 10px 14px; }
   #tables button { margin: 4px; background: #efe7df; color: #1f1a17; }
@@ -164,7 +171,7 @@
 const T = {
   en: { login: 'Staff sign-in', code: 'Restaurant code', pin: 'Your PIN', start: 'Sign in', out: 'Sign out',
         calls: 'Calls', orders: 'Orders', tables: 'Tables', table: 'Table', waiter: 'Waiter call', bill: 'Bill',
-        going: 'On my way', done: 'Done', confirm: 'Confirm', reject: 'Reject', free: 'is free', none: 'Nothing yet',
+        going: 'On my way', done: 'Done', confirm: 'Confirm', reject: 'Reject', closeTable: 'Close table', confirmClose: 'Close table {n}? Its orders and calls will leave the list.', bills: 'Bills', due: 'to pay', paidMark: 'paid', none: 'Nothing yet',
         pending: 'awaiting confirmation', confirmed: 'confirmed', rejected: 'rejected', wrong: 'Wrong restaurant code or PIN',
         shiftOn: 'On shift', shiftOff: 'Off shift', push: 'Turn on notifications',
         pushText: 'Turn on notifications to get calls even when the phone is locked.',
@@ -186,7 +193,7 @@ const T = {
         paid: 'Bill paid', uploadSize: 'Upload photo · 800 × 986 px', sizeHint: 'Promo picture size: 800 × 986 px (vertical, ratio ≈ 0.81); for extra sharpness — 1600 × 1972 px. This is the area between the top and bottom bars of the tablet, not the whole 800 × 1280 screen. Keep important text at least 40 px from the edges; the swipe arrows sit in the middle of the left and right edges.', fit: 'Picture', fitCover: 'Fill the screen', fitContain: 'Show the whole picture', imgY: 'Move up / down', imgScale: 'Zoom', preview: 'Preview', qrPos: 'QR code and phone: position', qrSize: 'QR code size', row_top: 'top', row_upper: 'upper middle', row_lower: 'lower middle', row_bottom: 'bottom', col_left: 'left', col_center: 'center', col_right: 'right', size_s: 'small', size_m: 'medium', size_l: 'large', viewGrid: 'Tiles', viewTable: 'Table', saveAll: 'Save changes', code: 'Code', aiEvery: 'Show the character every N minutes', aiDuration: 'How long it stays on screen, seconds', aiStart: 'Start the slideshow with the character', aiGreetings: 'Greeting phrase (add several — a random one is said)', addGreeting: 'Add another greeting', aiFilters: 'Recommendations for special diets', tagged: 'dishes marked', tagsHint: 'Mark dishes in the menu (dish card → special diets) so the character can recommend them', dishTags: 'Special diets', tabAI: 'AI host', tabDev: 'Devices', aiOn: 'Show the AI host on tablets', aiChar: 'Character', aiSpeak: 'Speak out loud', aiNone: 'No characters yet — JET MEDIA adds them', entrance: 'Entrance', online: 'online', offline: 'offline', scansL: 'QR scans', link: 'Link for the QR code', phone: 'Phone on the slide', edit: 'Edit', addDish: 'Add a dish — search by name or code', total: 'Total', editedBy: 'edited', display: 'Display on tablets', idleSec: 'Start the slideshow after idle, seconds', slideSec: 'Seconds per slide', titleSize: 'Title size, px', textSize: 'Text size, px' },
   th: { login: 'เข้าสู่ระบบพนักงาน', code: 'รหัสร้าน', pin: 'PIN ของคุณ', start: 'เข้าสู่ระบบ', out: 'ออกจากระบบ',
         calls: 'การเรียก', orders: 'ออร์เดอร์', tables: 'โต๊ะ', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'เช็คบิล',
-        going: 'กำลังไป', done: 'เสร็จแล้ว', confirm: 'ยืนยัน', reject: 'ปฏิเสธ', free: 'ว่างแล้ว', none: 'ยังไม่มี',
+        going: 'กำลังไป', done: 'เสร็จแล้ว', confirm: 'ยืนยัน', reject: 'ปฏิเสธ', closeTable: 'ปิดโต๊ะ', confirmClose: 'ปิดโต๊ะ {n}? ออร์เดอร์และการเรียกของโต๊ะนี้จะหายจากรายการ', bills: 'บิล', due: 'ค้างชำระ', paidMark: 'ชำระแล้ว', none: 'ยังไม่มี',
         pending: 'รอยืนยัน', confirmed: 'ยืนยันแล้ว', rejected: 'ปฏิเสธแล้ว', wrong: 'รหัสร้านหรือ PIN ไม่ถูกต้อง',
         shiftOn: 'อยู่ในกะ', shiftOff: 'นอกกะ', push: 'เปิดการแจ้งเตือน',
         pushText: 'เปิดการแจ้งเตือนเพื่อรับการเรียกแม้หน้าจอล็อกอยู่',
@@ -208,7 +215,7 @@ const T = {
         paid: 'ชำระเงินแล้ว', uploadSize: 'อัปโหลดรูป · 800 × 986 px', sizeHint: 'ขนาดรูปโปรโมชัน: 800 × 986 px (แนวตั้ง อัตราส่วน ≈ 0.81) เพื่อความคมชัดยิ่งขึ้น — 1600 × 1972 px คือพื้นที่ระหว่างแถบบนและแถบล่างของแท็บเล็ต ไม่ใช่ทั้งจอ 800 × 1280 ข้อความสำคัญควรห่างจากขอบอย่างน้อย 40 px ตรงกลางด้านซ้ายและขวามีลูกศรเลื่อน', fit: 'รูปภาพ', fitCover: 'เต็มจอ', fitContain: 'แสดงทั้งภาพ', imgY: 'เลื่อนขึ้น / ลง', imgScale: 'ซูม', preview: 'ตัวอย่าง', qrPos: 'ตำแหน่ง QR โค้ดและเบอร์โทร', qrSize: 'ขนาด QR โค้ด', row_top: 'บน', row_upper: 'กลางบน', row_lower: 'กลางล่าง', row_bottom: 'ล่าง', col_left: 'ซ้าย', col_center: 'กลาง', col_right: 'ขวา', size_s: 'เล็ก', size_m: 'กลาง', size_l: 'ใหญ่', viewGrid: 'การ์ด', viewTable: 'ตาราง', saveAll: 'บันทึกการเปลี่ยนแปลง', code: 'รหัส', aiEvery: 'แสดงตัวละครทุก ๆ กี่นาที', aiDuration: 'แสดงบนจอนานกี่วินาที', aiStart: 'เริ่มสไลด์ด้วยตัวละคร', aiGreetings: 'คำทักทาย (เพิ่มได้หลายแบบ — สุ่มพูด)', addGreeting: 'เพิ่มคำทักทาย', aiFilters: 'แนะนำสำหรับอาหารพิเศษ', tagged: 'เมนูที่ทำเครื่องหมาย', tagsHint: 'ทำเครื่องหมายเมนู (การ์ดเมนู → อาหารพิเศษ) เพื่อให้ตัวละครแนะนำได้', dishTags: 'อาหารพิเศษ', tabAI: 'ผู้ช่วย AI', tabDev: 'อุปกรณ์', aiOn: 'แสดงผู้ช่วย AI บนแท็บเล็ต', aiChar: 'ตัวละคร', aiSpeak: 'พูดออกเสียง', aiNone: 'ยังไม่มีตัวละคร — JET MEDIA จะเพิ่มให้', entrance: 'ทางเข้า', online: 'ออนไลน์', offline: 'ออฟไลน์', scansL: 'สแกน QR', link: 'ลิงก์สำหรับ QR โค้ด', phone: 'เบอร์โทรบนสไลด์', edit: 'แก้ไข', addDish: 'เพิ่มเมนู — ค้นหาตามชื่อหรือรหัส', total: 'รวม', editedBy: 'แก้ไขโดย', display: 'การแสดงผลบนแท็บเล็ต', idleSec: 'เริ่มสไลด์เมื่อไม่มีการใช้งาน (วินาที)', slideSec: 'วินาทีต่อสไลด์', titleSize: 'ขนาดหัวข้อ (px)', textSize: 'ขนาดข้อความ (px)' },
   ru: { login: 'Вход для персонала', code: 'Код ресторана', pin: 'Ваш PIN', start: 'Войти', out: 'Выйти',
         calls: 'Вызовы', orders: 'Заказы', tables: 'Столы', table: 'Стол', waiter: 'Вызов', bill: 'Счёт',
-        going: 'Иду', done: 'Готово', confirm: 'Подтвердить', reject: 'Отклонить', free: 'свободен', none: 'Пока пусто',
+        going: 'Иду', done: 'Готово', confirm: 'Подтвердить', reject: 'Отклонить', closeTable: 'Закрыть стол', confirmClose: 'Закрыть стол {n}? Все заказы и вызовы этого стола уйдут из списка.', bills: 'Счетов', due: 'к оплате', paidMark: 'оплачен', none: 'Пока пусто',
         pending: 'ждёт подтверждения', confirmed: 'подтверждён', rejected: 'отклонён', wrong: 'Неверный код ресторана или PIN',
         shiftOn: 'На смене', shiftOff: 'Не на смене', push: 'Включить уведомления',
         pushText: 'Включите уведомления, чтобы получать вызовы даже на заблокированный телефон.',
@@ -357,24 +364,43 @@ function render(s) {
       <div>${c.status === 'new' ? btn('call', c.id, 'ack', 'going') : ''}${btn('call', c.id, 'done', 'done')}</div>
     </div>`).join('') || `<p class="empty">${t('none')}</p>`;
 
-  $('orders').innerHTML = s.orders.map((o) => `<div class="card ${o.ackAt && o.status === 'pending' ? 'ack' : o.status}">
-      <b>${t('table')} ${esc(o.table)}</b> · ${ago(o.at)} · ${t(o.status)}${by(o)}
+  // Суммы по столу: итого по всем счетам (кроме отклонённых) и сколько ещё к оплате
+  const sums = (tb) => {
+    const list = s.orders.filter((o) => o.table === tb && o.status !== 'rejected');
+    const total = list.reduce((a, o) => a + o.total, 0);
+    return { count: list.length, total, due: list.filter((o) => !o.paidAt).reduce((a, o) => a + o.total, 0) };
+  };
+  const money = (n) => `฿${n.toLocaleString('en')}`;
+  const orderCard = (o) => `<div class="card ${o.paidAt ? 'paid' : o.ackAt && o.status === 'pending' ? 'ack' : o.status}">
+      <b>${t('table')} ${esc(o.table)}</b> · ${ago(o.at)} · ${o.paidAt ? `${t('paidMark')} · ${esc(o.paidBy || '')}` : t(o.status) + by(o)}
       ${o.ackBy ? ` · ${t('going')}: ${esc(o.ackBy)}` : ''}${o.editedBy ? ` · ${t('editedBy')}: ${esc(o.editedBy)}` : ''}
       <ul>${o.items.map((i) => `<li>${i.qty} × ${esc(itemName(i.name))}</li>`).join('')}</ul>
       <b>฿${o.total.toLocaleString('en')}</b>
       <div>
         ${o.status === 'pending' && !o.ackAt ? btn('order', o.id, 'ack', 'going') : ''}
         ${o.status === 'pending' ? btn('order', o.id, 'confirm', 'confirm') : ''}
-        ${o.status !== 'rejected' ? `<button data-oedit="${esc(o.id)}">${t('edit')}</button>` : ''}
-        ${o.status === 'confirmed' && !s.restaurant.pos ? btn('table', o.table, 'paid', 'paid') : ''}
+        ${o.status !== 'rejected' && !o.paidAt ? `<button data-oedit="${esc(o.id)}">${t('edit')}</button>` : ''}
+        ${o.status === 'confirmed' && !o.paidAt && !s.restaurant.pos ? btn('order', o.id, 'paid', 'paid') : ''}
         ${o.status === 'pending' ? btn('order', o.id, 'reject', 'reject') : ''}
       </div>
-    </div>`).join('') || `<p class="empty">${t('none')}</p>`;
+    </div>`;
+  const orderTables = [...new Set(s.orders.map((o) => o.table))];
+  $('orders').innerHTML = orderTables.map((tb) => {
+    const x = sums(tb);
+    return `<div class="tgroup"><div class="thead"><b>${t('table')} ${esc(tb)}</b>
+        ${x.count > 1 ? `<span>${t('bills')}: ${x.count}</span>` : ''}<span>${t('total')} ${money(x.total)}</span>
+        ${x.due && x.due !== x.total ? `<span class="due">${t('due')} ${money(x.due)}</span>` : ''}</div>
+      ${s.orders.filter((o) => o.table === tb).map(orderCard).join('')}</div>`;
+  }).join('') || `<p class="empty">${t('none')}</p>`;
 
+  // Открытые столы: сумма и «Закрыть стол» (с подтверждением)
   const busy = [...new Set([...s.calls, ...s.orders].map((x) => x.table))];
-  $('tables').innerHTML = busy.map((tb) => `<div>${s.restaurant.pos ? '' : `<button data-act="table|${esc(tb)}|paid">${t('table')} ${esc(tb)}: ${t('paid')}</button>`}
-    <button data-act="table|${esc(tb)}|close">${t('table')} ${esc(tb)} ${t('free')}</button></div>`).join('')
-    || `<p class="empty">${t('none')}</p>`;
+  $('tables').innerHTML = busy.map((tb) => {
+    const x = sums(tb);
+    return `<div class="tline"><span><b>${t('table')} ${esc(tb)}</b>${x.count ? ` · ${t('total')} ${money(x.total)}` : ''}
+        ${x.due ? ` · <span class="due">${t('due')} ${money(x.due)}</span>` : ''}</span>
+      <button data-act="table|${esc(tb)}|close" data-confirm="${esc(t('confirmClose').replace('{n}', tb))}">${t('closeTable')}</button></div>`;
+  }).join('') || `<p class="empty">${t('none')}</p>`;
 }
 
 document.addEventListener('click', async (e) => {
@@ -399,6 +425,7 @@ document.addEventListener('click', async (e) => {
     // язык push-уведомлений тоже меняем
     if (last?.me.push) enablePush();
   } else if (b.dataset.act) {
+    if (b.dataset.confirm && !confirm(b.dataset.confirm)) return;
     const [kind, id, action] = b.dataset.act.split('|');
     await api('/api/staff/action', { token, kind, id, action });
     refresh();

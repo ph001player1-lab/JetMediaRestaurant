@@ -370,6 +370,11 @@ function staffAction(b) {
       if (b.action === 'paid' && x.items) Object.assign(x, { paidAt: Date.now(), paidBy: member.name });
       x.closed = Date.now();
     }
+  } else if (b.kind === 'order' && b.action === 'paid') {
+    // Оплачен один счёт стола; стол остаётся открытым, пока его не закроют
+    const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && !y.closed && y.status !== 'rejected');
+    if (!x) throw fail(400, 'bad action');
+    Object.assign(x, { paidAt: Date.now(), paidBy: member.name });
   } else if (b.kind === 'order' && (b.action === 'ack' || b.action === 'edit')) {
     const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && !y.closed && y.status !== 'rejected');
     if (!x) throw fail(400, 'bad action');
