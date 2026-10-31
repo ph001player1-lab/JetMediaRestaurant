@@ -208,8 +208,8 @@ const logout = async () => { await api('/api/admin/logout', 'POST'); location.hr
 
 let devices = [], rests = [], cur = null;
 
-document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => {
-  document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
+document.querySelectorAll('nav button[data-tab]').forEach((b) => (b.onclick = () => {
+  document.querySelectorAll('nav button[data-tab]').forEach((x) => x.classList.toggle('on', x === b));
   for (const id of ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'adminsTab', 'auditTab']) $(id).hidden = id !== b.dataset.tab;
   if (b.dataset.tab === 'adsTab') loadAds();
   if (b.dataset.tab === 'charTab') loadChars();
