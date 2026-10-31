@@ -54,6 +54,17 @@
     <thead><tr><th>Устройство</th><th>Статус</th><th>Заряд</th><th>Агент</th><th>Ресторан · стол</th><th>На связи</th><th></th></tr></thead>
     <tbody id="list"></tbody>
   </table></div>
+  <div class="form" style="display:block">
+    <b>Оповещения в Telegram</b> <span id="tgState" class="hint"></span>
+    <p class="hint" style="margin:6px 0">Бот пишет, если планшет пропал со связи больше чем на 3 минуты, вернулся, или приложение упало и перезапустилось.<br>
+      1) В Telegram откройте @BotFather → /newbot → придумайте имя → скопируйте токен. 2) Вставьте токен сюда и сохраните.
+      3) Откройте своего бота и нажмите «Start» (или добавьте бота в группу). 4) Нажмите «Найти чаты», затем «Тест».</p>
+    <input id="tgToken" type="password" placeholder="Токен бота" style="width:320px" autocomplete="off">
+    <button onclick="tg('/api/telegram', { token: $('tgToken').value })">Сохранить токен</button>
+    <button onclick="tg('/api/telegram/find')">Найти чаты</button>
+    <button onclick="tg('/api/telegram/test')">Тест</button>
+    <div id="tgChats" style="margin-top:6px"></div>
+  </div>
 </section>
 
 <section id="rest" hidden>
@@ -185,7 +196,8 @@ async function loadDevices() {
     return `<tr>
       <td>${esc(t.model)}<br><small>${esc(d.id)}</small></td>
       <td class="${d.online ? 'online' : 'offline'}">${d.online ? 'онлайн' : 'офлайн'}${d.pending ? ` · в очереди: ${d.pending}` : ''}
-        ${t.wifi ? `<br><small>Wi-Fi: ${esc(t.wifi)} · ${esc(t.rssi)} dBm</small>` : ''}</td>
+        ${t.wifi ? `<br><small>Wi-Fi: ${esc(t.wifi)} · ${esc(t.rssi)} dBm</small>` : ''}
+        ${d.events?.length ? `<br><small class="offline" title="${esc(d.events.map((e) => new Date(e.at).toLocaleString() + ' — ' + e.text).join('\n'))}">сбой ${new Date(d.events[0].at).toLocaleString()}: ${esc(d.events[0].text.slice(0, 60))}</small>` : ''}</td>
       <td>${t.battery ?? '—'}%${t.charging ? ' ⚡' : ''}</td>
       <td>${esc(t.version)}</td>
       <td><select onchange="assign(${i}, this.value)">${placeOptions(d)}</select><br><small>${esc(t.url || 'экран статуса')}</small></td>
@@ -520,6 +532,21 @@ $('chars').onclick = async (e) => {
     loadChars();
   }
 };
+
+// ---------- Telegram
+
+async function tg(path, body) {
+  if (body && 'token' in body && !body.token && !confirm('Токен пустой — отключить оповещения?')) return;
+  const out = await api(path, body || path !== '/api/telegram' ? 'POST' : 'GET', body);
+  if (out.error) return alert(out.error);
+  if (path === '/api/telegram/test') alert('Отправлено — проверьте Telegram');
+  $('tgToken').value = '';
+  $('tgState').textContent = out.connected ? `— бот @${out.bot}` : '— не настроено';
+  $('tgChats').innerHTML = out.chats.length
+    ? 'Получатели: ' + out.chats.map((c) => `${esc(c.name)} <button onclick="tg('/api/telegram/remove', { id: ${Number(c.id)} })">×</button>`).join(' ')
+    : (out.connected ? '<small>Получателей нет: напишите боту /start и нажмите «Найти чаты».</small>' : '');
+}
+tg('/api/telegram');
 
 loadRests().then(loadDevices);
 setInterval(loadDevices, 5000);

@@ -10,6 +10,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createVapidKeys, sendPush } from './push.mjs';
 import { fetchMenu, POS_VENDORS } from './menu-sources.mjs';
+import { tgApi, tgSend, tgFindChats } from './telegram.mjs';
 
 const PORT = 3000;
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -18,6 +19,7 @@ const PASS = process.env.ADMIN_PASSWORD || 'admin';
 const DEVICE_KEY = process.env.DEVICE_KEY || '';
 const PUBLIC_URL = process.env.PUBLIC_URL || 'https://app.jetmedia.dev';
 const ONLINE_MS = 45_000;
+const OFFLINE_ALERT_MS = 3 * 60_000; // столько минут без связи — пишем администратору в Telegram
 const KEEP_MS = 7 * 24 * 3600_000;
 const REMIND_MS = 45_000;
 const MAX_REMINDERS = 5;
@@ -79,6 +81,7 @@ db.ads ??= [];
 db.characters ??= [];
 db.pending ??= {};
 db.stats ??= {};
+db.telegram ??= { token: '', bot: '', chats: [] };
 db.vapid ??= createVapidKeys();
 
 let saveTimer;
@@ -149,12 +152,77 @@ function devicePoll(b, q, req) {
     throw fail(403, 'bad device key');
   }
   const d = (db.devices[b.id] ??= { id: b.id, firstSeen: Date.now(), queue: [] });
+  if (d.offlineAlert) {
+    tgAlert(`🟢 ${deviceName(d)}: снова на связи (не было ${Math.round((Date.now() - d.lastSeen) / 60_000)} мин)`);
+    d.offlineAlert = 0;
+  }
+  // Сбои, после которых агент перезапустился сам: падение, зависание, нехватка памяти
+  for (const e of (Array.isArray(b.events) ? b.events : []).slice(0, 5)) {
+    const text = String(e).slice(0, 300);
+    d.events = [{ at: Date.now(), text }, ...(d.events || [])].slice(0, 10);
+    tgAlert(`⚠️ ${deviceName(d)}: ${text}`);
+  }
   d.telemetry = b.telemetry || {};
   d.lastSeen = Date.now();
   d.ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   const commands = d.queue.splice(0);
   save();
   return { commands };
+}
+
+// Сторож агента не смог поднять приложение — сообщает отдельно (не чаще раза в 10 минут)
+function deviceAlert(b) {
+  const d = db.devices[b.id];
+  if (!d) throw fail(404, 'unknown device');
+  if (Date.now() - (d.alertAt || 0) < 10 * 60_000) return {};
+  d.alertAt = Date.now();
+  const text = String(b.text || 'ошибка').slice(0, 300);
+  d.events = [{ at: Date.now(), text }, ...(d.events || [])].slice(0, 10);
+  save();
+  tgAlert(`🔴 ${deviceName(d)}: ${text}`);
+  return {};
+}
+
+// ---------- Оповещения в Telegram
+
+const tgAlert = (text) => tgSend(db.telegram, text);
+const clock = (ts) => new Date(ts).toLocaleString('ru-RU', { timeZone: 'Asia/Bangkok', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+function deviceName(d) {
+  const r = db.restaurants[d.restaurantId];
+  const place = d.role === 'entrance' ? 'вход' : d.table ? `стол ${d.table}` : 'без стола';
+  return `${r ? r.name : 'Без ресторана'} · ${place} (${d.id})`;
+}
+
+// Раз в минуту: устройства, пропавшие больше чем на 3 минуты, — одним сообщением
+setInterval(() => {
+  const now = Date.now();
+  const lost = Object.values(db.devices).filter((d) => d.lastSeen && !d.offlineAlert && now - d.lastSeen > OFFLINE_ALERT_MS);
+  if (!lost.length) return;
+  for (const d of lost) d.offlineAlert = now;
+  save();
+  tgAlert('🔴 Нет связи с устройствами:\n' + lost.map((d) => {
+    const t = d.telemetry || {};
+    const low = t.battery <= 5 && !t.charging ? ', вероятно, сел аккумулятор' : '';
+    return `• ${deviceName(d)} — с ${clock(d.lastSeen)}, заряд ${t.battery ?? '?'}%${low}`;
+  }).join('\n'));
+}, 60_000);
+
+const tgPublic = () => ({ bot: db.telegram.bot, connected: !!db.telegram.token, chats: db.telegram.chats });
+
+async function telegramAdmin(method, p, b) {
+  const tg = db.telegram;
+  if (method === 'GET') return tgPublic();
+  if (p === '/api/telegram') {
+    const token = String(b.token || '').trim();
+    const me = token ? await tgApi(token, 'getMe') : null;
+    Object.assign(tg, { token, bot: me ? me.username : '', chats: token === tg.token ? tg.chats : [] });
+  }
+  if (p === '/api/telegram/find') await tgFindChats(tg);
+  if (p === '/api/telegram/test') await tgSend(tg, '✅ JET MEDIA: тестовое сообщение. Оповещения об устройствах будут приходить сюда.', true);
+  if (p === '/api/telegram/remove') tg.chats = tg.chats.filter((c) => c.id !== b.id);
+  save();
+  return tgPublic();
 }
 
 // ---------- Гость за столом (устройство определяется по ?d=<id>)
@@ -672,6 +740,7 @@ function cleanStaff(list) {
 }
 
 function admin(method, p, b) {
+  if (p.startsWith('/api/telegram') && (method === 'GET' || method === 'POST')) return telegramAdmin(method, p, b);
   if (method === 'GET' && p === '/api/pending') {
     // Ожидающие подтверждения за последние сутки
     return Object.values(db.pending).filter((d) => Date.now() - d.lastSeen < 864e5);
@@ -766,6 +835,7 @@ function admin(method, p, b) {
 
 const PUBLIC = {
   'POST /api/device/poll': devicePoll,
+  'POST /api/device/alert': deviceAlert,
   'GET /api/guest/state': guestState,
   'POST /api/guest/call': guestCall,
   'POST /api/guest/order': guestOrder,

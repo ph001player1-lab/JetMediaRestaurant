@@ -2,7 +2,10 @@ package com.jetmedia.agent;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.AlertDialog;
+import android.app.ApplicationExitInfo;
+import android.content.Context;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Intent;
@@ -34,6 +37,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -46,11 +50,13 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -77,7 +83,7 @@ public class MainActivity extends Activity {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Runnable retryLoad = this::load;
     private long offlineSince, lastPreferCheck;
-    private boolean showingOffline;
+    private boolean showingOffline, resumed;
     private TextToSpeech tts;
     private DevicePolicyManager dpm;
     private ComponentName admin;
@@ -89,6 +95,13 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        // Любая ошибка в коде — не окно «Приложение остановлено», а тихий перезапуск через 2 секунды
+        Thread.setDefaultUncaughtExceptionHandler((thread, e) -> {
+            Watchdog.note(this, "приложение упало: " + String.valueOf(e).replace('\n', ' ') + " — перезапущено");
+            Watchdog.restartSoon(this);
+            android.os.Process.killProcess(android.os.Process.myPid());
+            System.exit(10);
+        });
         dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
         admin = new ComponentName(this, AdminReceiver.class);
         prefs = getSharedPreferences("jet", MODE_PRIVATE);
@@ -110,6 +123,16 @@ public class MainActivity extends Activity {
                 handler.removeCallbacks(retryLoad);
                 handler.postDelayed(retryLoad, 10000);
             }
+
+            // Движок страницы упал или его выгрузили из-за памяти — перезапускаем приложение целиком
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                Watchdog.note(MainActivity.this, detail.didCrash() ? "страница (WebView) упала — перезапущено"
+                        : "системе не хватило памяти для страницы — перезапущено");
+                Watchdog.restartSoon(MainActivity.this);
+                android.os.Process.killProcess(android.os.Process.myPid());
+                return true;
+            }
         });
 
         // Голос ИИ-персонажа: страница вызывает JetAgent.speak(...), по окончании фразы — jetSpeechDone()
@@ -129,6 +152,8 @@ public class MainActivity extends Activity {
         setContentView(root);
 
         if (isOwner()) applyPolicies();
+        collectEvents();
+        Watchdog.schedule(this, 60_000);
         load();
         schedulePoll();
         // Сеть появилась, а на экране заглушка «Нет связи» — сразу загружаем страницу, не ждём повтора
@@ -150,8 +175,17 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
+        Watchdog.beat(this);
+        Watchdog.pause(this, 0);
         hideBars();
         if (isOwner()) startLockTask();
+    }
+
+    @Override
+    protected void onPause() {
+        resumed = false;
+        super.onPause();
     }
 
     @Override
@@ -235,19 +269,61 @@ public class MainActivity extends Activity {
                 + "<p style='opacity:.7'>Пожалуйста, позовите официанта жестом · Please wave to the waiter</p></body></html>";
     }
 
-    private String server() {
+    private String server() { return server(prefs); }
+
+    private String deviceId() { return deviceId(this, prefs); }
+
+    static String server(SharedPreferences prefs) {
         String s = prefs.getString("server", "");
         return s.isEmpty() ? DEFAULT_SERVER : s;
     }
 
     // Серийный номер передаёт provision.ps1; если его нет — ANDROID_ID
-    private String deviceId() {
+    static String deviceId(Context c, SharedPreferences prefs) {
         String id = prefs.getString("serial", "");
-        return id.isEmpty() ? Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID) : id;
+        return id.isEmpty() ? Settings.Secure.getString(c.getContentResolver(), Settings.Secure.ANDROID_ID) : id;
+    }
+
+    // Что случилось до этого запуска: записи сторожа и причины завершения из Android 11+.
+    // Уходят на сервер со следующим опросом, сервер пишет администратору в Telegram.
+    private void collectEvents() {
+        try {
+            JSONArray events = new JSONArray(prefs.getString("events", "[]"));
+            File note = new File(getFilesDir(), "note");
+            if (note.exists()) {
+                for (String line : new String(Files.readAllBytes(note.toPath()), StandardCharsets.UTF_8).split("\n")) {
+                    if (!line.isEmpty()) events.put(line);
+                }
+                note.delete();
+            }
+            if (Build.VERSION.SDK_INT >= 30) {
+                long seen = prefs.getLong("exitSeen", 0);
+                for (ApplicationExitInfo x : getSystemService(ActivityManager.class).getHistoricalProcessExitReasons(null, 0, 5)) {
+                    String why = exitReason(x.getReason());
+                    if (why == null || x.getTimestamp() <= seen || !getPackageName().equals(x.getProcessName())) continue;
+                    events.put(why + (x.getDescription() != null ? ": " + x.getDescription() : ""));
+                }
+                prefs.edit().putLong("exitSeen", System.currentTimeMillis()).apply();
+            }
+            prefs.edit().putString("events", events.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
+    private static String exitReason(int reason) {
+        switch (reason) {
+            case ApplicationExitInfo.REASON_ANR: return "приложение зависло (ANR)";
+            case ApplicationExitInfo.REASON_CRASH: return "приложение упало";
+            case ApplicationExitInfo.REASON_CRASH_NATIVE: return "приложение упало (native)";
+            case ApplicationExitInfo.REASON_LOW_MEMORY: return "системе не хватило памяти — приложение выгружено";
+            case ApplicationExitInfo.REASON_INITIALIZATION_FAILURE: return "ошибка запуска приложения";
+            case ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE: return "приложение перегрузило планшет";
+            default: return null;
+        }
     }
 
     // Раз в 15 секунд: отправить телеметрию, получить и выполнить команды
     private void schedulePoll() {
+        if (resumed) Watchdog.beat(this); // отметка для сторожа: киоск на экране и главный поток жив
         io.execute(this::pollServer);
         handler.postDelayed(this::schedulePoll, POLL_MS);
     }
@@ -269,7 +345,9 @@ public class MainActivity extends Activity {
             t.put("version", BuildConfig.VERSION_NAME).put("model", Build.MODEL)
                     .put("android", Build.VERSION.RELEASE).put("owner", isOwner())
                     .put("url", prefs.getString("url", ""));
-            JSONObject body = new JSONObject().put("id", deviceId()).put("key", prefs.getString("enroll", "")).put("telemetry", t);
+            String events = prefs.getString("events", "[]");
+            JSONObject body = new JSONObject().put("id", deviceId()).put("key", prefs.getString("enroll", ""))
+                    .put("telemetry", t).put("events", new JSONArray(events));
 
             HttpURLConnection c = (HttpURLConnection) new URL(server() + "/api/device/poll").openConnection();
             c.setConnectTimeout(10000);
@@ -278,6 +356,7 @@ public class MainActivity extends Activity {
             c.setRequestProperty("Content-Type", "application/json");
             c.getOutputStream().write(body.toString().getBytes(StandardCharsets.UTF_8));
             JSONArray commands = new JSONObject(read(c.getInputStream())).optJSONArray("commands");
+            if (events.equals(prefs.getString("events", "[]"))) prefs.edit().remove("events").apply();
             for (int i = 0; commands != null && i < commands.length(); i++) {
                 JSONObject cmd = commands.getJSONObject(i);
                 runOnUiThread(() -> execute(cmd));
@@ -484,6 +563,7 @@ public class MainActivity extends Activity {
         String[] items = { "Открыть настройки", "Перезагрузить страницу", "Снять владельца устройства" };
         new AlertDialog.Builder(this).setTitle("JET MEDIA — сервис").setItems(items, (d, which) -> {
             if (which == 0) {
+                Watchdog.pause(this, 15); // сторож не вернёт киоск, пока техник в настройках
                 stopLockTask();
                 startActivity(new Intent(Settings.ACTION_SETTINGS));
             } else if (which == 1) {
