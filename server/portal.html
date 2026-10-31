@@ -709,17 +709,14 @@ $('pvClose').onclick = () => { $('pvPanel').hidden = true; };
 // Фраза для прослушивания голоса и коды языков синтеза
 const VOICE_SAMPLE = { ru: 'Я вам рекомендую: борщ со сметаной.', en: 'I would recommend the borscht with sour cream.',
   th: 'แนะนำบอร์ชท์กับซาวร์ครีม', zh: '我向您推荐罗宋汤配酸奶油。' };
-const VOICE_LANG = { en: 'en-US', th: 'th-TH', ru: 'ru-RU', zh: 'zh-CN' };
-let chars = [], voices = { voices: {}, devices: [] }, eleven = { voices: [] };
+let chars = [], eleven = { voices: [] };
 
 async function loadChars() {
-  [chars, voices, eleven] = await Promise.all([api('/api/characters'), api('/api/voices'), api('/api/eleven')]);
+  [chars, eleven] = await Promise.all([api('/api/characters'), api('/api/eleven')]);
   if (!rests.length) rests = await api('/api/restaurants');
   $('elModel').value = eleven.model || 'eleven_v3';
   $('elState').textContent = eleven.error ? `— ошибка: ${eleven.error}` : !eleven.connected ? '— не подключено'
     : `— подключено, голосов в аккаунте: ${eleven.voices.length}` + (eleven.usage ? ` · использовано ${eleven.usage.used} из ${eleven.usage.limit} символов` : '');
-  const devOpts = voices.devices.map((d) => `<option value="${esc(d.id)}">${esc(d.place)}${d.online ? '' : ' — офлайн'}</option>`).join('')
-    || '<option value="">нет планшетов с агентом 0.1.9+</option>';
   $('chars').innerHTML = chars.map((c, i) => `<tr data-ci="${i}">
     <td><img src="${esc(c.images.idle)}" alt="" style="height:120px"></td>
     <td>${esc(Object.values(c.name || {}).join(' / '))}</td>
@@ -729,12 +726,7 @@ async function loadChars() {
           `<option value="${esc(v.id)}" ${c.voice?.eleven === v.id ? 'selected' : ''}>${esc(v.name)}${v.category === 'premade' ? ' (стандартный)' : ''}</option>`).join('')}</select>
         <select data-elang="1">${['ru', 'en', 'th', 'zh'].map((l) => `<option value="${l}">${l.toUpperCase()}</option>`).join('')}</select>
         <button data-eplay="1" title="Прослушать здесь, в браузере">▶</button></div>
-      <details style="margin-top:6px"><summary class="hint">Запасной голос планшета (без ElevenLabs или без интернета)</summary>
-        Прослушивать на: <select data-vdev="1">${devOpts}</select>
-        ${['ru', 'en', 'th', 'zh'].map((l) => `<div style="white-space:nowrap">${l.toUpperCase()}
-        <select data-vlang="${l}"><option value="">— по умолчанию —</option>${(voices.voices[l] || []).map((v) =>
-          `<option ${(c.voice?.names || {})[l] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
-        <button data-vplay="${l}" title="Прослушать на планшете">▶</button></div>`).join('')}</details>
+      <div class="hint" style="margin-top:6px">Без голоса ElevenLabs или без интернета персонаж молчит — гость видит только текст</div>
       <button data-vsave="1">Сохранить голос</button></td>
     <td><small class="hint">Только отмеченные рестораны видят персонажа в ЛК и на планшетах</small>
       ${rests.map((r) => `<label style="display:block;white-space:nowrap"><input type="checkbox" data-crest="${esc(r.id)}" style="width:auto"
@@ -756,7 +748,7 @@ $('charFile').onchange = async (e) => {
 
 $('chars').onclick = async (e) => {
   const row = e.target.closest('tr'), c = row && chars[row.dataset.ci];
-  const { vplay, vsave, eplay, csave } = e.target.dataset;
+  const { vsave, eplay, csave } = e.target.dataset;
   if (csave) {
     const list = [...row.querySelectorAll('[data-crest]:checked')].map((x) => x.dataset.crest);
     const r = await api(`/api/characters/${encodeURIComponent(c.id)}/access`, 'POST', { restaurants: list });
@@ -773,16 +765,8 @@ $('chars').onclick = async (e) => {
     if (r.error) return alert(r.error);
     return new Audio(r.url).play();
   }
-  if (vplay) {
-    const dev = row.querySelector('[data-vdev]').value;
-    if (!dev) return alert('Нет планшета для прослушивания: обновите агент на планшетах до 0.1.9');
-    const voice = row.querySelector(`[data-vlang="${vplay}"]`).value;
-    await command(dev, { type: 'say', text: VOICE_SAMPLE[vplay], lang: VOICE_LANG[vplay], voice, pitch: c.voice?.pitch || 1, rate: c.voice?.rate || 1 });
-    return alert('Отправлено: фраза прозвучит на планшете в течение 15 секунд');
-  }
   if (vsave) {
-    const names = Object.fromEntries([...row.querySelectorAll('[data-vlang]')].map((s) => [s.dataset.vlang, s.value]));
-    await api(`/api/characters/${encodeURIComponent(c.id)}/voice`, 'POST', { names, eleven: row.querySelector('[data-eleven]').value });
+    await api(`/api/characters/${encodeURIComponent(c.id)}/voice`, 'POST', { names: c.voice?.names || {}, eleven: row.querySelector('[data-eleven]').value });
     alert('Голос сохранён — планшеты подхватят его в течение 15 секунд');
     return loadChars();
   }

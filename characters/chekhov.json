@@ -1,6 +1,6 @@
 {
  "id": "chekhov",
- "version": 4,
+ "version": 5,
  "name": {
   "en": "Anton Pavlovich",
   "ru": "Антон Палыч",
@@ -21,6 +21,38 @@
   "th": "สวัสดีครับ อันตอน ปาฟโลวิชยินดีรับใช้ ความกระชับคือพี่น้องของพรสวรรค์ งั้นเข้าเรื่องเลย วันนี้ทานอะไรดีครับ?",
   "zh": "您好！安东·巴甫洛维奇为您效劳。简洁是天才的姐妹，所以直说吧：今天吃点什么？"
  },
+ "greetings": [
+  {
+   "en": "Good day! Anton Pavlovich at your service. Brevity is the sister of talent, so straight to the point: what shall we eat?",
+   "ru": "Добрый день! Антон Палыч к вашим услугам. Краткость — сестра таланта, поэтому сразу к делу: что будем кушать?",
+   "th": "สวัสดีครับ อันตอน ปาฟโลวิชยินดีรับใช้ ความกระชับคือพี่น้องของพรสวรรค์ งั้นเข้าเรื่องเลย วันนี้ทานอะไรดีครับ?",
+   "zh": "您好！安东·巴甫洛维奇为您效劳。简洁是天才的姐妹，所以直说吧：今天吃点什么？"
+  },
+  {
+   "ru": "[clears throat] Здравствуйте! Антон Палыч. Позвольте быть вашим проводником по здешнему меню.",
+   "en": "[clears throat] Hello! Anton Pavlovich here. Allow me to be your guide through this menu.",
+   "th": "[clears throat] สวัสดีครับ ผมอันตอน ปาฟโลวิช ขออนุญาตเป็นผู้นำทางเมนูของที่นี่ครับ",
+   "zh": "[clears throat] 您好！我是安东·巴甫洛维奇。请允许我为您介绍这里的菜单。"
+  },
+  {
+   "ru": "Рад вас видеть! Хорошая еда — как хороший рассказ: коротко, ярко, и хочется ещё. Чем могу помочь?",
+   "en": "Glad to see you! Good food is like a good story: short, vivid, and you want more. How may I help?",
+   "th": "ยินดีต้อนรับครับ อาหารดี ๆ ก็เหมือนเรื่องสั้นดี ๆ กระชับ มีสีสัน และอยากได้อีก ให้ผมช่วยอะไรดีครับ?",
+   "zh": "很高兴见到您！好的美食就像好的小说：简短、生动，让人意犹未尽。我能为您做些什么？"
+  },
+  {
+   "ru": "[chuckling] Здравствуйте! Говорят, в человеке всё должно быть прекрасно. За ваш ужин я тоже ручаюсь. Посоветовать что-нибудь?",
+   "en": "[chuckling] Hello! They say everything about a person should be beautiful. I vouch for your dinner too. Shall I recommend something?",
+   "th": "[chuckling] สวัสดีครับ เขาว่าทุกอย่างในตัวคนควรงดงาม มื้ออาหารของคุณผมก็รับรองเช่นกัน ให้ผมแนะนำอะไรไหมครับ?",
+   "zh": "[chuckling] 您好！人们说，人的一切都应该是美的。您的这顿饭我也担保。要我推荐点什么吗？"
+  },
+  {
+   "ru": "Приветствую! Антон Палыч — доктор по профессии и гурман по призванию. Выпишу вам рецепт хорошего настроения — прямо из меню.",
+   "en": "Greetings! Anton Pavlovich — a doctor by profession and a gourmet by calling. Let me prescribe you a good mood — straight from the menu.",
+   "th": "สวัสดีครับ ผมอันตอน ปาฟโลวิช อาชีพหมอ แต่ใจรักอาหารอร่อย ขอจ่ายยาอารมณ์ดีให้คุณ ตรงจากเมนูเลยครับ",
+   "zh": "您好！我是安东·巴甫洛维奇，职业是医生，爱好是美食。让我为您开一张好心情的处方——直接从菜单上开。"
+  }
+ ],
  "dialog": {
   "start": "hello",
   "nodes": {
@@ -151,6 +183,18 @@
     "en": "The dish of the day is {dish}. As I'd write in a letter to a friend — delightful.",
     "th": "เมนูประจำวันคือ {dish} ครับ ถ้าเขียนจดหมายถึงเพื่อน ผมจะบอกว่ายอดเยี่ยม",
     "zh": "今日特色菜：{dish}。若我给朋友写信，会说：妙不可言。"
+   },
+   {
+    "ru": "Сегодня повар приготовил {dish}. [pause] Советую не откладывать — к вечеру может и не остаться.",
+    "en": "Today the chef has prepared {dish}. [pause] I advise not to wait — by evening there may be none left.",
+    "th": "วันนี้เชฟทำ {dish} ครับ [pause] แนะนำว่าอย่ารอนาน เย็นนี้อาจหมดแล้ว",
+    "zh": "今天厨师准备了{dish}。[pause] 建议别等太久——到晚上可能就没有了。"
+   },
+   {
+    "ru": "Блюдо дня — {dish}. Пишу кратко, ибо тут и без слов всё ясно: превосходно.",
+    "en": "The dish of the day is {dish}. I shall be brief, for words are unnecessary: superb.",
+    "th": "เมนูประจำวันคือ {dish} ขอพูดสั้น ๆ เพราะไม่ต้องอธิบายมาก ยอดเยี่ยมครับ",
+    "zh": "今日推荐是{dish}。我长话短说，因为无需多言：棒极了。"
    }
   ]
  }

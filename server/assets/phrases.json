@@ -1,0 +1,198 @@
+{
+ "chekhov": {
+  "greetings": [
+   {
+    "en": "Good day! Anton Pavlovich at your service. Brevity is the sister of talent, so straight to the point: what shall we eat?",
+    "ru": "Добрый день! Антон Палыч к вашим услугам. Краткость — сестра таланта, поэтому сразу к делу: что будем кушать?",
+    "th": "สวัสดีครับ อันตอน ปาฟโลวิชยินดีรับใช้ ความกระชับคือพี่น้องของพรสวรรค์ งั้นเข้าเรื่องเลย วันนี้ทานอะไรดีครับ?",
+    "zh": "您好！安东·巴甫洛维奇为您效劳。简洁是天才的姐妹，所以直说吧：今天吃点什么？"
+   },
+   {
+    "ru": "[clears throat] Здравствуйте! Антон Палыч. Позвольте быть вашим проводником по здешнему меню.",
+    "en": "[clears throat] Hello! Anton Pavlovich here. Allow me to be your guide through this menu.",
+    "th": "[clears throat] สวัสดีครับ ผมอันตอน ปาฟโลวิช ขออนุญาตเป็นผู้นำทางเมนูของที่นี่ครับ",
+    "zh": "[clears throat] 您好！我是安东·巴甫洛维奇。请允许我为您介绍这里的菜单。"
+   },
+   {
+    "ru": "Рад вас видеть! Хорошая еда — как хороший рассказ: коротко, ярко, и хочется ещё. Чем могу помочь?",
+    "en": "Glad to see you! Good food is like a good story: short, vivid, and you want more. How may I help?",
+    "th": "ยินดีต้อนรับครับ อาหารดี ๆ ก็เหมือนเรื่องสั้นดี ๆ กระชับ มีสีสัน และอยากได้อีก ให้ผมช่วยอะไรดีครับ?",
+    "zh": "很高兴见到您！好的美食就像好的小说：简短、生动，让人意犹未尽。我能为您做些什么？"
+   },
+   {
+    "ru": "[chuckling] Здравствуйте! Говорят, в человеке всё должно быть прекрасно. За ваш ужин я тоже ручаюсь. Посоветовать что-нибудь?",
+    "en": "[chuckling] Hello! They say everything about a person should be beautiful. I vouch for your dinner too. Shall I recommend something?",
+    "th": "[chuckling] สวัสดีครับ เขาว่าทุกอย่างในตัวคนควรงดงาม มื้ออาหารของคุณผมก็รับรองเช่นกัน ให้ผมแนะนำอะไรไหมครับ?",
+    "zh": "[chuckling] 您好！人们说，人的一切都应该是美的。您的这顿饭我也担保。要我推荐点什么吗？"
+   },
+   {
+    "ru": "Приветствую! Антон Палыч — доктор по профессии и гурман по призванию. Выпишу вам рецепт хорошего настроения — прямо из меню.",
+    "en": "Greetings! Anton Pavlovich — a doctor by profession and a gourmet by calling. Let me prescribe you a good mood — straight from the menu.",
+    "th": "สวัสดีครับ ผมอันตอน ปาฟโลวิช อาชีพหมอ แต่ใจรักอาหารอร่อย ขอจ่ายยาอารมณ์ดีให้คุณ ตรงจากเมนูเลยครับ",
+    "zh": "您好！我是安东·巴甫洛维奇，职业是医生，爱好是美食。让我为您开一张好心情的处方——直接从菜单上开。"
+   }
+  ],
+  "recommend": [
+   {
+    "ru": "Я искренне посоветовал бы Вам {dish}.",
+    "en": "I would sincerely recommend {dish}.",
+    "th": "ผมขอแนะนำ {dish} ด้วยความจริงใจครับ",
+    "zh": "我真诚地向您推荐{dish}。"
+   },
+   {
+    "ru": "Позвольте рекомендовать Вам {dish} — уверяю, не пожалеете.",
+    "en": "Allow me to recommend {dish} — I assure you, you won't regret it.",
+    "th": "ขออนุญาตแนะนำ {dish} ครับ รับรองว่าไม่ผิดหวัง",
+    "zh": "请允许我向您推荐{dish}——保证您不会后悔。"
+   },
+   {
+    "ru": "Смею предложить {dish}. Вещь, достойная отдельного рассказа.",
+    "en": "May I suggest {dish}? It deserves a story of its own.",
+    "th": "ขอเสนอ {dish} ครับ อร่อยจนน่าเขียนเป็นเรื่องสั้นเลย",
+    "zh": "冒昧推荐{dish}，值得专门写一篇小说。"
+   },
+   {
+    "ru": "Будь я на Вашем месте, непременно заказал бы {dish}.",
+    "en": "Were I in your place, I would certainly order {dish}.",
+    "th": "ถ้าผมเป็นคุณ ผมจะสั่ง {dish} แน่นอนครับ",
+    "zh": "如果我是您，一定会点{dish}。"
+   },
+   {
+    "ru": "Рекомендую {dish}. Кратко, но от всего сердца.",
+    "en": "I recommend {dish}. Briefly, but from the heart.",
+    "th": "แนะนำ {dish} ครับ สั้น ๆ แต่จากใจ",
+    "zh": "推荐{dish}。言简意赅，发自内心。"
+   }
+  ],
+  "dayDish": [
+   {
+    "ru": "Сегодня наше изысканнейшее блюдо дня — {dish}.",
+    "en": "Today our most exquisite dish of the day is {dish}.",
+    "th": "วันนี้เมนูประจำวันสุดประณีตของเราคือ {dish} ครับ",
+    "zh": "今天我们最精致的每日特色菜是{dish}。"
+   },
+   {
+    "ru": "Обратите внимание: сегодня у нас {dish}. Повар превзошёл самого себя.",
+    "en": "Do take note: today we have {dish}. The chef has outdone himself.",
+    "th": "ขอแนะนำเมนูประจำวัน {dish} ครับ วันนี้เชฟทำได้เยี่ยมมาก",
+    "zh": "请留意：今天有{dish}，主厨今天超常发挥。"
+   },
+   {
+    "ru": "Блюдо дня — {dish}. Как написал бы я в письме к другу: восхитительно.",
+    "en": "The dish of the day is {dish}. As I'd write in a letter to a friend — delightful.",
+    "th": "เมนูประจำวันคือ {dish} ครับ ถ้าเขียนจดหมายถึงเพื่อน ผมจะบอกว่ายอดเยี่ยม",
+    "zh": "今日特色菜：{dish}。若我给朋友写信，会说：妙不可言。"
+   },
+   {
+    "ru": "Сегодня повар приготовил {dish}. [pause] Советую не откладывать — к вечеру может и не остаться.",
+    "en": "Today the chef has prepared {dish}. [pause] I advise not to wait — by evening there may be none left.",
+    "th": "วันนี้เชฟทำ {dish} ครับ [pause] แนะนำว่าอย่ารอนาน เย็นนี้อาจหมดแล้ว",
+    "zh": "今天厨师准备了{dish}。[pause] 建议别等太久——到晚上可能就没有了。"
+   },
+   {
+    "ru": "Блюдо дня — {dish}. Пишу кратко, ибо тут и без слов всё ясно: превосходно.",
+    "en": "The dish of the day is {dish}. I shall be brief, for words are unnecessary: superb.",
+    "th": "เมนูประจำวันคือ {dish} ขอพูดสั้น ๆ เพราะไม่ต้องอธิบายมาก ยอดเยี่ยมครับ",
+    "zh": "今日推荐是{dish}。我长话短说，因为无需多言：棒极了。"
+   }
+  ]
+ },
+ "masha": {
+  "greetings": [
+   {
+    "en": "Hi! I'm Masha! I know all the yummiest things here — shall I help you choose?",
+    "ru": "Привет! Я Маша! Я знаю здесь всё самое вкусное — помочь выбрать?",
+    "th": "สวัสดีค่ะ! หนูชื่อมาช่า! หนูรู้ว่าที่นี่อะไรอร่อยที่สุด — ให้หนูช่วยเลือกไหมคะ?",
+    "zh": "你好！我是玛莎！这里最好吃的我都知道——要我帮你选吗？"
+   },
+   {
+    "ru": "[giggles] Приветик! Я Маша! Давайте я помогу вам выбрать что-нибудь вкусненькое?",
+    "en": "[giggles] Hi there! I'm Masha! Shall I help you pick something yummy?",
+    "th": "[giggles] สวัสดีค่ะ หนูชื่อมาช่า ให้หนูช่วยเลือกของอร่อย ๆ ไหมคะ?",
+    "zh": "[giggles] 你好呀！我是玛莎！要我帮你挑点好吃的吗？"
+   },
+   {
+    "ru": "[excited] Ура, гости! Я Маша! Я тут всё-всё попробовала и знаю, что самое вкусное!",
+    "en": "[excited] Yay, guests! I'm Masha! I've tried absolutely everything here and I know what's the yummiest!",
+    "th": "[excited] เย้ มีแขกมา! หนูชื่อมาช่า หนูชิมมาหมดแล้ว รู้ว่าอะไรอร่อยที่สุดค่ะ!",
+    "zh": "[excited] 太好了，有客人来啦！我是玛莎！这里的东西我全都尝过，我知道什么最好吃！"
+   },
+   {
+    "ru": "Здравствуйте! Меня зовут Маша. [whispering] Хотите, открою секрет, что тут самое вкусное?",
+    "en": "Hello! My name is Masha. [whispering] Want me to tell you a secret about the yummiest thing here?",
+    "th": "สวัสดีค่ะ หนูชื่อมาช่า [whispering] อยากรู้ความลับไหมคะ ว่าอะไรอร่อยที่สุดที่นี่?",
+    "zh": "您好！我叫玛莎。[whispering] 想知道这里最好吃的秘密吗？"
+   },
+   {
+    "ru": "[playful] Привет-привет! Это я, Маша! Ну что, будем выбирать вкусняшки?",
+    "en": "[playful] Hi-hi! It's me, Masha! So, shall we pick some treats?",
+    "th": "[playful] หวัดดี ๆ ค่ะ หนูเองมาช่า! มาเลือกของอร่อยกันไหมคะ?",
+    "zh": "[playful] 嗨嗨！是我，玛莎！我们来挑好吃的吧？"
+   }
+  ],
+  "recommend": [
+   {
+    "ru": "Я вам рекомендую: {dish}!",
+    "en": "I recommend {dish}!",
+    "th": "หนูแนะนำ {dish} ค่ะ!",
+    "zh": "我推荐你：{dish}！"
+   },
+   {
+    "ru": "Ой, а попробуйте {dish}! Это очень-очень вкусно!",
+    "en": "Ooh, try {dish}! It's super-duper tasty!",
+    "th": "ลอง {dish} ดูสิคะ! อร่อยมาก ๆ เลยค่ะ!",
+    "zh": "尝尝{dish}吧！超级超级好吃！"
+   },
+   {
+    "ru": "Я знаю секрет: {dish} — самое вкусное!",
+    "en": "I know a secret: {dish} is the yummiest!",
+    "th": "หนูรู้ความลับนะคะ {dish} อร่อยที่สุดเลยค่ะ!",
+    "zh": "告诉你一个秘密：{dish}最好吃！"
+   },
+   {
+    "ru": "Моё любимое — {dish}! Закажем?",
+    "en": "My favourite is {dish}! Shall we order it?",
+    "th": "ของโปรดหนูคือ {dish} ค่ะ! สั่งกันไหมคะ?",
+    "zh": "我最喜欢{dish}！我们点吧？"
+   },
+   {
+    "ru": "[giggles] А я бы взяла {dish}! Вкуснотища!",
+    "en": "[giggles] I'd pick {dish}! So yummy!",
+    "th": "[giggles] หนูจะเลือก {dish} ค่ะ อร่อยสุด ๆ!",
+    "zh": "[giggles] 我会选{dish}！超级好吃！"
+   }
+  ],
+  "dayDish": [
+   {
+    "ru": "Сегодня самое-самое вкусное — {dish}!",
+    "en": "Today the yummiest thing is {dish}!",
+    "th": "วันนี้ที่อร่อยที่สุดคือ {dish} ค่ะ!",
+    "zh": "今天最最好吃的是{dish}！"
+   },
+   {
+    "ru": "Ура! Сегодня есть {dish} — блюдо дня!",
+    "en": "Hooray! Today we have {dish} — the dish of the day!",
+    "th": "เย้! วันนี้มี {dish} เป็นเมนูประจำวันค่ะ!",
+    "zh": "太好了！今天的每日特色菜是{dish}！"
+   },
+   {
+    "ru": "[excited] Сегодня блюдо дня — {dish}! Повар сказал, получилось ну очень вкусно!",
+    "en": "[excited] Today's dish of the day is {dish}! The chef said it turned out super tasty!",
+    "th": "[excited] เมนูประจำวันนี้คือ {dish} ค่ะ เชฟบอกว่าอร่อยมาก ๆ!",
+    "zh": "[excited] 今日推荐是{dish}！厨师说做得特别好吃！"
+   },
+   {
+    "ru": "Знаете, что сегодня особенное? {dish}! [giggles] Я уже попробовала кусочек!",
+    "en": "Guess what's special today? {dish}! [giggles] I already tried a little bite!",
+    "th": "รู้ไหมคะว่าวันนี้มีอะไรพิเศษ? {dish} ค่ะ! [giggles] หนูแอบชิมไปคำนึงแล้ว!",
+    "zh": "猜猜今天有什么特别的？{dish}！[giggles] 我已经偷偷尝了一小口！"
+   },
+   {
+    "ru": "Блюдо дня — {dish}! Давайте закажем, пока всё не съели!",
+    "en": "The dish of the day is {dish}! Let's order it before it's all gone!",
+    "th": "เมนูประจำวันคือ {dish} ค่ะ! รีบสั่งก่อนหมดนะคะ!",
+    "zh": "今日推荐是{dish}！趁还没卖完，快点吧！"
+   }
+  ]
+ }
+}

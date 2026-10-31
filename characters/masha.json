@@ -1,6 +1,6 @@
 {
  "id": "masha",
- "version": 4,
+ "version": 5,
  "name": {
   "en": "Masha",
   "ru": "Маша",
@@ -21,6 +21,38 @@
   "th": "สวัสดีค่ะ! หนูชื่อมาช่า! หนูรู้ว่าที่นี่อะไรอร่อยที่สุด — ให้หนูช่วยเลือกไหมคะ?",
   "zh": "你好！我是玛莎！这里最好吃的我都知道——要我帮你选吗？"
  },
+ "greetings": [
+  {
+   "en": "Hi! I'm Masha! I know all the yummiest things here — shall I help you choose?",
+   "ru": "Привет! Я Маша! Я знаю здесь всё самое вкусное — помочь выбрать?",
+   "th": "สวัสดีค่ะ! หนูชื่อมาช่า! หนูรู้ว่าที่นี่อะไรอร่อยที่สุด — ให้หนูช่วยเลือกไหมคะ?",
+   "zh": "你好！我是玛莎！这里最好吃的我都知道——要我帮你选吗？"
+  },
+  {
+   "ru": "[giggles] Приветик! Я Маша! Давайте я помогу вам выбрать что-нибудь вкусненькое?",
+   "en": "[giggles] Hi there! I'm Masha! Shall I help you pick something yummy?",
+   "th": "[giggles] สวัสดีค่ะ หนูชื่อมาช่า ให้หนูช่วยเลือกของอร่อย ๆ ไหมคะ?",
+   "zh": "[giggles] 你好呀！我是玛莎！要我帮你挑点好吃的吗？"
+  },
+  {
+   "ru": "[excited] Ура, гости! Я Маша! Я тут всё-всё попробовала и знаю, что самое вкусное!",
+   "en": "[excited] Yay, guests! I'm Masha! I've tried absolutely everything here and I know what's the yummiest!",
+   "th": "[excited] เย้ มีแขกมา! หนูชื่อมาช่า หนูชิมมาหมดแล้ว รู้ว่าอะไรอร่อยที่สุดค่ะ!",
+   "zh": "[excited] 太好了，有客人来啦！我是玛莎！这里的东西我全都尝过，我知道什么最好吃！"
+  },
+  {
+   "ru": "Здравствуйте! Меня зовут Маша. [whispering] Хотите, открою секрет, что тут самое вкусное?",
+   "en": "Hello! My name is Masha. [whispering] Want me to tell you a secret about the yummiest thing here?",
+   "th": "สวัสดีค่ะ หนูชื่อมาช่า [whispering] อยากรู้ความลับไหมคะ ว่าอะไรอร่อยที่สุดที่นี่?",
+   "zh": "您好！我叫玛莎。[whispering] 想知道这里最好吃的秘密吗？"
+  },
+  {
+   "ru": "[playful] Привет-привет! Это я, Маша! Ну что, будем выбирать вкусняшки?",
+   "en": "[playful] Hi-hi! It's me, Masha! So, shall we pick some treats?",
+   "th": "[playful] หวัดดี ๆ ค่ะ หนูเองมาช่า! มาเลือกของอร่อยกันไหมคะ?",
+   "zh": "[playful] 嗨嗨！是我，玛莎！我们来挑好吃的吧？"
+  }
+ ],
  "dialog": {
   "start": "hello",
   "nodes": {
@@ -125,6 +157,12 @@
     "en": "My favourite is {dish}! Shall we order it?",
     "th": "ของโปรดหนูคือ {dish} ค่ะ! สั่งกันไหมคะ?",
     "zh": "我最喜欢{dish}！我们点吧？"
+   },
+   {
+    "ru": "[giggles] А я бы взяла {dish}! Вкуснотища!",
+    "en": "[giggles] I'd pick {dish}! So yummy!",
+    "th": "[giggles] หนูจะเลือก {dish} ค่ะ อร่อยสุด ๆ!",
+    "zh": "[giggles] 我会选{dish}！超级好吃！"
    }
   ],
   "dayDish": [
@@ -139,6 +177,24 @@
     "en": "Hooray! Today we have {dish} — the dish of the day!",
     "th": "เย้! วันนี้มี {dish} เป็นเมนูประจำวันค่ะ!",
     "zh": "太好了！今天的每日特色菜是{dish}！"
+   },
+   {
+    "ru": "[excited] Сегодня блюдо дня — {dish}! Повар сказал, получилось ну очень вкусно!",
+    "en": "[excited] Today's dish of the day is {dish}! The chef said it turned out super tasty!",
+    "th": "[excited] เมนูประจำวันนี้คือ {dish} ค่ะ เชฟบอกว่าอร่อยมาก ๆ!",
+    "zh": "[excited] 今日推荐是{dish}！厨师说做得特别好吃！"
+   },
+   {
+    "ru": "Знаете, что сегодня особенное? {dish}! [giggles] Я уже попробовала кусочек!",
+    "en": "Guess what's special today? {dish}! [giggles] I already tried a little bite!",
+    "th": "รู้ไหมคะว่าวันนี้มีอะไรพิเศษ? {dish} ค่ะ! [giggles] หนูแอบชิมไปคำนึงแล้ว!",
+    "zh": "猜猜今天有什么特别的？{dish}！[giggles] 我已经偷偷尝了一小口！"
+   },
+   {
+    "ru": "Блюдо дня — {dish}! Давайте закажем, пока всё не съели!",
+    "en": "The dish of the day is {dish}! Let's order it before it's all gone!",
+    "th": "เมนูประจำวันคือ {dish} ค่ะ! รีบสั่งก่อนหมดนะคะ!",
+    "zh": "今日推荐是{dish}！趁还没卖完，快点吧！"
    }
   ]
  }

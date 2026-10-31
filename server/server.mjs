@@ -459,7 +459,7 @@ function avatarFor(r) {
   const { restaurants, ...pack } = c;
   return {
     ...pack, tts: !!(db.eleven.key && c.voice?.eleven), ...pick(a, ['speak', 'everyMin', 'durationSec', 'startWith', 'filters']),
-    greetings: own('greetings', Object.keys(c.greeting || {}).length ? [c.greeting] : []),
+    greetings: own('greetings', c.greetings),
     phrases: { recommend: own('recommend', c.phrases?.recommend), dayDish: own('dayDish', c.phrases?.dayDish) },
   };
 }
@@ -800,7 +800,7 @@ function managerGet(b, q) {
       views: views(a.id, r.id), scans: scans(a.id, r.id),
     })),
     characters: db.characters.filter((c) => charAllowed(c, r))
-      .map((c) => ({ id: c.id, name: c.name, image: c.images.idle, greeting: c.greeting, phrases: c.phrases })),
+      .map((c) => ({ id: c.id, name: c.name, image: c.images.idle, greetings: c.greetings, phrases: c.phrases })),
     themes: THEMES,
     devices: Object.values(db.devices).filter((d) => d.restaurantId === r.id).map((d) => ({
       id: d.id, entrance: d.role === 'entrance', table: d.table, online: Date.now() - d.lastSeen < ONLINE_MS,
@@ -998,11 +998,6 @@ function texts(o) {
   return out;
 }
 
-// Фраза-рекомендация: только языки, где есть {dish} — место, где персонаж называет блюдо
-function dishTexts(o) {
-  return Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {})
-    .filter(([l, v]) => LANG4.includes(l) && typeof v === 'string' && v.includes('{dish}')).map(([l, v]) => [l, v.trim().slice(0, 300)]));
-}
 const lineList = (v, clean) => (Array.isArray(v) ? v : []).map(clean).filter((g) => Object.keys(g).length).slice(0, MAX_LINES);
 
 function cleanAvatar(a, r) {
@@ -1011,7 +1006,7 @@ function cleanAvatar(a, r) {
   const lines = {};
   for (const [cid, L] of Object.entries(a.lines && typeof a.lines === 'object' ? a.lines : {})) {
     if (!charAllowed(db.characters.find((c) => c.id === cid), r)) continue;
-    const x = { greetings: lineList(L?.greetings, texts), recommend: lineList(L?.recommend, dishTexts), dayDish: lineList(L?.dayDish, dishTexts) };
+    const x = { greetings: lineList(L?.greetings, texts), recommend: lineList(L?.recommend, texts), dayDish: lineList(L?.dayDish, texts) };
     if (x.greetings.length || x.recommend.length || x.dayDish.length) lines[cid] = x;
   }
   return {
@@ -1098,7 +1093,10 @@ async function elevenAdmin(method, p, b) {
 const ttsBudget = new Map();
 async function guestTts(q) {
   const d = db.devices[q.d], r = d && db.restaurants[d.restaurantId];
-  const c = r && avatarFor(r), text = String(q.t || '').trim().slice(0, 400);
+  const c = r && avatarFor(r);
+  let text = String(q.t || '').trim().slice(0, 400);
+  // теги [..] понимает только eleven_v3 — для других моделей убираем, иначе их прочитают вслух
+  if (db.eleven.model !== 'eleven_v3') text = text.replace(/\s*\[[^\]]*\]/g, '').trim();
   if (!c?.tts || !text) throw fail(404, 'no cloud voice');
   if (!cachedTts(UPLOADS, c.voice.eleven, db.eleven.model, text).cached) {
     const hour = Math.floor(Date.now() / 3600e3), bud = ttsBudget.get(d.id);
@@ -1122,9 +1120,10 @@ function cleanCharacter(p) {
     voice: { pitch: Number(p.voice?.pitch) || 1, rate: Number(p.voice?.rate) || 1, names: voiceNames(p.voice?.names), eleven: String(p.voice?.eleven || '').slice(0, 64) },
     // Приветствие и варианты рекомендаций по умолчанию — ресторан может заменить их своими в ЛК.
     // Всё озвучивает ElevenLabs (готовый MP3 хранится на сервере, новая фраза озвучивается заново)
-    greeting: texts(p.greeting),
-    // { recommend: [{ru,en,th,zh}], dayDish: [...] }, {dish} — название блюда
-    phrases: Object.fromEntries(['recommend', 'dayDish'].map((k) => [k, lineList(p.phrases?.[k], dishTexts)])),
+    greetings: lineList(p.greetings?.length ? p.greetings : [p.greeting], texts),
+    // { recommend: [{ru,en,th,zh}], dayDish: [...] }; {dish} — где назвать блюдо (без него — в конце фразы).
+    // В тексте можно ставить теги ElevenLabs: [giggles], [whispering]… — гость их не видит
+    phrases: Object.fromEntries(['recommend', 'dayDish'].map((k) => [k, lineList(p.phrases?.[k], texts)])),
     dialog: p.dialog && typeof p.dialog === 'object' ? p.dialog : { start: 'hello', nodes: {} },
   };
 }
@@ -1597,6 +1596,33 @@ if (!db.migrations.charLines) {
     delete a.greetings;
   }
   db.migrations.charLines = Date.now();
+  save();
+}
+
+// Однократно: у Антона и Маши по 5 вариантов приветствий, рекомендаций и фраз про блюдо дня (assets/phrases.json).
+// Списки ресторана, совпадающие со старыми фразами пакета, очищаем — будут звучать новые.
+// Доступ: Антон — ресторану «Чехов», Маша — ещё и Veranda
+if (!db.migrations.phrases5) {
+  const defs = JSON.parse(fs.readFileSync(new URL('./assets/phrases.json', import.meta.url), 'utf8'));
+  const canon = (list) => JSON.stringify((list || []).map((o) => Object.fromEntries(Object.entries(o).sort())));
+  const restByName = (re) => Object.values(db.restaurants).filter((r) => re.test(r.name || '')).map((r) => r.id);
+  for (const c of db.characters) {
+    c.greetings ||= c.greeting && Object.keys(c.greeting).length ? [c.greeting] : [];
+    delete c.greeting;
+    const d = defs[c.id];
+    if (!d) continue;
+    const old = { greetings: c.greetings, recommend: c.phrases?.recommend, dayDish: c.phrases?.dayDish };
+    for (const r of Object.values(db.restaurants)) {
+      const L = r.avatar?.lines?.[c.id];
+      for (const k of ['greetings', 'recommend', 'dayDish']) if (L && canon(L[k]) === canon(old[k])) L[k] = [];
+    }
+    c.greetings = d.greetings;
+    c.phrases = { recommend: d.recommend, dayDish: d.dayDish };
+  }
+  const grant = (id, ids) => { const c = db.characters.find((x) => x.id === id); if (c) c.restaurants = [...new Set([...(c.restaurants || []), ...ids])]; };
+  grant('chekhov', restByName(/чехов|chekh/i));
+  grant('masha', restByName(/veranda|веранда/i));
+  db.migrations.phrases5 = Date.now();
   save();
 }
 
