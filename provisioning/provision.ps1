@@ -73,7 +73,8 @@ function Get-Devices {
 }
 
 function Inspect($s) {
-  $owner = [regex]::Match((Sh $s 'dumpsys device_policy'), '(?s)Device Owner:.*?admin=ComponentInfo\{([^/}]+)').Groups[1].Value
+  $ownerComp = [regex]::Match((Sh $s 'dumpsys device_policy'), '(?s)Device Owner:.*?admin=ComponentInfo\{([^}]+)\}').Groups[1].Value
+  $owner = ($ownerComp -split '/')[0]
   $info = [ordered]@{
     Serial   = $s
     Model    = Sh $s 'getprop ro.product.model'
@@ -81,9 +82,10 @@ function Inspect($s) {
     Accounts = [int][regex]::Match((Sh $s 'dumpsys account'), 'Accounts:\s*(\d+)').Groups[1].Value
     Users    = [regex]::Matches((Sh $s 'pm list users'), 'UserInfo\{').Count
     Owner    = $owner
+    OwnerComp = $ownerComp
   }
   $info.Problem = if ($owner -eq $Pkg) { '' }
-    elseif ($owner)         { "Уже есть владелец устройства: $owner. Снимите его в настройках того приложения (например, FreeKiosk) или сбросьте планшет к заводским." }
+    elseif ($owner)         { "Уже есть владелец устройства: $owner." }
     elseif ($info.Accounts) { "На планшете есть аккаунт. Сбросьте к заводским и при первой настройке не входите в Google." }
     elseif ($info.Users -gt 1) { "На планшете несколько пользователей. Удалите лишних или сбросьте к заводским." }
     else { '' }
@@ -103,9 +105,31 @@ function Write-Log($i, $result) {
   "$(Get-Date -Format s),$($i.Serial),$($i.Model),$($i.Android),""$result""" | Add-Content $Log -Encoding UTF8
 }
 
+# Чужой владелец устройства (например, FreeKiosk): пробуем снять его через ADB, FreeKiosk удаляем,
+# чтобы он не спорил с агентом за экран. Не вышло — подсказываем, как снять вручную.
+function Remove-OtherOwner($s, $i) {
+  if ($CheckOnly) { Say "  Владелец сейчас: $($i.Owner) — provision.cmd попробует снять его сам" Yellow; $i.Problem = ''; return $i }
+  Say "  Снимаю прежнего владельца устройства: $($i.Owner)..."
+  Sh $s "dpm remove-active-admin $($i.OwnerComp)" | Out-Null
+  $i = Inspect $s
+  if ($i.Owner -and $i.Owner -ne $Pkg) {
+    $i.Problem = "Не удалось снять владельца $($i.Owner) через ADB. " + $(if ($i.Owner -eq 'com.freekiosk') {
+      "В FreeKiosk: 5 раз нажмите секретную кнопку → PIN → «Remove Device Owner» (не «Exit Kiosk Mode»), затем запустите скрипт снова." } else {
+      "Снимите его в настройках того приложения или сбросьте планшет к заводским." })
+    return $i
+  }
+  if ($i.Owner -ne $Pkg -and (Sh $s "pm list packages com.freekiosk") -match 'com.freekiosk') {
+    Say "  Удаляю FreeKiosk..."
+    Sh $s "pm uninstall com.freekiosk" | Out-Null
+  }
+  Say "  Прежний владелец снят" Green
+  return $i
+}
+
 function Provision($s) {
   $i = Inspect $s
   Say "`n=== $($i.Serial) · $($i.Model) · Android $($i.Android) ===" Cyan
+  if ($i.Owner -and $i.Owner -ne $Pkg) { $i = Remove-OtherOwner $s $i }
   if ($i.Problem) { Say "  НЕ ГОТОВ: $($i.Problem)" Red; Write-Log $i "not ready: $($i.Problem)"; return }
   if ($CheckOnly) { Say "  Готов к настройке" Green; return }
   if (-not (Test-Path $AgentApk)) { Say "  Нет файла агента: $AgentApk" Red; return }
@@ -139,7 +163,7 @@ function Provision($s) {
   Write-Log $i "ok"
 }
 
-Say "JET MEDIA — подготовка планшетов. Версия скрипта: 31.10.2026" Cyan
+Say "JET MEDIA — подготовка планшетов. Версия скрипта: 31.10.2026-2" Cyan
 & $Adb start-server | Out-Null
 # Ключ регистрации: спрашиваем один раз и запоминаем рядом со скриптом.
 # Можно пропустить — тогда планшет появится в портале в «Новых устройствах» и его нужно добавить вручную.

@@ -604,6 +604,9 @@ function showTab(id) {
   if (id !== 'tWork') loadManager();
 }
 
+// Вкладка «Устройства» обновляется сама: статус связи и заряд — как в портале администратора
+setInterval(() => { if (!$('tDev').hidden && !document.hidden) loadManager(); }, 10000);
+
 async function loadManager() {
   mgr = await api(`/api/manager/restaurant?token=${encodeURIComponent(token)}`);
   renderManager();
