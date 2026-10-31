@@ -63,7 +63,11 @@ const DISPLAY = {
 };
 const DISPLAY_RANGE = { idleSec: [10, 600], slideSec: [3, 60], titleSize: [16, 80], textSize: [12, 48] };
 // ИИ-персонаж: как часто появляется в карусели, сколько держится, приветствия и подбор блюд по пожеланиям
-const AVATAR = { enabled: false, characterId: '', speak: true, everyMin: 3, durationSec: 20, startWith: true, greetings: [], filters: [] };
+// lines — фразы ресторана для каждого персонажа: { [id персонажа]: { greetings, recommend, dayDish } };
+// пустой список — говорит фразы из пакета персонажа
+const AVATAR = { enabled: false, characterId: '', speak: true, everyMin: 3, durationSec: 20, startWith: true, lines: {}, filters: [] };
+// Сколько вариантов фраз каждого вида может завести ресторан
+const MAX_LINES = 200;
 // Отметки блюд для подбора по особым пожеланиям
 // Где на слайде блок с QR-кодом и телефоном (4 ряда × 3 столбца) и какого он размера
 const QR_POS = ['top', 'upper', 'lower', 'bottom'].flatMap((row) => ['left', 'center', 'right'].map((col) => `${row}-${col}`));
@@ -195,6 +199,9 @@ function auditText(method, p, b) {
   if ((m = p.match(/^\/api\/ads\/([^/]+)$/))) return [`Реклама удалена: ${db.ads.find((a) => a.id === m[1])?.advertiser || m[1]}`];
   if (p === '/api/characters') return [`Персонаж загружен: ${b.id || ''}`];
   if ((m = p.match(/^\/api\/characters\/([^/]+)\/voice$/))) return [`Голос персонажа ${m[1]} изменён`];
+  if ((m = p.match(/^\/api\/characters\/([^/]+)\/access$/))) {
+    return [`Персонаж ${m[1]} доступен: ${(b.restaurants || []).map((id) => db.restaurants[id]?.name || id).join(', ') || 'никому'}`];
+  }
   if ((m = p.match(/^\/api\/characters\/([^/]+)$/))) return [`Персонаж удалён: ${m[1]}`];
   if (p === '/api/eleven') return [b.key ? 'ElevenLabs: ключ изменён' : 'ElevenLabs: настройки изменены'];
   if (p === '/api/eleven/preview') return null;
@@ -440,10 +447,21 @@ function qrRedirect(kind, id, rid, dev) {
 }
 
 // ИИ-персонаж ресторана: включён и выбран из библиотеки персонажей
+// Персонаж доступен ресторану, только если администратор разрешил его в портале
+const charAllowed = (c, r) => !!c && (c.restaurants || []).includes(r.id);
+
+// Персонаж для планшета: фразы ресторана, а где своих нет — из пакета персонажа
 function avatarFor(r) {
   const a = { ...AVATAR, ...r.avatar };
   const c = a.enabled && db.characters.find((x) => x.id === a.characterId);
-  return c ? { ...c, tts: !!(db.eleven.key && c.voice?.eleven), ...pick(a, ['speak', 'everyMin', 'durationSec', 'startWith', 'greetings', 'filters']) } : null;
+  if (!charAllowed(c, r)) return null;
+  const L = a.lines?.[c.id] || {}, own = (k, def) => (L[k]?.length ? L[k] : def || []);
+  const { restaurants, ...pack } = c;
+  return {
+    ...pack, tts: !!(db.eleven.key && c.voice?.eleven), ...pick(a, ['speak', 'everyMin', 'durationSec', 'startWith', 'filters']),
+    greetings: own('greetings', Object.keys(c.greeting || {}).length ? [c.greeting] : []),
+    phrases: { recommend: own('recommend', c.phrases?.recommend), dayDish: own('dayDish', c.phrases?.dayDish) },
+  };
 }
 
 // Показ слайда: реклама (как раньше), акция ресторана или появление ИИ-персонажа
@@ -770,7 +788,7 @@ function managerGet(b, q) {
   const { r } = managerSession(q.token);
   return {
     restaurant: {
-      name: r.name, tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
+      name: r.name, langs: r.langs || [], tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
       menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [], staffArchive: r.staffArchive || [],
       menuSource: publicSource(r.menuSource),
       display: { ...DISPLAY, ...r.display },
@@ -781,7 +799,8 @@ function managerGet(b, q) {
       id: a.id, title: a.title, advertiser: a.advertiser, image: a.image, link: a.link, phone: a.phone, ...qrPlace(a), ...framing(a),
       views: views(a.id, r.id), scans: scans(a.id, r.id),
     })),
-    characters: db.characters.map((c) => ({ id: c.id, name: c.name, image: c.images.idle, greeting: c.greeting, recorded: Object.keys(c.audio?.greeting || {}) })),
+    characters: db.characters.filter((c) => charAllowed(c, r))
+      .map((c) => ({ id: c.id, name: c.name, image: c.images.idle, greeting: c.greeting, phrases: c.phrases })),
     themes: THEMES,
     devices: Object.values(db.devices).filter((d) => d.restaurantId === r.id).map((d) => ({
       id: d.id, entrance: d.role === 'entrance', table: d.table, online: Date.now() - d.lastSeen < ONLINE_MS,
@@ -804,7 +823,7 @@ function managerSave(b) {
   if (Array.isArray(b.blockedAds)) r.blockedAds = b.blockedAds.map(String);
   if (b.menuSource) r.menuSource = cleanSource(b.menuSource, r.menuSource);
   if (b.display) r.display = cleanDisplay(b.display);
-  if (b.avatar) r.avatar = cleanAvatar(b.avatar);
+  if (b.avatar) r.avatar = cleanAvatar(b.avatar, r);
   if (Array.isArray(b.tables)) saveTables(r, b.tables);
   save();
   return {};
@@ -979,13 +998,26 @@ function texts(o) {
   return out;
 }
 
-function cleanAvatar(a) {
+// Фраза-рекомендация: только языки, где есть {dish} — место, где персонаж называет блюдо
+function dishTexts(o) {
+  return Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {})
+    .filter(([l, v]) => LANG4.includes(l) && typeof v === 'string' && v.includes('{dish}')).map(([l, v]) => [l, v.trim().slice(0, 300)]));
+}
+const lineList = (v, clean) => (Array.isArray(v) ? v : []).map(clean).filter((g) => Object.keys(g).length).slice(0, MAX_LINES);
+
+function cleanAvatar(a, r) {
   const num = (v, min, max, def) => Math.min(max, Math.max(min, Math.round(Number(v)) || def));
+  const id = String(a.characterId || '');
+  const lines = {};
+  for (const [cid, L] of Object.entries(a.lines && typeof a.lines === 'object' ? a.lines : {})) {
+    if (!charAllowed(db.characters.find((c) => c.id === cid), r)) continue;
+    const x = { greetings: lineList(L?.greetings, texts), recommend: lineList(L?.recommend, dishTexts), dayDish: lineList(L?.dayDish, dishTexts) };
+    if (x.greetings.length || x.recommend.length || x.dayDish.length) lines[cid] = x;
+  }
   return {
-    enabled: !!a.enabled, characterId: String(a.characterId || ''), speak: a.speak !== false,
+    enabled: !!a.enabled, characterId: charAllowed(db.characters.find((c) => c.id === id), r) ? id : '', speak: a.speak !== false,
     everyMin: num(a.everyMin, 1, 60, AVATAR.everyMin), durationSec: num(a.durationSec, 10, 180, AVATAR.durationSec),
-    startWith: a.startWith !== false,
-    greetings: (Array.isArray(a.greetings) ? a.greetings : []).map(texts).filter((g) => Object.keys(g).length).slice(0, 20),
+    startWith: a.startWith !== false, lines,
     filters: (Array.isArray(a.filters) ? a.filters : []).filter((f) => DISH_TAGS.includes(f)),
   };
 }
@@ -1088,17 +1120,11 @@ function cleanCharacter(p) {
     name: lines(p.name),
     images: { idle: storeDataUri(p.images.idle), talk: storeDataUri(p.images.talk || p.images.idle) },
     voice: { pitch: Number(p.voice?.pitch) || 1, rate: Number(p.voice?.rate) || 1, names: voiceNames(p.voice?.names), eleven: String(p.voice?.eleven || '').slice(0, 64) },
-    greeting: lines(p.greeting),
-    // Варианты рекомендаций в стиле персонажа: { recommend: [{ru,en,th,zh}], dayDish: [...] }, {dish} — название блюда
-    // У варианта может быть запись начала фразы (audio: { ru: MP3 }) — тогда после неё звучит только название блюда
-    phrases: Object.fromEntries(['recommend', 'dayDish'].map((k) => [k, (Array.isArray(p.phrases?.[k]) ? p.phrases[k] : []).slice(0, 20).map((o) => {
-      const text = Object.fromEntries(Object.entries(lines(o)).filter(([l, v]) => LANG4.includes(l) && typeof v === 'string' && v.includes('{dish}')).map(([l, v]) => [l, v.slice(0, 200)]));
-      const audio = Object.fromEntries(Object.entries(lines(o?.audio)).filter(([l, v]) => LANG4.includes(l) && v).map(([l, v]) => [l, storeDataUri(v)]));
-      return Object.keys(audio).length ? { ...text, audio } : text;
-    }).filter((o) => Object.keys(o).some((l) => l !== 'audio'))])),
-    // Записанное приветствие (MP3) по языкам: играет вместо синтеза; остальные фразы — синтез, как раньше
-    audio: { greeting: Object.fromEntries(Object.entries(lines(p.audio?.greeting))
-      .filter(([l, v]) => ['en', 'th', 'ru', 'zh'].includes(l) && v).map(([l, v]) => [l, storeDataUri(v)])) },
+    // Приветствие и варианты рекомендаций по умолчанию — ресторан может заменить их своими в ЛК.
+    // Всё озвучивает ElevenLabs (готовый MP3 хранится на сервере, новая фраза озвучивается заново)
+    greeting: texts(p.greeting),
+    // { recommend: [{ru,en,th,zh}], dayDish: [...] }, {dish} — название блюда
+    phrases: Object.fromEntries(['recommend', 'dayDish'].map((k) => [k, lineList(p.phrases?.[k], dishTexts)])),
     dialog: p.dialog && typeof p.dialog === 'object' ? p.dialog : { start: 'hello', nodes: {} },
   };
 }
@@ -1316,6 +1342,14 @@ function admin(method, p, b, me, q) {
     for (const l in voices) voices[l].sort();
     return { voices, devices };
   }
+  // Каким ресторанам доступен персонаж (остальные не видят его в ЛК, планшеты его не показывают)
+  const am2 = p.match(/^\/api\/characters\/([^/]+)\/access$/);
+  const ac = am2 && db.characters.find((x) => x.id === decodeURIComponent(am2[1]));
+  if (method === 'POST' && ac) {
+    ac.restaurants = [...new Set((Array.isArray(b.restaurants) ? b.restaurants : []).map(String))].filter((id) => db.restaurants[id]);
+    save();
+    return ac;
+  }
   let vm = p.match(/^\/api\/characters\/([^/]+)\/voice$/);
   const vc = vm && db.characters.find((x) => x.id === decodeURIComponent(vm[1]));
   if (method === 'POST' && vc) {
@@ -1329,6 +1363,7 @@ function admin(method, p, b, me, q) {
     const prev = db.characters.find((x) => x.id === c.id);
     if (prev && !Object.keys(c.voice.names).length) c.voice.names = prev.voice?.names || {};
     if (prev && !c.voice.eleven) c.voice.eleven = prev.voice?.eleven || '';
+    c.restaurants = prev?.restaurants || []; // доступ ресторанам выдаётся отдельно
     db.characters = db.characters.filter((x) => x.id !== c.id).concat(c);
     save();
     return c;
@@ -1544,6 +1579,24 @@ if (!db.migrations.chekhoffRu) {
 if (!db.migrations.promoModes) {
   for (const r of Object.values(db.restaurants)) { r.promos = cleanPromos(r.promos || []); syncPromoItems(r); }
   db.migrations.promoModes = Date.now();
+  save();
+}
+
+// Однократно: записанные приветствия (MP3) убраны — всё озвучивает ElevenLabs; фразы ресторана — отдельно для
+// каждого персонажа; персонаж доступен тем ресторанам, где уже выбран (остальным — по разрешению администратора)
+if (!db.migrations.charLines) {
+  for (const c of db.characters) {
+    delete c.audio;
+    c.phrases = Object.fromEntries(['recommend', 'dayDish'].map((k) => [k, (c.phrases?.[k] || []).map(({ audio, ...x }) => x)]));
+    c.restaurants = Object.values(db.restaurants).filter((r) => r.avatar?.characterId === c.id).map((r) => r.id);
+  }
+  for (const r of Object.values(db.restaurants)) {
+    const a = r.avatar;
+    if (!a) continue;
+    if (a.greetings?.length && a.characterId) a.lines = { [a.characterId]: { greetings: a.greetings, recommend: [], dayDish: [] } };
+    delete a.greetings;
+  }
+  db.migrations.charLines = Date.now();
   save();
 }
 
