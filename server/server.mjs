@@ -31,12 +31,17 @@ const STATIC = {
   '/staff/': 'staff.html',
   '/staff/manifest.json': 'manifest.json',
   '/staff/sw.js': 'sw.js',
+  // Иконка приложения персонала (звонок вызова): Android, iPhone, вкладка браузера
+  '/staff/icon.svg': 'icons/staff.svg',
+  '/staff/icon-192.png': 'icons/staff-192.png',
+  '/staff/icon-512.png': 'icons/staff-512.png',
+  '/staff/apple-touch-icon.png': 'icons/staff-apple-180.png',
   '/login': 'login.html',
   '/favicon.ico': 'favicon.svg',
   '/favicon.svg': 'favicon.svg',
   '/vendor/qrcode.js': 'vendor/qrcode.js',
 };
-const TYPES = { html: 'text/html; charset=utf-8', json: 'application/manifest+json', js: 'text/javascript', svg: 'image/svg+xml' };
+const TYPES = { html: 'text/html; charset=utf-8', json: 'application/manifest+json', js: 'text/javascript', svg: 'image/svg+xml', png: 'image/png' };
 const FILES = Object.fromEntries(Object.values(STATIC).map((f) => [f, fs.readFileSync(new URL(`./${f}`, import.meta.url))]));
 // Версия интерфейса: открытые страницы стола и персонала сами перезагружаются, когда она меняется
 const BUILD = crypto.createHash('sha1').update(Buffer.concat(Object.values(FILES))).digest('hex').slice(0, 10);
