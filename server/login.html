@@ -11,17 +11,26 @@
   input, button { font: inherit; font-size: 17px; padding: 12px; border-radius: 10px; border: 1px solid #ddd; }
   button { background: #222; color: #fff; border: 0; cursor: pointer; }
   .err { color: #c62828; min-height: 1em; margin: 0; }
+  .pw { display: flex; gap: 6px; }
+  .pw input { flex: 1; min-width: 0; }
+  .pw button { background: #eee; color: #222; padding: 0 14px; }
 </style>
 </head>
 <body>
 <form id="f">
   <h2>JET MEDIA — портал</h2>
-  <input id="email" type="email" placeholder="Почта" autocomplete="username" autofocus>
-  <input id="pass" type="password" placeholder="Пароль" autocomplete="current-password">
+  <input id="email" type="text" inputmode="email" placeholder="Почта" autocomplete="username" autofocus>
+  <div class="pw"><input id="pass" type="password" placeholder="Пароль" autocomplete="current-password">
+    <button type="button" id="eye" title="Показать пароль">👁</button></div>
   <button>Войти</button>
   <p class="err" id="err"></p>
 </form>
 <script>
+// Глазик: показать или спрятать пароль
+document.getElementById('eye').onclick = () => {
+  const p = document.getElementById('pass');
+  p.type = p.type === 'password' ? 'text' : 'password';
+};
 document.getElementById('f').onsubmit = async (e) => {
   e.preventDefault();
   const r = await fetch('/api/admin/login', {

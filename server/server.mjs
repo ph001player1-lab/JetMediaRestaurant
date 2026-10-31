@@ -166,6 +166,17 @@ function readAudit(q, scope) {
   }
   return out;
 }
+// Сброс пароля суперадмина на первый (ADMIN_PASSWORD из .env): файл DATA_DIR/reset-admin создаёт install.sh с RESET_ADMIN=1
+const RESET_FILE = path.join(DATA_DIR, 'reset-admin');
+if (fs.existsSync(RESET_FILE)) {
+  let a = db.admins.find((x) => x.email === SUPER_EMAIL);
+  if (!a) db.admins.push((a = { id: uid(), email: SUPER_EMAIL, name: 'Суперадмин', at: Date.now() }));
+  Object.assign(a, { role: 'super', disabled: false, restaurants: [] }, hashPass(PASS));
+  fs.unlinkSync(RESET_FILE);
+  save();
+  audit('сервер', `Пароль суперадмина ${SUPER_EMAIL} сброшен на первый`);
+}
+
 // Описание действия админа для журнала (секреты — ключи, пароли, токены — не пишем)
 function auditText(method, p, b) {
   let m;
@@ -1322,7 +1333,9 @@ http.createServer(async (req, res) => {
 
     const body = req.method === 'POST' ? await readBody(req) : {};
     if (req.method === 'POST' && url.pathname === '/api/admin/login') {
-      const a = db.admins.find((x) => x.email === String(body.email || '').trim().toLowerCase() && !x.disabled);
+      // «admin» — прежний логин портала: это суперадмин
+      const email = String(body.email || '').trim().toLowerCase();
+      const a = db.admins.find((x) => x.email === (email === 'admin' ? SUPER_EMAIL : email) && !x.disabled);
       if (!passOk(a, body.password)) {
         await new Promise((r) => setTimeout(r, 1000)); // притормаживаем подбор пароля
         return send(res, 403, { error: 'wrong email or password' });
