@@ -727,7 +727,11 @@ let statsMounted = false;
 function openStats() {
   if (statsMounted) return;
   statsMounted = true;
-  JetStats.mount($('statsBox'), { lang: 'ru', admin: true, load: (from, to, r) => api(`/api/stats?from=${from}&to=${to}&r=${encodeURIComponent(r || '')}`) });
+  JetStats.mount($('statsBox'), {
+    lang: 'ru', admin: true, load: (from, to, r) => api(`/api/stats?from=${from}&to=${to}&r=${encodeURIComponent(r || '')}`),
+    // «Не учитывать» — только если выбран ресторан; у «Только статистика» права менять нет
+    exclude: me.role === 'viewer' ? null : (ids, r) => api(`/api/restaurants/${encodeURIComponent(r)}/stats-exclude`, 'POST', { ids }),
+  });
 }
 
 // ---------- Администраторы и журнал

@@ -91,7 +91,7 @@ function reaction(ev) {
 }
 
 // Персонал: реакция, заказы, счета; часы — по кнопке «На смене» и по первому и последнему действию за день
-const ACTIONS = ['call_ack', 'call_done', 'order_ack', 'order_edit', 'order_reject', 'paid', 'close'];
+const ACTIONS = ['order', 'call_ack', 'call_done', 'order_ack', 'order_edit', 'order_reject', 'paid', 'close'];
 function staffStats(ev, staffNames, to) {
   const st = {};
   const get = (id, name) => (st[id] ??= { id, name: staffNames[id] || name || '—', calls: 0, callMs: [], orders: 0, ordersSum: 0, paid: 0, paidSum: 0, shiftMs: 0, act: {} });
@@ -100,7 +100,7 @@ function staffStats(ev, staffNames, to) {
     if (!e.by) continue;
     const s = get(e.by, e.bn);
     if (e.k === 'call_ack') { s.calls++; s.callMs.push(e.ms); }
-    if (e.k === 'order_ack') { s.orders++; s.ordersSum += e.total || 0; }
+    if (e.k === 'order_ack' || e.k === 'order') { s.orders++; s.ordersSum += e.total || 0; } // подтвердил или сам открыл
     if (e.k === 'paid') { s.paid++; s.paidSum += e.total || 0; }
     if (e.k === 'shift') {
       if (e.on) shiftOn[e.by] ??= e.t;
@@ -210,13 +210,39 @@ function promoStats(ev, r, stats, days) {
   });
 }
 
+// Сотрудники «не учитывать в статистике» (тестовые заказы): их действия убираем, а визит стола
+// (от «стол открыт» до «закрыть стол»), где они что-то делали, — целиком: заказы, вызовы, реакции, действия гостя
+function dropExcluded(ev, X) {
+  if (!X.size) return ev;
+  const badIds = new Set(ev.filter((e) => e.by && X.has(e.by) && e.id).map((e) => e.id));
+  const drop = new Set(), sess = {};
+  const flush = (s) => { if (s?.bad) s.list.forEach((x) => drop.add(x)); };
+  for (const e of ev) {
+    if (e.by && X.has(e.by)) drop.add(e);
+    if (!e.table) continue;
+    const key = `${e.r}|${e.table}`;
+    if (e.k === 'open' || !sess[key]) { flush(sess[key]); sess[key] = { list: [], bad: false }; }
+    const s = sess[key];
+    s.list.push(e);
+    if ((e.by && X.has(e.by)) || (e.id && badIds.has(e.id))) s.bad = true;
+    if (e.k === 'close') { flush(s); delete sess[key]; }
+  }
+  Object.values(sess).forEach(flush);
+  return ev.filter((e) => !drop.has(e));
+}
+const excludedOf = (rests) => new Set(rests.flatMap((r) => r?.statsExclude || []));
+
 // Отчёт ресторана (ЛК менеджера и портал при выборе одного ресторана)
 export function restaurantReport({ log, db, r, from, to, staffNames }) {
   const rids = new Set([r.id]);
   const days = daysIn(from, to);
-  const ev = log.read(from, to, rids);
-  const prev = log.read(from - (to - from), from, rids);
+  const X = excludedOf([r]);
+  const ev = dropExcluded(log.read(from, to, rids), X);
+  const prev = dropExcluded(log.read(from - (to - from), from, rids), X);
   return {
+    // все сотрудники — для галочек «не учитывать»; менеджеры первыми
+    staffAll: (r.staff || []).map((m) => ({ id: m.id, name: m.name, role: m.role, excluded: X.has(m.id) }))
+      .sort((a, b) => (a.role === 'manager' ? 0 : 1) - (b.role === 'manager' ? 0 : 1) || a.name.localeCompare(b.name)),
     from, to, summary: summary(ev), prev: summary(prev), reaction: reaction(ev),
     staff: staffStats(ev, staffNames, to), tables: tableStats(ev), dishes: dishStats(ev, r),
     promos: promoStats(ev, r, db.stats, days), avatar: avatarStats(ev, db.stats, rids, days), ...timeStats(ev),
@@ -226,9 +252,10 @@ export function restaurantReport({ log, db, r, from, to, staffNames }) {
 // Сеть (портал): по ресторанам, реклама, устройства, расход голоса ElevenLabs
 export function networkReport({ log, db, rids, from, to }) {
   const days = daysIn(from, to);
-  const ev = log.read(from, to, rids);
-  const prev = log.read(from - (to - from), from, rids);
   const rests = [...rids].map((id) => db.restaurants[id]).filter(Boolean);
+  const X = excludedOf(rests);
+  const ev = dropExcluded(log.read(from, to, rids), X);
+  const prev = dropExcluded(log.read(from - (to - from), from, rids), X);
   const network = rests.map((r) => {
     const mine = ev.filter((e) => e.r === r.id);
     const devices = Object.values(db.devices).filter((d) => d.restaurantId === r.id).length;

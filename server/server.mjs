@@ -172,6 +172,11 @@ function auditText(method, p, b) {
   const dev = (x) => decodeURIComponent(x);
   if (p === '/api/restaurants') return [`Ресторан сохранён: ${b.name || ''}`, b.id];
   if ((m = p.match(/^\/api\/restaurants\/([^/]+)\/sync$/))) return ['Синхронизация меню', m[1]];
+  if ((m = p.match(/^\/api\/restaurants\/([^/]+)\/stats-exclude$/))) {
+    const r = db.restaurants[m[1]];
+    const names = (b.ids || []).map((id) => (r?.staff || []).find((s) => s.id === id)?.name).filter(Boolean);
+    return [`Статистика: не учитывать — ${names.join(', ') || 'никого'}`, m[1]];
+  }
   if ((m = p.match(/^\/api\/restaurants\/([^/]+)$/))) return [`Ресторан удалён: ${m[1]}`, m[1]];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/command$/))) return [`Команда «${b.type}» устройству ${dev(m[1])}`, db.devices[dev(m[1])]?.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/assign$/))) return [`Устройство ${dev(m[1])} → ${db.restaurants[b.restaurantId]?.name || 'не привязано'}${b.table ? ` · ${b.table}` : ''}`, b.restaurantId];
@@ -558,13 +563,32 @@ function staffLogin(b) {
 function staffState(b, q) {
   const { s, r, member } = session(q.token);
   return {
-    restaurant: { name: r.name, pos: r.menuSource?.type === 'pos' },
+    restaurant: { name: r.name, pos: r.menuSource?.type === 'pos', tables: r.tables || [] },
     build: BUILD,
     me: { name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0 },
     vapidKey: db.vapid.publicKey,
     calls: db.calls.filter((c) => c.restaurantId === r.id && !c.closed && c.status !== 'done'),
     orders: db.orders.filter((o) => o.restaurantId === r.id && !o.closed),
   };
+}
+
+// Заказ на стол от официанта или менеджера: сразу принят (реакции ждать не от кого)
+function staffOrder(b) {
+  const { r, member } = session(b.token);
+  const table = String(b.table || '');
+  if (!(r.tables || []).includes(table)) throw fail(400, 'unknown table');
+  const items = buildItems(r, b.items);
+  if (!items.length) throw fail(400, 'empty order');
+  if (tableIsFree(r, table)) logEvent(r.id, 'open', { table });
+  const now = Date.now();
+  const o = {
+    id: uid(), restaurantId: r.id, table, items, total: items.reduce((s, i) => s + i.price * i.qty, 0),
+    status: 'confirmed', at: now, confirmedAt: now, ackAt: now, ackBy: member.name, by: member.name, src: 'staff',
+  };
+  db.orders.push(o);
+  logEvent(r.id, 'order', { id: o.id, table, total: o.total, items: items.map((i) => [i.id, i.qty, i.price]), by: member.id, bn: member.name, src: 'staff' });
+  save();
+  return o;
 }
 
 // Меню для правки заказа официантом
@@ -724,7 +748,7 @@ function managerGet(b, q) {
   };
 }
 
-const SECTIONS = { staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы' };
+const SECTIONS = { statsExclude: 'исключения статистики', staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы' };
 function managerSave(b) {
   const { r, member } = managerSession(b.token);
   const changed = Object.keys(SECTIONS).filter((k) => b[k] !== undefined).map((k) => SECTIONS[k]);
@@ -733,6 +757,7 @@ function managerSave(b) {
   if (Array.isArray(b.menu)) r.menu = cleanMenu(b.menu);
   if (Array.isArray(b.promos)) r.promos = cleanPromos(b.promos);
   if (Array.isArray(b.promos) || Array.isArray(b.menu)) syncPromoItems(r);
+  if (Array.isArray(b.statsExclude)) r.statsExclude = cleanExclude(r, b.statsExclude);
   if (Array.isArray(b.blockedAds)) r.blockedAds = b.blockedAds.map(String);
   if (b.menuSource) r.menuSource = cleanSource(b.menuSource, r.menuSource);
   if (b.display) r.display = cleanDisplay(b.display);
@@ -926,6 +951,9 @@ function cleanAvatar(a) {
 // Акция с ценой — строка меню «promo-<id>» в категории «Акции»: её заказывают с планшета и учитывают в статистике.
 // Название берём из акции при создании строки (переводы можно поправить в меню); цену, фото и видимость — всегда из акции.
 const PROMO_CAT = { ru: 'Акции', en: 'Promotions', th: 'โปรโมชั่น', zh: '优惠活动' };
+// Сотрудники, которых не учитываем в статистике (только существующие)
+const cleanExclude = (r, ids) => ids.map(String).filter((id) => (r.staff || []).some((m) => m.id === id));
+
 function syncPromoItems(r) {
   const promos = new Map((r.promos || []).filter((p) => p.price > 0).map((p) => [`promo-${p.id}`, p]));
   const menu = (r.menu || []).filter((i) => !i.fromPromo || promos.has(i.id));
@@ -1169,6 +1197,13 @@ function admin(method, p, b, me, q) {
     if (scope) throw fail(403, 'Нет доступа');
     delete db.restaurants[m[1]]; save(); return {};
   }
+  m = p.match(/^\/api\/restaurants\/([^/]+)\/stats-exclude$/);
+  if (m && method === 'POST' && db.restaurants[m[1]]) {
+    if (scope && !scope.has(m[1])) throw fail(403, 'Нет доступа к этому ресторану');
+    db.restaurants[m[1]].statsExclude = cleanExclude(db.restaurants[m[1]], Array.isArray(b.ids) ? b.ids : []);
+    save();
+    return {};
+  }
   m = p.match(/^\/api\/restaurants\/([^/]+)\/sync$/);
   if (m && method === 'POST' && db.restaurants[m[1]]) {
     if (scope && !scope.has(m[1])) throw fail(403, 'Нет доступа к этому ресторану');
@@ -1207,6 +1242,7 @@ const PUBLIC = {
   'POST /api/guest/order': guestOrder,
   'GET /api/staff/state': staffState,
   'POST /api/staff/action': staffAction,
+  'POST /api/staff/order': staffOrder,
   'POST /api/staff/login': staffLogin,
   'POST /api/staff/shift': staffShift,
   'POST /api/staff/subscribe': staffSubscribe,

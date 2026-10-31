@@ -9,7 +9,7 @@
       opens: 'Столы открывались', conversion: 'С заказом', reaction: 'Скорость персонала', callMed: 'Реакция на вызов (обычно)',
       callP90: 'Реакция на вызов (худшие 10%)', orderMed: 'Подтверждение заказа (обычно)', orderP90: 'Подтверждение заказа (худшие 10%)',
       reminders: 'Понадобилось напоминание', unanswered: 'Вызовы без реакции', staff: 'Официанты и менеджеры', name: 'Имя',
-      callsAcked: 'Вызовов принято', react: 'Реакция', ordersAcked: 'Заказов подтвердил', sum: 'Сумма', paid: 'Счетов закрыл',
+      callsAcked: 'Вызовов принято', react: 'Реакция', ordersAcked: 'Заказов принял или открыл', sum: 'Сумма', paid: 'Счетов закрыл',
       shiftH: 'Часов на смене (кнопка)', activeH: 'Часов работы (1-е–посл. действие)', days: 'Дней', tables: 'Столы', table: 'Стол',
       dishes: 'Блюда', topQty: 'Чаще всего заказывают', topRev: 'Больше всего выручки', qty: 'Порций', dish: 'Блюдо',
       dayDish: 'Блюдо дня: заказано порций', promoQty: 'Акции: заказано', idle: 'Ни разу не заказали за период', promos: 'Акции',
@@ -19,6 +19,8 @@
       uptime: 'Часов на связи в день', offline: 'Пропадали', crashes: 'Сбоев', ads: 'Внешняя реклама', advertiser: 'Рекламодатель',
       adName: 'Название', ctr: 'Сканов от показов, %', byRest: 'По ресторанам', tts: 'Озвучка ElevenLabs, символов', sec: 'с', min: 'мин',
       wd: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], hint: 'Время — тайское. Выручка — только заказы через планшет.',
+      exclude: 'Не учитывать в статистике', excludeHint: 'Например, тестовые заказы. Визиты столов, где отмеченный сотрудник принимал вызов, заказ или закрывал стол, выпадают из статистики целиком.',
+      manager: 'менеджер', waiter: 'официант',
     },
     en: {
       today: 'Today', yesterday: 'Yesterday', d7: '7 days', d30: '30 days', month: 'This month', from: 'From', to: 'to', show: 'Show',
@@ -27,7 +29,7 @@
       opens: 'Tables opened', conversion: 'With an order', reaction: 'Staff speed', callMed: 'Call response (typical)',
       callP90: 'Call response (worst 10%)', orderMed: 'Order confirmation (typical)', orderP90: 'Order confirmation (worst 10%)',
       reminders: 'Reminders needed', unanswered: 'Calls without response', staff: 'Waiters and managers', name: 'Name',
-      callsAcked: 'Calls taken', react: 'Response', ordersAcked: 'Orders confirmed', sum: 'Amount', paid: 'Bills closed',
+      callsAcked: 'Calls taken', react: 'Response', ordersAcked: 'Orders taken or opened', sum: 'Amount', paid: 'Bills closed',
       shiftH: 'Hours on shift (button)', activeH: 'Hours worked (first–last action)', days: 'Days', tables: 'Tables', table: 'Table',
       dishes: 'Dishes', topQty: 'Ordered most often', topRev: 'Most revenue', qty: 'Portions', dish: 'Dish',
       dayDish: 'Dish of the day: portions ordered', promoQty: 'Promos: ordered', idle: 'Never ordered in the period', promos: 'Promos',
@@ -37,6 +39,8 @@
       uptime: 'Hours online per day', offline: 'Went offline', crashes: 'Crashes', ads: 'External ads', advertiser: 'Advertiser',
       adName: 'Name', ctr: 'Scans per impressions, %', byRest: 'By restaurant', tts: 'ElevenLabs voice, characters', sec: 's', min: 'min',
       wd: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], hint: 'Thailand time. Revenue counts tablet orders only.',
+      exclude: 'Exclude from statistics', excludeHint: 'For example, test orders. Table visits where a checked person took a call or an order, or closed the table, are left out entirely.',
+      manager: 'manager', waiter: 'waiter',
     },
     th: {
       today: 'วันนี้', yesterday: 'เมื่อวาน', d7: '7 วัน', d30: '30 วัน', month: 'เดือนนี้', from: 'จาก', to: 'ถึง', show: 'แสดง',
@@ -45,7 +49,7 @@
       opens: 'โต๊ะที่เปิด', conversion: 'มีการสั่ง', reaction: 'ความเร็วพนักงาน', callMed: 'ตอบรับการเรียก (ปกติ)',
       callP90: 'ตอบรับการเรียก (ช้าสุด 10%)', orderMed: 'ยืนยันออร์เดอร์ (ปกติ)', orderP90: 'ยืนยันออร์เดอร์ (ช้าสุด 10%)',
       reminders: 'ต้องเตือนซ้ำ', unanswered: 'การเรียกที่ไม่มีคนรับ', staff: 'พนักงานและผู้จัดการ', name: 'ชื่อ',
-      callsAcked: 'รับการเรียก', react: 'เวลาตอบรับ', ordersAcked: 'ยืนยันออร์เดอร์', sum: 'ยอดรวม', paid: 'ปิดบิล',
+      callsAcked: 'รับการเรียก', react: 'เวลาตอบรับ', ordersAcked: 'รับหรือเปิดออร์เดอร์', sum: 'ยอดรวม', paid: 'ปิดบิล',
       shiftH: 'ชั่วโมงเข้ากะ (ปุ่ม)', activeH: 'ชั่วโมงทำงาน (แรก–สุดท้าย)', days: 'วัน', tables: 'โต๊ะ', table: 'โต๊ะ',
       dishes: 'เมนู', topQty: 'สั่งบ่อยที่สุด', topRev: 'ยอดขายสูงสุด', qty: 'จำนวน', dish: 'เมนู',
       dayDish: 'เมนูประจำวัน: จำนวนที่สั่ง', promoQty: 'โปรโมชัน: สั่ง', idle: 'ไม่มีใครสั่งในช่วงนี้', promos: 'โปรโมชัน',
@@ -55,6 +59,8 @@
       uptime: 'ชั่วโมงออนไลน์ต่อวัน', offline: 'ออฟไลน์', crashes: 'ขัดข้อง', ads: 'โฆษณาภายนอก', advertiser: 'ผู้ลงโฆษณา',
       adName: 'ชื่อ', ctr: 'สแกนต่อการแสดง %', byRest: 'ตามร้าน', tts: 'เสียง ElevenLabs ตัวอักษร', sec: 'วิ', min: 'นาที',
       wd: ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'], hint: 'เวลาประเทศไทย ยอดขายนับเฉพาะออร์เดอร์ผ่านแท็บเล็ต',
+      exclude: 'ไม่นับในสถิติ', excludeHint: 'เช่น ออร์เดอร์ทดสอบ การใช้โต๊ะที่พนักงานที่เลือกรับการเรียก รับออร์เดอร์ หรือปิดโต๊ะ จะไม่ถูกนับทั้งหมด',
+      manager: 'ผู้จัดการ', waiter: 'พนักงาน',
     },
   };
   const TZ = 7 * 3600e3;
@@ -122,8 +128,14 @@
       return `<h3>${t.avatar}</h3><div class="js-cards">${card(t.shows, a.shows)}${card(t.talks, a.talks)}${card(t.recs, a.recs)}
         ${card(t.dishOpens, a.dishOpens)}${card(t.adds, a.adds)}${card(t.ordered, a.ordered)}</div>`;
     }
+    // Галочки «не учитывать»: тестовые заказы менеджеров и официантов
+    function excludeHtml(d) {
+      if (!opt.exclude || !(d.staffAll || []).length) return '';
+      return `<details class="js-ex" ${d.staffAll.some((s) => s.excluded) ? 'open' : ''}><summary>${t.exclude}${d.staffAll.some((s) => s.excluded) ? `: ${esc(d.staffAll.filter((s) => s.excluded).map((s) => s.name).join(', '))}` : ''}</summary>
+        <p class="js-hint">${t.excludeHint}</p>${d.staffAll.map((s) => `<label><input type="checkbox" data-ex="${esc(s.id)}" ${s.excluded ? 'checked' : ''}> ${esc(s.name)} <small>${t[s.role] || ''}</small></label>`).join('')}</details>`;
+    }
     function restaurantHtml(d) {
-      return summaryHtml(d.summary, d.prev, d.reaction)
+      return excludeHtml(d) + summaryHtml(d.summary, d.prev, d.reaction)
         + table('staff', t.staff, [[t.name, 'name'], [t.callsAcked, 'calls'], [t.react, 'callMed', dur, durCsv], [t.ordersAcked, 'orders'],
           [t.sum, 'ordersSum', money, (v) => v], [t.paid, 'paid'], [t.shiftH, 'shiftH'], [t.activeH, 'activeH'], [t.days, 'days']], d.staff)
         + table('tables', t.tables, [[t.table, 'table'], [t.opens, 'opens'], [t.orders, 'orders'], [t.revenue, 'revenue', money, (v) => v],
@@ -182,7 +194,14 @@
         load();
       }
     };
-    el.onchange = (e) => { if (e.target.id === 'jsRest') { st.r = e.target.value; load(); } };
+    el.onchange = async (e) => {
+      if (e.target.id === 'jsRest') { st.r = e.target.value; load(); }
+      if (e.target.dataset.ex !== undefined) {
+        const ids = [...el.querySelectorAll('[data-ex]:checked')].map((x) => x.dataset.ex);
+        await opt.exclude(ids, st.r);
+        load();
+      }
+    };
     load();
   }
 
@@ -195,6 +214,7 @@
 .js-wrap{overflow-x:auto}.js-tbl{border-collapse:collapse;width:100%;background:#fff;border-radius:10px;font-size:14px}.js-tbl th,.js-tbl td{padding:6px 8px;border-bottom:1px solid #eee;text-align:left;white-space:nowrap}
 .js-tbl th{font-size:12px;color:#8a7f76;white-space:normal}.js-charts{display:flex;flex-wrap:wrap;gap:12px}.js-chart{background:#fff;border-radius:12px;padding:10px;flex:1 1 320px}
 .js-chart h4{margin:0 0 8px;font-size:13px}.js-bars{display:flex;align-items:flex-end;gap:2px;height:120px}.js-bars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.js-ex{background:#fff;border-radius:12px;padding:8px 12px;margin:0 0 10px}.js-ex summary{cursor:pointer;font-weight:600}.js-ex label{display:inline-block;margin:4px 14px 4px 0;white-space:nowrap}
 .js-bars i{display:block;width:100%;background:#c8553d;border-radius:3px 3px 0 0;min-height:1px}.js-bars span{font-size:9px;color:#8a7f76;margin-top:2px}.js-body h3{margin:18px 0 6px}`;
   const s = document.createElement('style');
   s.textContent = css;
