@@ -66,6 +66,17 @@
   .dietgrid button:disabled { background: var(--bg); color: var(--muted); opacity: .6; }
   .dietgrid button:disabled small { color: var(--muted); }
   .status { font-size: 15px; color: var(--muted); }
+  /* Статус вызова — яркая полоса вверху экрана (и в меню, и на заставке); кнопки вызова — красные */
+  #callBar { position: fixed; top: 0; left: 0; right: 0; height: 64px; line-height: 64px; z-index: 35; display: none; text-align: center;
+    background: #e53935; color: #fff; font-size: 28px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 16px;
+    box-shadow: 0 3px 14px rgba(0,0,0,.35); -webkit-animation: cbPulse 1.4s infinite; animation: cbPulse 1.4s infinite; }
+  #callBar.go { background: #2e7d32; -webkit-animation: none; animation: none; }
+  @-webkit-keyframes cbPulse { 50% { background: #ff1744; } }
+  @keyframes cbPulse { 50% { background: #ff1744; } }
+  body.calling #app { padding-top: 64px; }
+  body.calling .atop { top: 64px; }
+  body.calling .astage { top: calc(8vh + 64px); }
+  footer button.alarm, #attract .abtn.alarm { background: #e53935 !important; color: #fff !important; box-shadow: 0 0 0 3px rgba(229,57,53,.35); }
   #toast { position: fixed; top: 90px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--card); padding: 16px 24px; border-radius: 14px; font-size: 20px; display: none; z-index: 30; text-align: center; max-width: 90%; }
   #offline { position: fixed; top: 0; left: 0; right: 0; z-index: 40; background: #c62828; color: #fff; text-align: center; padding: 10px; font-size: 18px; display: none; }
   #msg { display: none; height: 100%; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 20px; line-height: 1.6; }
@@ -178,34 +189,35 @@
   </div>
   <div class="abottom"><div id="cdots"></div><div class="acts" id="acts"></div></div>
 </div>
+<div id="callBar"></div>
 <div id="toast"></div>
 <div id="lead"></div>
 <div id="offline"></div>
 <script src="/vendor/qrcode.js"></script>
 <script>
 var T = {
-  en: { leadName: 'Your name', leadPhone: 'Phone', leadBad: 'Please enter your phone number', orderByPromo: 'Order this offer', orderPromo: 'Order', table: 'Table', call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
+  en: { callOn: '🔔 Waiter called', billOn: '🧾 Bill requested', orderOn: '🍽 Order sent to the waiter', comingBar: '🏃 The waiter is on the way to you', cancelCall: '✕ Cancel call', cancelBill: '✕ Cancel bill request', cancelled: 'Call cancelled', leadName: 'Your name', leadPhone: 'Phone', leadBad: 'Please enter your phone number', orderByPromo: 'Order this offer', orderPromo: 'Order', table: 'Table', call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
         sent: 'Order sent. A waiter will come to confirm it.', called: 'The waiter has been called', coming: 'The waiter is on the way',
         confirmed: 'Order confirmed', add: 'Add', close: 'Close', ordered: 'Ordered',
         pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day', menu: 'Open menu', ad: 'Advertisement',
         offline: 'No connection. Please wave to the waiter — we are reconnecting.', offlineBar: 'No connection — reconnecting…',
         edited: 'The waiter updated your order', scan: 'Scan the QR code', tableTotal: 'Table total', back: 'Back to the slideshow',
         recommend: 'I recommend', showDish: 'Show me', another: 'Something else', askRec: 'What do you recommend?', order: 'Order', diet: 'Special diet', dietAsk: 'What suits you?', noDish: 'Sorry, there is nothing like that on the menu yet — please ask the waiter!', prev: 'Back', dayRec: 'Today\'s dish of the day', noneYet: 'none yet', allMenu: 'Show the whole menu', paid: 'paid', dietHere: 'Here is what suits you', otherDiet: 'Another option', added: 'Added to your order', alreadyOrdered: 'We have already ordered', needMe: 'Great! If you need me, tap my round button at the bottom of the screen.' },
-  ru: { leadName: 'Ваше имя', leadPhone: 'Телефон', leadBad: 'Укажите номер телефона', orderByPromo: 'Заказать по акции', orderPromo: 'Заказать', table: 'Стол', call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
+  ru: { callOn: '🔔 Официант вызван', billOn: '🧾 Вы попросили счёт', orderOn: '🍽 Заказ отправлен официанту', comingBar: '🏃 Официант уже идёт к вам', cancelCall: '✕ Отменить вызов', cancelBill: '✕ Отменить счёт', cancelled: 'Вызов отменён', leadName: 'Ваше имя', leadPhone: 'Телефон', leadBad: 'Укажите номер телефона', orderByPromo: 'Заказать по акции', orderPromo: 'Заказать', table: 'Стол', call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
         sent: 'Заказ отправлен. Официант подойдёт подтвердить.', called: 'Официант вызван', coming: 'Официант идёт',
         confirmed: 'Заказ подтверждён', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
         pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня', menu: 'Открыть меню', ad: 'Реклама',
         offline: 'Нет связи. Пожалуйста, позовите официанта жестом — мы восстанавливаем подключение.', offlineBar: 'Нет связи — восстанавливаем подключение…',
         edited: 'Официант изменил ваш заказ', scan: 'Отсканируйте QR-код', tableTotal: 'Итого по столу', back: 'На главный экран',
         recommend: 'Советую попробовать', showDish: 'Показать', another: 'Что-нибудь ещё', askRec: 'Что посоветуешь?', order: 'Заказ', diet: 'Особые пожелания', dietAsk: 'Что вам подходит?', noDish: 'Пока таких блюд в меню нет — спросите официанта, он подскажет!', prev: 'Назад', dayRec: 'Сегодня блюдо дня', noneYet: 'пока нет', allMenu: 'Показать всё меню', paid: 'оплачен', dietHere: 'Вот что вам подойдёт', otherDiet: 'Другое пожелание', added: 'Добавлено в заказ', alreadyOrdered: 'Уже заказали', needMe: 'Отлично! Если понадоблюсь — нажмите мою круглую кнопку внизу экрана.' },
-  th: { leadName: 'ชื่อของคุณ', leadPhone: 'เบอร์โทร', leadBad: 'กรุณาใส่เบอร์โทรศัพท์', orderByPromo: 'สั่งโปรโมชันนี้', orderPromo: 'สั่งเลย', table: 'โต๊ะ', call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
+  th: { callOn: '🔔 เรียกพนักงานแล้ว', billOn: '🧾 ขอเช็คบิลแล้ว', orderOn: '🍽 ส่งรายการให้พนักงานแล้ว', comingBar: '🏃 พนักงานกำลังไปหาคุณ', cancelCall: '✕ ยกเลิกการเรียก', cancelBill: '✕ ยกเลิกเช็คบิล', cancelled: 'ยกเลิกการเรียกแล้ว', leadName: 'ชื่อของคุณ', leadPhone: 'เบอร์โทร', leadBad: 'กรุณาใส่เบอร์โทรศัพท์', orderByPromo: 'สั่งโปรโมชันนี้', orderPromo: 'สั่งเลย', table: 'โต๊ะ', call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
         sent: 'ส่งรายการแล้ว พนักงานจะมายืนยัน', called: 'เรียกพนักงานแล้ว', coming: 'พนักงานกำลังมา',
         confirmed: 'ยืนยันรายการแล้ว', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
         pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน', menu: 'ดูเมนู', ad: 'โฆษณา',
         offline: 'ไม่มีการเชื่อมต่อ กรุณาโบกมือเรียกพนักงาน ระบบกำลังเชื่อมต่อใหม่', offlineBar: 'ไม่มีการเชื่อมต่อ — กำลังเชื่อมต่อใหม่…',
         edited: 'พนักงานแก้ไขรายการของคุณแล้ว', scan: 'สแกน QR โค้ด', tableTotal: 'รวมทั้งโต๊ะ', back: 'กลับหน้าหลัก',
         recommend: 'แนะนำให้ลอง', showDish: 'ดูเมนูนี้', another: 'อย่างอื่น', askRec: 'แนะนำอะไรดี?', order: 'ออร์เดอร์', diet: 'อาหารพิเศษ', dietAsk: 'แบบไหนเหมาะกับคุณคะ?', noDish: 'ขออภัย ยังไม่มีเมนูแบบนี้ กรุณาถามพนักงานนะคะ', prev: 'กลับ', dayRec: 'เมนูแนะนำของวันนี้', noneYet: 'ยังไม่มี', allMenu: 'แสดงเมนูทั้งหมด', paid: 'ชำระแล้ว', dietHere: 'นี่คือเมนูที่เหมาะกับคุณ', otherDiet: 'ตัวเลือกอื่น', added: 'เพิ่มในรายการแล้ว', alreadyOrdered: 'สั่งแล้ว', needMe: 'เยี่ยมเลย! ถ้าต้องการหนู แตะปุ่มกลมของหนูด้านล่างจอนะคะ' },
-  zh: { leadName: '您的姓名', leadPhone: '电话', leadBad: '请输入电话号码', orderByPromo: '参加此优惠', orderPromo: '立即点单', table: '桌', call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
+  zh: { callOn: '🔔 已呼叫服务员', billOn: '🧾 已请求结账', orderOn: '🍽 订单已发送给服务员', comingBar: '🏃 服务员正在过来', cancelCall: '✕ 取消呼叫', cancelBill: '✕ 取消结账', cancelled: '呼叫已取消', leadName: '您的姓名', leadPhone: '电话', leadBad: '请输入电话号码', orderByPromo: '参加此优惠', orderPromo: '立即点单', table: '桌', call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
         sent: '订单已发送，服务员将前来确认', called: '已呼叫服务员', coming: '服务员马上就来',
         confirmed: '订单已确认', add: '添加', close: '关闭', ordered: '已点',
         pending: '待确认', rejected: '已取消', day: '★ 今日推荐', menu: '查看菜单', ad: '广告',
@@ -416,11 +428,46 @@ function tableBadge() {
 function renderFooter() {
   if (isEntrance()) {
     $('foot').innerHTML = '<button class="main" id="backBtn">' + t('back') + '</button>' + avatarChatBtn();
+    renderCallBar();
     return;
   }
-  var n = cartCount();
-  $('foot').innerHTML = '<button id="callBtn">' + t('call') + '</button><button id="billBtn">' + t('bill') + '</button>' +
-    avatarChatBtn() + '<button class="main" id="cartBtn">' + t('cart') + (n ? ' (' + n + ') · ' + money(cartTotal()) : '') + '</button>';
+  var n = cartCount(), w = activeCall('waiter'), b = activeCall('bill');
+  $('foot').innerHTML = '<button id="callBtn"' + (w ? ' class="alarm"' : '') + '>' + t(w ? 'cancelCall' : 'call') + '</button>' +
+    '<button id="billBtn"' + (b ? ' class="alarm"' : '') + '>' + t(b ? 'cancelBill' : 'bill') + '</button>' +
+    avatarChatBtn() + '<button class="main' + (pendingOrders().length ? ' alarm' : '') + '" id="cartBtn">' + t('cart') + (n ? ' (' + n + ') · ' + money(cartTotal()) : '') + '</button>';
+  renderCallBar();
+}
+
+// Открытый вызов стола этого типа (официант ещё не отметил «Готово»)
+function activeCall(type) {
+  if (!state || isEntrance()) return null;
+  return (state.calls || []).filter(function (c) { return c.type === type && c.status !== 'done'; })[0] || null;
+}
+function pendingOrders() {
+  return isEntrance() ? [] : (state.orders || []).filter(function (o) { return o.status === 'pending'; });
+}
+
+// Полоса статуса вверху: «Официант вызван», «Вы попросили счёт», «Заказ отправлен»;
+// официант нажал «Иду» — «Официант уже идёт к вам»
+function renderCallBar() {
+  var w = activeCall('waiter'), b = activeCall('bill'), o = pendingOrders();
+  var going = (w && w.status === 'ack') || (b && b.status === 'ack') || o.some(function (x) { return x.ackAt; });
+  var parts = [];
+  if (w) parts.push(t('callOn'));
+  if (b) parts.push(t('billOn'));
+  if (o.length) parts.push(t('orderOn'));
+  var on = parts.length > 0;
+  $('callBar').textContent = going ? t('comingBar') : parts.join('  ·  ');
+  $('callBar').className = going ? 'go' : '';
+  $('callBar').style.display = on ? 'block' : 'none';
+  document.body.className = on ? 'calling' : '';
+  // несколько статусов сразу — уменьшаем шрифт, пока строка не влезет
+  for (var fs = 28; fs >= 14; fs -= 2) {
+    $('callBar').style.fontSize = fs + 'px';
+    if (!on || $('callBar').scrollWidth <= $('callBar').clientWidth) break;
+  }
+  var a = $('aCall');
+  if (a) { a.className = 'abtn' + (w ? ' alarm' : ''); a.textContent = t(w ? 'cancelCall' : 'call'); }
 }
 
 function priceLabel(i) {
@@ -499,7 +546,20 @@ function call(type) {
   if (isEntrance() || PREVIEW) return;
   if (!online) toast(t('offline'));
   post('/api/guest/call', { type: type }).then(function (c) {
-    if (c.id) { seen[c.id] = c.status + '|'; toast(t('called')); }
+    if (!c.id) return;
+    seen[c.id] = c.status + '|';
+    if (!state.calls.some(function (x) { return x.id === c.id; })) state.calls.push(c);
+    renderFooter();
+  }).catch(function () { toast(t('offline')); });
+}
+
+// Гость отменил случайный вызов
+function cancelCall(type) {
+  if (isEntrance() || PREVIEW) return;
+  post('/api/guest/cancel', { type: type }).then(function () {
+    state.calls = state.calls.filter(function (x) { return x.type !== type; });
+    toast(t('cancelled'));
+    renderFooter();
   }).catch(function () { toast(t('offline')); });
 }
 
@@ -658,7 +718,7 @@ function styleCaptions(ds) {
 
 function renderAttract() {
   $('aTitle').innerHTML = esc(state.restaurant.name) + tableBadge();
-  $('acts').innerHTML = (isEntrance() ? '' : '<button class="abtn" id="aCall">' + t('call') + '</button>') +
+  $('acts').innerHTML = (isEntrance() ? '' : '<button class="abtn' + (activeCall('waiter') ? ' alarm' : '') + '" id="aCall">' + t(activeCall('waiter') ? 'cancelCall' : 'call') + '</button>') +
     avatarChatBtn() + '<button class="abtn main" id="aMenu">' + t('menu') + '</button>';
   $('aLangs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {
     return '<button data-alang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
@@ -1032,7 +1092,7 @@ document.addEventListener('click', function (e) {
     else if (a.dataset.av !== undefined && avNode) avatarAction(avNode.buttons[Number(a.dataset.av)].go);
     else if (a.dataset.avchat) { if (!avShowing) { avShowing = true; renderCarousel(); } }
     else if (a.id === 'aMenu') hideAttract();
-    else if (a.id === 'aCall') { hideAttract(); call('waiter'); }
+    else if (a.id === 'aCall') { if (activeCall('waiter')) cancelCall('waiter'); else { hideAttract(); call('waiter'); } }
     return;
   }
   var b = e.target.closest('button');
@@ -1049,8 +1109,8 @@ document.addEventListener('click', function (e) {
   else if (d.send) sendOrder();
   else if (d.close) $('cart').className = 'overlay';
   else if (b.id === 'cartBtn') { renderCart(); $('cart').className = 'overlay show'; }
-  else if (b.id === 'callBtn') call('waiter');
-  else if (b.id === 'billBtn') call('bill');
+  else if (b.id === 'callBtn') { if (activeCall('waiter')) cancelCall('waiter'); else call('waiter'); }
+  else if (b.id === 'billBtn') { if (activeCall('bill')) cancelCall('bill'); else call('bill'); }
   else if (b.id === 'backBtn') showAttract();
   else if (d.avchat) showAttract('avatar');
 });

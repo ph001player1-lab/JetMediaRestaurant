@@ -517,6 +517,24 @@ function guestCall(b) {
   return c;
 }
 
+// Гость отменил вызов (нажал по ошибке): вызов пропадает у официантов. Случайный вызов за свободным
+// столом — стол снова свободен
+function guestCancel(b) {
+  const t = tableOf(b.d);
+  if (!t) throw fail(400, 'device is not assigned');
+  const open = openAt(db.calls, t.r, t.table);
+  const c = open.find((x) => x.type === b.type && x.status !== 'done');
+  if (!c) return {};
+  Object.assign(c, { status: 'done', doneAt: Date.now(), cancelled: Date.now() });
+  logEvent(t.r.id, 'call_cancel', { id: c.id, table: t.table, dev: b.d, type: c.type, ms: Date.now() - c.at });
+  if (open.length === 1 && !openAt(db.orders, t.r, t.table).length) {
+    c.closed = Date.now();
+    logEvent(t.r.id, 'close', { table: t.table, guest: true });
+  }
+  save();
+  return {};
+}
+
 function guestOrder(b) {
   const t = tableOf(b.d);
   if (!t) throw fail(400, 'device is not assigned');
@@ -1374,6 +1392,7 @@ const PUBLIC = {
   'POST /api/device/alert': deviceAlert,
   'GET /api/guest/state': guestState,
   'POST /api/guest/call': guestCall,
+  'POST /api/guest/cancel': guestCancel,
   'POST /api/guest/order': guestOrder,
   'GET /api/staff/state': staffState,
   'POST /api/staff/action': staffAction,

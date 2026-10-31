@@ -59,6 +59,7 @@ function summary(ev) {
   const orders = ev.filter((e) => e.k === 'order');
   const revenue = orders.reduce((s, e) => s + (e.total || 0), 0);
   const opens = ev.filter((e) => e.k === 'open');
+  const cancelled = new Set(ev.filter((e) => e.k === 'call_cancel').map((e) => e.id));
   const byTable = {};
   for (const e of ev) if (['open', 'order', 'close'].includes(e.k)) (byTable[`${e.r}|${e.table}`] ??= []).push(e);
   let withOrder = 0;
@@ -72,8 +73,8 @@ function summary(ev) {
   }
   return {
     orders: orders.length, revenue, avg: orders.length ? Math.round(revenue / orders.length) : 0,
-    calls: ev.filter((e) => e.k === 'call' && e.type === 'waiter').length,
-    bills: ev.filter((e) => e.k === 'call' && e.type === 'bill').length,
+    calls: ev.filter((e) => e.k === 'call' && e.type === 'waiter' && !cancelled.has(e.id)).length,
+    bills: ev.filter((e) => e.k === 'call' && e.type === 'bill' && !cancelled.has(e.id)).length,
     opens: opens.length, opensWithOrder: withOrder,
     conversion: opens.length ? Math.round((withOrder / opens.length) * 100) : null,
   };
@@ -82,7 +83,8 @@ function summary(ev) {
 function reaction(ev) {
   const callMs = ev.filter((e) => e.k === 'call_ack').map((e) => e.ms);
   const orderMs = ev.filter((e) => e.k === 'order_ack').map((e) => e.ms);
-  const acked = new Set(ev.filter((e) => e.k === 'call_ack').map((e) => e.id));
+  // отменённый гостем вызов — не «без ответа»
+  const acked = new Set(ev.filter((e) => e.k === 'call_ack' || e.k === 'call_cancel').map((e) => e.id));
   return {
     callMed: median(callMs), callP90: p90(callMs), orderMed: median(orderMs), orderP90: p90(orderMs),
     reminders: ev.filter((e) => e.k === 'remind').length,
