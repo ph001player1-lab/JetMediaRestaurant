@@ -164,28 +164,28 @@
 <script src="/vendor/qrcode.js"></script>
 <script>
 var T = {
-  en: { orderPromo: 'Order', table: 'Table', call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
+  en: { orderByPromo: 'Order this offer', orderPromo: 'Order', table: 'Table', call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
         sent: 'Order sent. A waiter will come to confirm it.', called: 'The waiter has been called', coming: 'The waiter is on the way',
         confirmed: 'Order confirmed', add: 'Add', close: 'Close', ordered: 'Ordered',
         pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day', menu: 'Open menu', ad: 'Advertisement',
         offline: 'No connection. Please wave to the waiter — we are reconnecting.', offlineBar: 'No connection — reconnecting…',
         edited: 'The waiter updated your order', scan: 'Scan the QR code', tableTotal: 'Table total', back: 'Back to the slideshow',
         recommend: 'I recommend', showDish: 'Show me', another: 'Something else', askRec: 'What do you recommend?', order: 'Order', diet: 'Special diet', dietAsk: 'What suits you?', noDish: 'Sorry, there is nothing like that on the menu yet — please ask the waiter!', prev: 'Back', dayRec: 'Today\'s dish of the day', noneYet: 'none yet', allMenu: 'Show the whole menu', paid: 'paid', dietHere: 'Here is what suits you', otherDiet: 'Another option', added: 'Added to your order', alreadyOrdered: 'We have already ordered', needMe: 'Great! If you need me, tap my round button at the bottom of the screen.' },
-  ru: { orderPromo: 'Заказать', table: 'Стол', call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
+  ru: { orderByPromo: 'Заказать по акции', orderPromo: 'Заказать', table: 'Стол', call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
         sent: 'Заказ отправлен. Официант подойдёт подтвердить.', called: 'Официант вызван', coming: 'Официант идёт',
         confirmed: 'Заказ подтверждён', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
         pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня', menu: 'Открыть меню', ad: 'Реклама',
         offline: 'Нет связи. Пожалуйста, позовите официанта жестом — мы восстанавливаем подключение.', offlineBar: 'Нет связи — восстанавливаем подключение…',
         edited: 'Официант изменил ваш заказ', scan: 'Отсканируйте QR-код', tableTotal: 'Итого по столу', back: 'На главный экран',
         recommend: 'Советую попробовать', showDish: 'Показать', another: 'Что-нибудь ещё', askRec: 'Что посоветуешь?', order: 'Заказ', diet: 'Особые пожелания', dietAsk: 'Что вам подходит?', noDish: 'Пока таких блюд в меню нет — спросите официанта, он подскажет!', prev: 'Назад', dayRec: 'Сегодня блюдо дня', noneYet: 'пока нет', allMenu: 'Показать всё меню', paid: 'оплачен', dietHere: 'Вот что вам подойдёт', otherDiet: 'Другое пожелание', added: 'Добавлено в заказ', alreadyOrdered: 'Уже заказали', needMe: 'Отлично! Если понадоблюсь — нажмите мою круглую кнопку внизу экрана.' },
-  th: { orderPromo: 'สั่งเลย', table: 'โต๊ะ', call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
+  th: { orderByPromo: 'สั่งโปรโมชันนี้', orderPromo: 'สั่งเลย', table: 'โต๊ะ', call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
         sent: 'ส่งรายการแล้ว พนักงานจะมายืนยัน', called: 'เรียกพนักงานแล้ว', coming: 'พนักงานกำลังมา',
         confirmed: 'ยืนยันรายการแล้ว', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
         pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน', menu: 'ดูเมนู', ad: 'โฆษณา',
         offline: 'ไม่มีการเชื่อมต่อ กรุณาโบกมือเรียกพนักงาน ระบบกำลังเชื่อมต่อใหม่', offlineBar: 'ไม่มีการเชื่อมต่อ — กำลังเชื่อมต่อใหม่…',
         edited: 'พนักงานแก้ไขรายการของคุณแล้ว', scan: 'สแกน QR โค้ด', tableTotal: 'รวมทั้งโต๊ะ', back: 'กลับหน้าหลัก',
         recommend: 'แนะนำให้ลอง', showDish: 'ดูเมนูนี้', another: 'อย่างอื่น', askRec: 'แนะนำอะไรดี?', order: 'ออร์เดอร์', diet: 'อาหารพิเศษ', dietAsk: 'แบบไหนเหมาะกับคุณคะ?', noDish: 'ขออภัย ยังไม่มีเมนูแบบนี้ กรุณาถามพนักงานนะคะ', prev: 'กลับ', dayRec: 'เมนูแนะนำของวันนี้', noneYet: 'ยังไม่มี', allMenu: 'แสดงเมนูทั้งหมด', paid: 'ชำระแล้ว', dietHere: 'นี่คือเมนูที่เหมาะกับคุณ', otherDiet: 'ตัวเลือกอื่น', added: 'เพิ่มในรายการแล้ว', alreadyOrdered: 'สั่งแล้ว', needMe: 'เยี่ยมเลย! ถ้าต้องการหนู แตะปุ่มกลมของหนูด้านล่างจอนะคะ' },
-  zh: { orderPromo: '立即点单', table: '桌', call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
+  zh: { orderByPromo: '参加此优惠', orderPromo: '立即点单', table: '桌', call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
         sent: '订单已发送，服务员将前来确认', called: '已呼叫服务员', coming: '服务员马上就来',
         confirmed: '订单已确认', add: '添加', close: '关闭', ordered: '已点',
         pending: '待确认', rejected: '已取消', day: '★ 今日推荐', menu: '查看菜单', ad: '广告',
@@ -503,7 +503,7 @@ function slideHtml(s, current) {
   return frameHtml(s) +
     (s.type === 'ad' ? '<span class="tag">' + t('ad') + '</span>' : '') +
     // Акция с ценой: заказ прямо со слайда
-    (s.order && !isEntrance() && !PREVIEW ? '<button class="porder" data-porder="' + esc(s.order) + '">' + t('orderPromo') + ' · ' + money(s.price) + '</button>' : '') +
+    (s.order && !isEntrance() ? '<button class="porder" data-porder="' + esc(s.order) + '">' + (s.price > 0 ? t('orderPromo') + ' · ' + money(s.price) : t('orderByPromo')) + '</button>' : '') +
     (s.qr || s.phone ? '<div class="contact ' + qrClass(s.qrPos) + ' size-' + (s.qrSize || 'm') + '">' +
       (s.qr ? '<div class="qr">' + qrSvg(s.qr) + '</div><div class="small">' + t('scan') + '</div>' : '') +
       (s.phone ? '<div class="phone">📞 ' + esc(s.phone) + '</div>' : '') + '</div>' : '') +
@@ -512,7 +512,7 @@ function slideHtml(s, current) {
 
 // Подпись слайда. У блюда из меню (блюдо дня, «в показе акций») — кнопка «Заказать · цена» справа в строке названия
 function captionHtml(s) {
-  var order = s.type === 'item' && !isEntrance() && !PREVIEW && MENU[s.id];
+  var order = s.type === 'item' && !isEntrance() && (PREVIEW || MENU[s.id]);
   return '<div class="cap' + (order ? ' withbtn' : '') + '"><b>' + esc(tr(s.title)) + (s.price && !order ? ' · ' + money(s.price) : '') + '</b>' +
     '<span>' + esc(tr(s.text)) + '</span>' +
     (order ? '<button class="iorder" data-porder="' + esc(s.id) + '">' + t('orderPromo') + ' · ' + money(s.price) + '</button>' : '') + '</div>';
@@ -528,8 +528,15 @@ function frameHtml(s) {
     '-webkit-transform:scale(' + scale + ');transform:scale(' + scale + ')';
   // Размытая подложка нужна, только если картинка не закрывает область целиком — так дешевле для планшета
   var gaps = fit === 'contain' || scale < 1;
-  return (gaps ? '<img class="bgblur" src="' + esc(s.image) + '" alt="">' : '') +
-    '<img class="bg" src="' + esc(s.image) + '" alt="" style="' + style + '">';
+  var src = imgOf(s);
+  return (gaps ? '<img class="bgblur" src="' + esc(src) + '" alt="">' : '') +
+    '<img class="bg" src="' + esc(src) + '" alt="" style="' + style + '">';
+}
+
+// Картинка акции на языке гостя; если такой нет — английская или любая другая
+function imgOf(s) {
+  var m = s.images || {};
+  return m[lang] || m.en || m.ru || m.th || m.zh || s.image;
 }
 
 // «top-right» → ряд top, столбец right; старые «middle-…» — это ряд «выше центра»

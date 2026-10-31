@@ -383,9 +383,10 @@ const openAt = (list, r, table) => list.filter((x) => x.restaurantId === r.id &&
 function slidesFor(r) {
   const own = [
     ...(r.promos || []).filter((p) => p.active && p.image).map((p) => ({
-      type: 'promo', id: p.id, image: p.image, phone: p.phone || '', // текст акции — на самой картинке
-      // кнопка «Заказать» на слайде, если у акции есть цена (строка меню создаётся сама)
-      order: p.price > 0 && (r.menu || []).some((i) => i.id === `promo-${p.id}` && !i.hidden) ? `promo-${p.id}` : '', price: p.price || 0,
+      type: 'promo', id: p.id, image: p.image, images: p.images || {}, phone: p.phone || '', // текст акции — на самой картинке
+      // кнопка на слайде: «Заказать · цена» или «Заказать по акции» (строка меню создаётся сама)
+      order: promoMode(p) !== 'none' && (r.menu || []).some((i) => i.id === `promo-${p.id}` && !i.hidden) ? `promo-${p.id}` : '',
+      price: promoMode(p) === 'price' ? p.price : 0,
       qr: p.link ? `${PUBLIC_URL}/go/p/${p.id}?r=${r.id}` : '', ...qrPlace(p), ...framing(p),
     })),
     ...(r.menu || []).filter((i) => (i.promo || i.dayDish) && i.photo).map((i) => ({ type: 'item', id: i.id, image: i.photo, title: i.name, price: i.price })),
@@ -965,18 +966,23 @@ function cleanAvatar(a) {
 // Акция с ценой — строка меню «promo-<id>» в категории «Акции»: её заказывают с планшета и учитывают в статистике.
 // Название берём из акции при создании строки (переводы можно поправить в меню); цену, фото и видимость — всегда из акции.
 const PROMO_CAT = { ru: 'Акции', en: 'Promotions', th: 'โปรโมชั่น', zh: '优惠活动' };
+// Кнопка на слайде акции: 'price' — «Заказать · цена»; 'free' — «Заказать по акции» (в заказе ฿0, например «2 + 1»); 'none' — без кнопки
+const promoMode = (p) => (p.orderMode === 'none' ? 'none' : p.orderMode === 'price' && p.price > 0 ? 'price' : 'free');
+// Строка меню новой акции: «Акция N: название» на языке гостя (N — номер акции в списке); менеджер может переименовать
+const PROMO_WORD = { ru: 'Акция', en: 'Promo', th: 'โปรโมชั่น', zh: '优惠' };
+const promoLineName = (n, names) => Object.fromEntries(Object.entries(PROMO_WORD).map(([l, w]) => [l, `${w} ${n}: ${names[l] || names.ru || 'Promo'}`]));
+
 function syncPromoItems(r) {
-  const promos = new Map((r.promos || []).filter((p) => p.price > 0).map((p) => [`promo-${p.id}`, p]));
+  const promos = new Map((r.promos || []).map((p, i) => [`promo-${p.id}`, { p, n: i + 1 }]).filter(([, x]) => promoMode(x.p) !== 'none'));
   const menu = (r.menu || []).filter((i) => !i.fromPromo || promos.has(i.id));
-  for (const [id, p] of promos) {
+  for (const [id, { p, n }] of promos) {
     let it = menu.find((i) => i.id === id);
     if (!it) {
-      const nm = p.name || 'Promo';
-      it = { id, fromPromo: p.id, cat: { ...PROMO_CAT }, name: { ru: nm, en: nm, th: nm, zh: nm }, desc: {}, options: [], tags: [] };
+      it = { id, fromPromo: p.id, cat: { ...PROMO_CAT }, name: promoLineName(n, { ru: p.name }), desc: {}, options: [], tags: [] };
       menu.push(it);
     }
-    if (Object.values(it.name || {}).some((v) => v === BROKEN) && p.name) it.name = { ru: p.name, en: p.name, th: p.name, zh: p.name };
-    Object.assign(it, { price: p.price, photo: p.image, hidden: !p.active, cat: { ...PROMO_CAT, ...it.cat } });
+    if (Object.values(it.name || {}).some((v) => v === BROKEN) && p.name) it.name = promoLineName(n, { ru: p.name });
+    Object.assign(it, { price: promoMode(p) === 'price' ? p.price : 0, photo: p.image, hidden: !p.active, cat: { ...PROMO_CAT, ...it.cat } });
   }
   r.menu = menu;
 }
@@ -988,11 +994,16 @@ function promoName(p, old) {
   return n && n !== BROKEN ? String(n) : old(p);
 }
 
+// Картинки акции по языкам { ru, en, th, zh }: на планшете — на языке гостя, иначе английская или любая другая.
+// image — запасная (первая загруженная), для превью и старых данных
 function cleanPromos(list) {
   const old = (p) => (p.title && typeof p.title === 'object' ? p.title.ru || p.title.en || Object.values(p.title)[0] : '') || '';
-  return list.filter((p) => p && p.image).map((p) => ({
-    id: p.id || uid(), image: String(p.image), name: promoName(p, old).trim().slice(0, 80), active: !!p.active,
-    price: Math.max(0, Math.round(Number(p.price)) || 0), // цена > 0 — акцию можно заказать с планшета
+  const imagesOf = (p) => Object.fromEntries(['ru', 'en', 'th', 'zh'].map((l) => [l, String(p.images?.[l] || '')]).filter(([, v]) => v));
+  return list.filter((p) => p && (p.image || Object.keys(imagesOf(p)).length)).map((p) => ({
+    id: p.id || uid(), images: imagesOf(p), name: promoName(p, old).trim().slice(0, 80), active: !!p.active,
+    image: String(p.image || Object.values(imagesOf(p))[0]),
+    price: Math.max(0, Math.round(Number(p.price)) || 0),
+    orderMode: ['price', 'free', 'none'].includes(p.orderMode) ? p.orderMode : p.price > 0 ? 'price' : 'free',
     link: String(p.link || '').trim(), phone: String(p.phone || '').trim(), ...qrPlace(p), ...framing(p),
   }));
 }
@@ -1382,6 +1393,57 @@ if (!db.migrations.chekhoffPromos) {
     audit('сервер', `Акции Чехова: ${old.length} старых постеров заменены на 7 новых (названия и цены заданы)`, r.id);
   }
   db.migrations.chekhoffPromos = Date.now();
+  save();
+}
+
+// Однократно: Чехов — русские версии 7 постеров, акция без названия → «2 + 1 коктейля» (русский постер, «Заказать по акции»),
+// строки меню акций — «Акция N: название» на 4 языках
+const CHEKHOFF_SHORT = [
+  L4('Гиннесс + креветки', 'Guinness + Shrimps', 'กินเนสส์ + กุ้ง', '健力士 + 虾'),
+  L4('Гиннесс + лосось', 'Guinness + Salmon', 'กินเนสส์ + แซลมอน', '健力士 + 三文鱼'),
+  L4('Паэлья + бокал вина', 'Paella + Glass of Wine', 'ปาเอยา + ไวน์ 1 แก้ว', '海鲜饭 + 一杯葡萄酒'),
+  L4('Большая паэлья + бутылка вина', 'Big Paella + Bottle of Wine', 'ปาเอยาใหญ่ + ไวน์ 1 ขวด', '大份海鲜饭 + 一瓶葡萄酒'),
+  L4('Гуакамоле + 8 шотов текилы', 'Guacamole + 8 Tequila Shots', 'กัวคาโมเล่ + เตกีล่า 8 ช็อต', '牛油果酱 + 8杯龙舌兰'),
+  L4('Водка + мясное ассорти', 'Vodka + Meat Platter', 'วอดก้า + เนื้อรวม', '伏特加 + 肉类拼盘'),
+  L4('Гиннесс + бургер', 'Guinness + Burger', 'กินเนสส์ + เบอร์เกอร์', '健力士 + 汉堡'),
+];
+const COCKTAILS = L4('2 + 1 коктейля', '2 + 1 Cocktails', 'ค็อกเทล 2 แถม 1', '鸡尾酒买二送一');
+const asset = (f) => fs.readFileSync(new URL(`./assets/chekhoff/${f}`, import.meta.url));
+const assetUrl = (f) => `/uploads/${crypto.createHash('sha1').update(asset(f)).digest('hex').slice(0, 20)}.jpg`;
+if (!db.migrations.chekhoffRu) {
+  for (const r of Object.values(db.restaurants).filter((x) => /чех|chek/i.test(x.name))) {
+    const done = [];
+    r.promos = cleanPromos(r.promos || []);
+    // 7 новых постеров (по их картинке): английская версия + русская
+    for (let i = 1; i <= 7; i++) {
+      const p = r.promos.find((x) => x.image === assetUrl(`promo-${i}.jpg`));
+      if (!p) continue;
+      p.images = { en: p.image, ru: storeFile(asset(`ru-${i}.jpg`), 'jpg') };
+      p.titles = CHEKHOFF_SHORT[i - 1];
+      done.push(i);
+    }
+    // акция без названия — коктейли «Купи 2, получи 1»
+    let c = r.promos.find((x) => !x.name.trim());
+    const ruImg = storeFile(asset('cocktails-ru.jpg'), 'jpg');
+    if (c) c.images = { ...(c.images || {}), en: c.images?.en || c.image, ru: ruImg };
+    else r.promos.push((c = { id: uid(), image: ruImg, images: { ru: ruImg }, active: true, link: '', phone: '', ...qrPlace({}), ...framing({}) }));
+    Object.assign(c, { name: COCKTAILS.ru, titles: COCKTAILS, price: 0, orderMode: 'free' });
+    syncPromoItems(r);
+    // названия строк меню: «Акция N: …» (N — номер в списке акций)
+    r.promos.forEach((p, k) => {
+      const it = r.menu.find((m) => m.id === `promo-${p.id}`);
+      if (it) it.name = promoLineName(k + 1, p.titles || { ru: p.name });
+    });
+    audit('сервер', `Акции Чехова: русские постеры — ${done.length} из 7, «2 + 1 коктейля» ${c.images.en ? 'дополнена' : 'создана'}, строки меню названы «Акция N: …»`, r.id);
+  }
+  db.migrations.chekhoffRu = Date.now();
+  save();
+}
+
+// Однократно: у акций появился режим кнопки — строки меню для всех акций всех ресторанов (без цены — «Заказать по акции»)
+if (!db.migrations.promoModes) {
+  for (const r of Object.values(db.restaurants)) { r.promos = cleanPromos(r.promos || []); syncPromoItems(r); }
+  db.migrations.promoModes = Date.now();
   save();
 }
 
