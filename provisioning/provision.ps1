@@ -134,16 +134,25 @@ function Provision($s) {
 
   if ($Reboot) { Run $s reboot | Out-Null }
   Say "  ГОТОВО" Green
+  if (-not $EnrollCode) { Say "  Ключ не указан: добавьте планшет в портале — Устройства → «Новые устройства»." Yellow }
+  if (-not $WifiSsid) { Say "  Wi-Fi не задан: планшет подключится к уже сохранённой сети, а если её нет — к самой сильной открытой." Yellow }
   Write-Log $i "ok"
 }
 
+Say "JET MEDIA — подготовка планшетов. Версия скрипта: 31.10.2026" Cyan
 & $Adb start-server | Out-Null
-# Ключ регистрации: спрашиваем один раз и запоминаем рядом со скриптом
+# Ключ регистрации: спрашиваем один раз и запоминаем рядом со скриптом.
+# Можно пропустить — тогда планшет появится в портале в «Новых устройствах» и его нужно добавить вручную.
 $KeyFile = "$PSScriptRoot\device-key.txt"
 if (-not $EnrollCode -and (Test-Path $KeyFile)) { $EnrollCode = (Get-Content $KeyFile -Raw).Trim() }
 if (-not $EnrollCode -and -not $CheckOnly) {
-  $EnrollCode = (Read-Host "Ключ регистрации устройств (его показывает install.sh на сервере)").Trim()
+  $EnrollCode = (Read-Host "Ключ регистрации устройств (показан в конце установки сервера). Enter — пропустить").Trim()
   if ($EnrollCode) { Set-Content $KeyFile $EnrollCode }
+}
+# Wi-Fi ресторана: спрашиваем на каждый запуск (у каждого ресторана своя сеть), не запоминаем
+if (-not $WifiSsid -and -not $CheckOnly) {
+  $WifiSsid = (Read-Host "Wi-Fi ресторана: имя сети. Enter — не настраивать").Trim()
+  if ($WifiSsid) { $WifiPass = Read-Host "Пароль Wi-Fi «$WifiSsid»" }
 }
 if (-not $CheckOnly) { Get-Agent }
 $done = @{}; $warned = @{}
