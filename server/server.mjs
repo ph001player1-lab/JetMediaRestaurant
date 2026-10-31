@@ -183,11 +183,7 @@ function auditText(method, p, b) {
   const dev = (x) => decodeURIComponent(x);
   if (p === '/api/restaurants') return [`Ресторан сохранён: ${b.name || ''}`, b.id];
   if ((m = p.match(/^\/api\/restaurants\/([^/]+)\/sync$/))) return ['Синхронизация меню', m[1]];
-  if ((m = p.match(/^\/api\/restaurants\/([^/]+)\/stats-exclude$/))) {
-    const r = db.restaurants[m[1]];
-    const names = (b.ids || []).map((id) => (r?.staff || []).find((s) => s.id === id)?.name).filter(Boolean);
-    return [`Статистика: не учитывать — ${names.join(', ') || 'никого'}`, m[1]];
-  }
+  if ((m = p.match(/^\/api\/restaurants\/([^/]+)\/test-visit$/))) return [`Статистика: визит ${b.test ? 'помечен тестовым' : 'снова учитывается'}`, m[1]];
   if ((m = p.match(/^\/api\/restaurants\/([^/]+)$/))) return [`Ресторан удалён: ${m[1]}`, m[1]];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/command$/))) return [`Команда «${b.type}» устройству ${dev(m[1])}`, db.devices[dev(m[1])]?.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/assign$/))) return [`Устройство ${dev(m[1])} → ${db.restaurants[b.restaurantId]?.name || 'не привязано'}${b.table ? ` · ${b.table}` : ''}`, b.restaurantId];
@@ -654,6 +650,12 @@ function staffAction(b) {
       x.closed = Date.now();
     }
     logEvent(r.id, 'close', { ...who, table: b.id });
+  } else if (b.kind === 'order' && (b.action === 'test' || b.action === 'untest')) {
+    // «Тестовый заказ» — только менеджер: весь визит стола с этим заказом не идёт в статистику
+    if (member.role !== 'manager') throw fail(403, 'managers only');
+    if (!db.orders.some((y) => y.id === b.id && y.restaurantId === r.id)) throw fail(400, 'bad action');
+    markTest(r, [b.id], b.action === 'test');
+    audit(`${member.name} (менеджер)`, `Заказ ${b.action === 'test' ? 'помечен тестовым' : 'снова учитывается'}`, r.id);
   } else if (b.kind === 'order' && b.action === 'paid') {
     // Оплачен один счёт стола; стол остаётся открытым, пока его не закроют
     const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && !y.closed && y.status !== 'rejected');
@@ -740,7 +742,7 @@ function managerGet(b, q) {
   return {
     restaurant: {
       name: r.name, tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
-      menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [],
+      menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [], staffArchive: r.staffArchive || [],
       menuSource: publicSource(r.menuSource),
       display: { ...DISPLAY, ...r.display },
       avatar: { ...AVATAR, ...r.avatar },
@@ -759,16 +761,17 @@ function managerGet(b, q) {
   };
 }
 
-const SECTIONS = { statsExclude: 'исключения статистики', staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы' };
+const SECTIONS = { testVisit: 'пометка тестового визита', staffArchive: 'уволенные', staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы' };
 function managerSave(b) {
   const { r, member } = managerSession(b.token);
   const changed = Object.keys(SECTIONS).filter((k) => b[k] !== undefined).map((k) => SECTIONS[k]);
   if (changed.length) audit(`${member.name} (менеджер)`, `ЛК: сохранено — ${changed.join(', ')}`, r.id);
-  if (Array.isArray(b.staff)) r.staff = cleanStaff(b.staff);
+  if (Array.isArray(b.staff)) setStaff(r, b.staff, b.fired || {});
+  if (Array.isArray(b.staffArchive)) setArchive(r, b.staffArchive);
+  if (b.testVisit) markTest(r, b.testVisit.ids, b.testVisit.test);
   if (Array.isArray(b.menu)) r.menu = cleanMenu(b.menu);
   if (Array.isArray(b.promos)) r.promos = cleanPromos(b.promos);
   if (Array.isArray(b.promos) || Array.isArray(b.menu)) syncPromoItems(r);
-  if (Array.isArray(b.statsExclude)) r.statsExclude = cleanExclude(r, b.statsExclude);
   if (Array.isArray(b.blockedAds)) r.blockedAds = b.blockedAds.map(String);
   if (b.menuSource) r.menuSource = cleanSource(b.menuSource, r.menuSource);
   if (b.display) r.display = cleanDisplay(b.display);
@@ -811,7 +814,7 @@ function saveTables(r, list) {
 function managerStats(b, q) {
   const { r } = managerSession(q.token);
   const { from, to } = period(q);
-  return restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r) });
+  return restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r), tests: q.tests === '1' });
 }
 
 async function managerSync(b) {
@@ -962,9 +965,6 @@ function cleanAvatar(a) {
 // Акция с ценой — строка меню «promo-<id>» в категории «Акции»: её заказывают с планшета и учитывают в статистике.
 // Название берём из акции при создании строки (переводы можно поправить в меню); цену, фото и видимость — всегда из акции.
 const PROMO_CAT = { ru: 'Акции', en: 'Promotions', th: 'โปรโมชั่น', zh: '优惠活动' };
-// Сотрудники, которых не учитываем в статистике (только существующие)
-const cleanExclude = (r, ids) => ids.map(String).filter((id) => (r.staff || []).some((m) => m.id === id));
-
 function syncPromoItems(r) {
   const promos = new Map((r.promos || []).filter((p) => p.price > 0).map((p) => [`promo-${p.id}`, p]));
   const menu = (r.menu || []).filter((i) => !i.fromPromo || promos.has(i.id));
@@ -1073,12 +1073,35 @@ function cleanStaff(list) {
     used.add(pin);
     return {
       id: m.id || uid(), name: String(m.name).trim().slice(0, 40), role: m.role === 'manager' ? 'manager' : 'waiter', pin,
-      tables: (m.tables || []).map(String),
+      tables: (m.tables || []).map(String), test: !!m.test, // тестовый: его действия не идут в статистику
     };
   });
 }
 
-const staffNamesOf = (r) => Object.fromEntries((r.staff || []).map((m) => [m.id, m.name]));
+const staffNamesOf = (r) => Object.fromEntries([...(r.staffArchive || []).map((m) => [m.id, `${m.name} (уволен)`]), ...(r.staff || []).map((m) => [m.id, m.name])]);
+
+// Персонал: удалённые сотрудники уходят в «Уволенные» (войти не могут). fired[id] = 'drop' — их действия убрать
+// из статистики (как тестовые), 'keep' — оставить. Решение потом меняется в списке уволенных
+function setStaff(r, list, fired = {}) {
+  const next = cleanStaff(list), keep = new Set(next.map((m) => m.id));
+  r.staffArchive ??= [];
+  for (const m of r.staff || []) {
+    if (keep.has(m.id) || r.staffArchive.some((a) => a.id === m.id)) continue;
+    r.staffArchive.push({ id: m.id, name: m.name, role: m.role, test: fired[m.id] === 'drop' || !!m.test, firedAt: Date.now() });
+  }
+  r.staff = next;
+  for (const [token, s] of Object.entries(db.sessions)) if (s.restaurantId === r.id && !keep.has(s.staffId)) delete db.sessions[token];
+}
+function setArchive(r, list) {
+  for (const x of list || []) { const a = (r.staffArchive || []).find((y) => y.id === x.id); if (a) a.test = !!x.test; }
+}
+// Пометка визита стола «тест»: его заказы и вызовы (ids) — в r.testIds
+function markTest(r, ids, test) {
+  const set = new Set(r.testIds || []);
+  for (const id of (ids || []).map(String).slice(0, 200)) test ? set.add(id) : set.delete(id);
+  r.testIds = [...set].slice(-20000);
+  for (const o of db.orders) if (o.restaurantId === r.id && (ids || []).includes(o.id)) o.test = !!test;
+}
 const period = (q) => {
   const now = Date.now(), to = Math.min(Number(q.to) || now, now + 864e5);
   return { to, from: Math.max(Number(q.from) || to - 7 * 864e5, to - 400 * 864e5) };
@@ -1103,8 +1126,8 @@ function admin(method, p, b, me, q) {
     const r = q.r && rids.has(q.r) ? db.restaurants[q.r] : null;
     return {
       restaurants: [...rids].map((id) => ({ id, name: db.restaurants[id].name })),
-      network: networkReport({ log: events, db, rids: r ? new Set([r.id]) : rids, from, to }),
-      restaurant: r ? restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r) }) : null,
+      network: networkReport({ log: events, db, rids: r ? new Set([r.id]) : rids, from, to, tests: q.tests === '1' }),
+      restaurant: r ? restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r), tests: q.tests === '1' }) : null,
     };
   }
   if (p.startsWith('/api/telegram') && (method === 'GET' || method === 'POST')) return telegramAdmin(method, p, b);
@@ -1144,13 +1167,15 @@ function admin(method, p, b, me, q) {
       tables: prev.tables || [],
       langs: b.langs || prev.langs || ['en', 'th', 'ru', 'zh'],
       menu: Array.isArray(b.menu) ? cleanMenu(b.menu) : prev.menu || [],
-      staff: Array.isArray(b.staff) ? cleanStaff(b.staff) : prev.staff || [],
+      staff: prev.staff || [],
       promos: Array.isArray(b.promos) ? cleanPromos(b.promos) : prev.promos || [],
       tariff: b.tariff === 'premium' ? 'premium' : 'standard',
       blockedAds: prev.blockedAds || [],
       menuSource: b.menuSource ? cleanSource(b.menuSource, prev.menuSource) : prev.menuSource,
       syncKey: prev.syncKey || crypto.randomBytes(12).toString('hex'),
     };
+    if (Array.isArray(b.staff)) setStaff(db.restaurants[id], b.staff, b.fired || {});
+    if (Array.isArray(b.staffArchive)) setArchive(db.restaurants[id], b.staffArchive);
     // Из портала приходят номера («1-10, B1») — превращаем в полные названия, сохраняя привязки
     const old = prev.tables || [];
     saveTables(db.restaurants[id], (b.tables || []).map(String).map((raw) => ({
@@ -1208,10 +1233,10 @@ function admin(method, p, b, me, q) {
     if (scope) throw fail(403, 'Нет доступа');
     delete db.restaurants[m[1]]; save(); return {};
   }
-  m = p.match(/^\/api\/restaurants\/([^/]+)\/stats-exclude$/);
+  m = p.match(/^\/api\/restaurants\/([^/]+)\/test-visit$/);
   if (m && method === 'POST' && db.restaurants[m[1]]) {
     if (scope && !scope.has(m[1])) throw fail(403, 'Нет доступа к этому ресторану');
-    db.restaurants[m[1]].statsExclude = cleanExclude(db.restaurants[m[1]], Array.isArray(b.ids) ? b.ids : []);
+    markTest(db.restaurants[m[1]], b.ids, b.test);
     save();
     return {};
   }
@@ -1284,6 +1309,18 @@ if (!fs.existsSync(path.join(DATA_DIR, 'events'))) {
   }
   fs.mkdirSync(path.join(DATA_DIR, 'events'), { recursive: true });
   for (const e of old.filter((x) => x.t).sort((x, y) => x.t - y.t)) events.add(e);
+}
+
+// Однократно: всё, что было до этого обновления (пилотные тесты), и все нынешние сотрудники — тестовые
+db.migrations ??= {};
+if (!db.migrations.testAll) {
+  for (const r of Object.values(db.restaurants)) {
+    r.testBefore = Date.now();
+    for (const m of r.staff || []) m.test = true;
+    delete r.statsExclude;
+  }
+  db.migrations.testAll = Date.now();
+  save();
 }
 
 // Однократно: столы «1», «B1» → «Стол 1», «Стол B1» (вместе с планшетами, официантами и заказами)

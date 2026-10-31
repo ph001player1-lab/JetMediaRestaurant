@@ -391,15 +391,25 @@ function renderStaff() {
     <td><input data-f="name" value="${esc(m.name)}"></td>
     <td><select data-f="role"><option value="waiter">Официант</option><option value="manager" ${m.role === 'manager' ? 'selected' : ''}>Менеджер</option></select></td>
     <td><input data-f="pin" value="${esc(m.pin || '')}" inputmode="numeric" style="width:90px"></td>
-    <td><button data-del="${i}">✕</button></td></tr>`).join('');
+    <td><label title="Тестовый: действия не идут в статистику"><input data-f="test" type="checkbox" ${m.test ? 'checked' : ''}> тест</label></td>
+    <td><button data-del="${i}">✕</button></td></tr>`).join('')
+    // Уволенные: войти не могут; галочка — их действия не идут в статистику (сохраняется вместе с рестораном)
+    + ((cur.staffArchive || []).length ? `<tr><td colspan="5"><b>Уволенные</b> <small class="hint">войти не могут; галочка — не учитывать в статистике</small><br>
+      ${cur.staffArchive.map((a, k) => `<label style="margin-right:14px"><input type="checkbox" data-arch="${k}" ${a.test ? 'checked' : ''}> ${esc(a.name)}</label>`).join('')}</td></tr>` : '');
 }
 
 $('staff').oninput = $('staff').onchange = (e) => {
   const f = e.target.dataset.f;
-  if (f) cur.staff[e.target.closest('tr').dataset.i][f] = e.target.value.trim();
+  if (e.target.dataset.arch !== undefined) cur.staffArchive[Number(e.target.dataset.arch)].test = e.target.checked;
+  else if (f) cur.staff[e.target.closest('tr').dataset.i][f] = e.target.type === 'checkbox' ? e.target.checked : e.target.value.trim();
 };
 $('staff').onclick = (e) => {
   if (e.target.dataset.del === undefined) return;
+  const m = cur.staff[Number(e.target.dataset.del)];
+  if (m.id) {
+    if (!confirm(`Удалить ${m.name || 'сотрудника'} из персонала? После «Сохранить» он попадёт в «Уволенные».`)) return;
+    (cur.fired ??= {})[m.id] = confirm('Убрать его действия из статистики?\nОК — убрать, Отмена — оставить в статистике') ? 'drop' : 'keep';
+  }
   cur.staff.splice(Number(e.target.dataset.del), 1);
   renderStaff();
 };
@@ -728,9 +738,9 @@ function openStats() {
   if (statsMounted) return;
   statsMounted = true;
   JetStats.mount($('statsBox'), {
-    lang: 'ru', admin: true, load: (from, to, r) => api(`/api/stats?from=${from}&to=${to}&r=${encodeURIComponent(r || '')}`),
-    // «Не учитывать» — только если выбран ресторан; у «Только статистика» права менять нет
-    exclude: me.role === 'viewer' ? null : (ids, r) => api(`/api/restaurants/${encodeURIComponent(r)}/stats-exclude`, 'POST', { ids }),
+    lang: 'ru', admin: true, load: (from, to, r, tests) => api(`/api/stats?from=${from}&to=${to}&r=${encodeURIComponent(r || '')}&tests=${tests ? 1 : 0}`),
+    // Пометка визита «тест» — когда выбран ресторан; у «Только статистика» права менять нет
+    markVisit: me.role === 'viewer' ? null : (ids, test, r) => api(`/api/restaurants/${encodeURIComponent(r)}/test-visit`, 'POST', { ids, test }),
   });
 }
 

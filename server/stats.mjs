@@ -164,7 +164,7 @@ function dishStats(ev, r) {
   };
 }
 
-function avatarStats(ev, stats, rids, days) {
+function avatarStats(ev, stats, rids, daysOf) {
   const recDish = {};
   for (const e of ev) if (e.k === 'av_rec' || e.k === 'av_add') recDish[`${e.r}|${e.table}|${e.dish}`] = e.t;
   let ordered = 0;
@@ -178,7 +178,7 @@ function avatarStats(ev, stats, rids, days) {
   }
   const n = (k) => ev.filter((e) => e.k === k).length;
   return {
-    shows: [...rids].reduce((s, rid) => s + sumCounter(stats, `avshow|${rid}`, days), 0),
+    shows: [...rids].reduce((s, rid) => s + sumCounter(stats, `avshow|${rid}`, daysOf(rid)), 0),
     talks: n('av_talk'), recs: n('av_rec'), dishOpens: n('av_dish'), adds: n('av_add'), ordered,
   };
 }
@@ -210,52 +210,79 @@ function promoStats(ev, r, stats, days) {
   });
 }
 
-// Сотрудники «не учитывать в статистике» (тестовые заказы): их действия убираем, а визит стола
-// (от «стол открыт» до «закрыть стол»), где они что-то делали, — целиком: заказы, вызовы, реакции, действия гостя
-function dropExcluded(ev, X) {
-  if (!X.size) return ev;
-  const badIds = new Set(ev.filter((e) => e.by && X.has(e.by) && e.id).map((e) => e.id));
-  const drop = new Set(), sess = {};
-  const flush = (s) => { if (s?.bad) s.list.forEach((x) => drop.add(x)); };
-  for (const e of ev) {
-    if (e.by && X.has(e.by)) drop.add(e);
-    if (!e.table) continue;
-    const key = `${e.r}|${e.table}`;
-    if (e.k === 'open' || !sess[key]) { flush(sess[key]); sess[key] = { list: [], bad: false }; }
-    const s = sess[key];
-    s.list.push(e);
-    if ((e.by && X.has(e.by)) || (e.id && badIds.has(e.id))) s.bad = true;
-    if (e.k === 'close') { flush(s); delete sess[key]; }
-  }
-  Object.values(sess).forEach(flush);
-  return ev.filter((e) => !drop.has(e));
+// ---------- Тестовые данные (данные не удаляются — только не попадают в отчёты)
+// Тестовое: всё раньше r.testBefore; действия тестовых сотрудников (галочка в «Персонале», в т. ч. уволенных
+// с «убрать статистику»); заказы и визиты, помеченные «тест». Визит стола (от «стол открыт» до «закрыть стол»),
+// где есть тестовое, выпадает целиком: заказы, вызовы, реакции, действия гостя.
+export function testCtx(r) {
+  const staff = [...(r.staff || []), ...(r.staffArchive || [])].filter((m) => m.test);
+  return { ids: new Set(staff.map((m) => m.id)), names: new Set(staff.map((m) => m.name)), marks: new Set(r.testIds || []), before: r.testBefore || 0 };
 }
-const excludedOf = (rests) => new Set(rests.flatMap((r) => r?.statsExclude || []));
+const isTestStaff = (c, e) => !!e.by && (c.ids.has(e.by) || (e.by.startsWith('name:') && c.names.has(e.by.slice(5))));
 
-// Отчёт ресторана (ЛК менеджера и портал при выборе одного ресторана)
-export function restaurantReport({ log, db, r, from, to, staffNames }) {
+// Визиты столов и почему визит тестовый: 'before' — прошлые данные, 'staff' — тестовый сотрудник, 'mark' — помечен
+function visitsOf(ev, ctxs) {
+  const out = [], open = {};
+  for (const e of ev) {
+    const c = ctxs[e.r];
+    if (!c || !e.table) continue;
+    const key = `${e.r}|${e.table}`;
+    // Стол, оставшийся открытым с прошлых (тестовых) данных: после отметки начинается новый визит
+    if (e.k === 'open' || !open[key] || (open[key].from < c.before && e.t >= c.before)) {
+      if (open[key]) out.push(open[key]);
+      open[key] = { r: e.r, table: e.table, from: e.t, to: e.t, ids: [], orders: 0, total: 0, staff: new Set(), events: [], why: null };
+    }
+    const v = open[key];
+    v.events.push(e);
+    v.to = e.t;
+    if (e.id && !v.ids.includes(e.id)) v.ids.push(e.id);
+    if (e.k === 'order') { v.orders++; v.total += e.total || 0; }
+    if (e.bn) v.staff.add(e.bn);
+    v.why ||= e.t < c.before ? 'before' : isTestStaff(c, e) ? 'staff' : e.id && c.marks.has(e.id) ? 'mark' : null;
+    if (e.k === 'close') { out.push(v); delete open[key]; }
+  }
+  return out.concat(Object.values(open));
+}
+
+// Только «боевые» события
+function realOnly(ev, ctxs) {
+  const drop = new Set();
+  for (const v of visitsOf(ev, ctxs)) if (v.why) v.events.forEach((e) => drop.add(e));
+  return ev.filter((e) => {
+    const c = ctxs[e.r];
+    return !drop.has(e) && (!c || (e.t >= c.before && !isTestStaff(c, e)));
+  });
+}
+// Дневные счётчики (показы акций, появления персонажа) — только после начала боевой работы
+const realDays = (days, c) => (c?.before ? days.filter((d) => d > thDay(c.before)) : days);
+
+// Отчёт ресторана (ЛК менеджера и портал при выборе одного ресторана); tests — показать вместе с тестовыми
+export function restaurantReport({ log, db, r, from, to, staffNames, tests }) {
   const rids = new Set([r.id]);
-  const days = daysIn(from, to);
-  const X = excludedOf([r]);
-  const ev = dropExcluded(log.read(from, to, rids), X);
-  const prev = dropExcluded(log.read(from - (to - from), from, rids), X);
+  const ctxs = { [r.id]: testCtx(r) };
+  const raw = log.read(from, to, rids);
+  const ev = tests ? raw : realOnly(raw, ctxs);
+  const prev = tests ? log.read(from - (to - from), from, rids) : realOnly(log.read(from - (to - from), from, rids), ctxs);
+  const days = tests ? daysIn(from, to) : realDays(daysIn(from, to), ctxs[r.id]);
+  const all = visitsOf(raw, ctxs).filter((v) => v.ids.length);
+  const testVisits = all.filter((v) => v.why);
   return {
-    // все сотрудники — для галочек «не учитывать»; менеджеры первыми
-    staffAll: (r.staff || []).map((m) => ({ id: m.id, name: m.name, role: m.role, excluded: X.has(m.id) }))
-      .sort((a, b) => (a.role === 'manager' ? 0 : 1) - (b.role === 'manager' ? 0 : 1) || a.name.localeCompare(b.name)),
-    from, to, summary: summary(ev), prev: summary(prev), reaction: reaction(ev),
+    from, to, tests: !!tests, summary: summary(ev), prev: summary(prev), reaction: reaction(ev),
+    excluded: { visits: testVisits.length, orders: testVisits.reduce((s, v) => s + v.orders, 0), total: testVisits.reduce((s, v) => s + v.total, 0) },
+    // журнал визитов: последние 300, у каждого — тестовый ли и почему
+    visits: all.reverse().slice(0, 300).map(({ events, staff, r: rid, ...v }) => ({ ...v, staff: [...staff] })),
     staff: staffStats(ev, staffNames, to), tables: tableStats(ev), dishes: dishStats(ev, r),
-    promos: promoStats(ev, r, db.stats, days), avatar: avatarStats(ev, db.stats, rids, days), ...timeStats(ev),
+    promos: promoStats(ev, r, db.stats, days), avatar: avatarStats(ev, db.stats, rids, () => days), ...timeStats(ev),
   };
 }
 
 // Сеть (портал): по ресторанам, реклама, устройства, расход голоса ElevenLabs
-export function networkReport({ log, db, rids, from, to }) {
+export function networkReport({ log, db, rids, from, to, tests }) {
   const days = daysIn(from, to);
   const rests = [...rids].map((id) => db.restaurants[id]).filter(Boolean);
-  const X = excludedOf(rests);
-  const ev = dropExcluded(log.read(from, to, rids), X);
-  const prev = dropExcluded(log.read(from - (to - from), from, rids), X);
+  const ctxs = Object.fromEntries(rests.map((r) => [r.id, testCtx(r)]));
+  const ev = tests ? log.read(from, to, rids) : realOnly(log.read(from, to, rids), ctxs);
+  const prev = tests ? log.read(from - (to - from), from, rids) : realOnly(log.read(from - (to - from), from, rids), ctxs);
   const network = rests.map((r) => {
     const mine = ev.filter((e) => e.r === r.id);
     const devices = Object.values(db.devices).filter((d) => d.restaurantId === r.id).length;
@@ -277,7 +304,7 @@ export function networkReport({ log, db, rids, from, to }) {
   }).sort((a, b) => b.imps - a.imps);
   return {
     from, to, summary: summary(ev), prev: summary(prev), reaction: reaction(ev), network, ads,
-    avatar: avatarStats(ev, db.stats, rids, days), ...timeStats(ev),
+    avatar: avatarStats(ev, db.stats, rids, (rid) => (tests ? days : realDays(days, ctxs[rid]))), ...timeStats(ev),
     tts: { chars: ev.filter((e) => e.k === 'tts').reduce((s, e) => s + (e.chars || 0), 0) },
   };
 }

@@ -19,7 +19,9 @@
       uptime: 'Часов на связи в день', offline: 'Пропадали', crashes: 'Сбоев', ads: 'Внешняя реклама', advertiser: 'Рекламодатель',
       adName: 'Название', ctr: 'Сканов от показов, %', byRest: 'По ресторанам', tts: 'Озвучка ElevenLabs, символов', sec: 'с', min: 'мин',
       wd: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], hint: 'Время — тайское. Выручка — только заказы через планшет.',
-      exclude: 'Не учитывать в статистике', excludeHint: 'Например, тестовые заказы. Визиты столов, где отмеченный сотрудник принимал вызов, заказ или закрывал стол, выпадают из статистики целиком.',
+      withTests: 'С тестовыми', recalc: 'Пересчитать', excluded: 'Не учтено как тестовое', visitsN: 'визитов', ordersN: 'заказов',
+      visits: 'Журнал визитов столов', when: 'Когда', test: 'Тест', whyBefore: 'прошлые данные', whyStaff: 'тестовый сотрудник',
+      visitsHint: 'Визит — от первого вызова или заказа до «Закрыть стол». Отметьте «Тест», чтобы визит не шёл в статистику.',
       manager: 'менеджер', waiter: 'официант',
     },
     en: {
@@ -39,7 +41,9 @@
       uptime: 'Hours online per day', offline: 'Went offline', crashes: 'Crashes', ads: 'External ads', advertiser: 'Advertiser',
       adName: 'Name', ctr: 'Scans per impressions, %', byRest: 'By restaurant', tts: 'ElevenLabs voice, characters', sec: 's', min: 'min',
       wd: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], hint: 'Thailand time. Revenue counts tablet orders only.',
-      exclude: 'Exclude from statistics', excludeHint: 'For example, test orders. Table visits where a checked person took a call or an order, or closed the table, are left out entirely.',
+      withTests: 'Include test data', recalc: 'Recalculate', excluded: 'Left out as test', visitsN: 'visits', ordersN: 'orders',
+      visits: 'Table visits log', when: 'When', test: 'Test', whyBefore: 'earlier data', whyStaff: 'test staff',
+      visitsHint: 'A visit lasts from the first call or order until “Close table”. Tick “Test” to keep a visit out of the statistics.',
       manager: 'manager', waiter: 'waiter',
     },
     th: {
@@ -59,7 +63,9 @@
       uptime: 'ชั่วโมงออนไลน์ต่อวัน', offline: 'ออฟไลน์', crashes: 'ขัดข้อง', ads: 'โฆษณาภายนอก', advertiser: 'ผู้ลงโฆษณา',
       adName: 'ชื่อ', ctr: 'สแกนต่อการแสดง %', byRest: 'ตามร้าน', tts: 'เสียง ElevenLabs ตัวอักษร', sec: 'วิ', min: 'นาที',
       wd: ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'], hint: 'เวลาประเทศไทย ยอดขายนับเฉพาะออร์เดอร์ผ่านแท็บเล็ต',
-      exclude: 'ไม่นับในสถิติ', excludeHint: 'เช่น ออร์เดอร์ทดสอบ การใช้โต๊ะที่พนักงานที่เลือกรับการเรียก รับออร์เดอร์ หรือปิดโต๊ะ จะไม่ถูกนับทั้งหมด',
+      withTests: 'รวมข้อมูลทดสอบ', recalc: 'คำนวณใหม่', excluded: 'ไม่นับ (ทดสอบ)', visitsN: 'ครั้ง', ordersN: 'ออร์เดอร์',
+      visits: 'บันทึกการใช้โต๊ะ', when: 'เวลา', test: 'ทดสอบ', whyBefore: 'ข้อมูลเก่า', whyStaff: 'พนักงานทดสอบ',
+      visitsHint: 'การใช้โต๊ะ: ตั้งแต่การเรียกหรือออร์เดอร์แรกจนถึง “ปิดโต๊ะ” ติ๊ก “ทดสอบ” เพื่อไม่นับในสถิติ',
       manager: 'ผู้จัดการ', waiter: 'พนักงาน',
     },
   };
@@ -128,14 +134,22 @@
       return `<h3>${t.avatar}</h3><div class="js-cards">${card(t.shows, a.shows)}${card(t.talks, a.talks)}${card(t.recs, a.recs)}
         ${card(t.dishOpens, a.dishOpens)}${card(t.adds, a.adds)}${card(t.ordered, a.ordered)}</div>`;
     }
-    // Галочки «не учитывать»: тестовые заказы менеджеров и официантов
-    function excludeHtml(d) {
-      if (!opt.exclude || !(d.staffAll || []).length) return '';
-      return `<details class="js-ex" ${d.staffAll.some((s) => s.excluded) ? 'open' : ''}><summary>${t.exclude}${d.staffAll.some((s) => s.excluded) ? `: ${esc(d.staffAll.filter((s) => s.excluded).map((s) => s.name).join(', '))}` : ''}</summary>
-        <p class="js-hint">${t.excludeHint}</p>${d.staffAll.map((s) => `<label><input type="checkbox" data-ex="${esc(s.id)}" ${s.excluded ? 'checked' : ''}> ${esc(s.name)} <small>${t[s.role] || ''}</small></label>`).join('')}</details>`;
+    // Сколько не учтено как тестовое
+    const excludedHtml = (d) => (!d.tests && d.excluded?.visits ? `<p class="js-hint">🧪 ${t.excluded}: ${d.excluded.visits} ${t.visitsN}, ${d.excluded.orders} ${t.ordersN}, ${money(d.excluded.total)}</p>` : '');
+    // Журнал визитов: у каждого — «Тест» (прошлые данные и тестовые сотрудники — без галочки, с причиной)
+    let visits = [];
+    function visitsHtml(d) {
+      visits = d.visits || [];
+      if (!visits.length) return '';
+      const when = (v) => new Date(v.from + TZ).toISOString().slice(5, 16).replace('T', ' ') + '–' + new Date(v.to + TZ).toISOString().slice(11, 16);
+      return `<details class="js-ex"><summary>${t.visits} (${visits.length})</summary><p class="js-hint">${t.visitsHint}</p>
+        <div class="js-wrap"><table class="js-tbl"><thead><tr><th>${t.when}</th><th>${t.table}</th><th>${t.orders}</th><th>${t.sum}</th><th>${t.staff}</th><th>${t.test}</th></tr></thead>
+        <tbody>${visits.map((v, i) => `<tr class="${v.why ? 'js-test' : ''}"><td>${when(v)}</td><td>${esc(v.table)}</td><td>${v.orders}</td><td>${money(v.total)}</td>
+          <td>${esc(v.staff.join(', '))}</td><td>${v.why === 'before' ? t.whyBefore : v.why === 'staff' ? t.whyStaff
+            : opt.markVisit ? `<input type="checkbox" data-visit="${i}" ${v.why === 'mark' ? 'checked' : ''}>` : v.why ? '✓' : ''}</td></tr>`).join('')}</tbody></table></div></details>`;
     }
     function restaurantHtml(d) {
-      return excludeHtml(d) + summaryHtml(d.summary, d.prev, d.reaction)
+      return visitsHtml(d) + summaryHtml(d.summary, d.prev, d.reaction) + excludedHtml(d)
         + table('staff', t.staff, [[t.name, 'name'], [t.callsAcked, 'calls'], [t.react, 'callMed', dur, durCsv], [t.ordersAcked, 'orders'],
           [t.sum, 'ordersSum', money, (v) => v], [t.paid, 'paid'], [t.shiftH, 'shiftH'], [t.activeH, 'activeH'], [t.days, 'days']], d.staff)
         + table('tables', t.tables, [[t.table, 'table'], [t.opens, 'opens'], [t.orders, 'orders'], [t.revenue, 'revenue', money, (v) => v],
@@ -149,7 +163,7 @@
     }
     function adminHtml(d) {
       const n = d.network;
-      return summaryHtml(n.summary, n.prev, n.reaction)
+      return (d.restaurant ? '' : summaryHtml(n.summary, n.prev, n.reaction))
         + table('network', t.network, [[t.rest, 'name'], [t.orders, 'orders'], [t.revenue, 'revenue', money, (v) => v], [t.avg, 'avg', money, (v) => v],
           [t.calls, 'calls'], [t.react, 'callMed', dur, durCsv], [t.conversion, 'conversion', (v) => (v == null ? '—' : `${v}%`)],
           [t.devices, 'devices'], [t.uptime, 'uptimeH'], [t.offline, 'offline'], [t.crashes, 'crashes']], n.network)
@@ -165,13 +179,15 @@
         <button data-pre="month" class="${st.preset === 'month' ? 'on' : ''}">${t.month}</button>
         <label>${t.from} <input type="date" id="jsFrom" value="${isoTh(st.from)}"></label><label>${t.to} <input type="date" id="jsTo" value="${isoTh(st.to - 1)}"></label>
         <button data-go="1">${t.show}</button>
+        <label><input type="checkbox" id="jsTests" ${st.tests ? 'checked' : ''}> ${t.withTests}</label>
+        <button data-recalc="1">↻ ${t.recalc}</button>
         ${rests ? `<select id="jsRest"><option value="">${t.allRest}</option>${rests.map((r) => `<option value="${esc(r.id)}" ${st.r === r.id ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>` : ''}</div>`;
     }
 
     let rests = null;
     async function load() {
       el.innerHTML = controls(rests) + `<p class="js-hint">${t.loading}</p>`;
-      const d = await opt.load(st.from, st.to, st.r);
+      const d = await opt.load(st.from, st.to, st.r, st.tests);
       if (d.error) { el.innerHTML = controls(rests) + `<p class="js-none">${esc(d.error)}</p>`; return; }
       if (opt.admin) rests = d.restaurants;
       el.innerHTML = controls(rests) + `<div class="js-body">${opt.admin ? adminHtml(d) : restaurantHtml(d)}</div>`;
@@ -180,6 +196,7 @@
       const b = e.target.closest('button');
       if (!b) return;
       if (b.dataset.csv) return csv(b.dataset.csv);
+      if (b.dataset.recalc) return load();
       if (b.dataset.pre) {
         st.preset = b.dataset.pre;
         if (st.preset === 'month') { const n = new Date(Date.now() + TZ); st.from = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), 1) - TZ; st.to = dayStart(1); }
@@ -196,9 +213,9 @@
     };
     el.onchange = async (e) => {
       if (e.target.id === 'jsRest') { st.r = e.target.value; load(); }
-      if (e.target.dataset.ex !== undefined) {
-        const ids = [...el.querySelectorAll('[data-ex]:checked')].map((x) => x.dataset.ex);
-        await opt.exclude(ids, st.r);
+      if (e.target.id === 'jsTests') { st.tests = e.target.checked; load(); }
+      if (e.target.dataset.visit !== undefined) {
+        await opt.markVisit(visits[Number(e.target.dataset.visit)].ids, e.target.checked, st.r);
         load();
       }
     };
@@ -214,7 +231,7 @@
 .js-wrap{overflow-x:auto}.js-tbl{border-collapse:collapse;width:100%;background:#fff;border-radius:10px;font-size:14px}.js-tbl th,.js-tbl td{padding:6px 8px;border-bottom:1px solid #eee;text-align:left;white-space:nowrap}
 .js-tbl th{font-size:12px;color:#8a7f76;white-space:normal}.js-charts{display:flex;flex-wrap:wrap;gap:12px}.js-chart{background:#fff;border-radius:12px;padding:10px;flex:1 1 320px}
 .js-chart h4{margin:0 0 8px;font-size:13px}.js-bars{display:flex;align-items:flex-end;gap:2px;height:120px}.js-bars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
-.js-ex{background:#fff;border-radius:12px;padding:8px 12px;margin:0 0 10px}.js-ex summary{cursor:pointer;font-weight:600}.js-ex label{display:inline-block;margin:4px 14px 4px 0;white-space:nowrap}
+.js-test td{color:#b0a69c}.js-ex{background:#fff;border-radius:12px;padding:8px 12px;margin:0 0 10px}.js-ex summary{cursor:pointer;font-weight:600}.js-ex label{display:inline-block;margin:4px 14px 4px 0;white-space:nowrap}
 .js-bars i{display:block;width:100%;background:#c8553d;border-radius:3px 3px 0 0;min-height:1px}.js-bars span{font-size:9px;color:#8a7f76;margin-top:2px}.js-body h3{margin:18px 0 6px}`;
   const s = document.createElement('style');
   s.textContent = css;
