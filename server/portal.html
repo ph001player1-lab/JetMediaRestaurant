@@ -21,6 +21,9 @@
   .form label { display: flex; flex-direction: column; font-size: 13px; gap: 4px; }
   textarea { width: 100%; box-sizing: border-box; height: 90px; }
   [hidden] { display: none !important; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+  .filters input { width: 240px; }
+  tr.grp td { background: #efe9e1; font-size: 13px; padding: 6px 8px; }
   .sizehint { background: #fff3cd; border-radius: 10px; padding: 10px 14px; line-height: 1.5; }
   .frame input[type=range], .pf input[type=range] { width: 100%; padding: 0; border: 0; }
   .qrgrid { display: grid; grid-template-columns: repeat(3, 26px); gap: 3px; margin: 4px 0; }
@@ -50,6 +53,17 @@
     <button onclick="toAll('url')">Страница для всех</button>
     <button onclick="toAll('update')">Обновить агент на всех</button>
   </p>
+  <div class="filters">
+    <select id="fRest" onchange="renderDevices()"></select>
+    <select id="fStatus" onchange="renderDevices()">
+      <option value="">Все статусы</option><option value="online">Онлайн</option><option value="offline">Офлайн</option>
+      <option value="low">Заряд ниже 20%</option><option value="error">Были сбои</option></select>
+    <input id="fText" placeholder="Поиск: ID, стол, Wi-Fi, модель" oninput="renderDevices()">
+    <select id="fSort" onchange="renderDevices()">
+      <option value="place">По ресторану и столу</option><option value="offline">Сначала офлайн</option>
+      <option value="battery">По заряду</option><option value="seen">По времени связи</option><option value="id">По ID</option></select>
+    <span id="fCount" class="hint"></span>
+  </div>
   <div class="wrap"><table>
     <thead><tr><th>Устройство</th><th>Статус</th><th>Заряд</th><th>Агент</th><th>Ресторан · стол</th><th>На связи</th><th></th></tr></thead>
     <tbody id="list"></tbody>
@@ -191,7 +205,50 @@ async function loadDevices() {
   // Пока выбирают стол в списке, не перерисовываем таблицу
   if (document.activeElement?.closest('#list select')) return;
   devices = await api('/api/devices');
-  $('list').innerHTML = devices.map((d, i) => {
+  renderDevices();
+}
+
+// Фильтры и сортировка списка устройств; выбор запоминается в этом браузере
+const placeOf = (d) => {
+  const r = rests.find((x) => x.id === d.restaurantId);
+  return { rest: r ? r.name : '', spot: !r ? '' : d.role === 'entrance' ? 'вход' : d.table || '' };
+};
+function fillRestFilter() {
+  const v = $('fRest').value || localStorage.fRest || '';
+  $('fRest').innerHTML = '<option value="">Все рестораны</option>'
+    + rests.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')
+    + '<option value="none">— не привязаны —</option>';
+  $('fRest').value = [...$('fRest').options].some((o) => o.value === v) ? v : '';
+}
+function renderDevices() {
+  for (const k of ['fRest', 'fStatus', 'fSort']) localStorage[k] = $(k).value;
+  const rest = $('fRest').value, status = $('fStatus').value, q = $('fText').value.trim().toLowerCase();
+  const cmp = (a, b) => String(a).localeCompare(String(b), 'ru', { numeric: true });
+  const rows = devices.map((d, i) => ({ d, i, p: placeOf(d), t: d.telemetry || {} })).filter(({ d, p, t }) =>
+    (!rest || (rest === 'none' ? !p.rest : d.restaurantId === rest))
+    && (!status || (status === 'online' ? d.online : status === 'offline' ? !d.online : status === 'low' ? t.battery < 20 : d.events?.length))
+    && (!q || [d.id, t.model, t.wifi, p.rest, p.spot, t.version].join(' ').toLowerCase().includes(q)));
+  const sort = $('fSort').value;
+  rows.sort((a, b) => sort === 'offline' ? a.d.online - b.d.online || cmp(a.p.rest, b.p.rest) || cmp(a.p.spot, b.p.spot)
+    : sort === 'battery' ? (a.t.battery ?? 101) - (b.t.battery ?? 101)
+    : sort === 'seen' ? (a.d.lastSeen || 0) - (b.d.lastSeen || 0)
+    : sort === 'id' ? cmp(a.d.id, b.d.id)
+    : cmp(a.p.rest || '\uffff', b.p.rest || '\uffff') || (a.p.spot === 'вход' ? -1 : b.p.spot === 'вход' ? 1 : cmp(a.p.spot, b.p.spot)));
+  $('fCount').textContent = `Показано ${rows.length} из ${devices.length} · онлайн ${rows.filter((x) => x.d.online).length}`;
+  let group = null;
+  $('list').innerHTML = rows.map(({ d, i, p }) => {
+    // При сортировке по ресторанам — заголовок группы: сколько устройств и сколько на связи
+    let head = '';
+    if (sort === 'place' && p.rest !== group) {
+      group = p.rest;
+      const same = rows.filter((x) => x.p.rest === p.rest);
+      head = `<tr class="grp"><td colspan="7"><b>${esc(p.rest || 'Не привязаны')}</b> · устройств: ${same.length} · онлайн: ${same.filter((x) => x.d.online).length}</td></tr>`;
+    }
+    return head + deviceRow(d, i);
+  }).join('') || '<tr><td colspan="7" class="hint">Ничего не найдено</td></tr>';
+}
+
+function deviceRow(d, i) {
     const t = d.telemetry || {};
     return `<tr>
       <td>${esc(t.model)}<br><small>${esc(d.id)}</small></td>
@@ -209,7 +266,6 @@ async function loadDevices() {
         <button onclick="send(${i}, 'update')">Обновить агент</button>
         <button onclick="removeDevice(${i})">Удалить</button>
       </td></tr>`;
-  }).join('');
 }
 
 async function assign(i, value) {
@@ -251,6 +307,7 @@ const blank = () => ({ name: '', tables: [], menu: [], staff: [], langs: ['en', 
 
 async function loadRests(selectId) {
   rests = await api('/api/restaurants');
+  fillRestFilter();
   $('restSel').innerHTML = rests.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')
     + '<option value="">+ Новый ресторан</option>';
   edit(selectId ?? cur?.id ?? rests[0]?.id ?? '');
@@ -548,6 +605,7 @@ async function tg(path, body) {
 }
 tg('/api/telegram');
 
+for (const k of ['fStatus', 'fSort']) if (localStorage[k]) $(k).value = localStorage[k];
 loadRests().then(loadDevices);
 setInterval(loadDevices, 5000);
 </script>
