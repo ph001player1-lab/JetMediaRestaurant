@@ -902,7 +902,7 @@ function menuTable(shown) {
   return `<div class="bar"><button data-save="1">${t('saveAll')}</button></div>
     <div class="xlwrap"><table class="xl"><thead><tr>
       ${th('sku', t('code'))}${th('cat', t('cat'))}${th('name', t('dish'))}${th('price', t('price'))}
-      <th>★</th><th>📣</th><th>⦸</th>${Object.keys(TAGS).map((k) => `<th class="tagh" title="${esc(tagName(k))}">${esc(tagName(k))}</th>`).join('')}<th></th></tr></thead>
+      ${[['★', 'day'], ['📣', 'promo'], ['⦸', 'hide']].map(([i, k]) => `<th class="tagh" title="${esc(t(k))}">${i}<br>${esc(t(k))}</th>`).join('')}${Object.keys(TAGS).map((k) => `<th class="tagh" title="${esc(tagName(k))}">${esc(tagName(k))}</th>`).join('')}<th></th></tr></thead>
     <tbody data-list="menu">${shown.map(([it, i]) => `<tr data-i="${i}" class="${it.hidden ? 'off' : ''}">
       <td><input data-f="sku" value="${esc(it.sku || '')}" style="width:70px"></td>
       <td><input data-f="cat" value="${esc(val(it.cat))}"></td>
