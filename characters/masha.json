@@ -1,0 +1,103 @@
+{
+ "id": "masha",
+ "version": 1,
+ "name": {
+  "en": "Masha",
+  "ru": "Маша",
+  "th": "มาช่า",
+  "zh": "玛莎"
+ },
+ "images": {
+  "idle": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMDAgNDIwIj4KPHJlY3QgeD0iMTMwIiB5PSIzODQiIHdpZHRoPSIxMyIgaGVpZ2h0PSIyMiIgcng9IjUiIGZpbGw9IiNmY2Q5YzAiLz48cmVjdCB4PSIxNTciIHk9IjM4NCIgd2lkdGg9IjEzIiBoZWlnaHQ9IjIyIiByeD0iNSIgZmlsbD0iI2ZjZDljMCIvPgo8ZWxsaXBzZSBjeD0iMTM0IiBjeT0iNDA4IiByeD0iMTciIHJ5PSI5IiBmaWxsPSIjYzIxODViIi8+PGVsbGlwc2UgY3g9IjE2NiIgY3k9IjQwOCIgcng9IjE3IiByeT0iOSIgZmlsbD0iI2MyMTg1YiIvPgo8cGF0aCBkPSJNMTI0IDQwNCBMMTQ0IDQwNCBNMTU2IDQwNCBMMTc2IDQwNCIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjMiLz4KPHBhdGggZD0iTTExNCAyNDQgUTg2IDI1MiA2NCAyOTAgTDgwIDMwMiBROTggMjc0IDEyMiAyNjggWiIgZmlsbD0iI2VlZjBmNiIvPgo8cGF0aCBkPSJNMTg2IDI0NCBRMjE0IDI1MiAyMzYgMjkwIEwyMjAgMzAyIFEyMDIgMjc0IDE3OCAyNjggWiIgZmlsbD0iI2VlZjBmNiIvPgo8cGF0aCBkPSJNNjIgMjg4IEw4MCAzMDIiIHN0cm9rZT0iIzdkMjE1MCIgc3Ryb2tlLXdpZHRoPSI2Ii8+PHBhdGggZD0iTTIzOCAyODggTDIyMCAzMDIiIHN0cm9rZT0iIzdkMjE1MCIgc3Ryb2tlLXdpZHRoPSI2Ii8+CjxjaXJjbGUgY3g9IjY0IiBjeT0iMzA0IiByPSIxMiIgZmlsbD0iI2ZjZDljMCIvPjxjaXJjbGUgY3g9IjIzNiIgY3k9IjMwNCIgcj0iMTIiIGZpbGw9IiNmY2Q5YzAiLz4KPHBhdGggZD0iTTEwOCAyMzggUTE1MCAyMjggMTkyIDIzOCBMMjIyIDM4MCBRMTUwIDM5NiA3OCAzODAgWiIgZmlsbD0iI2EzMzA2YyIvPgo8cGF0aCBkPSJNMTI2IDI0MCBRMTUwIDIzNCAxNzQgMjQwIEwxODAgMzAwIFExNTAgMzA2IDEyMCAzMDAgWiIgZmlsbD0iI2I4Mzk3ZCIvPgo8cGF0aCBkPSJNODQgMzU2IFExNTAgMzcwIDIxNiAzNTYgTDIyMCAzNzYgUTE1MCAzOTIgODAgMzc2IFoiIGZpbGw9IiM3ZDIxNTAiLz4KPHBhdGggZD0iTTkwIDM2OCBsOCAtNiBsOCA2IGw4IC02IGw4IDYgbDggLTYgbDggNiBsOCAtNiBsOCA2IGw4IC02IGw4IDYgbDggLTYgbDggNiBsOCAtNiBsOCA2IGw4IC02IGw4IDYgbDggLTYgbDggNiIgc3Ryb2tlPSIjZjZlN2VmIiBzdHJva2Utd2lkdGg9IjIiIGZpbGw9Im5vbmUiLz4KPHBhdGggZD0iTTcwIDE3MiBRNjAgNjYgMTUwIDU2IFEyNDAgNjYgMjMwIDE3MiBRMjMyIDIyMiAxOTYgMjQwIFExNTAgMjUwIDEwNCAyNDAgUTY4IDIyMiA3MCAxNzIgWiIgZmlsbD0iI2EzMzA2YyIvPgo8ZWxsaXBzZSBjeD0iMTUwIiBjeT0iMTYyIiByeD0iNjYiIHJ5PSI2NCIgZmlsbD0iI2ZjZDljMCIvPgo8cGF0aCBkPSJNOTIgMTQyIFE5NiAxMDYgMTUwIDEwNCBRMjA0IDEwNiAyMDggMTQyIFExOTYgMTI4IDE4NCAxMzQgUTE3MiAxMjAgMTYwIDEzMiBRMTQ4IDExOCAxMzYgMTMyIFExMjQgMTIwIDExNCAxMzQgUTEwMiAxMjYgOTIgMTQyIFoiIGZpbGw9IiNmM2QyN2YiLz4KPHBhdGggZD0iTTEyMCAxMTAgUTExNiAxMjIgMTE0IDEzMiBNMTUwIDEwNiBRMTQ4IDExOCAxNDggMTI4IE0xODAgMTEwIFExODQgMTIyIDE4NiAxMzIiIHN0cm9rZT0iI2Q4YjA1NyIgc3Ryb2tlLXdpZHRoPSIyLjUiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8cGF0aCBkPSJNNzYgMTYyIFE3OCA4MCAxNTAgNzYgUTIyMiA4MCAyMjQgMTYyIFEyMTYgMTEwIDE1MCAxMDIgUTg0IDExMCA3NiAxNjIgWiIgZmlsbD0iI2I4Mzk3ZCIvPgo8cGF0aCBkPSJNMTA4IDEzNiBRMTIyIDEzMCAxMzYgMTM2IE0xNjQgMTM2IFExNzggMTMwIDE5MiAxMzYiIHN0cm9rZT0iI2M5YTI1YSIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPGVsbGlwc2UgY3g9IjEyMiIgY3k9IjE2MSIgcng9IjE3IiByeT0iMTkiIGZpbGw9IiNmZmYiLz48ZWxsaXBzZSBjeD0iMTc4IiBjeT0iMTYxIiByeD0iMTciIHJ5PSIxOSIgZmlsbD0iI2ZmZiIvPgo8Y2lyY2xlIGN4PSIxMjQiIGN5PSIxNjQiIHI9IjExIiBmaWxsPSIjM2M5ZDRhIi8+PGNpcmNsZSBjeD0iMTc2IiBjeT0iMTY0IiByPSIxMSIgZmlsbD0iIzNjOWQ0YSIvPgo8Y2lyY2xlIGN4PSIxMjQiIGN5PSIxNjUiIHI9IjUuNSIgZmlsbD0iIzFkMmIxZiIvPjxjaXJjbGUgY3g9IjE3NiIgY3k9IjE2NSIgcj0iNS41IiBmaWxsPSIjMWQyYjFmIi8+CjxjaXJjbGUgY3g9IjEyMCIgY3k9IjE1OSIgcj0iMy41IiBmaWxsPSIjZmZmIi8+PGNpcmNsZSBjeD0iMTcyIiBjeT0iMTU5IiByPSIzLjUiIGZpbGw9IiNmZmYiLz4KPHBhdGggZD0iTTE0NiAxODAgUTE1MCAxODUgMTU1IDE4MCIgc3Ryb2tlPSIjZTBhMTgzIiBzdHJva2Utd2lkdGg9IjMiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8ZWxsaXBzZSBjeD0iMTAyIiBjeT0iMTkwIiByeD0iMTMiIHJ5PSI4IiBmaWxsPSIjZjVhM2EwIiBvcGFjaXR5PSIuNiIvPjxlbGxpcHNlIGN4PSIxOTgiIGN5PSIxOTAiIHJ4PSIxMyIgcnk9IjgiIGZpbGw9IiNmNWEzYTAiIG9wYWNpdHk9Ii42Ii8+CjxwYXRoIGQ9Ik0xMzQgMTk5IFExNTAgMjEzIDE2NiAxOTkiIHN0cm9rZT0iI2I0NGE0YSIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPHBhdGggZD0iTTE0NiAyMzYgTDEyNCAyNjQgTDE0MCAyNjYgWiBNMTU0IDIzNiBMMTc2IDI2NCBMMTYwIDI2NiBaIiBmaWxsPSIjYTMzMDZjIi8+CjxlbGxpcHNlIGN4PSIxNTAiIGN5PSIyMzQiIHJ4PSIxNyIgcnk9IjExIiBmaWxsPSIjN2QyMTUwIi8+Cjwvc3ZnPg==",
+  "talk": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMDAgNDIwIj4KPHJlY3QgeD0iMTMwIiB5PSIzODQiIHdpZHRoPSIxMyIgaGVpZ2h0PSIyMiIgcng9IjUiIGZpbGw9IiNmY2Q5YzAiLz48cmVjdCB4PSIxNTciIHk9IjM4NCIgd2lkdGg9IjEzIiBoZWlnaHQ9IjIyIiByeD0iNSIgZmlsbD0iI2ZjZDljMCIvPgo8ZWxsaXBzZSBjeD0iMTM0IiBjeT0iNDA4IiByeD0iMTciIHJ5PSI5IiBmaWxsPSIjYzIxODViIi8+PGVsbGlwc2UgY3g9IjE2NiIgY3k9IjQwOCIgcng9IjE3IiByeT0iOSIgZmlsbD0iI2MyMTg1YiIvPgo8cGF0aCBkPSJNMTI0IDQwNCBMMTQ0IDQwNCBNMTU2IDQwNCBMMTc2IDQwNCIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjMiLz4KPHBhdGggZD0iTTExNCAyNDQgUTg2IDI1MiA2NCAyOTAgTDgwIDMwMiBROTggMjc0IDEyMiAyNjggWiIgZmlsbD0iI2VlZjBmNiIvPgo8cGF0aCBkPSJNMTg2IDI0NCBRMjE0IDI1MiAyMzYgMjkwIEwyMjAgMzAyIFEyMDIgMjc0IDE3OCAyNjggWiIgZmlsbD0iI2VlZjBmNiIvPgo8cGF0aCBkPSJNNjIgMjg4IEw4MCAzMDIiIHN0cm9rZT0iIzdkMjE1MCIgc3Ryb2tlLXdpZHRoPSI2Ii8+PHBhdGggZD0iTTIzOCAyODggTDIyMCAzMDIiIHN0cm9rZT0iIzdkMjE1MCIgc3Ryb2tlLXdpZHRoPSI2Ii8+CjxjaXJjbGUgY3g9IjY0IiBjeT0iMzA0IiByPSIxMiIgZmlsbD0iI2ZjZDljMCIvPjxjaXJjbGUgY3g9IjIzNiIgY3k9IjMwNCIgcj0iMTIiIGZpbGw9IiNmY2Q5YzAiLz4KPHBhdGggZD0iTTEwOCAyMzggUTE1MCAyMjggMTkyIDIzOCBMMjIyIDM4MCBRMTUwIDM5NiA3OCAzODAgWiIgZmlsbD0iI2EzMzA2YyIvPgo8cGF0aCBkPSJNMTI2IDI0MCBRMTUwIDIzNCAxNzQgMjQwIEwxODAgMzAwIFExNTAgMzA2IDEyMCAzMDAgWiIgZmlsbD0iI2I4Mzk3ZCIvPgo8cGF0aCBkPSJNODQgMzU2IFExNTAgMzcwIDIxNiAzNTYgTDIyMCAzNzYgUTE1MCAzOTIgODAgMzc2IFoiIGZpbGw9IiM3ZDIxNTAiLz4KPHBhdGggZD0iTTkwIDM2OCBsOCAtNiBsOCA2IGw4IC02IGw4IDYgbDggLTYgbDggNiBsOCAtNiBsOCA2IGw4IC02IGw4IDYgbDggLTYgbDggNiBsOCAtNiBsOCA2IGw4IC02IGw4IDYgbDggLTYgbDggNiIgc3Ryb2tlPSIjZjZlN2VmIiBzdHJva2Utd2lkdGg9IjIiIGZpbGw9Im5vbmUiLz4KPHBhdGggZD0iTTcwIDE3MiBRNjAgNjYgMTUwIDU2IFEyNDAgNjYgMjMwIDE3MiBRMjMyIDIyMiAxOTYgMjQwIFExNTAgMjUwIDEwNCAyNDAgUTY4IDIyMiA3MCAxNzIgWiIgZmlsbD0iI2EzMzA2YyIvPgo8ZWxsaXBzZSBjeD0iMTUwIiBjeT0iMTYyIiByeD0iNjYiIHJ5PSI2NCIgZmlsbD0iI2ZjZDljMCIvPgo8cGF0aCBkPSJNOTIgMTQyIFE5NiAxMDYgMTUwIDEwNCBRMjA0IDEwNiAyMDggMTQyIFExOTYgMTI4IDE4NCAxMzQgUTE3MiAxMjAgMTYwIDEzMiBRMTQ4IDExOCAxMzYgMTMyIFExMjQgMTIwIDExNCAxMzQgUTEwMiAxMjYgOTIgMTQyIFoiIGZpbGw9IiNmM2QyN2YiLz4KPHBhdGggZD0iTTEyMCAxMTAgUTExNiAxMjIgMTE0IDEzMiBNMTUwIDEwNiBRMTQ4IDExOCAxNDggMTI4IE0xODAgMTEwIFExODQgMTIyIDE4NiAxMzIiIHN0cm9rZT0iI2Q4YjA1NyIgc3Ryb2tlLXdpZHRoPSIyLjUiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8cGF0aCBkPSJNNzYgMTYyIFE3OCA4MCAxNTAgNzYgUTIyMiA4MCAyMjQgMTYyIFEyMTYgMTEwIDE1MCAxMDIgUTg0IDExMCA3NiAxNjIgWiIgZmlsbD0iI2I4Mzk3ZCIvPgo8cGF0aCBkPSJNMTA4IDEzNiBRMTIyIDEzMCAxMzYgMTM2IE0xNjQgMTM2IFExNzggMTMwIDE5MiAxMzYiIHN0cm9rZT0iI2M5YTI1YSIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPGVsbGlwc2UgY3g9IjEyMiIgY3k9IjE2MSIgcng9IjE3IiByeT0iMTkiIGZpbGw9IiNmZmYiLz48ZWxsaXBzZSBjeD0iMTc4IiBjeT0iMTYxIiByeD0iMTciIHJ5PSIxOSIgZmlsbD0iI2ZmZiIvPgo8Y2lyY2xlIGN4PSIxMjQiIGN5PSIxNjQiIHI9IjExIiBmaWxsPSIjM2M5ZDRhIi8+PGNpcmNsZSBjeD0iMTc2IiBjeT0iMTY0IiByPSIxMSIgZmlsbD0iIzNjOWQ0YSIvPgo8Y2lyY2xlIGN4PSIxMjQiIGN5PSIxNjUiIHI9IjUuNSIgZmlsbD0iIzFkMmIxZiIvPjxjaXJjbGUgY3g9IjE3NiIgY3k9IjE2NSIgcj0iNS41IiBmaWxsPSIjMWQyYjFmIi8+CjxjaXJjbGUgY3g9IjEyMCIgY3k9IjE1OSIgcj0iMy41IiBmaWxsPSIjZmZmIi8+PGNpcmNsZSBjeD0iMTcyIiBjeT0iMTU5IiByPSIzLjUiIGZpbGw9IiNmZmYiLz4KPHBhdGggZD0iTTE0NiAxODAgUTE1MCAxODUgMTU1IDE4MCIgc3Ryb2tlPSIjZTBhMTgzIiBzdHJva2Utd2lkdGg9IjMiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8ZWxsaXBzZSBjeD0iMTAyIiBjeT0iMTkwIiByeD0iMTMiIHJ5PSI4IiBmaWxsPSIjZjVhM2EwIiBvcGFjaXR5PSIuNiIvPjxlbGxpcHNlIGN4PSIxOTgiIGN5PSIxOTAiIHJ4PSIxMyIgcnk9IjgiIGZpbGw9IiNmNWEzYTAiIG9wYWNpdHk9Ii42Ii8+CjxwYXRoIGQ9Ik0xMzMgMTk3IFExNTAgMjI0IDE2NyAxOTcgUTE1MCAyMDQgMTMzIDE5NyBaIiBmaWxsPSIjOWUzYjNiIi8+PGVsbGlwc2UgY3g9IjE1MCIgY3k9IjIxMiIgcng9IjgiIHJ5PSI0IiBmaWxsPSIjZTU3YjdiIi8+CjxwYXRoIGQ9Ik0xNDYgMjM2IEwxMjQgMjY0IEwxNDAgMjY2IFogTTE1NCAyMzYgTDE3NiAyNjQgTDE2MCAyNjYgWiIgZmlsbD0iI2EzMzA2YyIvPgo8ZWxsaXBzZSBjeD0iMTUwIiBjeT0iMjM0IiByeD0iMTciIHJ5PSIxMSIgZmlsbD0iIzdkMjE1MCIvPgo8L3N2Zz4="
+ },
+ "voice": {
+  "pitch": 1.7,
+  "rate": 1.05
+ },
+ "greeting": {
+  "en": "Hi! I'm Masha! Are you hungry? I know all the yummiest things here — shall I help you choose?",
+  "ru": "Привет! Я Маша! Проголодались? Я знаю здесь всё самое вкусное — помочь выбрать?",
+  "th": "สวัสดีค่ะ หนูชื่อมาช่า! หิวไหมคะ หนูรู้ว่าอะไรอร่อยที่สุด ให้ช่วยเลือกไหมคะ?",
+  "zh": "你好！我是玛莎！饿了吗？这里最好吃的我都知道——要我帮你选吗？"
+ },
+ "dialog": {
+  "start": "hello",
+  "nodes": {
+   "hello": {
+    "say": {
+     "en": "Hi! I'm Masha! Are you hungry? I know all the yummiest things here — shall I help you choose?",
+     "ru": "Привет! Я Маша! Проголодались? Я знаю здесь всё самое вкусное — помочь выбрать?",
+     "th": "สวัสดีค่ะ หนูชื่อมาช่า! หิวไหมคะ หนูรู้ว่าอะไรอร่อยที่สุด ให้ช่วยเลือกไหมคะ?",
+     "zh": "你好！我是玛莎！饿了吗？这里最好吃的我都知道——要我帮你选吗？"
+    },
+    "buttons": [
+     {
+      "label": {
+       "en": "What do you recommend?",
+       "ru": "Что посоветуешь?",
+       "th": "แนะนำอะไรดี?",
+       "zh": "有什么推荐？"
+      },
+      "go": "recommend"
+     },
+     {
+      "label": {
+       "en": "Something for kids",
+       "ru": "Что-нибудь для детей",
+       "th": "เมนูสำหรับเด็ก",
+       "zh": "儿童餐"
+      },
+      "go": "kids"
+     },
+     {
+      "label": {
+       "en": "Call the waiter",
+       "ru": "Позови официанта",
+       "th": "เรียกพนักงาน",
+       "zh": "叫服务员"
+      },
+      "go": "waiter"
+     },
+     {
+      "label": {
+       "en": "Open the menu",
+       "ru": "Открой меню",
+       "th": "เปิดเมนู",
+       "zh": "打开菜单"
+      },
+      "go": "menu"
+     }
+    ]
+   },
+   "kids": {
+    "say": {
+     "en": "Kids love pancakes and juice! And dessert — of course, dessert! Let's look at the menu together!",
+     "ru": "Дети любят блинчики и сок! А ещё десерт — обязательно десерт! Давайте посмотрим меню вместе!",
+     "th": "เด็ก ๆ ชอบแพนเค้กกับน้ำผลไม้! แล้วก็ของหวาน — ต้องมีของหวานแน่นอน! มาดูเมนูด้วยกันนะคะ!",
+     "zh": "小朋友最爱煎饼和果汁！还有甜点——一定要有甜点！我们一起看看菜单吧！"
+    },
+    "buttons": [
+     {
+      "label": {
+       "en": "Show the menu",
+       "ru": "Показать меню",
+       "th": "ดูเมนู",
+       "zh": "查看菜单"
+      },
+      "go": "menu"
+     },
+     {
+      "label": {
+       "en": "Back",
+       "ru": "Назад",
+       "th": "กลับ",
+       "zh": "返回"
+      },
+      "go": "hello"
+     }
+    ]
+   }
+  }
+ }
+}
