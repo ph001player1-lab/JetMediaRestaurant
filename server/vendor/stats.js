@@ -17,7 +17,8 @@
       recs: 'Рекомендаций', dishOpens: '«Показать блюдо»', adds: 'Добавлений в заказ', ordered: 'Рекомендованное заказали',
       hours: 'По часам', weekdays: 'По дням недели', langs: 'Языки гостей', network: 'Рестораны', rest: 'Ресторан', devices: 'Устройств',
       uptime: 'Часов на связи в день', offline: 'Пропадали', crashes: 'Сбоев', ads: 'Внешняя реклама', advertiser: 'Рекламодатель',
-      adName: 'Название', ctr: 'Сканов от показов, %', byRest: 'По ресторанам', tts: 'Озвучка ElevenLabs, символов', sec: 'с', min: 'мин',
+      adName: 'Название', ctr: 'Сканов от показов, %', devicesT: 'Устройства', device: 'Устройство', place: 'Стол / вход', now: 'Сейчас',
+      hoursOn: 'Часов на связи', adImps: 'Показов рекламы', adScans: 'Сканов рекламы', leads: 'Заявок', online: 'онлайн', offlineNow: 'офлайн', byRest: 'По ресторанам: показы / сканы / заявки', tts: 'Озвучка ElevenLabs, символов', sec: 'с', min: 'мин',
       wd: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], hint: 'Время — тайское. Выручка — только заказы через планшет.',
       withTests: 'С тестовыми', recalc: 'Пересчитать', excluded: 'Не учтено как тестовое', visitsN: 'визитов', ordersN: 'заказов',
       visits: 'Журнал визитов столов', when: 'Когда', test: 'Тест', whyBefore: 'прошлые данные', whyStaff: 'тестовый сотрудник',
@@ -39,7 +40,8 @@
       recs: 'Recommendations', dishOpens: '“Show dish”', adds: 'Added to order', ordered: 'Recommended and ordered',
       hours: 'By hour', weekdays: 'By weekday', langs: 'Guest languages', network: 'Restaurants', rest: 'Restaurant', devices: 'Devices',
       uptime: 'Hours online per day', offline: 'Went offline', crashes: 'Crashes', ads: 'External ads', advertiser: 'Advertiser',
-      adName: 'Name', ctr: 'Scans per impressions, %', byRest: 'By restaurant', tts: 'ElevenLabs voice, characters', sec: 's', min: 'min',
+      adName: 'Name', ctr: 'Scans per impressions, %', devicesT: 'Devices', device: 'Device', place: 'Table / entrance', now: 'Now',
+      hoursOn: 'Hours online', adImps: 'Ad impressions', adScans: 'Ad scans', leads: 'Leads', online: 'online', offlineNow: 'offline', byRest: 'By restaurant: impressions / scans / leads', tts: 'ElevenLabs voice, characters', sec: 's', min: 'min',
       wd: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], hint: 'Thailand time. Revenue counts tablet orders only.',
       withTests: 'Include test data', recalc: 'Recalculate', excluded: 'Left out as test', visitsN: 'visits', ordersN: 'orders',
       visits: 'Table visits log', when: 'When', test: 'Test', whyBefore: 'earlier data', whyStaff: 'test staff',
@@ -61,7 +63,8 @@
       recs: 'การแนะนำ', dishOpens: '“ดูเมนู”', adds: 'เพิ่มในออร์เดอร์', ordered: 'สั่งตามคำแนะนำ',
       hours: 'รายชั่วโมง', weekdays: 'รายวันในสัปดาห์', langs: 'ภาษาของแขก', network: 'ร้านอาหาร', rest: 'ร้าน', devices: 'อุปกรณ์',
       uptime: 'ชั่วโมงออนไลน์ต่อวัน', offline: 'ออฟไลน์', crashes: 'ขัดข้อง', ads: 'โฆษณาภายนอก', advertiser: 'ผู้ลงโฆษณา',
-      adName: 'ชื่อ', ctr: 'สแกนต่อการแสดง %', byRest: 'ตามร้าน', tts: 'เสียง ElevenLabs ตัวอักษร', sec: 'วิ', min: 'นาที',
+      adName: 'ชื่อ', ctr: 'สแกนต่อการแสดง %', devicesT: 'อุปกรณ์', device: 'อุปกรณ์', place: 'โต๊ะ / ทางเข้า', now: 'ตอนนี้',
+      hoursOn: 'ชั่วโมงออนไลน์', adImps: 'แสดงโฆษณา', adScans: 'สแกนโฆษณา', leads: 'คำขอ', online: 'ออนไลน์', offlineNow: 'ออฟไลน์', byRest: 'ตามร้าน: แสดง / สแกน / คำขอ', tts: 'เสียง ElevenLabs ตัวอักษร', sec: 'วิ', min: 'นาที',
       wd: ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'], hint: 'เวลาประเทศไทย ยอดขายนับเฉพาะออร์เดอร์ผ่านแท็บเล็ต',
       withTests: 'รวมข้อมูลทดสอบ', recalc: 'คำนวณใหม่', excluded: 'ไม่นับ (ทดสอบ)', visitsN: 'ครั้ง', ordersN: 'ออร์เดอร์',
       visits: 'บันทึกการใช้โต๊ะ', when: 'เวลา', test: 'ทดสอบ', whyBefore: 'ข้อมูลเก่า', whyStaff: 'พนักงานทดสอบ',
@@ -166,9 +169,12 @@
       return (d.restaurant ? '' : summaryHtml(n.summary, n.prev, n.reaction))
         + table('network', t.network, [[t.rest, 'name'], [t.orders, 'orders'], [t.revenue, 'revenue', money, (v) => v], [t.avg, 'avg', money, (v) => v],
           [t.calls, 'calls'], [t.react, 'callMed', dur, durCsv], [t.conversion, 'conversion', (v) => (v == null ? '—' : `${v}%`)],
-          [t.devices, 'devices'], [t.uptime, 'uptimeH'], [t.offline, 'offline'], [t.crashes, 'crashes']], n.network)
-        + table('ads', t.ads, [[t.advertiser, 'advertiser'], [t.adName, 'title'], [t.imps, 'imps'], [t.scans, 'scans'], [t.ctr, 'ctr'],
-          [t.byRest, 'byRest', (v) => esc((v || []).map((x) => `${x.name}: ${x.imps}/${x.scans}`).join('; ')), (v) => (v || []).map((x) => `${x.name}: ${x.imps}/${x.scans}`).join('; ')]], n.ads)
+          [t.devices, 'devices'], [t.uptime, 'uptimeH'], [t.offline, 'offline'], [t.crashes, 'crashes'], [t.adScans, 'adScans'], [t.leads, 'leads']], n.network)
+        + table('devices', t.devicesT, [[t.device, 'id'], [t.rest, 'rest'], [t.place, 'place'], [t.now, 'online', (v) => (v ? `<span class="js-up">${t.online}</span>` : `<span class="js-down">${t.offlineNow}</span>`), (v) => (v ? t.online : t.offlineNow)],
+          [t.hoursOn, 'hours'], [t.orders, 'orders'], [t.revenue, 'revenue', money, (v) => v], [t.calls, 'calls'], [t.talks, 'talks'],
+          [t.adImps, 'adImps'], [t.adScans, 'adScans'], [t.leads, 'leads']], n.devices || [])
+        + table('ads', t.ads, [[t.advertiser, 'advertiser'], [t.adName, 'title'], [t.imps, 'imps'], [t.scans, 'scans'], [t.ctr, 'ctr'], [t.leads, 'leads'],
+          [t.byRest, 'byRest', (v) => esc((v || []).map((x) => `${x.name}: ${x.imps}/${x.scans}/${x.leads || 0}`).join('; ')), (v) => (v || []).map((x) => `${x.name}: ${x.imps}/${x.scans}/${x.leads || 0}`).join('; ')]], n.ads)
         + `<div class="js-cards">${card(t.tts, (n.tts?.chars || 0).toLocaleString('en'))}</div>`
         + (d.restaurant ? `<hr><h2>${esc(d.restaurants.find((x) => x.id === st.r)?.name || '')}</h2>${restaurantHtml(d.restaurant)}` : avatarHtml(n.avatar) + timeHtml(n));
     }

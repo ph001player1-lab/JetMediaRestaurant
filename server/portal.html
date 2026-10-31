@@ -24,6 +24,12 @@
   [hidden] { display: none !important; }
   .athumb { display: block; width: 64px; height: 79px; object-fit: cover; border-radius: 6px; margin-bottom: 4px; cursor: zoom-in; background: #222; }
   .rchk label { display: block; white-space: nowrap; font-size: 13px; }
+  .filters input[type=checkbox] { width: auto; }
+  .ctabox .filters input[type=number] { width: 70px; }
+  .ctabox { display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
+  .ctat input { width: 150px; }
+  .chip { display: inline-block; background: #eee; border-radius: 12px; padding: 2px 4px 2px 10px; margin: 2px; }
+  tr.ctarow td { background: #faf8f5; }
   .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
   .filters input { width: 240px; }
   tr.grp td { background: #efe9e1; font-size: 13px; padding: 6px 8px; }
@@ -562,7 +568,37 @@ function renderAds() {
       ${rests.map((r) => `<label><input type="checkbox" data-rest="${esc(r.id)}" ${(a.restaurants || []).includes(r.id) ? 'checked' : ''}> ${esc(r.name)}</label>`).join('')}</td>
     <td><input data-f="active" type="checkbox" ${a.active ? 'checked' : ''}></td>
     <td>${a.views ?? 0} показов<br>${a.scans ?? 0} сканов QR</td>
-    <td><button data-pv="${i}">👁</button><button data-save="${i}">Сохранить</button><button data-del="${i}">✕</button></td></tr>`).join('');
+    <td><button data-pv="${i}">👁</button><button data-save="${i}">Сохранить</button><button data-del="${i}">✕</button></td></tr>${ctaHtml(a, i)}`).join('');
+}
+
+// Кнопка заявки на рекламе и куда уходят заявки — раскрывающаяся строка под рекламой
+const ctaOpen = new Set();
+const ctaGrid = (cur) => `<div class="qrgrid">${Object.entries(QR_ROWS).flatMap(([r, rl]) => Object.entries(QR_COLS).map(([c, cl]) =>
+  `<button type="button" data-ctapos="${r}-${c}" class="${(cur || 'bottom-center') === `${r}-${c}` ? 'on' : ''}" title="${rl}, ${cl}"></button>`)).join('')}</div>`;
+function ctaHtml(a, i) {
+  const c = a.cta || {}, tg = a.leadTg || {};
+  const row = (key, label) => `<tr><td>${label}</td>${['ru', 'en', 'th', 'zh'].map((l) =>
+    `<td><input data-ctal="${key}|${l}" value="${esc((c[key] || {})[l] || '')}"></td>`).join('')}</tr>`;
+  return `<tr class="ctarow" data-i="${i}"><td colspan="11"><details data-ctaid="${esc(a.id || '')}" ${ctaOpen.has(a.id) ? 'open' : ''}>
+    <summary><b>Кнопка заявки</b> — ${c.enabled ? 'включена' : 'выключена'} · заявок: ${a.leads || 0}</summary>
+    <div class="ctabox">
+      <div class="filters">
+        <label><input type="checkbox" data-cta="enabled" ${c.enabled ? 'checked' : ''}> Показывать кнопку на рекламе</label>
+        <label>Форма <select data-cta="shape"><option value="rect">прямоугольная</option><option value="pill" ${c.shape === 'pill' ? 'selected' : ''}>овальная</option></select></label>
+        <label>Сообщение после отправки держать, секунд <input type="number" min="1" max="60" data-cta="doneSec" value="${c.doneSec || 10}" style="width:64px"></label>
+      </div>
+      <div class="filters"><span>Место кнопки (как у QR):</span>${ctaGrid(c.pos)}<small class="hint">не ставьте в одно место с QR-кодом</small></div>
+      <table class="ctat"><tr><th></th><th>RU</th><th>EN</th><th>TH</th><th>中文</th></tr>
+        ${row('text', 'Текст кнопки')}${row('submit', 'Кнопка «Отправить»')}${row('done', 'Сообщение после отправки')}</table>
+      <div><b>Куда уходят заявки</b> (имя и телефон гостя)<br>
+        <label><input type="checkbox" data-f="leadToMe" ${a.leadToMe !== false ? 'checked' : ''}> мне — в бот оповещений портала (настраивается во вкладке «Устройства»)</label><br>
+        Бот рекламодателя: <b>${tg.connected ? `@${esc(tg.bot)}` : 'не подключён'}</b>
+        <input data-tgtok="1" type="password" placeholder="токен бота рекламодателя" style="width:250px" autocomplete="off">
+        <button data-tg="tg">Сохранить бот</button><button data-tg="tg/find">Найти чаты</button><button data-tg="tg/test">Тест</button>
+        ${(tg.chats || []).map((ch) => `<span class="chip">${esc(ch.name)} <button data-tgrm="${Number(ch.id)}">×</button></span>`).join(' ')}
+        <br><small class="hint">Рекламодатель создаёт бота у @BotFather, даёт вам токен и нажимает «Start» в своём боте; вы — «Сохранить бот», «Найти чаты», «Тест». Сначала сохраните рекламу.</small></div>
+      <div><b>Заявки</b> <button data-leads="1">Показать последние</button><div class="leads"></div></div>
+    </div></details></td></tr>`;
 }
 
 // Место блока с QR-кодом: сетка 4 ряда × 3 столбца, как на экране планшета
@@ -576,11 +612,12 @@ const qrGrid = (cur) => {
 const QR_SIZE = { s: 'маленький', m: 'средний', l: 'большой' };
 const adSlide = (a) => ({
   type: 'ad', image: a.image, phone: a.phone, qr: a.link, qrPos: a.qrPos, qrSize: a.qrSize,
-  fit: a.fit, imgY: a.imgY, imgScale: a.imgScale,
+  fit: a.fit, imgY: a.imgY, imgScale: a.imgScale, cta: a.cta?.enabled ? { ...a.cta, pos: a.cta.pos || 'bottom-center' } : null,
 });
 
 $('ads').oninput = $('ads').onchange = async (e) => {
-  const a = ads[e.target.closest('tr').dataset.i];
+  const a = ads[e.target.closest('tr[data-i]')?.dataset.i];
+  if (!a) return;
   if (e.target.type === 'file') {
     if (e.type === 'change' && e.target.files[0]) { a.image = await uploadImage(e.target.files[0]); renderAds(); }
     return;
@@ -592,16 +629,49 @@ $('ads').oninput = $('ads').onchange = async (e) => {
     renderAds();
     return;
   }
+  // Кнопка заявки: включение, форма, время сообщения, тексты по языкам
+  const { cta, ctal } = e.target.dataset;
+  if (cta || ctal) {
+    a.cta = { ...(a.cta || {}) };
+    if (cta) a.cta[cta] = e.target.type === 'checkbox' ? e.target.checked : cta === 'doneSec' ? Number(e.target.value) : e.target.value;
+    else { const [key, l] = ctal.split('|'); a.cta[key] = { ...(a.cta[key] || {}), [l]: e.target.value }; }
+    return sendPreview();
+  }
   const f = e.target.dataset.f;
   if (!f) return;
-  if (f === 'active') a.active = e.target.checked;
+  if (e.target.type === 'checkbox') a[f] = e.target.checked;
   else a[f] = e.target.value.trim();
   sendPreview();
 };
+// Какие блоки «Кнопка заявки» раскрыты — помним при перерисовке
+$('ads').addEventListener('toggle', (e) => {
+  const id = e.target.dataset?.ctaid;
+  if (id) { if (e.target.open) ctaOpen.add(id); else ctaOpen.delete(id); }
+}, true);
 
 $('ads').onclick = async (e) => {
-  const { save, del, pv, qrpos } = e.target.dataset;
+  const { save, del, pv, qrpos, ctapos, tg, tgrm, leads } = e.target.dataset;
   if (qrpos) { ads[e.target.closest('tr').dataset.i].qrPos = qrpos; renderAds(); return sendPreview(); }
+  const row = e.target.closest('tr[data-i]'), a = row && ads[row.dataset.i];
+  if (ctapos) { a.cta = { ...(a.cta || {}), pos: ctapos }; renderAds(); return sendPreview(); }
+  // Бот рекламодателя для заявок
+  if (tg || tgrm) {
+    if (!a.id) return alert('Сначала сохраните рекламу');
+    const out = await api(`/api/ads/${encodeURIComponent(a.id)}/${tgrm ? 'tg/remove' : tg}`, 'POST',
+      tgrm ? { id: Number(tgrm) } : tg === 'tg' ? { token: row.querySelector('[data-tgtok]').value.trim() } : {});
+    if (out.error) return alert(out.error);
+    a.leadTg = out;
+    if (tg === 'tg/test') alert('Отправлено — проверьте Telegram рекламодателя');
+    return renderAds();
+  }
+  if (leads) {
+    const list = a.id ? await api(`/api/leads?ad=${encodeURIComponent(a.id)}`) : [];
+    row.querySelector('.leads').innerHTML = (Array.isArray(list) && list.length ? `<table>${list.slice(0, 50).map((l) => `<tr><td>${new Date(l.at).toLocaleString()}</td>
+      <td>${esc(l.name || '—')}</td><td>${esc(l.phone)}</td><td>${esc(l.rest)}${l.place ? ` · ${esc(l.place)}` : ''}</td>
+      <td class="hint">${l.sent.length ? `отправлено: ${l.sent.map((x) => (x === 'me' ? 'мне' : 'рекламодателю')).join(', ')}` : 'никуда не отправлено — подключите бота'}</td></tr>`).join('')}</table>`
+      : '<small class="hint">Заявок пока нет</small>');
+    return;
+  }
   if (pv !== undefined) { const a = ads[pv]; return openPreview(() => adSlide(a)); }
   if (save !== undefined) { ads[save] = await api('/api/ads', 'POST', ads[save]); renderAds(); alert('Сохранено'); }
   if (del !== undefined && confirm('Удалить рекламу?')) {

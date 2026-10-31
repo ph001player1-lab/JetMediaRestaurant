@@ -289,6 +289,7 @@ export function networkReport({ log, db, rids, from, to, tests }) {
     const polls = sumCounter(db.stats, `up|${r.id}`, days);
     return {
       id: r.id, name: r.name, ...summary(mine), callMed: reaction(mine).callMed, devices,
+      adScans: db.ads.reduce((s, a) => s + sumCounter(db.stats, `scan|${a.id}|${r.id}`, days), 0), leads: mine.filter((e) => e.k === 'lead').length,
       // Часов на связи в среднем на одно устройство в день (опрос раз в 15 секунд)
       uptimeH: devices ? +((polls * 15) / 3600 / devices / days.length).toFixed(1) : null,
       offline: mine.filter((e) => e.k === 'dev_offline').length, crashes: mine.filter((e) => e.k === 'dev_crash').length,
@@ -299,11 +300,33 @@ export function networkReport({ log, db, rids, from, to, tests }) {
       id: r.id, name: r.name, imps: sumCounter(db.stats, `${a.id}|${r.id}`, days), scans: sumCounter(db.stats, `scan|${a.id}|${r.id}`, days),
     })).filter((x) => x.imps || x.scans);
     const imps = byRest.reduce((s, x) => s + x.imps, 0), scans = byRest.reduce((s, x) => s + x.scans, 0);
+    for (const x of byRest) x.leads = ev.filter((e) => e.k === 'lead' && e.ad === a.id && e.r === x.id).length;
     const daily = days.map((d) => ({ day: d, imps: rests.reduce((s, r) => s + (db.stats[`${a.id}|${r.id}|${d}`] || 0), 0) }));
-    return { id: a.id, advertiser: a.advertiser, title: a.title, image: a.image, active: a.active, imps, scans, ctr: imps ? +((scans / imps) * 100).toFixed(2) : null, byRest, daily };
+    return { id: a.id, advertiser: a.advertiser, title: a.title, image: a.image, active: a.active, imps, scans, ctr: imps ? +((scans / imps) * 100).toFixed(2) : null,
+      leads: ev.filter((e) => e.k === 'lead' && e.ad === a.id).length, byRest, daily };
   }).sort((a, b) => b.imps - a.imps);
+  // Устройства: где стоят, часы на связи, заказы и выручка с планшета, вызовы, разговоры с персонажем,
+  // показы и сканы рекламы, заявки. Старые события без устройства относим к планшету, который сейчас стоит за этим столом
+  const tableDev = {};
+  for (const d of Object.values(db.devices)) if (rids.has(d.restaurantId) && d.table && d.role !== 'entrance') tableDev[`${d.restaurantId}|${d.table}`] = d.id;
+  const per = {};
+  for (const e of ev) {
+    const id = e.dev || (e.table && tableDev[`${e.r}|${e.table}`]);
+    if (!id || e.src === 'staff') continue;
+    const x = (per[id] ??= { orders: 0, revenue: 0, calls: 0, talks: 0, leads: 0 });
+    if (e.k === 'order') { x.orders++; x.revenue += e.total || 0; }
+    if (e.k === 'call') x.calls++;
+    if (e.k === 'av_talk') x.talks++;
+    if (e.k === 'lead') x.leads++;
+  }
+  const devices = Object.values(db.devices).filter((d) => rids.has(d.restaurantId)).map((d) => ({
+    id: d.id, rest: db.restaurants[d.restaurantId]?.name || '', place: d.role === 'entrance' ? 'вход' : d.table || '—',
+    online: Date.now() - (d.lastSeen || 0) < 45000, hours: +((sumCounter(db.stats, `dup|${d.id}`, days) * 15) / 3600).toFixed(1),
+    orders: 0, revenue: 0, calls: 0, talks: 0, leads: 0, ...per[d.id],
+    adImps: sumCounter(db.stats, `dimp|${d.id}`, days), adScans: sumCounter(db.stats, `dscan|${d.id}`, days),
+  })).sort((a, b) => b.revenue - a.revenue || b.adScans + b.leads - (a.adScans + a.leads));
   return {
-    from, to, summary: summary(ev), prev: summary(prev), reaction: reaction(ev), network, ads,
+    from, to, summary: summary(ev), prev: summary(prev), reaction: reaction(ev), network, ads, devices,
     avatar: avatarStats(ev, db.stats, rids, (rid) => (tests ? days : realDays(days, ctxs[rid]))), ...timeStats(ev),
     tts: { chars: ev.filter((e) => e.k === 'tts').reduce((s, e) => s + (e.chars || 0), 0) },
   };

@@ -191,6 +191,7 @@ function auditText(method, p, b) {
   if ((m = p.match(/^\/api\/pending\/([^/]+)\/approve$/))) return [`Новое устройство добавлено: ${dev(m[1])}`];
   if ((m = p.match(/^\/api\/pending\/([^/]+)$/))) return [`Новое устройство скрыто: ${dev(m[1])}`];
   if (p === '/api/ads') return [`Реклама сохранена: ${b.advertiser || ''}${b.title ? ` — ${b.title}` : ''}`];
+  if ((m = p.match(/^\/api\/ads\/([^/]+)\/tg/))) return [`Реклама ${db.ads.find((a) => a.id === m[1])?.advertiser || m[1]}: бот для заявок — ${p.split('/').pop()}`];
   if ((m = p.match(/^\/api\/ads\/([^/]+)$/))) return [`Реклама удалена: ${db.ads.find((a) => a.id === m[1])?.advertiser || m[1]}`];
   if (p === '/api/characters') return [`Персонаж загружен: ${b.id || ''}`];
   if ((m = p.match(/^\/api\/characters\/([^/]+)\/voice$/))) return [`Голос персонажа ${m[1]} изменён`];
@@ -290,7 +291,7 @@ function devicePoll(b, q, req) {
     throw fail(403, 'bad device key');
   }
   const d = (db.devices[b.id] ??= { id: b.id, firstSeen: Date.now(), queue: [] });
-  if (d.restaurantId) bump(`up|${d.restaurantId}|${day()}`);
+  if (d.restaurantId) { bump(`up|${d.restaurantId}|${day()}`); bump(`dup|${d.id}|${day()}`); }
   if (d.offlineAlert) {
     tgAlert(`🟢 ${deviceName(d)}: снова на связи (не было ${Math.round((Date.now() - d.lastSeen) / 60_000)} мин)`);
     d.offlineAlert = 0;
@@ -333,6 +334,13 @@ function deviceName(d) {
   const place = d.role === 'entrance' ? 'вход' : d.table ? tableLabel(d.table) : 'без стола';
   return `${r ? r.name : 'Без ресторана'} · ${place} (${d.id})`;
 }
+
+// Раз в сутки: счётчики по устройствам старше 120 дней удаляем, чтобы база не росла
+setInterval(() => {
+  const old = day(Date.now() - 120 * 864e5);
+  for (const k of Object.keys(db.stats)) if (/^(dup|dimp|dscan)\|/.test(k) && k.slice(-10) < old) delete db.stats[k];
+  save();
+}, 864e5);
 
 // Раз в минуту: устройства, пропавшие больше чем на 3 минуты, — одним сообщением
 setInterval(() => {
@@ -380,7 +388,7 @@ function tableOf(deviceId) {
 const openAt = (list, r, table) => list.filter((x) => x.restaurantId === r.id && x.table === table && !x.closed);
 
 // Карусель простоя: акции и блюда ресторана, через каждые две — внешняя реклама (кроме тарифа Premium)
-function slidesFor(r) {
+function slidesFor(r, dev) {
   const own = [
     ...(r.promos || []).filter((p) => p.active && p.image).map((p) => ({
       type: 'promo', id: p.id, image: p.image, images: p.images || {}, phone: p.phone || '', // текст акции — на самой картинке
@@ -395,7 +403,8 @@ function slidesFor(r) {
     .filter((a) => a.active && a.image && (!a.restaurants?.length || a.restaurants.includes(r.id)) && !(r.blockedAds || []).includes(a.id))
     .map((a) => ({
       type: 'ad', id: a.id, image: a.image, phone: a.phone || '', // рекламодатель и название — только для поиска в портале
-      qr: a.link ? `${PUBLIC_URL}/go/a/${a.id}?r=${r.id}` : '', ...qrPlace(a), ...framing(a),
+      qr: a.link ? `${PUBLIC_URL}/go/a/${a.id}?r=${r.id}${dev ? `&d=${encodeURIComponent(dev)}` : ''}` : '', ...qrPlace(a), ...framing(a),
+      cta: a.cta?.enabled ? publicCta(a.cta) : null,
     }));
   // ИИ-персонаж — первым слайдом карусели
   // ИИ-персонаж в список не входит: планшет вставляет его в карусель по своему расписанию
@@ -420,11 +429,12 @@ function scans(id, rid = '*') {
 }
 
 // Скан QR из рекламы или акции: считаем и перенаправляем на ссылку рекламодателя
-function qrRedirect(kind, id, rid) {
+function qrRedirect(kind, id, rid, dev) {
   const r = db.restaurants[rid];
   const target = kind === 'a' ? db.ads.find((a) => a.id === id) : (r?.promos || []).find((p) => p.id === id);
   if (!target?.link || !/^https?:\/\//.test(target.link)) return null;
   for (const key of [`scan|${id}|${rid}|${day()}`, `scan|${id}|*|${day()}`]) db.stats[key] = (db.stats[key] || 0) + 1;
+  if (kind === 'a' && db.devices[dev]?.restaurantId === rid) bump(`dscan|${dev}|${day()}`); // скан рекламы с этого планшета
   save();
   return target.link;
 }
@@ -443,7 +453,7 @@ function guestImpression(b) {
   if (!r) throw fail(400, 'bad impression');
   if (b.kind === 'avatar') bump(`avshow|${rid}|${day()}`);
   else if ((r.promos || []).some((p) => p.id === b.id)) bump(`imp|${b.id}|${rid}|${day()}`);
-  else if (db.ads.some((a) => a.id === b.id)) for (const key of [`${b.id}|${rid}|${day()}`, `${b.id}|*|${day()}`]) bump(key);
+  else if (db.ads.some((a) => a.id === b.id)) for (const key of [`${b.id}|${rid}|${day()}`, `${b.id}|*|${day()}`, `dimp|${b.d}|${day()}`]) bump(key);
   else throw fail(400, 'bad impression');
   save();
   return {};
@@ -458,7 +468,7 @@ function guestEvent(b) {
   const n = bud?.hour === hour ? bud.n : 0;
   if (n >= 200) return {};
   guestEventBudget.set(b.d, { hour, n: n + 1 });
-  logEvent(t.r.id, b.k, { table: t.table, dish: String(b.dish || '').slice(0, 40) || undefined, lang: b.lang });
+  logEvent(t.r.id, b.k, { table: t.table, dev: b.d, dish: String(b.dish || '').slice(0, 40) || undefined, lang: b.lang });
   return {};
 }
 
@@ -473,7 +483,7 @@ function guestState(b, q) {
     restaurant: { name: r.name, langs: r.langs },
     build: BUILD,
     menu: (r.menu || []).filter((i) => !i.hidden),
-    slides: slidesFor(r),
+    slides: slidesFor(r, d.id),
     display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) },
     avatar: avatarFor(r),
   };
@@ -496,7 +506,7 @@ function guestCall(b) {
     if (tableIsFree(t.r, t.table)) logEvent(t.r.id, 'open', { table: t.table });
     c = { id: uid(), restaurantId: t.r.id, table: t.table, type: b.type, status: 'new', at: Date.now() };
     db.calls.push(c);
-    logEvent(t.r.id, 'call', { id: c.id, table: t.table, type: b.type, lang: b.lang });
+    logEvent(t.r.id, 'call', { id: c.id, table: t.table, dev: b.d, type: b.type, lang: b.lang });
   }
   // Гость нажал ещё раз — напоминаем, но не чаще раза в 20 секунд
   if (Date.now() - (c.notifiedAt || 0) > 20_000) {
@@ -518,7 +528,7 @@ function guestOrder(b) {
     total: items.reduce((s, i) => s + i.price * i.qty, 0), status: 'pending', at: Date.now(), notifiedAt: Date.now(),
   };
   db.orders.push(o);
-  logEvent(t.r.id, 'order', { id: o.id, table: t.table, total: o.total, items: items.map((i) => [i.id, i.qty, i.price]), lang: b.lang });
+  logEvent(t.r.id, 'order', { id: o.id, table: t.table, dev: b.d, total: o.total, items: items.map((i) => [i.id, i.qty, i.price]), lang: b.lang });
   notify(t.r.id, t.table, 'order', ` · ฿${o.total}`);
   save();
   return o;
@@ -1075,12 +1085,71 @@ function cleanCharacter(p) {
   };
 }
 
+// Кнопка заявки на рекламе: тексты на 4 языках (кнопка, «Отправить», сообщение после отправки), место по сетке 4 × 3, форма
+const CTA_DEFAULT = {
+  text: { ru: 'Оставить заявку', en: 'Request a call', th: 'ขอให้ติดต่อกลับ', zh: '预约咨询' },
+  submit: { ru: 'Отправить', en: 'Send', th: 'ส่ง', zh: '提交' },
+  done: { ru: 'Данные переданы, с вами свяжутся', en: 'Thank you! We will contact you soon', th: 'ส่งข้อมูลแล้ว เราจะติดต่อกลับ', zh: '已提交，我们会尽快联系您' },
+};
+function cleanCta(c = {}) {
+  const txt = (o, def) => ({ ...def, ...texts(o) });
+  return {
+    enabled: !!c.enabled, pos: qrPlace({ qrPos: c.pos }).qrPos, shape: c.shape === 'pill' ? 'pill' : 'rect',
+    doneSec: Math.min(60, Math.max(1, Math.round(Number(c.doneSec)) || 10)), // сколько секунд держать сообщение после отправки
+    text: txt(c.text, CTA_DEFAULT.text), submit: txt(c.submit, CTA_DEFAULT.submit), done: txt(c.done, CTA_DEFAULT.done),
+  };
+}
+const publicCta = (c) => ({ pos: c.pos, shape: c.shape, text: c.text, submit: c.submit, done: c.done, doneSec: c.doneSec || 10 });
+
 function cleanAd(a) {
   return {
     id: a.id || uid(), advertiser: String(a.advertiser || ''), title: String(a.title || ''), image: String(a.image || ''),
     restaurants: (a.restaurants || []).map(String), active: !!a.active,
     link: String(a.link || '').trim(), phone: String(a.phone || '').trim(), ...qrPlace(a), ...framing(a),
+    cta: cleanCta(a.cta), leadToMe: a.leadToMe !== false, // заявки — в бот оповещений портала (по умолчанию да)
   };
+}
+
+// ---------- Заявки по рекламе: имя и телефон гостя → бот оповещений и/или бот рекламодателя, список в портале
+db.leads ??= [];
+const leadBudget = new Map();
+async function guestLead(b) {
+  const d = db.devices[b.d], r = d && db.restaurants[d.restaurantId];
+  const a = db.ads.find((x) => x.id === b.ad);
+  if (!r || !a?.cta?.enabled) throw fail(400, 'bad lead');
+  const name = String(b.name || '').trim().slice(0, 60), phone = String(b.phone || '').trim().slice(0, 25);
+  if (!/^[+\d][\d\s()-]{4,}$/.test(phone)) throw fail(400, 'bad phone');
+  const hour = Math.floor(Date.now() / 3600e3), bud = leadBudget.get(d.id);
+  const n = bud?.hour === hour ? bud.n : 0;
+  if (n >= 10) throw fail(429, 'too many');
+  leadBudget.set(d.id, { hour, n: n + 1 });
+  const place = d.role === 'entrance' ? 'вход' : d.table ? tableLabel(d.table) : '';
+  const lead = { id: uid(), at: Date.now(), ad: a.id, rid: r.id, dev: d.id, place, name, phone, lang: b.lang, sent: [] };
+  db.leads = [lead, ...db.leads].slice(0, 5000);
+  logEvent(r.id, 'lead', { dev: d.id, ad: a.id, table: d.table || undefined });
+  const text = `📩 Заявка по рекламе «${a.advertiser}${a.title ? ` — ${a.title}` : ''}»\nИмя: ${name || '—'}\nТелефон: ${phone}\n`
+    + `Ресторан: ${r.name}${place ? ` · ${place}` : ''}\nВремя: ${clock(lead.at)}`;
+  if (a.leadToMe !== false && db.telegram.token) { await tgSend(db.telegram, text); lead.sent.push('me'); }
+  if (a.leadTg?.token && a.leadTg.chats?.length) { await tgSend(a.leadTg, text); lead.sent.push('advertiser'); }
+  save();
+  return {};
+}
+const publicLeadTg = (t) => ({ connected: !!t?.token, bot: t?.bot || '', chats: t?.chats || [] });
+
+// Бот рекламодателя для заявок: токен, поиск чатов (написали боту /start), тест, удалить получателя
+async function adTelegram(a, p, b) {
+  a.leadTg ??= { token: '', bot: '', chats: [] };
+  const t = a.leadTg;
+  if (p.endsWith('/tg')) {
+    const token = String(b.token || '').trim();
+    const me = token ? await tgApi(token, 'getMe') : null;
+    Object.assign(t, { token, bot: me ? me.username : '', chats: token === t.token ? t.chats : [] });
+  }
+  if (p.endsWith('/tg/find')) await tgFindChats(t);
+  if (p.endsWith('/tg/test')) await tgSend(t, `✅ JET MEDIA: сюда будут приходить заявки по рекламе «${a.advertiser}${a.title ? ` — ${a.title}` : ''}».`, true);
+  if (p.endsWith('/tg/remove')) t.chats = t.chats.filter((c) => c.id !== b.id);
+  save();
+  return publicLeadTg(t);
 }
 
 // PIN — 4–8 цифр, уникальный в ресторане; пустой или повторный заменяем случайным
@@ -1203,7 +1272,17 @@ function admin(method, p, b, me, q) {
     save();
     return db.restaurants[id];
   }
-  if (method === 'GET' && p === '/api/ads') return db.ads.map((a) => ({ ...a, views: views(a.id), scans: scans(a.id) }));
+  if (method === 'GET' && p === '/api/ads') {
+    return db.ads.map(({ leadTg, ...a }) => ({ ...a, cta: cleanCta(a.cta), leadTg: publicLeadTg(leadTg), views: views(a.id), scans: scans(a.id),
+      leads: db.leads.filter((l) => l.ad === a.id).length }));
+  }
+  // Заявки по рекламе (последние 300; по одной рекламе — ?ad=)
+  if (method === 'GET' && p === '/api/leads') {
+    return db.leads.filter((l) => !q.ad || l.ad === q.ad).slice(0, 300).map((l) => ({ ...l, rest: db.restaurants[l.rid]?.name || '' }));
+  }
+  let am = p.match(/^\/api\/ads\/([^/]+)\/tg(\/find|\/test|\/remove)?$/);
+  const tgAd = am && db.ads.find((a) => a.id === am[1]);
+  if (method === 'POST' && tgAd) return adTelegram(tgAd, p, b);
   if (method === 'GET' && p === '/api/characters') return db.characters;
   // ElevenLabs: ключ (наружу не отдаём), модель, голоса аккаунта, остаток символов
   if (p.startsWith('/api/eleven')) return elevenAdmin(method, p, b);
@@ -1238,6 +1317,7 @@ function admin(method, p, b, me, q) {
   }
   if (method === 'POST' && p === '/api/ads') {
     const ad = cleanAd(b);
+    ad.leadTg = db.ads.find((a) => a.id === ad.id)?.leadTg; // бот рекламодателя меняется отдельно и наружу не отдаётся
     const i = db.ads.findIndex((a) => a.id === ad.id);
     if (i >= 0) db.ads[i] = ad; else db.ads.push(ad);
     save();
@@ -1305,6 +1385,7 @@ const PUBLIC = {
   'GET /api/staff/menu': staffMenu,
   'POST /api/guest/impression': guestImpression,
   'POST /api/guest/event': guestEvent,
+  'POST /api/guest/lead': guestLead,
   'GET /api/manager/restaurant': managerGet,
   'POST /api/manager/restaurant': managerSave,
   'POST /api/manager/sync': managerSync,
@@ -1480,7 +1561,7 @@ http.createServer(async (req, res) => {
     }
     const go = req.method === 'GET' && url.pathname.match(/^\/go\/([ap])\/([\w-]+)$/);
     if (go) {
-      const target = qrRedirect(go[1], go[2], url.searchParams.get('r'));
+      const target = qrRedirect(go[1], go[2], url.searchParams.get('r'), url.searchParams.get('d'));
       if (!target) return send(res, 404, { error: 'link not found' });
       res.writeHead(302, { location: target });
       return res.end();

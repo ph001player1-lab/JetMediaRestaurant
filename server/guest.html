@@ -131,6 +131,25 @@
   .slide .cap.withbtn { padding-right: 38vw; }
   .iorder { position: absolute; right: 4vw; bottom: 2.6vw; z-index: 2; border: 0; border-radius: 3vw; padding: 2.2vw 4.5vw; font-size: 3.4vw; font-weight: 700;
     background: var(--accent); color: var(--accent-ink); box-shadow: 0 1vw 3vw rgba(0,0,0,.35); white-space: nowrap; }
+  /* Кнопка заявки на рекламе: место по сетке 4 × 3, как у QR; форма — прямоугольная или овальная */
+  .cta { position: absolute; z-index: 2; border: 0; font-size: 3.4vw; font-weight: 700; padding: 2.2vw 5vw; border-radius: 1.5vw; white-space: nowrap;
+    background: var(--accent); color: var(--accent-ink); box-shadow: 0 1vw 3vw rgba(0,0,0,.35); }
+  .cta.shape-pill { border-radius: 10vw; }
+  .cta.row-top { top: 3%; } .cta.row-upper { top: 27%; } .cta.row-lower { top: 51%; } .cta.row-bottom { bottom: 4%; }
+  .cta.col-left { left: 3vw; } .cta.col-right { right: 3vw; } .cta.col-center { left: 50%; -webkit-transform: translateX(-50%); transform: translateX(-50%); }
+  .cta.row-upper.col-left, .cta.row-lower.col-left { left: 11vw; }
+  .cta.row-upper.col-right, .cta.row-lower.col-right { right: 11vw; }
+  #lead { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 30; background: rgba(0,0,0,.55); display: none; }
+  #lead.show { display: block; }
+  #lead .box { position: relative; margin: 12vh auto 0; width: 84vw; background: var(--card); color: var(--ink); border-radius: 3vw; padding: 6vw 5vw 4vw; }
+  #lead .box b { display: block; font-size: 4.4vw; margin: 0 10vw 2vw 0; }
+  #lead input { display: block; width: 100%; font-size: 3.8vw; padding: 2.4vw; border-radius: 2vw; border: 1px solid var(--line); margin: 1.5vw 0;
+    background: var(--bg); color: var(--ink); -webkit-user-select: text; user-select: text; }
+  #lead .send { width: 100%; border: 0; border-radius: 2vw; padding: 3vw; font-size: 4vw; font-weight: 700; background: var(--accent); color: var(--accent-ink); margin-top: 1.5vw; }
+  #lead .x { position: absolute; top: 2vw; right: 2vw; width: 10vw; height: 10vw; border-radius: 5vw; border: 0; background: var(--soft); color: var(--ink);
+    font-size: 5vw; line-height: 10vw; padding: 0; }
+  #lead .msg { font-size: 4.6vw; text-align: center; padding: 8vw 6vw; line-height: 1.35; }
+  #lead .lerr { color: #c62828; font-size: 3.2vw; min-height: 3.6vw; margin: 1vw 0 0; }
   .porder { position: absolute; left: 50%; bottom: 4vw; -webkit-transform: translateX(-50%); transform: translateX(-50%); z-index: 2; border: 0; border-radius: 3vw;
     padding: 2.2vw 6vw; font-size: 3.4vw; font-weight: 700; background: var(--accent); color: var(--accent-ink); box-shadow: 0 1vw 3vw rgba(0,0,0,.35); white-space: nowrap; }
   .avadd { border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 1.5vw; padding: 1.5vw 2.5vw; font-size: 2.3vw; font-weight: 600; }
@@ -160,32 +179,33 @@
   <div class="abottom"><div id="cdots"></div><div class="acts" id="acts"></div></div>
 </div>
 <div id="toast"></div>
+<div id="lead"></div>
 <div id="offline"></div>
 <script src="/vendor/qrcode.js"></script>
 <script>
 var T = {
-  en: { orderByPromo: 'Order this offer', orderPromo: 'Order', table: 'Table', call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
+  en: { leadName: 'Your name', leadPhone: 'Phone', leadBad: 'Please enter your phone number', orderByPromo: 'Order this offer', orderPromo: 'Order', table: 'Table', call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
         sent: 'Order sent. A waiter will come to confirm it.', called: 'The waiter has been called', coming: 'The waiter is on the way',
         confirmed: 'Order confirmed', add: 'Add', close: 'Close', ordered: 'Ordered',
         pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day', menu: 'Open menu', ad: 'Advertisement',
         offline: 'No connection. Please wave to the waiter — we are reconnecting.', offlineBar: 'No connection — reconnecting…',
         edited: 'The waiter updated your order', scan: 'Scan the QR code', tableTotal: 'Table total', back: 'Back to the slideshow',
         recommend: 'I recommend', showDish: 'Show me', another: 'Something else', askRec: 'What do you recommend?', order: 'Order', diet: 'Special diet', dietAsk: 'What suits you?', noDish: 'Sorry, there is nothing like that on the menu yet — please ask the waiter!', prev: 'Back', dayRec: 'Today\'s dish of the day', noneYet: 'none yet', allMenu: 'Show the whole menu', paid: 'paid', dietHere: 'Here is what suits you', otherDiet: 'Another option', added: 'Added to your order', alreadyOrdered: 'We have already ordered', needMe: 'Great! If you need me, tap my round button at the bottom of the screen.' },
-  ru: { orderByPromo: 'Заказать по акции', orderPromo: 'Заказать', table: 'Стол', call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
+  ru: { leadName: 'Ваше имя', leadPhone: 'Телефон', leadBad: 'Укажите номер телефона', orderByPromo: 'Заказать по акции', orderPromo: 'Заказать', table: 'Стол', call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
         sent: 'Заказ отправлен. Официант подойдёт подтвердить.', called: 'Официант вызван', coming: 'Официант идёт',
         confirmed: 'Заказ подтверждён', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
         pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня', menu: 'Открыть меню', ad: 'Реклама',
         offline: 'Нет связи. Пожалуйста, позовите официанта жестом — мы восстанавливаем подключение.', offlineBar: 'Нет связи — восстанавливаем подключение…',
         edited: 'Официант изменил ваш заказ', scan: 'Отсканируйте QR-код', tableTotal: 'Итого по столу', back: 'На главный экран',
         recommend: 'Советую попробовать', showDish: 'Показать', another: 'Что-нибудь ещё', askRec: 'Что посоветуешь?', order: 'Заказ', diet: 'Особые пожелания', dietAsk: 'Что вам подходит?', noDish: 'Пока таких блюд в меню нет — спросите официанта, он подскажет!', prev: 'Назад', dayRec: 'Сегодня блюдо дня', noneYet: 'пока нет', allMenu: 'Показать всё меню', paid: 'оплачен', dietHere: 'Вот что вам подойдёт', otherDiet: 'Другое пожелание', added: 'Добавлено в заказ', alreadyOrdered: 'Уже заказали', needMe: 'Отлично! Если понадоблюсь — нажмите мою круглую кнопку внизу экрана.' },
-  th: { orderByPromo: 'สั่งโปรโมชันนี้', orderPromo: 'สั่งเลย', table: 'โต๊ะ', call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
+  th: { leadName: 'ชื่อของคุณ', leadPhone: 'เบอร์โทร', leadBad: 'กรุณาใส่เบอร์โทรศัพท์', orderByPromo: 'สั่งโปรโมชันนี้', orderPromo: 'สั่งเลย', table: 'โต๊ะ', call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
         sent: 'ส่งรายการแล้ว พนักงานจะมายืนยัน', called: 'เรียกพนักงานแล้ว', coming: 'พนักงานกำลังมา',
         confirmed: 'ยืนยันรายการแล้ว', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
         pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน', menu: 'ดูเมนู', ad: 'โฆษณา',
         offline: 'ไม่มีการเชื่อมต่อ กรุณาโบกมือเรียกพนักงาน ระบบกำลังเชื่อมต่อใหม่', offlineBar: 'ไม่มีการเชื่อมต่อ — กำลังเชื่อมต่อใหม่…',
         edited: 'พนักงานแก้ไขรายการของคุณแล้ว', scan: 'สแกน QR โค้ด', tableTotal: 'รวมทั้งโต๊ะ', back: 'กลับหน้าหลัก',
         recommend: 'แนะนำให้ลอง', showDish: 'ดูเมนูนี้', another: 'อย่างอื่น', askRec: 'แนะนำอะไรดี?', order: 'ออร์เดอร์', diet: 'อาหารพิเศษ', dietAsk: 'แบบไหนเหมาะกับคุณคะ?', noDish: 'ขออภัย ยังไม่มีเมนูแบบนี้ กรุณาถามพนักงานนะคะ', prev: 'กลับ', dayRec: 'เมนูแนะนำของวันนี้', noneYet: 'ยังไม่มี', allMenu: 'แสดงเมนูทั้งหมด', paid: 'ชำระแล้ว', dietHere: 'นี่คือเมนูที่เหมาะกับคุณ', otherDiet: 'ตัวเลือกอื่น', added: 'เพิ่มในรายการแล้ว', alreadyOrdered: 'สั่งแล้ว', needMe: 'เยี่ยมเลย! ถ้าต้องการหนู แตะปุ่มกลมของหนูด้านล่างจอนะคะ' },
-  zh: { orderByPromo: '参加此优惠', orderPromo: '立即点单', table: '桌', call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
+  zh: { leadName: '您的姓名', leadPhone: '电话', leadBad: '请输入电话号码', orderByPromo: '参加此优惠', orderPromo: '立即点单', table: '桌', call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
         sent: '订单已发送，服务员将前来确认', called: '已呼叫服务员', coming: '服务员马上就来',
         confirmed: '订单已确认', add: '添加', close: '关闭', ordered: '已点',
         pending: '待确认', rejected: '已取消', day: '★ 今日推荐', menu: '查看菜单', ad: '广告',
@@ -502,6 +522,8 @@ function slideHtml(s, current) {
   if (s.type === 'avatar') return avatarHtml(current);
   return frameHtml(s) +
     (s.type === 'ad' ? '<span class="tag">' + t('ad') + '</span>' : '') +
+    // Кнопка заявки на рекламе (текст, место и форма — из портала)
+    (s.type === 'ad' && s.cta ? '<button class="cta ' + qrClass(s.cta.pos) + ' shape-' + (s.cta.shape || 'rect') + '" data-cta="' + esc(s.id) + '">' + esc(tr(s.cta.text)) + '</button>' : '') +
     // Акция с ценой: заказ прямо со слайда
     (s.order && !isEntrance() ? '<button class="porder" data-porder="' + esc(s.order) + '">' + (s.price > 0 ? t('orderPromo') + ' · ' + money(s.price) : t('orderByPromo')) + '</button>' : '') +
     (s.qr || s.phone ? '<div class="contact ' + qrClass(s.qrPos) + ' size-' + (s.qrSize || 'm') + '">' +
@@ -785,6 +807,39 @@ function gEvent(k, dish) {
   post('/api/guest/event', { k: k, dish: dish || '' }).catch(function () {});
 }
 
+// ---------- Заявка по рекламе: гость оставляет имя и телефон, данные уходят рекламодателю.
+// После отправки — сообщение на заданное в портале время (1–60 с), его можно закрыть крестиком
+var leadAd = null, leadTimer = null;
+function openLead(adId) {
+  var s = slides().filter(function (x) { return x.id === adId; })[0];
+  if (!s || !s.cta || PREVIEW) return;
+  leadAd = s;
+  holdUntil = Date.now() + 120000; // пока заполняют форму, показ не листается
+  $('lead').innerHTML = '<div class="box"><button class="x" data-lclose="1">✕</button><b>' + esc(tr(s.cta.text)) + '</b>' +
+    '<input id="leadName" placeholder="' + esc(t('leadName')) + '" autocomplete="name">' +
+    '<input id="leadPhone" type="tel" placeholder="' + esc(t('leadPhone')) + '" autocomplete="tel">' +
+    '<p class="lerr" id="leadErr"></p><button class="send" data-lsend="1">' + esc(tr(s.cta.submit)) + '</button></div>';
+  $('lead').className = 'show';
+}
+function closeLead() {
+  clearTimeout(leadTimer);
+  $('lead').className = '';
+  $('lead').innerHTML = '';
+  leadAd = null;
+  holdUntil = Date.now() + 8000;
+}
+function sendLead() {
+  if (!leadAd) return;
+  var phone = $('leadPhone').value.trim(), c = leadAd.cta;
+  if (!/^[+\d][\d\s()-]{4,}$/.test(phone)) { $('leadErr').textContent = t('leadBad'); return; }
+  post('/api/guest/lead', { ad: leadAd.id, name: $('leadName').value.trim(), phone: phone }).then(function (r) {
+    if (r && r.error) { $('leadErr').textContent = t('leadBad'); return; }
+    $('lead').innerHTML = '<div class="box"><button class="x" data-lclose="1">✕</button><div class="msg">' + esc(tr(c.done)) + '</div></div>';
+    holdUntil = Date.now() + (c.doneSec || 10) * 1000 + 8000;
+    leadTimer = setTimeout(closeLead, (c.doneSec || 10) * 1000);
+  }).catch(function () { $('leadErr').textContent = t('offline'); });
+}
+
 // «Заказать» на слайде акции: строка акции — в корзину, сразу показываем корзину
 function promoOrder(id) {
   if (!MENU[id]) return;
@@ -955,6 +1010,13 @@ function talking(on) {
 
 document.addEventListener('click', function (e) {
   if (!state) return;
+  // Форма заявки по рекламе
+  if (e.target.closest('#lead')) {
+    var lb = e.target.closest('button');
+    if (lb && lb.dataset.lclose) closeLead();
+    else if (lb && lb.dataset.lsend) sendLead();
+    return;
+  }
   if (e.target.closest('#attract')) {
     var a = e.target.closest('button');
     holdUntil = Date.now() + HOLD_AFTER_SWIPE_MS;
@@ -966,6 +1028,7 @@ document.addEventListener('click', function (e) {
     else if (a.dataset.cgo) slideGo(Number(a.dataset.cgo));
     else if (a.dataset.avadd) avatarAdd(a.dataset.avadd);
     else if (a.dataset.porder) promoOrder(a.dataset.porder);
+    else if (a.dataset.cta) openLead(a.dataset.cta);
     else if (a.dataset.av !== undefined && avNode) avatarAction(avNode.buttons[Number(a.dataset.av)].go);
     else if (a.dataset.avchat) { if (!avShowing) { avShowing = true; renderCarousel(); } }
     else if (a.id === 'aMenu') hideAttract();
