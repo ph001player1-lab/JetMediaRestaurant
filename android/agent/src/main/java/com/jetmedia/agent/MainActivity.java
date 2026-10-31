@@ -31,6 +31,7 @@ import android.os.UserManager;
 import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
+import android.speech.tts.Voice;
 import android.text.InputType;
 import android.util.Base64;
 import android.view.Gravity;
@@ -83,7 +84,7 @@ public class MainActivity extends Activity {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Runnable retryLoad = this::load;
     private long offlineSince, lastPreferCheck;
-    private boolean showingOffline, resumed;
+    private boolean showingOffline, resumed, ttsReady;
     private TextToSpeech tts;
     private DevicePolicyManager dpm;
     private ComponentName admin;
@@ -136,7 +137,7 @@ public class MainActivity extends Activity {
         });
 
         // Голос ИИ-персонажа: страница вызывает JetAgent.speak(...), по окончании фразы — jetSpeechDone()
-        tts = new TextToSpeech(this, status -> { });
+        tts = new TextToSpeech(this, status -> ttsReady = status == TextToSpeech.SUCCESS);
         tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
             @Override public void onStart(String id) { }
             @Override public void onDone(String id) { speechDone(); }
@@ -212,16 +213,44 @@ public class MainActivity extends Activity {
     private class SpeechBridge {
         @JavascriptInterface
         public void speak(String text, String lang, double pitch, double rate) {
-            tts.setLanguage(Locale.forLanguageTag(lang));
-            tts.setPitch((float) pitch);
-            tts.setSpeechRate((float) rate);
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jet");
+            say(text, lang, "", pitch, rate);
+        }
+
+        // Голос персонажа выбирается в портале по имени (например, мужской ru-ru-x-…); нет такого — голос языка по умолчанию
+        @JavascriptInterface
+        public void speakWith(String text, String lang, double pitch, double rate, String voice) {
+            say(text, lang, voice, pitch, rate);
         }
 
         @JavascriptInterface
         public void stop() {
             tts.stop();
         }
+    }
+
+    private void say(String text, String lang, String voiceName, double pitch, double rate) {
+        Voice voice = null;
+        try {
+            for (Voice v : tts.getVoices()) if (v.getName().equals(voiceName)) voice = v;
+        } catch (Exception ignored) { }
+        if (voice != null) tts.setVoice(voice);
+        else tts.setLanguage(Locale.forLanguageTag(lang));
+        tts.setPitch((float) pitch);
+        tts.setSpeechRate((float) rate);
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jet");
+    }
+
+    // Голоса синтеза для языков гостя — сервер показывает их в портале для выбора голоса персонажа
+    private JSONArray voiceList() {
+        JSONArray out = new JSONArray();
+        if (!ttsReady) return out;
+        try {
+            for (Voice v : tts.getVoices()) {
+                String l = v.getLocale().getLanguage();
+                if (l.equals("en") || l.equals("ru") || l.equals("th") || l.equals("zh")) out.put(v.getName());
+            }
+        } catch (Exception ignored) { }
+        return out;
     }
 
     private boolean isOwner() {
@@ -344,7 +373,7 @@ public class MainActivity extends Activity {
             }
             t.put("version", BuildConfig.VERSION_NAME).put("model", Build.MODEL)
                     .put("android", Build.VERSION.RELEASE).put("owner", isOwner())
-                    .put("url", prefs.getString("url", ""));
+                    .put("url", prefs.getString("url", "")).put("voices", voiceList());
             String events = prefs.getString("events", "[]");
             JSONObject body = new JSONObject().put("id", deviceId()).put("key", prefs.getString("enroll", ""))
                     .put("telemetry", t).put("events", new JSONArray(events));
@@ -474,6 +503,9 @@ public class MainActivity extends Activity {
                 break;
             case "update":
                 io.execute(() -> installUpdate(cmd.optString("url", DEFAULT_APK)));
+                break;
+            case "say": // «Прослушать» в портале: фраза выбранным голосом
+                say(cmd.optString("text"), cmd.optString("lang", "en-US"), cmd.optString("voice"), cmd.optDouble("pitch", 1), cmd.optDouble("rate", 1));
                 break;
         }
     }

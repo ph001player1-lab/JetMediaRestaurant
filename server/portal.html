@@ -148,8 +148,12 @@
   <p class="hint">Пакет персонажа — JSON-файл с картинками, голосом и сценарием (формат: docs/character-pack.md в репозитории).
     Повторная загрузка с тем же id заменяет персонажа. Менеджер ресторана включает и выбирает персонажа в своём кабинете.</p>
   <p><label>Загрузить пакет <input type="file" id="charFile" accept=".json,application/json"></label></p>
+  <p class="hint">Голос синтеза: для каждого языка выберите голос из установленных на планшетах (мужские и женские голоса Google
+    различаются только на слух — нажмите ▶, фраза прозвучит на выбранном планшете). Записанные приветствия (MP3) играют как есть.
+    Список голосов появится, когда планшеты обновятся до агента 0.1.9 и выше.<br>
+    Прослушивать на: <select id="voiceDev"></select></p>
   <div class="wrap"><table>
-    <thead><tr><th>Персонаж</th><th>Имя</th><th>id</th><th></th></tr></thead>
+    <thead><tr><th>Персонаж</th><th>Имя</th><th>id</th><th>Голос синтеза по языкам</th><th></th></tr></thead>
     <tbody id="chars"></tbody>
   </table></div>
 </section>
@@ -586,12 +590,27 @@ $('pvClose').onclick = () => { $('pvPanel').hidden = true; };
 
 // ---------- ИИ-персонажи
 
+// Фраза для прослушивания голоса и коды языков синтеза
+const VOICE_SAMPLE = { ru: 'Я вам рекомендую: борщ со сметаной.', en: 'I would recommend the borscht with sour cream.',
+  th: 'แนะนำบอร์ชท์กับซาวร์ครีม', zh: '我向您推荐罗宋汤配酸奶油。' };
+const VOICE_LANG = { en: 'en-US', th: 'th-TH', ru: 'ru-RU', zh: 'zh-CN' };
+let chars = [], voices = { voices: {}, devices: [] };
+
 async function loadChars() {
-  const list = await api('/api/characters');
-  $('chars').innerHTML = list.map((c) => `<tr>
+  [chars, voices] = await Promise.all([api('/api/characters'), api('/api/voices')]);
+  const dv = $('voiceDev').value;
+  $('voiceDev').innerHTML = voices.devices.map((d) => `<option value="${esc(d.id)}">${esc(d.place)}${d.online ? '' : ' — офлайн'}</option>`).join('')
+    || '<option value="">нет планшетов с агентом 0.1.9+</option>';
+  if (dv) $('voiceDev').value = dv;
+  $('chars').innerHTML = chars.map((c, i) => `<tr data-ci="${i}">
     <td><img src="${esc(c.images.idle)}" alt="" style="height:120px"></td>
     <td>${esc(Object.values(c.name || {}).join(' / '))}</td>
     <td>${esc(c.id)}</td>
+    <td>${['ru', 'en', 'th', 'zh'].map((l) => `<div style="white-space:nowrap">${l.toUpperCase()}
+      <select data-vlang="${l}"><option value="">— по умолчанию —</option>${(voices.voices[l] || []).map((v) =>
+        `<option ${(c.voice?.names || {})[l] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
+      <button data-vplay="${l}" title="Прослушать на планшете">▶</button></div>`).join('')}
+      <button data-vsave="1">Сохранить голоса</button></td>
     <td><button data-delchar="${esc(c.id)}">Удалить</button></td></tr>`).join('');
 }
 
@@ -607,6 +626,20 @@ $('charFile').onchange = async (e) => {
 };
 
 $('chars').onclick = async (e) => {
+  const row = e.target.closest('tr'), c = row && chars[row.dataset.ci];
+  const { vplay, vsave } = e.target.dataset;
+  if (vplay) {
+    if (!$('voiceDev').value) return alert('Нет планшета для прослушивания: обновите агент на планшетах до 0.1.9');
+    const voice = row.querySelector(`[data-vlang="${vplay}"]`).value;
+    await command($('voiceDev').value, { type: 'say', text: VOICE_SAMPLE[vplay], lang: VOICE_LANG[vplay], voice, pitch: c.voice?.pitch || 1, rate: c.voice?.rate || 1 });
+    return alert('Отправлено: фраза прозвучит на планшете в течение 15 секунд');
+  }
+  if (vsave) {
+    const names = Object.fromEntries([...row.querySelectorAll('[data-vlang]')].map((s) => [s.dataset.vlang, s.value]));
+    await api(`/api/characters/${encodeURIComponent(c.id)}/voice`, 'POST', { names });
+    alert('Голоса сохранены — планшеты подхватят их в течение 15 секунд');
+    return loadChars();
+  }
   const id = e.target.dataset.delchar;
   if (id && confirm('Удалить персонажа? У ресторанов, где он выбран, персонаж пропадёт.')) {
     await api(`/api/characters/${encodeURIComponent(id)}`, 'DELETE');

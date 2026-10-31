@@ -700,12 +700,13 @@ function avatarShow(id, greet) {
   var buttons = (node.buttons || []).slice();
   // Приветствие: случайная фраза менеджера; плюс кнопка особых пожеланий, если они включены
   var say = tr(node.say);
-  // Есть запись приветствия на языке гостя — играем её и показываем её текст (фразы менеджера — когда записи нет)
-  var rec = greet && a.audio && a.audio.greeting && a.audio.greeting[lang];
-  if (rec) say = (a.greeting || {})[lang] || say;
+  // Приветствие — фраза менеджера из ЛК (случайная из нескольких). Запись персонажа (MP3) играет вместо синтеза
+  // для первой фразы менеджера, а если фраз в ЛК нет — для приветствия из пакета
+  var gi = greet && (a.greetings || []).length ? Math.floor(Math.random() * a.greetings.length) : -1;
+  var rec = greet && gi <= 0 && a.audio && a.audio.greeting && a.audio.greeting[lang];
   if (greet) {
     avSuggested = [];
-    if (!rec && (a.greetings || []).length) say = tr(a.greetings[Math.floor(Math.random() * a.greetings.length)]) || say;
+    if (gi >= 0) say = tr(a.greetings[gi]) || say;
     if ((a.filters || []).length) buttons.splice(1, 0, { label: t('diet'), go: 'diet' });
     if (!isEntrance()) buttons.push({ label: t('alreadyOrdered'), go: 'ordered' });
   }
@@ -833,7 +834,10 @@ function speak(text, audioUrl) {
   }
   // страховка: если окончание речи не пришло, через расчётное время закрываем рот
   avDoneTimer = setTimeout(function () { talking(false); }, Math.min(20000, 800 + text.length * 80));
-  if (window.JetAgent && window.JetAgent.speak) {
+  var voice = (v.names || {})[lang];
+  if (voice && window.JetAgent && window.JetAgent.speakWith) {
+    window.JetAgent.speakWith(text, SPEECH_LANG[lang] || 'en-US', v.pitch || 1, v.rate || 1, voice);
+  } else if (window.JetAgent && window.JetAgent.speak) {
     window.JetAgent.speak(text, SPEECH_LANG[lang] || 'en-US', v.pitch || 1, v.rate || 1);
   } else if (window.speechSynthesis) {
     var u = new SpeechSynthesisUtterance(text);

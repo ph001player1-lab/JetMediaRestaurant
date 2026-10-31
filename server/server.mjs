@@ -24,7 +24,7 @@ const OFFLINE_ALERT_MS = 3 * 60_000; // столько минут без свя�
 const KEEP_MS = 7 * 24 * 3600_000;
 const REMIND_MS = 45_000;
 const MAX_REMINDERS = 5;
-const COMMANDS = ['url', 'reload', 'reboot', 'update'];
+const COMMANDS = ['url', 'reload', 'reboot', 'update', 'say'];
 const STATIC = {
   '/': 'portal.html',
   '/guest/': 'guest.html',
@@ -539,7 +539,7 @@ function managerGet(b, q) {
       id: a.id, title: a.title, advertiser: a.advertiser, image: a.image, link: a.link, phone: a.phone, ...qrPlace(a), ...framing(a),
       views: views(a.id, r.id), scans: scans(a.id, r.id),
     })),
-    characters: db.characters.map((c) => ({ id: c.id, name: c.name, image: c.images.idle, greeting: c.greeting })),
+    characters: db.characters.map((c) => ({ id: c.id, name: c.name, image: c.images.idle, greeting: c.greeting, recorded: Object.keys(c.audio?.greeting || {}) })),
     themes: THEMES,
     devices: Object.values(db.devices).filter((d) => d.restaurantId === r.id).map((d) => ({
       id: d.id, entrance: d.role === 'entrance', table: d.table, online: Date.now() - d.lastSeen < ONLINE_MS,
@@ -745,6 +745,10 @@ function cleanPromos(list) {
 
 // Пакет ИИ-персонажа (JSON): имя, картинки «молчит» и «говорит», голос, приветствие и сценарий кнопок.
 // Формат описан в docs/character-pack.md.
+// Голос синтеза по языкам: имя голоса Android (выбирается в портале из голосов, установленных на планшетах)
+const voiceNames = (o) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {})
+  .filter(([l, v]) => ['en', 'th', 'ru', 'zh'].includes(l) && typeof v === 'string' && v).map(([l, v]) => [l, v.slice(0, 80)]));
+
 function cleanCharacter(p) {
   if (!p || !p.images?.idle) throw fail(400, 'pack needs images.idle');
   const lines = (o) => (o && typeof o === 'object' ? o : {});
@@ -752,7 +756,7 @@ function cleanCharacter(p) {
     id: String(p.id || uid()).replace(/[^\w-]/g, '').slice(0, 40) || uid(),
     name: lines(p.name),
     images: { idle: storeDataUri(p.images.idle), talk: storeDataUri(p.images.talk || p.images.idle) },
-    voice: { pitch: Number(p.voice?.pitch) || 1, rate: Number(p.voice?.rate) || 1 },
+    voice: { pitch: Number(p.voice?.pitch) || 1, rate: Number(p.voice?.rate) || 1, names: voiceNames(p.voice?.names) },
     greeting: lines(p.greeting),
     // Записанное приветствие (MP3) по языкам: играет вместо синтеза; остальные фразы — синтез, как раньше
     audio: { greeting: Object.fromEntries(Object.entries(lines(p.audio?.greeting))
@@ -835,8 +839,30 @@ function admin(method, p, b) {
   }
   if (method === 'GET' && p === '/api/ads') return db.ads.map((a) => ({ ...a, views: views(a.id), scans: scans(a.id) }));
   if (method === 'GET' && p === '/api/characters') return db.characters;
+  // Голоса, которые есть на планшетах (по языкам), и планшеты, на которых можно прослушать
+  if (method === 'GET' && p === '/api/voices') {
+    const voices = { en: [], ru: [], th: [], zh: [] }, devices = [];
+    for (const d of Object.values(db.devices)) {
+      const list = d.telemetry?.voices || [];
+      if (!list.length) continue;
+      devices.push({ id: d.id, online: Date.now() - d.lastSeen < ONLINE_MS, place: deviceName(d) });
+      for (const v of list) { const l = v.slice(0, 2) === 'cm' ? 'zh' : v.slice(0, 2); if (voices[l] && !voices[l].includes(v)) voices[l].push(v); }
+    }
+    for (const l in voices) voices[l].sort();
+    return { voices, devices };
+  }
+  let vm = p.match(/^\/api\/characters\/([^/]+)\/voice$/);
+  const vc = vm && db.characters.find((x) => x.id === decodeURIComponent(vm[1]));
+  if (method === 'POST' && vc) {
+    vc.voice = { ...vc.voice, names: voiceNames(b.names) };
+    save();
+    return vc;
+  }
   if (method === 'POST' && p === '/api/characters') {
     const c = cleanCharacter(b);
+    // Повторная загрузка пакета не сбрасывает голоса, выбранные в портале
+    const prev = db.characters.find((x) => x.id === c.id);
+    if (prev && !Object.keys(c.voice.names).length) c.voice.names = prev.voice?.names || {};
     db.characters = db.characters.filter((x) => x.id !== c.id).concat(c);
     save();
     return c;
