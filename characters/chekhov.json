@@ -1,0 +1,103 @@
+{
+ "id": "chekhov",
+ "version": 1,
+ "name": {
+  "en": "Anton Pavlovich",
+  "ru": "Антон Палыч",
+  "th": "อันตอน ปาฟโลวิช",
+  "zh": "安东·巴甫洛维奇"
+ },
+ "images": {
+  "idle": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMDAgNDIwIj4KPHBhdGggZD0iTTM2IDQyMCBRNDAgMzAwIDE1MCAyNzQgUTI2MCAzMDAgMjY0IDQyMCBaIiBmaWxsPSIjMmQyYzM1Ii8+CjxwYXRoIGQ9Ik0xMTggNDIwIEwxMjggMjg2IEwxNTAgMzAwIEwxNzIgMjg2IEwxODIgNDIwIFoiIGZpbGw9IiNmN2Y0ZWMiLz4KPHBhdGggZD0iTTEyOCAyODYgTDEwOCAzMzAgTDEyNiAzNjAgTDExNiA0MjAgTTE3MiAyODYgTDE5MiAzMzAgTDE3NCAzNjAgTDE4NCA0MjAiIHN0cm9rZT0iIzFkMWMyNCIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxyZWN0IHg9IjEzMiIgeT0iMjIyIiB3aWR0aD0iMzYiIGhlaWdodD0iNjIiIGZpbGw9IiNlM2JkOTgiLz4KPHBhdGggZD0iTTEyNCAyNjIgTDE1MCAyODQgTDE3NiAyNjIgTDE3OCAyODYgTDE1MCAzMDIgTDEyMiAyODYgWiIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjZGRkNmM4IiBzdHJva2Utd2lkdGg9IjIiLz4KPHBhdGggZD0iTTE0MiAyOTYgTDE1OCAyOTYgTDE1NSAzMDYgTDE0NSAzMDYgWiBNMTQ1IDMwNiBMMTU1IDMwNiBMMTYyIDM3MiBMMTUwIDM4NiBMMTM4IDM3MiBaIiBmaWxsPSIjNGIyNDMwIi8+CjxlbGxpcHNlIGN4PSIxNTAiIGN5PSIxMjIiIHJ4PSI3NiIgcnk9Ijc0IiBmaWxsPSIjNGEzMjI2Ii8+CjxwYXRoIGQ9Ik05NiA3NiBRMTIwIDUwIDE1MCA1NCBNMTUwIDU0IFExODYgNTAgMjA2IDc4IE0xMTAgNjQgUTE0MCA0NCAxNzYgNjAiIHN0cm9rZT0iIzZiNGEzOCIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPGVsbGlwc2UgY3g9Ijg3IiBjeT0iMTYwIiByeD0iOSIgcnk9IjE3IiBmaWxsPSIjZThjMjlmIi8+PGVsbGlwc2UgY3g9IjIxMyIgY3k9IjE2MCIgcng9IjkiIHJ5PSIxNyIgZmlsbD0iI2U4YzI5ZiIvPgo8ZWxsaXBzZSBjeD0iMTUwIiBjeT0iMTU4IiByeD0iNjEiIHJ5PSI4MCIgZmlsbD0iI2VmY2ZhZSIvPgo8cGF0aCBkPSJNMTEwIDEzNiBRMTI0IDEyOCAxMzggMTM0IE0xNjIgMTM0IFExNzYgMTI4IDE5MCAxMzYiIHN0cm9rZT0iIzRhMzIyNiIgc3Ryb2tlLXdpZHRoPSI1IiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPGVsbGlwc2UgY3g9IjEyNCIgY3k9IjE1MiIgcng9IjYiIHJ5PSI1IiBmaWxsPSIjMmExZDE2Ii8+PGVsbGlwc2UgY3g9IjE3NiIgY3k9IjE1MiIgcng9IjYiIHJ5PSI1IiBmaWxsPSIjMmExZDE2Ii8+CjxjaXJjbGUgY3g9IjEyNiIgY3k9IjE1MCIgcj0iMS44IiBmaWxsPSIjZmZmIi8+PGNpcmNsZSBjeD0iMTc4IiBjeT0iMTUwIiByPSIxLjgiIGZpbGw9IiNmZmYiLz4KPHBhdGggZD0iTTE1MCAxNTQgTDE0NSAxODEgUTE1MCAxODYgMTU3IDE4MiIgc3Ryb2tlPSIjYzk5ZDdjIiBzdHJva2Utd2lkdGg9IjMiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8ZWxsaXBzZSBjeD0iMTA4IiBjeT0iMTc4IiByeD0iMTAiIHJ5PSI2IiBmaWxsPSIjZTlhOTkwIiBvcGFjaXR5PSIuMzUiLz48ZWxsaXBzZSBjeD0iMTkyIiBjeT0iMTc4IiByeD0iMTAiIHJ5PSI2IiBmaWxsPSIjZTlhOTkwIiBvcGFjaXR5PSIuMzUiLz4KPHBhdGggZD0iTTkyIDE4MCBRMTAwIDIwOCAxMjIgMjExIFExNTAgMjE5IDE3OCAyMTEgUTIwMCAyMDggMjA4IDE4MCBRMjEwIDIzMiAxNzQgMjU0IFExNTAgMjY4IDEyNiAyNTQgUTkwIDIzMiA5MiAxODAgWiIgZmlsbD0iIzRhMzIyNiIvPgo8cGF0aCBkPSJNMTQxIDIxMCBRMTUwIDIxMyAxNTkgMjEwIiBzdHJva2U9IiM3YTNiMmUiIHN0cm9rZS13aWR0aD0iMyIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CjxwYXRoIGQ9Ik0xNTAgMTk1IFExMzIgMTg2IDExNSAyMDEgUTEyNSAyMDcgMTM3IDIwNSBRMTQ2IDIwMyAxNTAgMTk5IFExNTQgMjAzIDE2MyAyMDUgUTE3NSAyMDcgMTg1IDIwMSBRMTY4IDE4NiAxNTAgMTk1IFoiIGZpbGw9IiMzZjJhMjAiLz4KPGVsbGlwc2UgY3g9IjEyNCIgY3k9IjE1MiIgcng9IjE2IiByeT0iMTMiIGZpbGw9IiNjZmUzZWUiIGZpbGwtb3BhY2l0eT0iLjE4IiBzdHJva2U9IiMxZjFmMjQiIHN0cm9rZS13aWR0aD0iMi41Ii8+CjxlbGxpcHNlIGN4PSIxNzYiIGN5PSIxNTIiIHJ4PSIxNiIgcnk9IjEzIiBmaWxsPSIjY2ZlM2VlIiBmaWxsLW9wYWNpdHk9Ii4xOCIgc3Ryb2tlPSIjMWYxZjI0IiBzdHJva2Utd2lkdGg9IjIuNSIvPgo8cGF0aCBkPSJNMTQwIDE0OSBRMTUwIDE0MiAxNjAgMTQ5IiBzdHJva2U9IiMxZjFmMjQiIHN0cm9rZS13aWR0aD0iMi41IiBmaWxsPSJub25lIi8+CjxwYXRoIGQ9Ik0xMDggMTU2IFE5MiAyMjAgMTA0IDMwMCBRMTA4IDMzMCAxMDAgMzYwIiBzdHJva2U9IiMxZjFmMjQiIHN0cm9rZS13aWR0aD0iMS41IiBmaWxsPSJub25lIi8+Cjwvc3ZnPg==",
+  "talk": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMDAgNDIwIj4KPHBhdGggZD0iTTM2IDQyMCBRNDAgMzAwIDE1MCAyNzQgUTI2MCAzMDAgMjY0IDQyMCBaIiBmaWxsPSIjMmQyYzM1Ii8+CjxwYXRoIGQ9Ik0xMTggNDIwIEwxMjggMjg2IEwxNTAgMzAwIEwxNzIgMjg2IEwxODIgNDIwIFoiIGZpbGw9IiNmN2Y0ZWMiLz4KPHBhdGggZD0iTTEyOCAyODYgTDEwOCAzMzAgTDEyNiAzNjAgTDExNiA0MjAgTTE3MiAyODYgTDE5MiAzMzAgTDE3NCAzNjAgTDE4NCA0MjAiIHN0cm9rZT0iIzFkMWMyNCIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxyZWN0IHg9IjEzMiIgeT0iMjIyIiB3aWR0aD0iMzYiIGhlaWdodD0iNjIiIGZpbGw9IiNlM2JkOTgiLz4KPHBhdGggZD0iTTEyNCAyNjIgTDE1MCAyODQgTDE3NiAyNjIgTDE3OCAyODYgTDE1MCAzMDIgTDEyMiAyODYgWiIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjZGRkNmM4IiBzdHJva2Utd2lkdGg9IjIiLz4KPHBhdGggZD0iTTE0MiAyOTYgTDE1OCAyOTYgTDE1NSAzMDYgTDE0NSAzMDYgWiBNMTQ1IDMwNiBMMTU1IDMwNiBMMTYyIDM3MiBMMTUwIDM4NiBMMTM4IDM3MiBaIiBmaWxsPSIjNGIyNDMwIi8+CjxlbGxpcHNlIGN4PSIxNTAiIGN5PSIxMjIiIHJ4PSI3NiIgcnk9Ijc0IiBmaWxsPSIjNGEzMjI2Ii8+CjxwYXRoIGQ9Ik05NiA3NiBRMTIwIDUwIDE1MCA1NCBNMTUwIDU0IFExODYgNTAgMjA2IDc4IE0xMTAgNjQgUTE0MCA0NCAxNzYgNjAiIHN0cm9rZT0iIzZiNGEzOCIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPGVsbGlwc2UgY3g9Ijg3IiBjeT0iMTYwIiByeD0iOSIgcnk9IjE3IiBmaWxsPSIjZThjMjlmIi8+PGVsbGlwc2UgY3g9IjIxMyIgY3k9IjE2MCIgcng9IjkiIHJ5PSIxNyIgZmlsbD0iI2U4YzI5ZiIvPgo8ZWxsaXBzZSBjeD0iMTUwIiBjeT0iMTU4IiByeD0iNjEiIHJ5PSI4MCIgZmlsbD0iI2VmY2ZhZSIvPgo8cGF0aCBkPSJNMTEwIDEzNiBRMTI0IDEyOCAxMzggMTM0IE0xNjIgMTM0IFExNzYgMTI4IDE5MCAxMzYiIHN0cm9rZT0iIzRhMzIyNiIgc3Ryb2tlLXdpZHRoPSI1IiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPGVsbGlwc2UgY3g9IjEyNCIgY3k9IjE1MiIgcng9IjYiIHJ5PSI1IiBmaWxsPSIjMmExZDE2Ii8+PGVsbGlwc2UgY3g9IjE3NiIgY3k9IjE1MiIgcng9IjYiIHJ5PSI1IiBmaWxsPSIjMmExZDE2Ii8+CjxjaXJjbGUgY3g9IjEyNiIgY3k9IjE1MCIgcj0iMS44IiBmaWxsPSIjZmZmIi8+PGNpcmNsZSBjeD0iMTc4IiBjeT0iMTUwIiByPSIxLjgiIGZpbGw9IiNmZmYiLz4KPHBhdGggZD0iTTE1MCAxNTQgTDE0NSAxODEgUTE1MCAxODYgMTU3IDE4MiIgc3Ryb2tlPSIjYzk5ZDdjIiBzdHJva2Utd2lkdGg9IjMiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8ZWxsaXBzZSBjeD0iMTA4IiBjeT0iMTc4IiByeD0iMTAiIHJ5PSI2IiBmaWxsPSIjZTlhOTkwIiBvcGFjaXR5PSIuMzUiLz48ZWxsaXBzZSBjeD0iMTkyIiBjeT0iMTc4IiByeD0iMTAiIHJ5PSI2IiBmaWxsPSIjZTlhOTkwIiBvcGFjaXR5PSIuMzUiLz4KPHBhdGggZD0iTTkyIDE4MCBRMTAwIDIwOCAxMjIgMjExIFExNTAgMjE5IDE3OCAyMTEgUTIwMCAyMDggMjA4IDE4MCBRMjEwIDIzMiAxNzQgMjU0IFExNTAgMjY4IDEyNiAyNTQgUTkwIDIzMiA5MiAxODAgWiIgZmlsbD0iIzRhMzIyNiIvPgo8ZWxsaXBzZSBjeD0iMTUwIiBjeT0iMjExIiByeD0iOSIgcnk9IjYiIGZpbGw9IiM1YjI2MjAiLz4KPHBhdGggZD0iTTE1MCAxOTUgUTEzMiAxODYgMTE1IDIwMSBRMTI1IDIwNyAxMzcgMjA1IFExNDYgMjAzIDE1MCAxOTkgUTE1NCAyMDMgMTYzIDIwNSBRMTc1IDIwNyAxODUgMjAxIFExNjggMTg2IDE1MCAxOTUgWiIgZmlsbD0iIzNmMmEyMCIvPgo8ZWxsaXBzZSBjeD0iMTI0IiBjeT0iMTUyIiByeD0iMTYiIHJ5PSIxMyIgZmlsbD0iI2NmZTNlZSIgZmlsbC1vcGFjaXR5PSIuMTgiIHN0cm9rZT0iIzFmMWYyNCIgc3Ryb2tlLXdpZHRoPSIyLjUiLz4KPGVsbGlwc2UgY3g9IjE3NiIgY3k9IjE1MiIgcng9IjE2IiByeT0iMTMiIGZpbGw9IiNjZmUzZWUiIGZpbGwtb3BhY2l0eT0iLjE4IiBzdHJva2U9IiMxZjFmMjQiIHN0cm9rZS13aWR0aD0iMi41Ii8+CjxwYXRoIGQ9Ik0xNDAgMTQ5IFExNTAgMTQyIDE2MCAxNDkiIHN0cm9rZT0iIzFmMWYyNCIgc3Ryb2tlLXdpZHRoPSIyLjUiIGZpbGw9Im5vbmUiLz4KPHBhdGggZD0iTTEwOCAxNTYgUTkyIDIyMCAxMDQgMzAwIFExMDggMzMwIDEwMCAzNjAiIHN0cm9rZT0iIzFmMWYyNCIgc3Ryb2tlLXdpZHRoPSIxLjUiIGZpbGw9Im5vbmUiLz4KPC9zdmc+"
+ },
+ "voice": {
+  "pitch": 0.85,
+  "rate": 0.95
+ },
+ "greeting": {
+  "en": "Good day! Anton Pavlovich at your service. Brevity is the sister of talent, so straight to the point: what shall we eat?",
+  "ru": "Добрый день! Антон Палыч к вашим услугам. Краткость — сестра таланта, поэтому сразу к делу: что будем кушать?",
+  "th": "สวัสดีครับ อันตอน ปาฟโลวิชยินดีรับใช้ ความกระชับคือพี่น้องของพรสวรรค์ งั้นเข้าเรื่องเลย วันนี้ทานอะไรดีครับ?",
+  "zh": "您好！安东·巴甫洛维奇为您效劳。简洁是天才的姐妹，所以直说吧：今天吃点什么？"
+ },
+ "dialog": {
+  "start": "hello",
+  "nodes": {
+   "hello": {
+    "say": {
+     "en": "Good day! Anton Pavlovich at your service. Brevity is the sister of talent, so straight to the point: what shall we eat?",
+     "ru": "Добрый день! Антон Палыч к вашим услугам. Краткость — сестра таланта, поэтому сразу к делу: что будем кушать?",
+     "th": "สวัสดีครับ อันตอน ปาฟโลวิชยินดีรับใช้ ความกระชับคือพี่น้องของพรสวรรค์ งั้นเข้าเรื่องเลย วันนี้ทานอะไรดีครับ?",
+     "zh": "您好！安东·巴甫洛维奇为您效劳。简洁是天才的姐妹，所以直说吧：今天吃点什么？"
+    },
+    "buttons": [
+     {
+      "label": {
+       "en": "What do you recommend?",
+       "ru": "Что посоветуете?",
+       "th": "แนะนำอะไรดีครับ?",
+       "zh": "有什么推荐？"
+      },
+      "go": "recommend"
+     },
+     {
+      "label": {
+       "en": "Tell me something",
+       "ru": "Расскажите что-нибудь",
+       "th": "เล่าอะไรให้ฟังหน่อย",
+       "zh": "讲点什么吧"
+      },
+      "go": "story"
+     },
+     {
+      "label": {
+       "en": "Call the waiter",
+       "ru": "Позовите официанта",
+       "th": "เรียกพนักงาน",
+       "zh": "叫服务员"
+      },
+      "go": "waiter"
+     },
+     {
+      "label": {
+       "en": "Open the menu",
+       "ru": "Откройте меню",
+       "th": "เปิดเมนู",
+       "zh": "打开菜单"
+      },
+      "go": "menu"
+     }
+    ]
+   },
+   "story": {
+    "say": {
+     "en": "Everything about a person should be beautiful: face, clothes, soul and thoughts. And about a dinner too: a starter, a main course and a dessert!",
+     "ru": "В человеке должно быть всё прекрасно: и лицо, и одежда, и душа, и мысли. А в обеде — и закуска, и горячее, и десерт!",
+     "th": "ทุกอย่างในตัวคนควรงดงาม ทั้งใบหน้า เสื้อผ้า จิตใจ และความคิด มื้ออาหารก็เช่นกัน ทั้งของว่าง จานหลัก และของหวาน!",
+     "zh": "人的一切都应该是美的：面貌、衣裳、心灵和思想。一顿饭也一样：前菜、主菜和甜点！"
+    },
+    "buttons": [
+     {
+      "label": {
+       "en": "Then advise me",
+       "ru": "Тогда посоветуйте",
+       "th": "งั้นช่วยแนะนำหน่อย",
+       "zh": "那就推荐一下吧"
+      },
+      "go": "recommend"
+     },
+     {
+      "label": {
+       "en": "Back",
+       "ru": "Назад",
+       "th": "กลับ",
+       "zh": "返回"
+      },
+      "go": "hello"
+     }
+    ]
+   }
+  }
+ }
+}
