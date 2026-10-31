@@ -367,7 +367,7 @@ function render(s) {
   const by = (x) => (x.by ? ` · ${esc(x.by)}` : '');
 
   $('calls').innerHTML = s.calls.map((c) => `<div class="card ${c.status}">
-      <b>${t('table')} ${esc(c.table)}</b> · ${t(c.type)} · ${ago(c.at)}${by(c)}
+      <b>${esc(tbl(c.table))}</b> · ${t(c.type)} · ${ago(c.at)}${by(c)}
       <div>${c.status === 'new' ? btn('call', c.id, 'ack', 'going') : ''}${btn('call', c.id, 'done', 'done')}</div>
     </div>`).join('') || `<p class="empty">${t('none')}</p>`;
 
@@ -379,7 +379,7 @@ function render(s) {
   };
   const money = (n) => `฿${n.toLocaleString('en')}`;
   const orderCard = (o) => `<div class="card ${o.paidAt ? 'paid' : o.ackAt && o.status === 'pending' ? 'ack' : o.status}">
-      <b>${t('table')} ${esc(o.table)}</b> · ${ago(o.at)} · ${o.paidAt ? `${t('paidMark')} · ${esc(o.paidBy || '')}` : t(o.status) + by(o)}
+      <b>${esc(tbl(o.table))}</b> · ${ago(o.at)} · ${o.paidAt ? `${t('paidMark')} · ${esc(o.paidBy || '')}` : t(o.status) + by(o)}
       ${o.ackBy ? ` · ${t('going')}: ${esc(o.ackBy)}` : ''}${o.editedBy ? ` · ${t('editedBy')}: ${esc(o.editedBy)}` : ''}
       <ul>${o.items.map((i) => `<li>${i.qty} × ${esc(itemName(i.name))}</li>`).join('')}</ul>
       <b>฿${o.total.toLocaleString('en')}</b>
@@ -394,7 +394,7 @@ function render(s) {
   const orderTables = [...new Set(s.orders.map((o) => o.table))];
   $('orders').innerHTML = orderTables.map((tb) => {
     const x = sums(tb);
-    return `<div class="tgroup"><div class="thead"><b>${t('table')} ${esc(tb)}</b>
+    return `<div class="tgroup"><div class="thead"><b>${esc(tbl(tb))}</b>
         ${x.count > 1 ? `<span>${t('bills')}: ${x.count}</span>` : ''}<span>${t('total')} ${money(x.total)}</span>
         ${x.due && x.due !== x.total ? `<span class="due">${t('due')} ${money(x.due)}</span>` : ''}</div>
       ${s.orders.filter((o) => o.table === tb).map(orderCard).join('')}</div>`;
@@ -404,7 +404,7 @@ function render(s) {
   const busy = [...new Set([...s.calls, ...s.orders].map((x) => x.table))];
   $('tables').innerHTML = busy.map((tb) => {
     const x = sums(tb);
-    return `<div class="tline"><span><b>${t('table')} ${esc(tb)}</b>${x.count ? ` · ${t('total')} ${money(x.total)}` : ''}
+    return `<div class="tline"><span><b>${esc(tbl(tb))}</b>${x.count ? ` · ${t('total')} ${money(x.total)}` : ''}
         ${x.due ? ` · <span class="due">${t('due')} ${money(x.due)}</span>` : ''}</span>
       <button data-act="table|${esc(tb)}|close" data-confirm="${esc(t('confirmClose').replace('{n}', tb))}">${t('closeTable')}</button></div>`;
   }).join('') || `<p class="empty">${t('none')}</p>`;
@@ -498,8 +498,8 @@ document.addEventListener('click', async (e) => {
   } else if (b.dataset.addtbl || b.dataset.deltbl) {
     tablesDraft = tablesDraft || mgr.restaurant.tables.map((x) => ({ from: x, to: x }));
     if (b.dataset.addtbl) {
-      const nums = tablesDraft.map((x) => Number(x.to)).filter((n) => Number.isInteger(n));
-      tablesDraft.push({ from: '', to: String(nums.length ? Math.max(...nums) + 1 : tablesDraft.length + 1) });
+      const nums = tablesDraft.map((x) => Number((x.to.match(/(\d+)\s*$/) || [])[1])).filter((n) => Number.isInteger(n));
+      tablesDraft.push({ from: '', to: `${t('table')} ${nums.length ? Math.max(...nums) + 1 : tablesDraft.length + 1}` });
     } else {
       const row = tablesDraft[b.dataset.deltbl];
       const busy = row.from && mgr.devices.some((d) => !d.entrance && d.table === row.from);
@@ -585,7 +585,7 @@ async function openOrderEditor(id) {
 function renderOrderEditor() {
   const total = oedit.lines.reduce((s, l) => s + l.price * l.qty, 0);
   $('modal').innerHTML = `<div class="ed">
-      <b>${t('table')} ${esc(oedit.table)} — ${t('edit')}</b>
+      <b>${esc(tbl(oedit.table))} — ${t('edit')}</b>
       ${oedit.lines.map((l, i) => `<div class="line"><span>${esc(l.name)}</span>
         <button data-odec="${i}">−</button><b>${l.qty}</b><button data-oinc="${i}">+</button></div>`).join('')}
       <b>${t('total')}: ฿${total.toLocaleString('en')}</b>
@@ -622,6 +622,8 @@ const LANG_FIELDS = ['cat', 'name', 'desc', 'title', 'text'];
 const val = (o) => (o && typeof o === 'object' ? o[elang] || '' : o ?? '');
 
 // «1-5, 8» → 1, 2, 3, 4, 5, 8
+// Подпись стола: название целиком («Стол B1»), старые чисто числовые — с «Стол»
+const tbl = (x) => (/^\d+$/.test(String(x)) ? `${t('table')} ${x}` : String(x || '—'));
 const parseTables = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean).flatMap((x) => {
   const m = x.match(/^(\d+)\s*-\s*(\d+)$/);
   if (!m) return [x];
@@ -757,7 +759,7 @@ function renderManager() {
     }).join('')}
     <div class="bar"><button class="ghostbtn" data-addtbl="1">+ ${t('addTable')}</button><button data-savetbl="1">${t('save')}</button></div></div>`
     + mgr.devices.map((d) => `<div class="card ${d.online ? 'ack' : 'rejected'}">
-      <b>${d.entrance ? t('entrance') : `${t('table')} ${esc(d.table || '—')}`}</b> · ${t(d.online ? 'online' : 'offline')}
+      <b>${d.entrance ? t('entrance') : `${esc(tbl(d.table))}`}</b> · ${t(d.online ? 'online' : 'offline')}
       · ${d.battery ?? '—'}%${d.charging ? ' ⚡' : ''}${d.wifi ? ` · Wi-Fi ${esc(d.wifi)} (${esc(d.rssi)} dBm)` : ''}
       <br><small class="empty">${esc(d.id)} · ${esc(d.version || '')} · ${new Date(d.lastSeen).toLocaleString()}</small></div>`).join('')
     || `<p class="empty">${t('none')}</p>`;

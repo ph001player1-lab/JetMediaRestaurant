@@ -163,7 +163,7 @@ document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => {
 function placeOptions(d) {
   return '<option value="">— не привязано —</option>' + rests.map((r) => `<optgroup label="${esc(r.name)}">${
     `<option value="${esc(r.id)}|entrance" ${d.restaurantId === r.id && d.role === 'entrance' ? 'selected' : ''}>${esc(r.name)} · вход</option>`
-    + (r.tables || []).map((t) => `<option value="${esc(r.id)}|${esc(t)}" ${d.restaurantId === r.id && d.role !== 'entrance' && d.table === t ? 'selected' : ''}>${esc(r.name)} · стол ${esc(t)}</option>`).join('')
+    + (r.tables || []).map((t) => `<option value="${esc(r.id)}|${esc(t)}" ${d.restaurantId === r.id && d.role !== 'entrance' && d.table === t ? 'selected' : ''}>${esc(r.name)} · ${esc(/^\d+$/.test(t) ? 'стол ' + t : t)}</option>`).join('')
   }</optgroup>`).join('');
 }
 

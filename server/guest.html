@@ -15,6 +15,7 @@
   #app { display: flex; flex-direction: column; height: 100%; }
   header { display: flex; align-items: center; padding: 14px 16px; background: var(--card); }
   header h1 { font-size: 26px; margin: 0; flex: 1; }
+  .atop .tno { background: rgba(255,255,255,.16); color: #fff; font-size: 2.6vw; padding: .4vw 1.5vw; border-radius: 1.2vw; margin-left: 1.5vw; }
   .tno { display: inline-block; margin-left: 12px; padding: 4px 12px; border-radius: 10px; background: var(--soft); color: var(--ink); font-size: 22px; vertical-align: middle; white-space: nowrap; }
   /* Круглая кнопка чата с ИИ-персонажем — между кнопками внизу */
   .avchat { flex: none !important; width: 72px; height: 72px; border-radius: 50% !important; padding: 0 !important; overflow: hidden; background: var(--soft) !important; border: 3px solid var(--accent) !important; align-self: center; }
@@ -308,8 +309,7 @@ function categories() {
 
 function renderAll() {
   // Название ресторана и стол: «Стол 5», а если стол назван словами («VIP», «Терраса 2») — как назван
-  var tn = state.table ? (/^\d+$/.test(state.table) ? t('table') + ' ' + state.table : state.table) : '';
-  $('title').innerHTML = esc(state.restaurant.name) + (tn ? '<span class="tno">' + esc(tn) + '</span>' : '');
+  $('title').innerHTML = esc(state.restaurant.name) + tableBadge();
   $('langs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {
     return '<button data-lang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
   }).join('');
@@ -377,6 +377,13 @@ function applyTheme(ds) {
   for (var k in vars) {
     if (/^#[0-9a-f]{6}$/i.test(vars[k] || '')) document.documentElement.style.setProperty('--' + k, vars[k]);
   }
+}
+
+// Плашка стола в шапке меню и на экране рекламы: название целиком («Стол B1»), старые числовые — «Стол 5» на языке гостя
+function tableBadge() {
+  var n = state.table || '';
+  if (!n) return '';
+  return '<span class="tno">' + esc(/^\d+$/.test(n) ? t('table') + ' ' + n : n) + '</span>';
 }
 
 function renderFooter() {
@@ -603,7 +610,7 @@ function styleCaptions(ds) {
 }
 
 function renderAttract() {
-  $('aTitle').textContent = state.restaurant.name;
+  $('aTitle').innerHTML = esc(state.restaurant.name) + tableBadge();
   $('acts').innerHTML = (isEntrance() ? '' : '<button class="abtn" id="aCall">' + t('call') + '</button>') +
     avatarChatBtn() + '<button class="abtn main" id="aMenu">' + t('menu') + '</button>';
   $('aLangs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {

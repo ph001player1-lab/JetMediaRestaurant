@@ -193,7 +193,7 @@ const clock = (ts) => new Date(ts).toLocaleString('ru-RU', { timeZone: 'Asia/Ban
 
 function deviceName(d) {
   const r = db.restaurants[d.restaurantId];
-  const place = d.role === 'entrance' ? 'вход' : d.table ? `стол ${d.table}` : 'без стола';
+  const place = d.role === 'entrance' ? 'вход' : d.table ? tableLabel(d.table) : 'без стола';
   return `${r ? r.name : 'Без ресторана'} · ${place} (${d.id})`;
 }
 
@@ -483,11 +483,11 @@ function notify(restaurantId, table, kind, extra = '', reminder = false) {
   if (!r) return;
   const member = (s) => (r.staff || []).find((m) => m.id === s.staffId);
   const active = Object.values(db.sessions).filter((s) => s.restaurantId === restaurantId && s.onShift && s.subs.length && member(s));
-  const waiters = active.filter((s) => member(s).role === 'waiter' && (!member(s).tables?.length || member(s).tables.includes(table)));
+  const waiters = active.filter((s) => member(s).role === 'waiter' && (!member(s).tables?.length || servesTable(member(s).tables, table)));
   const managers = active.filter((s) => member(s).role === 'manager');
   for (const s of new Set([...waiters, ...(reminder || !waiters.length ? managers : [])])) {
     const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en;
-    const data = { title: `${L.table} ${table}`, body: (reminder ? `${L.again}: ` : '') + L[kind] + extra, tag: `${kind}-${table}` };
+    const data = { title: tableLabel(table, L.table), body: (reminder ? `${L.again}: ` : '') + L[kind] + extra, tag: `${kind}-${table}` };
     for (const sub of s.subs) {
       sendPush(sub, data, db.vapid).then((ok) => {
         if (!ok) { s.subs = s.subs.filter((x) => x !== sub); save(); }
@@ -556,6 +556,13 @@ function managerSave(b) {
   save();
   return {};
 }
+
+// Название стола целиком задаёт менеджер («Стол B1», «VIP-зал»); короткий номер («5», «B1») → «Стол 5»
+const fullTable = (n) => (/^[A-Za-zА-Яа-я]?\d+[A-Za-zА-Яа-я]?$/.test(n) ? `Стол ${n}` : n);
+// Подпись стола для уведомлений: старые чисто числовые названия — с «Стол»
+const tableLabel = (n, word = 'Стол') => (/^\d+$/.test(String(n)) ? `${word} ${n}` : String(n));
+// Официант с отметкой «1-5, B1» обслуживает «Стол 1»…«Стол 5» и «Стол B1»: сравниваем и целиком, и по последнему слову
+const servesTable = (list, table) => list.includes(table) || list.includes(String(table).split(/\s+/).pop());
 
 // Столы из ЛК менеджера: [{ from: 'старое имя' или '' для нового, to: 'новое имя' }].
 // Переименование переносится на планшеты, официантов и открытые вызовы и заказы;
@@ -795,7 +802,7 @@ function admin(method, p, b) {
     db.restaurants[id] = {
       ...prev, id,
       name: String(b.name || 'Ресторан'),
-      tables: (b.tables || []).map(String),
+      tables: prev.tables || [],
       langs: b.langs || prev.langs || ['en', 'th', 'ru', 'zh'],
       menu: Array.isArray(b.menu) ? cleanMenu(b.menu) : prev.menu || [],
       staff: Array.isArray(b.staff) ? cleanStaff(b.staff) : prev.staff || [],
@@ -805,6 +812,11 @@ function admin(method, p, b) {
       menuSource: b.menuSource ? cleanSource(b.menuSource, prev.menuSource) : prev.menuSource,
       syncKey: prev.syncKey || crypto.randomBytes(12).toString('hex'),
     };
+    // Из портала приходят номера («1-10, B1») — превращаем в полные названия, сохраняя привязки
+    const old = prev.tables || [];
+    saveTables(db.restaurants[id], (b.tables || []).map(String).map((raw) => ({
+      from: old.includes(raw) ? raw : old.includes(fullTable(raw)) ? fullTable(raw) : '', to: fullTable(raw),
+    })));
     save();
     return db.restaurants[id];
   }
@@ -876,6 +888,12 @@ const PUBLIC = {
   'POST /api/manager/sync': managerSync,
   'POST /api/menu/webhook': menuWebhook,
 };
+
+// Однократно: столы «1», «B1» → «Стол 1», «Стол B1» (вместе с планшетами, официантами и заказами)
+for (const r of Object.values(db.restaurants)) {
+  if ((r.tables || []).some((n) => fullTable(n) !== n)) saveTables(r, r.tables.map((n) => ({ from: n, to: fullTable(n) })));
+}
+save();
 
 http.createServer(async (req, res) => {
   try {
