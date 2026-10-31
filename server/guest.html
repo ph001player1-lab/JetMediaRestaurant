@@ -266,6 +266,7 @@ function load() {
     BUILD = BUILD || s.build;
     var first = !state;
     state = s;
+    applyTheme(s.display || {});
     state.calls = s.calls || [];
     state.orders = s.orders || [];
     if (!lang) lang = defLang();
@@ -360,6 +361,31 @@ function openDiet() {
     (String(cat).indexOf('tag:') === 0 ? '<button class="big ghost" data-tagf="">' + t('allMenu') + '</button>' : '') +
     '<button class="big ghost" data-close="1">' + t('close') + '</button>';
   $('cart').className = 'overlay show';
+}
+
+// Цвета и размер текста верхней панели и нижних кнопок — свои у каждого ресторана (ЛК менеджера)
+var themeCss = '';
+function applyTheme(ds) {
+  var c = function (v, def) { return /^#[0-9a-f]{6}$/i.test(v || '') ? v : def; };
+  var n = function (v, def) { return Number(v) > 0 ? Number(v) : def; };
+  var css = 'header,#cats{background:' + c(ds.topBg, '#ffffff') + '}' +
+    'header h1{color:' + c(ds.topText, '#1f1a17') + '}' +
+    '.langs button,#cats button{background:' + c(ds.topBtnBg, '#f7f3ee') + ';color:' + c(ds.topBtnText, '#1f1a17') +
+      ';border-color:rgba(0,0,0,.1);font-size:' + n(ds.topSize, 18) + 'px}' +
+    '.langs button.on,#cats button.on{background:' + c(ds.topOnBg, '#1f1a17') + ';color:' + c(ds.topOnText, '#ffffff') +
+      ';border-color:' + c(ds.topOnBg, '#1f1a17') + '}' +
+    'footer{background:' + c(ds.footBg, '#ffffff') + '}' +
+    'footer button{background:' + c(ds.footBtnBg, '#efe7df') + ';color:' + c(ds.footBtnText, '#1f1a17') + ';font-size:' + n(ds.footSize, 20) + 'px}' +
+    'footer .main{background:' + c(ds.footMainBg, '#c8553d') + ';color:' + c(ds.footMainText, '#ffffff') + '}';
+  if (css === themeCss) return;
+  themeCss = css;
+  var el = $('theme');
+  if (!el) {
+    el = document.createElement('style');
+    el.id = 'theme';
+    document.head.appendChild(el);
+  }
+  el.textContent = css;
 }
 
 function renderFooter() {

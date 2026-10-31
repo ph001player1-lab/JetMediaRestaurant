@@ -50,7 +50,11 @@ const SYNC_EVERY = { hourly: 3600_000, daily: 24 * 3600_000 };
 // Показ акций и рекламы на планшете: задержка простоя, длительность слайда, шрифты и цвета подписи
 const DISPLAY = {
   idleSec: 60, slideSec: 7, titleSize: 38, textSize: 22, textColor: '#ffffff', bgColor: '#000000',
+  // Оформление планшета: верхняя панель (название, языки, категории) и кнопки внизу
+  topBg: '#ffffff', topText: '#1f1a17', topBtnBg: '#f7f3ee', topBtnText: '#1f1a17', topOnBg: '#1f1a17', topOnText: '#ffffff', topSize: 18,
+  footBg: '#ffffff', footBtnBg: '#efe7df', footBtnText: '#1f1a17', footMainBg: '#c8553d', footMainText: '#ffffff', footSize: 20,
 };
+const DISPLAY_RANGE = { idleSec: [10, 600], slideSec: [3, 60], titleSize: [16, 80], textSize: [12, 48], topSize: [12, 32], footSize: [14, 32] };
 // ИИ-персонаж: как часто появляется в карусели, сколько держится, приветствия и подбор блюд по пожеланиям
 const AVATAR = { enabled: false, characterId: '', speak: true, everyMin: 3, durationSec: 20, startWith: true, greetings: [], filters: [] };
 // Отметки блюд для подбора по особым пожеланиям
@@ -667,14 +671,13 @@ function cleanMenu(menu) {
     }));
 }
 
+// Числа — в своих пределах, цвета — только #rrggbb; иначе значение по умолчанию
 function cleanDisplay(d) {
-  const num = (v, min, max, def) => Math.min(max, Math.max(min, Math.round(Number(v)) || def));
-  const color = (v, def) => (/^#[0-9a-f]{6}$/i.test(v) ? v : def);
-  return {
-    idleSec: num(d.idleSec, 10, 600, DISPLAY.idleSec), slideSec: num(d.slideSec, 3, 60, DISPLAY.slideSec),
-    titleSize: num(d.titleSize, 16, 80, DISPLAY.titleSize), textSize: num(d.textSize, 12, 48, DISPLAY.textSize),
-    textColor: color(d.textColor, DISPLAY.textColor), bgColor: color(d.bgColor, DISPLAY.bgColor),
-  };
+  return Object.fromEntries(Object.entries(DISPLAY).map(([k, def]) => {
+    if (typeof def !== 'number') return [k, /^#[0-9a-f]{6}$/i.test(d[k]) ? d[k] : def];
+    const [min, max] = DISPLAY_RANGE[k];
+    return [k, Math.min(max, Math.max(min, Math.round(Number(d[k])) || def))];
+  }));
 }
 
 // Текст на языках гостя: { en, th, ru, zh }, не длиннее 300 символов
