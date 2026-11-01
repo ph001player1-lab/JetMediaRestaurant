@@ -26,6 +26,9 @@
   .ord li { font-size: 22px; padding: 6px 0; border-bottom: 1px solid #333; }
   .ord li b { color: #d4af37; margin-right: 6px; }
   .ord .tags { display: block; font-size: 16px; color: #ff8a65; margin-top: 2px; }
+  /* правка официанта после отправки на кухню: новое — зелёным, убранное — зачёркнуто, изменённое количество — «2 → 3» */
+  .ord li.new { color: #81c784; } .ord li.gone { color: #e57373; text-decoration: line-through; } .ord li.mod { color: #ffb74d; }
+  .chg { display: inline-block; margin-left: 8px; font-size: 15px; font-weight: 800; padding: 1px 8px; border-radius: 8px; background: rgba(255,255,255,.14); text-decoration: none; }
   .ord button { border: 0; border-radius: 12px; padding: 18px; font-size: 22px; font-weight: 800; background: #2e7d32; color: #fff; }
   .ord.ready button { background: #444; font-size: 16px; padding: 10px; }
   h2 { font-size: 18px; color: #a39e93; margin: 22px 4px 8px; }
@@ -51,10 +54,10 @@ var TAGS = {
   halal: { en: 'Halal', ru: 'Халяль', th: 'ฮาลาล', zh: '清真' }
 };
 var T = {
-  en: { ready: 'Ready', undo: 'Back to cooking', done: 'Done in the last 15 minutes', none: 'No orders to cook', min: 'min', edited: 'Order changed by the waiter', sound: '🔔 Turn on sound', soundOn: '🔔 Sound on', bad: 'The link is not valid. Ask the manager for the kitchen screen link (Manager → Kitchen).', table: 'Table' },
-  ru: { ready: 'Готово', undo: 'Вернуть в работу', done: 'Готово за последние 15 минут', none: 'Заказов в работе нет', min: 'мин', edited: 'Официант изменил заказ', sound: '🔔 Включить звук', soundOn: '🔔 Звук включён', bad: 'Ссылка недействительна. Возьмите ссылку экрана кухни у менеджера (ЛК → «Кухня»).', table: 'Стол' },
-  th: { ready: 'พร้อม', undo: 'กลับไปทำ', done: 'เสร็จใน 15 นาทีที่ผ่านมา', none: 'ไม่มีออร์เดอร์ที่ต้องทำ', min: 'นาที', edited: 'พนักงานแก้ไขออร์เดอร์', sound: '🔔 เปิดเสียง', soundOn: '🔔 เปิดเสียงแล้ว', bad: 'ลิงก์ใช้ไม่ได้ ขอลิงก์จอครัวจากผู้จัดการ', table: 'โต๊ะ' },
-  zh: { ready: '完成', undo: '退回制作', done: '最近15分钟完成', none: '暂无待做订单', min: '分钟', edited: '服务员修改了订单', sound: '🔔 打开声音', soundOn: '🔔 声音已开', bad: '链接无效，请向经理索取厨房屏幕链接', table: '桌' },
+  en: { added: 'NEW', removed: 'REMOVED', ready: 'Ready', undo: 'Back to cooking', done: 'Done in the last 15 minutes', none: 'No orders to cook', min: 'min', edited: 'Order changed by the waiter', sound: '🔔 Turn on sound', soundOn: '🔔 Sound on', bad: 'The link is not valid. Ask the manager for the kitchen screen link (Manager → Kitchen).', table: 'Table' },
+  ru: { added: 'НОВОЕ', removed: 'УБРАНО', ready: 'Готово', undo: 'Вернуть в работу', done: 'Готово за последние 15 минут', none: 'Заказов в работе нет', min: 'мин', edited: 'Официант изменил заказ', sound: '🔔 Включить звук', soundOn: '🔔 Звук включён', bad: 'Ссылка недействительна. Возьмите ссылку экрана кухни у менеджера (ЛК → «Кухня»).', table: 'Стол' },
+  th: { added: 'ใหม่', removed: 'ยกเลิก', ready: 'พร้อม', undo: 'กลับไปทำ', done: 'เสร็จใน 15 นาทีที่ผ่านมา', none: 'ไม่มีออร์เดอร์ที่ต้องทำ', min: 'นาที', edited: 'พนักงานแก้ไขออร์เดอร์', sound: '🔔 เปิดเสียง', soundOn: '🔔 เปิดเสียงแล้ว', bad: 'ลิงก์ใช้ไม่ได้ ขอลิงก์จอครัวจากผู้จัดการ', table: 'โต๊ะ' },
+  zh: { added: '新增', removed: '取消', ready: '完成', undo: '退回制作', done: '最近15分钟完成', none: '暂无待做订单', min: '分钟', edited: '服务员修改了订单', sound: '🔔 打开声音', soundOn: '🔔 声音已开', bad: '链接无效，请向经理索取厨房屏幕链接', table: '桌' },
 };
 var lang = 'en', soundOn = false, known = null, state = null;
 try { lang = localStorage.getItem('jk:lang') || 'en'; } catch (e) {}
@@ -84,10 +87,15 @@ function card(o) {
   var min = Math.floor((Date.now() - o.at) / 60000);
   return '<div class="ord' + (o.readyAt ? ' ready' : min >= 20 ? ' late' : '') + '"><div class="top"><span class="tb">' + esc(tbl(o.table)) + '</span>' +
     '<span class="min">' + (o.readyAt ? '✅' : min + ' ' + t('min')) + '</span></div>' +
-    (o.editedAt && !o.readyAt ? '<div class="edited">✎ ' + t('edited') + '</div>' : '') +
+    (o.changed && !o.readyAt ? '<div class="edited">✎ ' + t('edited') + '</div>' : '') +
     '<ul>' + o.items.map(function (i) {
       var tg = (i.tags || []).filter(function (k) { return TAGS[k]; }).map(function (k) { return '#' + tr(TAGS[k]).toLowerCase(); }).join(' ');
-      return '<li><b>' + i.qty + ' ×</b>' + esc(tr(i.name)) + (tg ? '<span class="tags">' + esc(tg) + '</span>' : '') + '</li>';
+      var cls = '', mark = '';
+      if (!i.was) { cls = 'new'; mark = t('added'); }
+      else if (!i.qty) { cls = 'gone'; mark = t('removed'); }
+      else if (i.qty !== i.was) { cls = 'mod'; mark = i.was + ' → ' + i.qty; }
+      return '<li class="' + cls + '"><b>' + (i.qty || i.was) + ' ×</b>' + esc(tr(i.name)) + (mark ? '<span class="chg">' + esc(mark) + '</span>' : '') +
+        (tg ? '<span class="tags">' + esc(tg) + '</span>' : '') + '</li>';
     }).join('') + '</ul>' +
     '<button data-id="' + esc(o.id) + '"' + (o.readyAt ? ' data-undo="1">' + t('undo') : '>' + t('ready')) + '</button></div>';
 }

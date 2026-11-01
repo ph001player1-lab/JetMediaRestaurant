@@ -586,7 +586,7 @@ function guestState(b, q) {
   if (d.role === 'entrance') return { ...base, mode: 'entrance' };
   const k = flowOf(r).phones && tableKey(r, d.table, true);
   return {
-    ...base, mode: 'table', table: d.table, me: { n: 1 }, guests: guestNames(r, d.table),
+    ...base, mode: 'table', table: d.table, me: { n: 1 }, guests: guestNames(r, d.table), kitchen: flowOf(r).kitchenScreen,
     calls: openAt(db.calls, r, d.table).filter((c) => c.status !== 'done'),
     orders: openAt(db.orders, r, d.table),
     // QR-код «Заказ с телефона» и сколько телефонов уже подключено
@@ -607,7 +607,7 @@ function phoneState(q) {
   try { w = guestOf(q); } catch (e) { return { ended: e.message === 'phone disconnected' ? 'off' : 'expired' }; }
   return {
     ...base, menu: (r.menu || []).filter((i) => !i.hidden), slides: [], avatar: null,
-    me: { n: w.n, name: w.name }, guests: guestNames(r, s.table),
+    me: { n: w.n, name: w.name }, guests: guestNames(r, s.table), kitchen: flowOf(r).kitchenScreen,
     calls: openAt(db.calls, r, s.table).filter((c) => c.status !== 'done'),
     orders: openAt(db.orders, r, s.table),
   };
@@ -755,11 +755,23 @@ function staffOrder(b) {
     status: 'confirmed', at: now, confirmedAt: now, ackAt: now, ackBy: member.name, by: member.name, src: 'staff',
     guest, guestName: guestNames(r, table)[guest] || '',
   };
+  o.kitchenItems = kitchenSnap(o);
   db.orders.push(o);
   touchTable(r, table);
   logEvent(r.id, 'order', { id: o.id, table, total: o.total, items: items.map((i) => [i.id, i.qty, i.price]), by: member.id, bn: member.name, src: 'staff' });
   save();
   return o;
+}
+
+// Что ушло на кухню: блюда заказа одной строкой на блюдо (гости кухне не важны) — { "id|вариант": { name, qty } }.
+// Снимок делается при подтверждении и при «Готово»; правка официанта потом видна на кухне как разница с ним
+function kitchenSnap(o) {
+  const out = {};
+  for (const i of o.items) {
+    const k = `${i.id}|${i.opt || ''}`;
+    out[k] = { name: i.name, qty: (out[k]?.qty || 0) + i.qty };
+  }
+  return out;
 }
 
 // ---------- Экран кухни: подтверждённые заказы по ссылке из ЛК менеджера (без входа); повар отмечает «Готово»,
@@ -775,15 +787,16 @@ function kitchenState(b, q) {
     && now - (o.confirmedAt || o.at) < 12 * 3600e3 && (!o.readyAt || now - o.readyAt < 15 * 60e3));
   return {
     restaurant: { name: r.name, langs: r.langs }, build: BUILD,
-    orders: list.map((o) => ({
-      id: o.id, table: o.table, at: o.confirmedAt || o.at, readyAt: o.readyAt || 0, editedAt: o.editedAt || 0,
-      // блюда, разделённые между гостями, на кухне — одной строкой
-      items: Object.values(o.items.reduce((acc, i) => {
-        const k = `${i.id}|${i.opt || ''}`;
-        acc[k] ? (acc[k].qty += i.qty) : (acc[k] = { name: i.name, qty: i.qty, tags: tags.get(i.id) || [] });
-        return acc;
-      }, {})),
-    })),
+    orders: list.map((o) => {
+      // блюда, разделённые между гостями, — одной строкой; was — сколько было, когда заказ ушёл на кухню
+      const cur = kitchenSnap(o), was = o.kitchenItems || cur;
+      const keys = [...new Set([...Object.keys(was), ...Object.keys(cur)])];
+      const items = keys.map((k) => ({ name: (cur[k] || was[k]).name, qty: cur[k]?.qty || 0, was: was[k]?.qty || 0, tags: tags.get(k.split('|')[0]) || [] }));
+      return {
+        id: o.id, table: o.table, at: o.cookFrom || o.confirmedAt || o.at, readyAt: o.readyAt || 0, editedAt: o.editedAt || 0,
+        changed: items.some((i) => i.qty !== i.was), items,
+      };
+    }),
   };
 }
 function kitchenReady(b) {
@@ -793,6 +806,7 @@ function kitchenReady(b) {
   if (b.undo) delete o.readyAt;
   else if (!o.readyAt) {
     o.readyAt = Date.now();
+    o.kitchenItems = kitchenSnap(o); // кухня приготовила это — следующие правки покажутся как новые
     logEvent(r.id, 'order_ready', { id: o.id, table: o.table, ms: o.readyAt - (o.confirmedAt || o.at) });
     notify(r.id, o.table, 'ready');
   }
@@ -853,7 +867,15 @@ function staffAction(b) {
     const x = [...db.calls, ...db.orders].find((y) => y.id === b.id && y.restaurantId === r.id);
     if (x) touchTable(r, x.table);
   }
-  if (b.kind === 'table') {
+  if (b.kind === 'table' && b.action === 'ack') {
+    // «Иду» к столу — сразу по всем новым заказам и вызовам этого стола
+    for (const x of openAt(db.orders, r, b.id)) if (x.status === 'pending') ackOrder(x);
+    for (const c of openAt(db.calls, r, b.id).filter((y) => y.status === 'new')) {
+      logEvent(r.id, 'call_ack', { ...who, id: c.id, table: c.table, type: c.type, ms: Date.now() - c.at });
+      Object.assign(c, { status: 'ack', by: member.name, ackAt: Date.now() });
+    }
+    touchTable(r, b.id);
+  } else if (b.kind === 'table') {
     // «Закрыть стол» или «Счёт оплачен» (когда касса не подключена): закрываем сессию стола, телефоны гостей отключаются
     for (const x of [...db.calls, ...db.orders]) {
       if (x.restaurantId !== r.id || x.table !== b.id || x.closed) continue;
@@ -913,6 +935,12 @@ function staffAction(b) {
       const items = buildItems(r, b.items);
       if (!items.length) throw fail(400, 'empty order');
       Object.assign(x, { items, total: items.reduce((s, i) => s + i.price * i.qty, 0), editedAt: Date.now(), editedBy: member.name });
+      // к уже готовому заказу добавили блюда — кухне снова есть что готовить
+      const was = x.kitchenItems || {}, cur = kitchenSnap(x);
+      if (x.readyAt && Object.keys(cur).some((k) => cur[k].qty > (was[k]?.qty || 0))) {
+        delete x.readyAt;
+        x.cookFrom = Date.now();
+      }
       logEvent(r.id, 'order_edit', { ...who, id: x.id, table: x.table, total: x.total });
     }
   } else {
@@ -929,6 +957,7 @@ function staffAction(b) {
       if (status === 'rejected') logEvent(r.id, 'order_reject', { ...who, id: x.id, table: x.table });
     }
     Object.assign(x, { status, by: member.name, [`${status}At`]: Date.now() });
+    if (status === 'confirmed') x.kitchenItems = kitchenSnap(x);
   }
   save();
   return {};
