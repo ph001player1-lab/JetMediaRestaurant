@@ -73,6 +73,7 @@ function summary(ev) {
   }
   return {
     orders: orders.length, revenue, avg: orders.length ? Math.round(revenue / orders.length) : 0,
+    phoneOrders: orders.filter((e) => e.phone).length,
     calls: ev.filter((e) => e.k === 'call' && e.type === 'waiter' && !cancelled.has(e.id)).length,
     bills: ev.filter((e) => e.k === 'call' && e.type === 'bill' && !cancelled.has(e.id)).length,
     opens: opens.length, opensWithOrder: withOrder,
@@ -83,17 +84,20 @@ function summary(ev) {
 function reaction(ev) {
   const callMs = ev.filter((e) => e.k === 'call_ack').map((e) => e.ms);
   const orderMs = ev.filter((e) => e.k === 'order_ack').map((e) => e.ms);
+  const kitchenMs = ev.filter((e) => e.k === 'order_kitchen').map((e) => e.ms);
+  const readyMs = ev.filter((e) => e.k === 'order_ready').map((e) => e.ms);
   // отменённый гостем вызов — не «без ответа»
   const acked = new Set(ev.filter((e) => e.k === 'call_ack' || e.k === 'call_cancel').map((e) => e.id));
   return {
     callMed: median(callMs), callP90: p90(callMs), orderMed: median(orderMs), orderP90: p90(orderMs),
+    kitchenMed: median(kitchenMs), readyMed: median(readyMs),
     reminders: ev.filter((e) => e.k === 'remind').length,
     unanswered: ev.filter((e) => e.k === 'call' && !acked.has(e.id)).length,
   };
 }
 
 // Персонал: реакция, заказы, счета; часы — по кнопке «На смене» и по первому и последнему действию за день
-const ACTIONS = ['order', 'call_ack', 'call_done', 'order_ack', 'order_edit', 'order_reject', 'paid', 'close'];
+const ACTIONS = ['order', 'call_ack', 'call_done', 'order_ack', 'order_edit', 'order_reject', 'order_kitchen', 'paid', 'close'];
 function staffStats(ev, staffNames, to) {
   const st = {};
   const get = (id, name) => (st[id] ??= { id, name: staffNames[id] || name || '—', calls: 0, callMs: [], orders: 0, ordersSum: 0, paid: 0, paidSum: 0, shiftMs: 0, act: {} });

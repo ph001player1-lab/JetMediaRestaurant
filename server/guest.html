@@ -79,6 +79,43 @@
   body.calling .atop { top: 64px; }
   body.calling .astage { top: calc(8vh + 64px); }
   footer button.alarm, #attract .abtn.alarm { background: #e53935 !important; color: #fff !important; box-shadow: 0 0 0 3px rgba(229,57,53,.35); }
+  /* QR-код «Заказ с телефона»: кнопка вверху, крупный код на весь экран, подсказка в углу при первом касании */
+  .qrbtn { border: 2px solid var(--accent) !important; color: var(--accent) !important; font-weight: 700; }
+  #aLangs .qrbtn { border: 0 !important; background: rgba(255,255,255,.14) !important; color: #fff !important; }
+  #qrBox { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 37; background: rgba(0,0,0,.65); display: none; align-items: center; justify-content: center; }
+  #qrBox.show { display: flex; }
+  .qrc { background: #fff; color: #1f1a17; border-radius: 24px; padding: 28px 28px 20px; width: 560px; max-width: 92%; text-align: center; font-size: 20px; line-height: 1.4; }
+  .qrc h2 { margin: 0 0 6px; font-size: 30px; }
+  .qrc svg { width: 340px; height: 340px; max-width: 70vw; max-height: 70vw; display: block; margin: 12px auto; }
+  .qrc .muted { color: #8a7f76; font-size: 17px; }
+  .qrc button { border: 0; border-radius: 14px; background: #1f1a17; color: #fff; font-size: 20px; padding: 16px 40px; margin-top: 14px; }
+  #qrCard { position: fixed; right: 16px; bottom: 120px; z-index: 6; background: #fff; color: #1f1a17; border-radius: 18px; padding: 14px 14px 12px;
+    width: 240px; text-align: center; box-shadow: 0 8px 28px rgba(0,0,0,.35); display: none; font-size: 16px; line-height: 1.3; }
+  #qrCard svg { width: 196px; height: 196px; display: block; margin: 0 auto 8px; }
+  #qrCard .x { position: absolute; top: 2px; right: 4px; border: 0; background: none; font-size: 24px; color: #8a7f76; padding: 6px 10px; }
+  /* Телефон гостя: экран «Как вас зовут?», компактное меню */
+  .join { max-width: 420px; width: 100%; }
+  .join h2 { margin: 0 0 4px; }
+  .join input { width: 100%; font-size: 20px; padding: 14px; border-radius: 12px; border: 1px solid var(--line); margin: 14px 0 10px; background: var(--card); color: var(--ink); }
+  .join button { width: 100%; border: 0; border-radius: 14px; font-size: 19px; font-weight: 600; padding: 16px; margin-top: 8px; background: var(--accent); color: var(--accent-ink); }
+  .join button.ghost { background: var(--soft); color: var(--ink); }
+  body.phone header { padding: 10px 12px; }
+  body.phone header h1 { font-size: 20px; }
+  body.phone .tno { font-size: 16px; margin-left: 8px; padding: 3px 8px; }
+  body.phone .langs button { padding: 7px 9px; font-size: 14px; margin-left: 4px; }
+  body.phone #cats button { padding: 9px 13px; font-size: 15px; }
+  body.phone .item { width: calc(50% - 10px); margin: 5px; }
+  body.phone .item img, body.phone .ph { height: 150px; }
+  body.phone .item .n { font-size: 16px; }
+  body.phone .item .b { padding: 8px 10px 10px; }
+  body.phone .price { font-size: 17px; }
+  body.phone .add { padding: 10px 12px; font-size: 15px; }
+  body.phone footer { padding: 8px; }
+  body.phone footer button { font-size: 15px; padding: 16px 4px; margin-left: 6px; }
+  body.phone #callBar { height: 46px; line-height: 46px; padding: 0 6px; }
+  body.phone.calling #app { padding-top: 46px; }
+  .gsum .line { padding: 6px 0; }
+  .gsum .me { font-weight: 700; }
   #toast { position: fixed; top: 90px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--card); padding: 16px 24px; border-radius: 14px; font-size: 20px; display: none; z-index: 30; text-align: center; max-width: 90%; }
   #offline { position: fixed; top: 0; left: 0; right: 0; z-index: 40; background: #c62828; color: #fff; text-align: center; padding: 10px; font-size: 18px; display: none; }
   #msg { display: none; height: 100%; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 20px; line-height: 1.6; }
@@ -195,34 +232,36 @@
   <div class="abottom"><div id="cdots"></div><div class="acts" id="acts"></div></div>
 </div>
 <div id="callBar"></div>
+<div id="qrBox"></div>
+<div id="qrCard"></div>
 <div id="toast"></div>
 <div id="lead"></div>
 <div id="offline"></div>
 <script src="/vendor/qrcode.js"></script>
 <script>
 var T = {
-  en: { callOn: '🔔 Waiter called', billOn: '🧾 Bill requested', orderOn: '🍽 Order sent to the waiter', comingBar: '🏃 The waiter is on the way to you', cancelCall: '✕ Cancel call', cancelBill: '✕ Cancel bill request', cancelled: 'Call cancelled', leadName: 'Your name', leadPhone: 'Phone', leadBad: 'Please enter your phone number', orderByPromo: 'Order this offer', orderPromo: 'Order', table: 'Table', call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
+  en: { phoneOrder: 'Order from phone', qrTitle: 'Order from your phone', qrText: 'Scan with your phone camera — browse the menu and order yourselves. Everyone at the table can join.', qrHint: 'Several of you? Everyone can order from their own phone', phonesOn: 'Phones connected', joinHi: 'Welcome!', joinName: 'What is your name? (optional — the waiter will see it)', joinGo: 'Continue', joinSkip: 'Skip', you: 'you', guest: 'Guest', billAsk: 'Which bill?', myBill: 'My bill', tableBill: 'Bill for the whole table', byGuests: 'By guests', ended: 'The visit at this table is over. To order, scan the QR code on the tablet at your table.', phoneOff: 'This phone was disconnected from the table. To order, scan the QR code on the tablet at your table.', callOn: '🔔 Waiter called', billOn: '🧾 Bill requested', orderOn: '🍽 Order sent to the waiter', comingBar: '🏃 The waiter is on the way to you', cancelCall: '✕ Cancel call', cancelBill: '✕ Cancel bill request', cancelled: 'Call cancelled', leadName: 'Your name', leadPhone: 'Phone', leadBad: 'Please enter your phone number', orderByPromo: 'Order this offer', orderPromo: 'Order', table: 'Table', call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
         sent: 'Order sent. A waiter will come to confirm it.', called: 'The waiter has been called', coming: 'The waiter is on the way',
         confirmed: 'Order confirmed', add: 'Add', close: 'Close', ordered: 'Ordered',
         pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day', menu: 'Open menu', ad: 'Advertisement',
         offline: 'No connection. Please wave to the waiter — we are reconnecting.', offlineBar: 'No connection — reconnecting…',
         edited: 'The waiter updated your order', scan: 'Scan the QR code', tableTotal: 'Table total', back: 'Back to the slideshow',
         recommend: 'I recommend', showDish: 'Show me', another: 'Something else', askRec: 'What do you recommend?', order: 'Order', diet: 'Special diet', dietAsk: 'What suits you?', noDish: 'Sorry, there is nothing like that on the menu yet — please ask the waiter!', prev: 'Back', dayRec: 'Today\'s dish of the day', noneYet: 'none yet', allMenu: 'Show the whole menu', paid: 'paid', dietHere: 'Here is what suits you', otherDiet: 'Another option', added: 'Added to your order', alreadyOrdered: 'We have already ordered', needMe: 'Great! If you need me, tap my round button at the bottom of the screen.' },
-  ru: { callOn: '🔔 Официант вызван', billOn: '🧾 Вы попросили счёт', orderOn: '🍽 Заказ отправлен официанту', comingBar: '🏃 Официант уже идёт к вам', cancelCall: '✕ Отменить вызов', cancelBill: '✕ Отменить счёт', cancelled: 'Вызов отменён', leadName: 'Ваше имя', leadPhone: 'Телефон', leadBad: 'Укажите номер телефона', orderByPromo: 'Заказать по акции', orderPromo: 'Заказать', table: 'Стол', call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
+  ru: { phoneOrder: 'Заказ с телефона', qrTitle: 'Заказ со своего телефона', qrText: 'Отсканируйте камерой телефона — смотрите меню и заказывайте сами. Подключиться может каждый за столом.', qrHint: 'Вас несколько? Каждый может заказывать со своего телефона', phonesOn: 'Подключено телефонов', joinHi: 'Добро пожаловать!', joinName: 'Как вас зовут? (необязательно — так вас увидит официант)', joinGo: 'Продолжить', joinSkip: 'Пропустить', you: 'вы', guest: 'Гость', billAsk: 'Какой счёт?', myBill: 'Мой счёт', tableBill: 'Счёт всего стола', byGuests: 'По гостям', ended: 'Визит за этим столом закончился. Чтобы заказать, отсканируйте QR-код на планшете на вашем столе.', phoneOff: 'Этот телефон отключён от стола. Чтобы заказать, отсканируйте QR-код на планшете на вашем столе.', callOn: '🔔 Официант вызван', billOn: '🧾 Вы попросили счёт', orderOn: '🍽 Заказ отправлен официанту', comingBar: '🏃 Официант уже идёт к вам', cancelCall: '✕ Отменить вызов', cancelBill: '✕ Отменить счёт', cancelled: 'Вызов отменён', leadName: 'Ваше имя', leadPhone: 'Телефон', leadBad: 'Укажите номер телефона', orderByPromo: 'Заказать по акции', orderPromo: 'Заказать', table: 'Стол', call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
         sent: 'Заказ отправлен. Официант подойдёт подтвердить.', called: 'Официант вызван', coming: 'Официант идёт',
         confirmed: 'Заказ подтверждён', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
         pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня', menu: 'Открыть меню', ad: 'Реклама',
         offline: 'Нет связи. Пожалуйста, позовите официанта жестом — мы восстанавливаем подключение.', offlineBar: 'Нет связи — восстанавливаем подключение…',
         edited: 'Официант изменил ваш заказ', scan: 'Отсканируйте QR-код', tableTotal: 'Итого по столу', back: 'На главный экран',
         recommend: 'Советую попробовать', showDish: 'Показать', another: 'Что-нибудь ещё', askRec: 'Что посоветуешь?', order: 'Заказ', diet: 'Особые пожелания', dietAsk: 'Что вам подходит?', noDish: 'Пока таких блюд в меню нет — спросите официанта, он подскажет!', prev: 'Назад', dayRec: 'Сегодня блюдо дня', noneYet: 'пока нет', allMenu: 'Показать всё меню', paid: 'оплачен', dietHere: 'Вот что вам подойдёт', otherDiet: 'Другое пожелание', added: 'Добавлено в заказ', alreadyOrdered: 'Уже заказали', needMe: 'Отлично! Если понадоблюсь — нажмите мою круглую кнопку внизу экрана.' },
-  th: { callOn: '🔔 เรียกพนักงานแล้ว', billOn: '🧾 ขอเช็คบิลแล้ว', orderOn: '🍽 ส่งรายการให้พนักงานแล้ว', comingBar: '🏃 พนักงานกำลังไปหาคุณ', cancelCall: '✕ ยกเลิกการเรียก', cancelBill: '✕ ยกเลิกเช็คบิล', cancelled: 'ยกเลิกการเรียกแล้ว', leadName: 'ชื่อของคุณ', leadPhone: 'เบอร์โทร', leadBad: 'กรุณาใส่เบอร์โทรศัพท์', orderByPromo: 'สั่งโปรโมชันนี้', orderPromo: 'สั่งเลย', table: 'โต๊ะ', call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
+  th: { phoneOrder: 'สั่งจากมือถือ', qrTitle: 'สั่งจากมือถือของคุณ', qrText: 'สแกนด้วยกล้องมือถือ — ดูเมนูและสั่งอาหารได้เอง ทุกคนที่โต๊ะเชื่อมต่อได้', qrHint: 'มากันหลายคน? ทุกคนสั่งจากมือถือของตัวเองได้', phonesOn: 'มือถือที่เชื่อมต่อ', joinHi: 'ยินดีต้อนรับ!', joinName: 'คุณชื่ออะไร? (ไม่บังคับ — พนักงานจะเห็นชื่อนี้)', joinGo: 'ต่อไป', joinSkip: 'ข้าม', you: 'คุณ', guest: 'แขก', billAsk: 'เช็คบิลแบบไหน?', myBill: 'บิลของฉัน', tableBill: 'บิลทั้งโต๊ะ', byGuests: 'แยกตามแขก', ended: 'การใช้บริการที่โต๊ะนี้สิ้นสุดแล้ว หากต้องการสั่ง กรุณาสแกน QR โค้ดบนแท็บเล็ตที่โต๊ะของคุณ', phoneOff: 'มือถือเครื่องนี้ถูกตัดการเชื่อมต่อจากโต๊ะ หากต้องการสั่ง กรุณาสแกน QR โค้ดบนแท็บเล็ตที่โต๊ะของคุณ', callOn: '🔔 เรียกพนักงานแล้ว', billOn: '🧾 ขอเช็คบิลแล้ว', orderOn: '🍽 ส่งรายการให้พนักงานแล้ว', comingBar: '🏃 พนักงานกำลังไปหาคุณ', cancelCall: '✕ ยกเลิกการเรียก', cancelBill: '✕ ยกเลิกเช็คบิล', cancelled: 'ยกเลิกการเรียกแล้ว', leadName: 'ชื่อของคุณ', leadPhone: 'เบอร์โทร', leadBad: 'กรุณาใส่เบอร์โทรศัพท์', orderByPromo: 'สั่งโปรโมชันนี้', orderPromo: 'สั่งเลย', table: 'โต๊ะ', call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
         sent: 'ส่งรายการแล้ว พนักงานจะมายืนยัน', called: 'เรียกพนักงานแล้ว', coming: 'พนักงานกำลังมา',
         confirmed: 'ยืนยันรายการแล้ว', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
         pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน', menu: 'ดูเมนู', ad: 'โฆษณา',
         offline: 'ไม่มีการเชื่อมต่อ กรุณาโบกมือเรียกพนักงาน ระบบกำลังเชื่อมต่อใหม่', offlineBar: 'ไม่มีการเชื่อมต่อ — กำลังเชื่อมต่อใหม่…',
         edited: 'พนักงานแก้ไขรายการของคุณแล้ว', scan: 'สแกน QR โค้ด', tableTotal: 'รวมทั้งโต๊ะ', back: 'กลับหน้าหลัก',
         recommend: 'แนะนำให้ลอง', showDish: 'ดูเมนูนี้', another: 'อย่างอื่น', askRec: 'แนะนำอะไรดี?', order: 'ออร์เดอร์', diet: 'อาหารพิเศษ', dietAsk: 'แบบไหนเหมาะกับคุณคะ?', noDish: 'ขออภัย ยังไม่มีเมนูแบบนี้ กรุณาถามพนักงานนะคะ', prev: 'กลับ', dayRec: 'เมนูแนะนำของวันนี้', noneYet: 'ยังไม่มี', allMenu: 'แสดงเมนูทั้งหมด', paid: 'ชำระแล้ว', dietHere: 'นี่คือเมนูที่เหมาะกับคุณ', otherDiet: 'ตัวเลือกอื่น', added: 'เพิ่มในรายการแล้ว', alreadyOrdered: 'สั่งแล้ว', needMe: 'เยี่ยมเลย! ถ้าต้องการหนู แตะปุ่มกลมของหนูด้านล่างจอนะคะ' },
-  zh: { callOn: '🔔 已呼叫服务员', billOn: '🧾 已请求结账', orderOn: '🍽 订单已发送给服务员', comingBar: '🏃 服务员正在过来', cancelCall: '✕ 取消呼叫', cancelBill: '✕ 取消结账', cancelled: '呼叫已取消', leadName: '您的姓名', leadPhone: '电话', leadBad: '请输入电话号码', orderByPromo: '参加此优惠', orderPromo: '立即点单', table: '桌', call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
+  zh: { phoneOrder: '手机点餐', qrTitle: '用自己的手机点餐', qrText: '用手机相机扫描——自己浏览菜单并点餐。同桌每个人都可以加入。', qrHint: '几位一起？每个人都可以用自己的手机点餐', phonesOn: '已连接手机', joinHi: '欢迎！', joinName: '您怎么称呼？（可选——服务员会看到）', joinGo: '继续', joinSkip: '跳过', you: '您', guest: '客人', billAsk: '哪个账单？', myBill: '我的账单', tableBill: '整桌账单', byGuests: '按客人', ended: '本桌的用餐已结束。如需点餐，请扫描您桌上平板电脑的二维码。', phoneOff: '此手机已与本桌断开。如需点餐，请扫描您桌上平板电脑的二维码。', callOn: '🔔 已呼叫服务员', billOn: '🧾 已请求结账', orderOn: '🍽 订单已发送给服务员', comingBar: '🏃 服务员正在过来', cancelCall: '✕ 取消呼叫', cancelBill: '✕ 取消结账', cancelled: '呼叫已取消', leadName: '您的姓名', leadPhone: '电话', leadBad: '请输入电话号码', orderByPromo: '参加此优惠', orderPromo: '立即点单', table: '桌', call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
         sent: '订单已发送，服务员将前来确认', called: '已呼叫服务员', coming: '服务员马上就来',
         confirmed: '订单已确认', add: '添加', close: '关闭', ordered: '已点',
         pending: '待确认', rejected: '已取消', day: '★ 今日推荐', menu: '查看菜单', ad: '广告',
@@ -250,6 +289,11 @@ var IDLE_RESET_MS = 180000, HOLD_AFTER_SWIPE_MS = 20000, DAY = '★day';
 var D = new URLSearchParams(location.search).get('d') || '';
 // Предпросмотр в портале и кабинете менеджера: слайд приходит через postMessage, без сервера и подсчёта показов
 var PREVIEW = new URLSearchParams(location.search).get('preview') === '1';
+// Телефон гостя: страница открыта по QR-коду стола (/t/<ключ стола>); личный ключ гостя — в памяти телефона
+var KEY = (location.pathname.match(/^\/t\/([\w-]+)/) || [])[1] || '';
+var PHONE = !!KEY, GT = '';
+try { GT = localStorage.getItem('jt:' + KEY) || ''; } catch (e) {}
+if (PHONE) document.body.className = 'phone';
 var lang = null, state = null, cart = {}, cat = null, lastTouch = Date.now(), menuSig = '', seen = {}, sending = false;
 // cart: «id» или «id|вариант» → количество; MENU: id → блюдо; BUILD: версия интерфейса
 var MENU = {}, BUILD = null, sheetMode = 'cart', online = true;
@@ -265,7 +309,10 @@ function t(k) { return (T[lang] || T.en)[k] || T.en[k]; }
 function tr(o) { if (!o) return ''; if (typeof o === 'string') return o; return o[lang] || o.en || o[Object.keys(o)[0]] || ''; }
 function money(n) { return '฿' + Number(n || 0).toLocaleString('en'); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
-function defLang() { return (state.restaurant.langs || ['en'])[0]; }
+function defLang() {
+  var langs = state.restaurant.langs || ['en'], my = String(navigator.language || '').slice(0, 2);
+  return PHONE && langs.indexOf(my) >= 0 ? my : langs[0];
+}
 function isEntrance() { return state && state.mode === 'entrance'; }
 function show(el, on) { $(el).style.display = on ? (el === 'msg' ? 'flex' : '') : 'none'; }
 
@@ -287,9 +334,13 @@ function request(path, options) {
 }
 
 function post(path, body) {
-  body.d = D;
+  if (PHONE) { body.k = KEY; body.g = GT; } else body.d = D;
   body.lang = lang; // язык гостя — для статистики
-  return request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  return request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(function (j) {
+    // стол закрыли или телефон отключили — показываем экран «отсканируйте QR-код снова»
+    if (PHONE && j && /visit ended|disconnected/.test(j.error || '')) load();
+    return j;
+  });
 }
 
 function setOnline(on) {
@@ -299,7 +350,9 @@ function setOnline(on) {
 }
 
 function load() {
-  return request('/api/guest/state?d=' + encodeURIComponent(D)).then(function (s) {
+  var q = PHONE ? 'k=' + encodeURIComponent(KEY) + (GT ? '&g=' + encodeURIComponent(GT) : '') : 'd=' + encodeURIComponent(D);
+  return request('/api/guest/state?' + q).then(function (s) {
+    if (PHONE && (s.ended || s.join)) return phoneGate(s);
     if (s.unassigned) {
       show('app', false); show('msg', true);
       $('msg').innerHTML = 'JET MEDIA<br>Устройство не привязано к столу<br>Device is not assigned to a table<br><small>' + esc(D) + '</small>';
@@ -328,6 +381,70 @@ function load() {
   }).catch(function () { /* нет сети — пробуем снова через 5 с */ });
 }
 
+// Телефон: визит закончился / телефон отключили — сообщение; первый вход — «Как вас зовут?»
+function phoneGate(s) {
+  show('app', false); show('msg', true);
+  $('attract').style.display = 'none';
+  if (s.display) applyTheme(s.display);
+  if (!lang && s.restaurant) { state = state || { restaurant: s.restaurant }; lang = defLang(); }
+  var my = String(navigator.language || '').slice(0, 2);
+  lang = lang || (T[my] ? my : 'en');
+  if (s.ended) {
+    try { localStorage.removeItem('jt:' + KEY); } catch (e) {}
+    GT = '';
+    $('msg').innerHTML = '<div class="join"><h2>📱</h2><p>' + esc(t(s.ended === 'off' ? 'phoneOff' : 'ended')) + '</p></div>';
+    return;
+  }
+  if ($('joinName')) return; // гость уже вводит имя — не перерисовываем
+  $('msg').innerHTML = '<div class="join"><h2>' + esc(t('joinHi')) + '</h2><div>' + esc(s.restaurant.name) + ' · ' + esc(s.table) + '</div>' +
+    '<p>' + esc(t('joinName')) + '</p><input id="joinName" maxlength="24" autocomplete="given-name" placeholder="' + esc(t('leadName')) + '">' +
+    '<button data-join="1">' + esc(t('joinGo')) + '</button><button class="ghost" data-join="skip">' + esc(t('joinSkip')) + '</button></div>';
+}
+
+function joinTable(skip) {
+  var name = skip ? '' : $('joinName').value.trim();
+  post('/api/guest/join', { name: name }).then(function (j) {
+    if (!j.g) return load();
+    GT = j.g;
+    try { localStorage.setItem('jt:' + KEY, GT); } catch (e) {}
+    $('msg').innerHTML = '';
+    load();
+  });
+}
+
+// Гости стола: подписи «Анна», «Гость 2»; свой — «(вы)». Подписи нужны, только когда за столом несколько гостей
+function guestLabel(n) {
+  var name = (state.guests || {})[n];
+  return (name || t('guest') + ' ' + n) + (PHONE && state.me && state.me.n === n ? ' (' + t('you') + ')' : '');
+}
+function manyGuests() {
+  return PHONE || (state.join && state.join.phones > 0) || (state.orders || []).some(function (o) {
+    return (o.guest || 1) !== 1 || o.items.some(function (i) { return (i.g || 1) !== 1; });
+  });
+}
+
+// QR-код «Заказ с телефона»: по кнопке — крупно на весь экран; при первом касании в новом визите — подсказка в углу
+function qrOpen() {
+  if (!state.join) return;
+  $('qrBox').innerHTML = '<div class="qrc"><h2>📱 ' + esc(t('qrTitle')) + '</h2><div>' + esc(t('qrText')) + '</div>' + qrSvg(state.join.url) +
+    '<div class="muted">' + esc(state.restaurant.name) + ' · ' + esc(state.table) + (state.join.phones ? ' · ' + esc(t('phonesOn')) + ': ' + state.join.phones : '') + '</div>' +
+    '<button data-qrclose="1">' + esc(t('close')) + '</button></div>';
+  $('qrBox').className = 'show';
+  $('qrCard').style.display = 'none';
+}
+var qrSeen = '';
+try { qrSeen = localStorage.getItem('jt:qrseen') || ''; } catch (e) {}
+function qrHint() {
+  if (PHONE || PREVIEW || !state || !state.join || state.mode !== 'table' || qrSeen === state.join.url) return;
+  if ($('attract').style.display === 'block' || $('app').style.display === 'none') return;
+  qrSeen = state.join.url;
+  try { localStorage.setItem('jt:qrseen', qrSeen); } catch (e) {}
+  $('qrCard').innerHTML = '<button class="x" data-qrx="1">✕</button>' + qrSvg(state.join.url) + esc(t('qrHint'));
+  $('qrCard').style.display = 'block';
+  clearTimeout(qrHint.timer);
+  qrHint.timer = setTimeout(function () { $('qrCard').style.display = 'none'; }, 20000);
+}
+
 // Гостю показываем, когда официант идёт, подтвердил или изменил заказ
 function notifyChanges(first) {
   state.calls.concat(state.orders).forEach(function (x) {
@@ -352,7 +469,7 @@ function categories() {
 function renderAll() {
   // Название ресторана и стол: «Стол 5», а если стол назван словами («VIP», «Терраса 2») — как назван
   $('title').innerHTML = esc(state.restaurant.name) + tableBadge();
-  $('langs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {
+  $('langs').innerHTML = (state.join && !PHONE ? '<button class="qrbtn" data-qr="1">📱 ' + esc(t('phoneOrder')) + '</button>' : '') + (state.restaurant.langs || ['en']).map(function (l) {
     return '<button data-lang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
   }).join('');
   var list = categories();
@@ -452,7 +569,11 @@ function renderFooter() {
 // Открытый вызов стола этого типа (официант ещё не отметил «Готово»)
 function activeCall(type) {
   if (!state || isEntrance()) return null;
-  return (state.calls || []).filter(function (c) { return c.type === type && c.status !== 'done'; })[0] || null;
+  var me = (state.me || {}).n || 1;
+  // счёт: свой («мой счёт») или всего стола; вызов официанта — общий для стола
+  return (state.calls || []).filter(function (c) {
+    return c.type === type && c.status !== 'done' && (type !== 'bill' || !c.scope || c.scope === me);
+  })[0] || null;
 }
 function pendingOrders() {
   return isEntrance() ? [] : (state.orders || []).filter(function (o) { return o.status === 'pending'; });
@@ -471,9 +592,9 @@ function renderCallBar() {
   $('callBar').textContent = going ? t('comingBar') : parts.join('  ·  ');
   $('callBar').className = going ? 'go' : '';
   $('callBar').style.display = on ? 'block' : 'none';
-  document.body.className = on ? 'calling' : '';
+  document.body.classList.toggle('calling', on);
   // несколько статусов сразу — уменьшаем шрифт, пока строка не влезет
-  for (var fs = 28; fs >= 14; fs -= 2) {
+  for (var fs = PHONE ? 18 : 28; fs >= 11; fs -= 1) {
     $('callBar').style.fontSize = fs + 'px';
     if (!on || $('callBar').scrollWidth <= $('callBar').clientWidth) break;
   }
@@ -531,16 +652,24 @@ function renderCart() {
   // Уже отправленные заказы: каждое блюдо отдельной строкой с ценой, итог заказа и итог по столу
   var active = state.orders.filter(function (o) { return o.status !== 'rejected'; });
   var grand = active.reduce(function (s, o) { return s + o.total; }, 0);
+  var many = manyGuests(), byGuest = {};
+  active.forEach(function (o) { o.items.forEach(function (i) { var g = i.g || o.guest || 1; byGuest[g] = (byGuest[g] || 0) + i.price * i.qty; }); });
   var ordered = state.orders.map(function (o, n) {
-    return '<div class="order"><div class="ohead"><span>' + t('order') + ' ' + (n + 1) + '</span><span>' + t(o.paidAt ? 'paid' : o.status) + '</span></div>' +
+    var og = o.guest || 1;
+    return '<div class="order"><div class="ohead"><span>' + t('order') + ' ' + (n + 1) + (many ? ' · ' + esc(guestLabel(og)) : '') + '</span><span>' + t(o.paidAt ? 'paid' : o.status) + '</span></div>' +
       o.items.map(function (i) {
-        return '<div class="line"><span class="n">' + i.qty + ' × ' + esc(tr(i.name)) + tagsHtml((MENU[i.id] || {}).tags) + '</span><span class="price">' + money(i.price * i.qty) + '</span></div>';
+        // блюдо, которое официант перенёс на другого гостя (разделение счёта)
+        var moved = many && (i.g || og) !== og ? ' <span class="ltags"><i>→ ' + esc(guestLabel(i.g)) + '</i></span>' : '';
+        return '<div class="line"><span class="n">' + i.qty + ' × ' + esc(tr(i.name)) + tagsHtml((MENU[i.id] || {}).tags) + moved + '</span><span class="price">' + money(i.price * i.qty) + '</span></div>';
       }).join('') +
       '<div class="total"><span>' + t('total') + '</span><span>' + money(o.total) + '</span></div></div>';
   }).join('');
   $('sheet').innerHTML = '<h2>' + t('cart') + '</h2>' + (lines || '<p class="status">' + t('empty') + '</p>') +
     (lines ? '<div class="total"><span>' + t('total') + '</span><span>' + money(cartTotal()) + '</span></div><button class="big" data-send="1">' + t('send') + '</button>' : '') +
     (ordered ? '<h3>' + t('ordered') + '</h3>' + ordered + '<div class="grand"><span>' + t('tableTotal') + '</span><span>' + money(grand) + '</span></div>' : '') +
+    (ordered && many ? '<h3>' + t('byGuests') + '</h3><div class="gsum">' + Object.keys(byGuest).sort(function (a, b) { return a - b; }).map(function (g) {
+      return '<div class="line' + (state.me && state.me.n === Number(g) ? ' me' : '') + '"><span class="n">' + esc(guestLabel(Number(g))) + '</span><span class="price">' + money(byGuest[g]) + '</span></div>';
+    }).join('') + '</div>' : '') +
     '<button class="big ghost" data-close="1">' + t('close') + '</button>';
 }
 
@@ -559,10 +688,10 @@ function sendOrder() {
   }).catch(function () { toast(t('offline')); }).then(function () { sending = false; });
 }
 
-function call(type) {
+function call(type, scope) {
   if (isEntrance() || PREVIEW) return;
   if (!online) toast(t('offline'));
-  post('/api/guest/call', { type: type }).then(function (c) {
+  post('/api/guest/call', { type: type, scope: scope || '' }).then(function (c) {
     if (!c.id) return;
     seen[c.id] = c.status + '|';
     if (!state.calls.some(function (x) { return x.id === c.id; })) state.calls.push(c);
@@ -570,11 +699,20 @@ function call(type) {
   }).catch(function () { toast(t('offline')); });
 }
 
+// Телефон: «Мой счёт» или «Счёт всего стола»
+function billAsk() {
+  sheetMode = 'bill';
+  $('sheet').innerHTML = '<h2>' + t('billAsk') + '</h2><button class="big" data-bill="me">' + t('myBill') + '</button>' +
+    '<button class="big ghost" data-bill="table">' + t('tableBill') + '</button><button class="big ghost" data-close="1">' + t('close') + '</button>';
+  $('cart').className = 'overlay show';
+}
+
 // Гость отменил случайный вызов
 function cancelCall(type) {
   if (isEntrance() || PREVIEW) return;
-  post('/api/guest/cancel', { type: type }).then(function () {
-    state.calls = state.calls.filter(function (x) { return x.type !== type; });
+  var c = activeCall(type);
+  post('/api/guest/cancel', { type: type, id: c ? c.id : '' }).then(function () {
+    state.calls = state.calls.filter(function (x) { return c ? x.id !== c.id : x.type !== type; });
     toast(t('cancelled'));
     renderFooter();
   }).catch(function () { toast(t('offline')); });
@@ -750,7 +888,7 @@ function renderAttract() {
   $('aTitle').innerHTML = esc(state.restaurant.name) + tableBadge();
   $('acts').innerHTML = (isEntrance() ? '' : '<button class="abtn' + (activeCall('waiter') ? ' alarm' : '') + '" id="aCall">' + t(activeCall('waiter') ? 'cancelCall' : 'call') + '</button>') +
     avatarChatBtn() + '<button class="abtn main" id="aMenu">' + aMenuText() + '</button>';
-  $('aLangs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {
+  $('aLangs').innerHTML = (state.join ? '<button class="qrbtn" data-qr="1">📱</button>' : '') + (state.restaurant.langs || ['en']).map(function (l) {
     return '<button data-alang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
   }).join('');
   renderCarousel();
@@ -1083,6 +1221,7 @@ document.addEventListener('click', function (e) {
     if (!a) return;
     if (a.dataset.alang) { lang = a.dataset.alang; renderAll(); }
     else if (a.dataset.cgo) slideGo(Number(a.dataset.cgo));
+    else if (a.dataset.qr) { holdUntil = Date.now() + 60000; qrOpen(); }
     else if (a.dataset.avadd) avatarAdd(a.dataset.avadd);
     else if (a.dataset.porder) promoOrder(a.dataset.porder);
     else if (a.dataset.cta) openLead(a.dataset.cta);
@@ -1107,16 +1246,21 @@ document.addEventListener('click', function (e) {
   else if (d.close) $('cart').className = 'overlay';
   else if (b.id === 'cartBtn') { renderCart(); $('cart').className = 'overlay show'; }
   else if (b.id === 'callBtn') { if (activeCall('waiter')) cancelCall('waiter'); else call('waiter'); }
-  else if (b.id === 'billBtn') { if (activeCall('bill')) cancelCall('bill'); else call('bill'); }
+  else if (b.id === 'billBtn') { if (activeCall('bill')) cancelCall('bill'); else if (PHONE) billAsk(); else call('bill'); }
+  else if (d.bill) { $('cart').className = 'overlay'; call('bill', d.bill === 'me' ? 'me' : ''); }
+  else if (d.qr) { hideAttract(); qrOpen(); }
+  else if (d.qrclose) $('qrBox').className = '';
+  else if (d.qrx) $('qrCard').style.display = 'none';
+  else if (d.join) joinTable(d.join === 'skip');
   else if (b.id === 'backBtn') showAttract();
   else if (d.avchat) showAttract('avatar');
 });
 
-document.addEventListener('pointerdown', function () { lastTouch = Date.now(); }, true);
+document.addEventListener('pointerdown', function () { lastTouch = Date.now(); setTimeout(qrHint, 400); }, true);
 
 // Простой: карусель после заданной паузы (у входа — всегда), автоперелистывание, сброс корзины и языка через 3 минуты
 setInterval(function () {
-  if (!state) return;
+  if (!state || PHONE) return;
   var now = Date.now(), idle = now - lastTouch, ds = state.display || {};
   if (idle > IDLE_RESET_MS && (cartCount() || lang !== defLang())) {
     cart = {};

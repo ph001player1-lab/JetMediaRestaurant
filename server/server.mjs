@@ -31,6 +31,7 @@ const STATIC = {
   '/': 'portal.html',
   '/guest/': 'guest.html',
   '/staff/': 'staff.html',
+  '/kitchen/': 'kitchen.html',
   '/staff/manifest.json': 'manifest.json',
   '/staff/sw.js': 'sw.js',
   // Иконка приложения персонала (звонок вызова): Android, iPhone, вкладка браузера
@@ -97,6 +98,7 @@ try {
 db.sessions ??= {};
 db.ads ??= [];
 db.characters ??= [];
+db.tableKeys ??= {}; // ключи визитов столов для заказа с телефонов гостей
 db.pending ??= {};
 db.stats ??= {};
 db.telegram ??= { token: '', bot: '', chats: [] };
@@ -349,6 +351,8 @@ function deviceName(d) {
 setInterval(() => {
   const old = day(Date.now() - 120 * 864e5);
   for (const k of Object.keys(db.stats)) if (/^(dup|dimp|dscan)\|/.test(k) && k.slice(-10) < old) delete db.stats[k];
+  // ключи визитов столов, которыми не пользовались дольше 4 часов
+  for (const [k, x] of Object.entries(db.tableKeys)) if (Date.now() - x.last > KEY_IDLE_MS) delete db.tableKeys[k];
   save();
 }, 864e5);
 
@@ -396,6 +400,72 @@ function tableOf(deviceId) {
 }
 
 const openAt = (list, r, table) => list.filter((x) => x.restaurantId === r.id && x.table === table && !x.closed);
+
+// ---------- Заказ с телефонов гостей. QR-код на планшете ведёт на /t/<ключ> — ключ визита стола. Ключ живёт,
+// пока стол не закрыли, и не дольше 4 часов после последнего действия за столом; после закрытия стола планшет
+// показывает новый QR-код, старые телефоны отключаются. Планшет — «Гость 1», телефоны — «Гость 2», «Гость 3»… или по имени
+const KEY_IDLE_MS = 4 * 3600e3;
+// Настройки ресторана (ЛК → «Кухня»): заказ с телефонов, кнопка «Заказ отправлен на кухню», экран кухни
+const FLOW = { phones: true, kitchenBtn: true, kitchenScreen: false, kitchenKey: '' };
+const flowOf = (r) => ({ ...FLOW, ...r.flow });
+
+function tableKey(r, table, create = false) {
+  const now = Date.now();
+  let hit = Object.entries(db.tableKeys).find(([, x]) => x.r === r.id && x.table === table);
+  if (hit && now - hit[1].last > KEY_IDLE_MS) { delete db.tableKeys[hit[0]]; hit = null; }
+  if (!hit && create) {
+    const key = crypto.randomBytes(9).toString('base64url');
+    db.tableKeys[key] = { r: r.id, table, at: now, last: now, guests: {} };
+    hit = [key, db.tableKeys[key]];
+    save();
+  }
+  return hit ? { key: hit[0], s: hit[1] } : null;
+}
+// Любое действие за столом (заказ, вызов, новый телефон, официант) продлевает ключ ещё на 4 часа
+function touchTable(r, table) {
+  const k = tableKey(r, table);
+  if (k) k.s.last = Date.now();
+}
+function dropTableKey(r, table) {
+  for (const [key, x] of Object.entries(db.tableKeys)) if (x.r === r.id && x.table === table) delete db.tableKeys[key];
+}
+// Номер нового гостя: следующий после всех, кто уже есть за столом (в подключениях и в открытых заказах)
+function nextGuest(r, table, s) {
+  const used = [1, ...Object.values(s?.guests || {}).map((g) => g.n)];
+  for (const o of openAt(db.orders, r, table)) for (const i of o.items) used.push(i.g || o.guest || 1);
+  return Math.max(...used) + 1;
+}
+// Имена гостей стола для подписей заказов: { номер: имя }
+function guestNames(r, table) {
+  const out = {};
+  for (const o of openAt(db.orders, r, table)) if (o.guestName) out[o.guest] = o.guestName;
+  for (const g of Object.values(tableKey(r, table)?.s.guests || {})) if (g.name) out[g.n] = g.name;
+  return out;
+}
+// Кто делает запрос: планшет стола (d) или телефон гостя (k — ключ стола, g — личный ключ гостя)
+function guestOf(x) {
+  if (x.k || x.g) {
+    const s = db.tableKeys[x.k], r = s && db.restaurants[s.r], g = s?.guests[x.g];
+    if (!r || !g || Date.now() - s.last > KEY_IDLE_MS || !flowOf(r).phones) throw fail(410, 'visit ended');
+    if (g.off) throw fail(410, 'phone disconnected');
+    return { r, table: s.table, n: g.n, name: g.name, dev: '', phone: true };
+  }
+  const t = tableOf(x.d);
+  return t && { ...t, n: 1, name: '', dev: x.d };
+}
+
+// Телефон гостя подключается по QR-коду: имя — по желанию (без имени — «Гость 2», «Гость 3»…)
+function guestJoin(b) {
+  const s = db.tableKeys[b.k], r = s && db.restaurants[s.r];
+  if (!r || Date.now() - s.last > KEY_IDLE_MS || !flowOf(r).phones) throw fail(410, 'visit ended');
+  if (Object.keys(s.guests).length >= 30) throw fail(429, 'too many phones');
+  const g = crypto.randomBytes(12).toString('base64url'), n = nextGuest(r, s.table, s);
+  s.guests[g] = { n, name: String(b.name || '').replace(/\s+/g, ' ').trim().slice(0, 24), at: Date.now() };
+  s.last = Date.now();
+  logEvent(r.id, 'phone_join', { table: s.table, n });
+  save();
+  return { g, n, name: s.guests[g].name };
+}
 
 // Карусель простоя: акции и блюда ресторана, через каждые две — внешняя реклама (кроме тарифа Premium)
 function slidesFor(r, dev) {
@@ -500,6 +570,7 @@ function guestEvent(b) {
 const tableIsFree = (r, table) => !openAt(db.calls, r, table).length && !openAt(db.orders, r, table).length;
 
 function guestState(b, q) {
+  if (q.k) return phoneState(q);
   const d = db.devices[q.d];
   const r = d && db.restaurants[d.restaurantId];
   if (!r || (!d.table && d.role !== 'entrance')) return { unassigned: true };
@@ -513,29 +584,53 @@ function guestState(b, q) {
   };
   // Планшет у входа: только витрина — карусель и просмотр меню, без заказов и вызовов
   if (d.role === 'entrance') return { ...base, mode: 'entrance' };
+  const k = flowOf(r).phones && tableKey(r, d.table, true);
   return {
-    ...base, mode: 'table', table: d.table,
+    ...base, mode: 'table', table: d.table, me: { n: 1 }, guests: guestNames(r, d.table),
     calls: openAt(db.calls, r, d.table).filter((c) => c.status !== 'done'),
     orders: openAt(db.orders, r, d.table),
+    // QR-код «Заказ с телефона» и сколько телефонов уже подключено
+    join: k ? { url: `${PUBLIC_URL}/t/${k.key}`, phones: Object.values(k.s.guests).filter((g) => !g.off).length } : null,
+  };
+}
+
+// Телефон гостя: меню, заказы и вызовы стола, без карусели и персонажа. Без личного ключа — экран «Как вас зовут?»
+function phoneState(q) {
+  const s = db.tableKeys[q.k], r = s && db.restaurants[s.r];
+  if (!r || Date.now() - s.last > KEY_IDLE_MS || !flowOf(r).phones) return { ended: 'expired' };
+  const base = {
+    restaurant: { name: r.name, langs: r.langs }, build: BUILD, table: s.table, mode: 'phone',
+    display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) },
+  };
+  if (!q.g) return { ...base, join: true };
+  let w;
+  try { w = guestOf(q); } catch (e) { return { ended: e.message === 'phone disconnected' ? 'off' : 'expired' }; }
+  return {
+    ...base, menu: (r.menu || []).filter((i) => !i.hidden), slides: [], avatar: null,
+    me: { n: w.n, name: w.name }, guests: guestNames(r, s.table),
+    calls: openAt(db.calls, r, s.table).filter((c) => c.status !== 'done'),
+    orders: openAt(db.orders, r, s.table),
   };
 }
 
 function guestCall(b) {
-  const t = tableOf(b.d);
+  const t = guestOf(b);
   if (!t) throw fail(400, 'device is not assigned');
   if (!['waiter', 'bill'].includes(b.type)) throw fail(400, 'bad call type');
-  // Повторное нажатие не создаёт второй вызов
-  let c = openAt(db.calls, t.r, t.table).find((x) => x.type === b.type && x.status !== 'done');
+  // Счёт: «мой» (scope — номер гостя) или всего стола (0). Повторное нажатие не создаёт второй вызов
+  const scope = b.type === 'bill' && b.scope === 'me' ? t.n : 0;
+  let c = openAt(db.calls, t.r, t.table).find((x) => x.type === b.type && x.status !== 'done' && (x.scope || 0) === scope);
   if (!c) {
     if (tableIsFree(t.r, t.table)) logEvent(t.r.id, 'open', { table: t.table });
-    c = { id: uid(), restaurantId: t.r.id, table: t.table, type: b.type, status: 'new', at: Date.now() };
+    c = { id: uid(), restaurantId: t.r.id, table: t.table, type: b.type, status: 'new', at: Date.now(), guest: t.n, guestName: t.name, scope };
     db.calls.push(c);
-    logEvent(t.r.id, 'call', { id: c.id, table: t.table, dev: b.d, type: b.type, lang: b.lang });
+    logEvent(t.r.id, 'call', { id: c.id, table: t.table, dev: t.dev || undefined, type: b.type, lang: b.lang, guest: t.n, phone: t.phone ? 1 : undefined });
   }
+  touchTable(t.r, t.table);
   // Гость нажал ещё раз — напоминаем, но не чаще раза в 20 секунд
   if (Date.now() - (c.notifiedAt || 0) > 20_000) {
     c.notifiedAt = Date.now();
-    notify(t.r.id, t.table, b.type);
+    notify(t.r.id, t.table, b.type, '', false, scope || t.n > 1 ? t : null);
   }
   save();
   return c;
@@ -544,13 +639,14 @@ function guestCall(b) {
 // Гость отменил вызов (нажал по ошибке): вызов пропадает у официантов. Случайный вызов за свободным
 // столом — стол снова свободен
 function guestCancel(b) {
-  const t = tableOf(b.d);
+  const t = guestOf(b);
   if (!t) throw fail(400, 'device is not assigned');
   const open = openAt(db.calls, t.r, t.table);
-  const c = open.find((x) => x.type === b.type && x.status !== 'done');
+  const c = open.find((x) => (b.id ? x.id === b.id : x.type === b.type) && x.status !== 'done');
   if (!c) return {};
   Object.assign(c, { status: 'done', doneAt: Date.now(), cancelled: Date.now() });
-  logEvent(t.r.id, 'call_cancel', { id: c.id, table: t.table, dev: b.d, type: c.type, ms: Date.now() - c.at });
+  logEvent(t.r.id, 'call_cancel', { id: c.id, table: t.table, dev: t.dev || undefined, type: c.type, ms: Date.now() - c.at });
+  touchTable(t.r, t.table);
   if (open.length === 1 && !openAt(db.orders, t.r, t.table).length) {
     c.closed = Date.now();
     logEvent(t.r.id, 'close', { table: t.table, guest: true });
@@ -560,18 +656,21 @@ function guestCancel(b) {
 }
 
 function guestOrder(b) {
-  const t = tableOf(b.d);
+  const t = guestOf(b);
   if (!t) throw fail(400, 'device is not assigned');
-  const items = buildItems(t.r, b.items);
+  // каждая строка — гостя, который заказал (официант потом может перенести её на другого гостя)
+  const items = buildItems(t.r, b.items).map((i) => ({ ...i, g: t.n }));
   if (!items.length) throw fail(400, 'empty order');
   if (tableIsFree(t.r, t.table)) logEvent(t.r.id, 'open', { table: t.table });
   const o = {
     id: uid(), restaurantId: t.r.id, table: t.table, items,
     total: items.reduce((s, i) => s + i.price * i.qty, 0), status: 'pending', at: Date.now(), notifiedAt: Date.now(),
+    guest: t.n, guestName: t.name, src: t.phone ? 'phone' : 'tablet',
   };
   db.orders.push(o);
-  logEvent(t.r.id, 'order', { id: o.id, table: t.table, dev: b.d, total: o.total, items: items.map((i) => [i.id, i.qty, i.price]), lang: b.lang });
-  notify(t.r.id, t.table, 'order', ` · ฿${o.total}`);
+  logEvent(t.r.id, 'order', { id: o.id, table: t.table, dev: t.dev || undefined, total: o.total, items: items.map((i) => [i.id, i.qty, i.price]), lang: b.lang, guest: t.n, phone: t.phone ? 1 : undefined });
+  touchTable(t.r, t.table);
+  notify(t.r.id, t.table, 'order', ` · ฿${o.total}`, false, t.n > 1 ? t : null);
   save();
   return o;
 }
@@ -589,16 +688,17 @@ function buildItems(r, list) {
       const name = opt
         ? Object.fromEntries(Object.entries(m.name).map(([l, v]) => [l, `${v} · ${opt.label[l] || Object.values(opt.label)[0] || ''}`]))
         : m.name;
-      return { id: m.id, opt: opt?.key || '', name, price: Number(opt ? opt.price : m.price) || 0, qty: Math.min(99, x.qty | 0) };
+      const g = Math.round(Number(x.g));
+      return { id: m.id, opt: opt?.key || '', name, price: Number(opt ? opt.price : m.price) || 0, qty: Math.min(99, x.qty | 0), ...(g >= 1 && g <= 99 ? { g } : {}) };
     });
 }
 
 // ---------- Персонал: вход по коду ресторана + личному PIN, уведомления через Web Push
 
 const PUSH_TEXT = {
-  en: { table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder' },
-  th: { table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง' },
-  ru: { table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание' },
+  en: { table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready' },
+  th: { table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ' },
+  ru: { table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов' },
 };
 
 function session(token) {
@@ -628,6 +728,11 @@ function staffState(b, q) {
     me: { name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0 },
     vapidKey: db.vapid.publicKey,
     calls: db.calls.filter((c) => c.restaurantId === r.id && !c.closed && c.status !== 'done'),
+    flow: pick(flowOf(r), ['phones', 'kitchenBtn', 'kitchenScreen']),
+    // телефоны гостей по столам (официант может отключить чужой) и имена гостей для подписей
+    phones: Object.fromEntries((r.tables || []).map((tb) => [tb, Object.values(tableKey(r, tb)?.s.guests || {})
+      .filter((g) => !g.off).map((g) => ({ n: g.n, name: g.name }))]).filter(([, l]) => l.length)),
+    guests: Object.fromEntries((r.tables || []).map((tb) => [tb, guestNames(r, tb)])),
     // у блюд — отметки из меню (не острое, без глютена…): официант видит их хештегами в заказе
     orders: db.orders.filter((o) => o.restaurantId === r.id && !o.closed).map((o) => ({
       ...o, items: o.items.map((i) => ({ ...i, tags: (r.menu || []).find((m) => m.id === i.id)?.tags || [] })),
@@ -640,18 +745,59 @@ function staffOrder(b) {
   const { r, member } = session(b.token);
   const table = String(b.table || '');
   if (!(r.tables || []).includes(table)) throw fail(400, 'unknown table');
-  const items = buildItems(r, b.items);
+  const guest = Math.min(99, Math.max(1, Math.round(Number(b.guest)) || 1));
+  const items = buildItems(r, b.items).map((i) => ({ ...i, g: guest }));
   if (!items.length) throw fail(400, 'empty order');
   if (tableIsFree(r, table)) logEvent(r.id, 'open', { table });
   const now = Date.now();
   const o = {
     id: uid(), restaurantId: r.id, table, items, total: items.reduce((s, i) => s + i.price * i.qty, 0),
     status: 'confirmed', at: now, confirmedAt: now, ackAt: now, ackBy: member.name, by: member.name, src: 'staff',
+    guest, guestName: guestNames(r, table)[guest] || '',
   };
   db.orders.push(o);
+  touchTable(r, table);
   logEvent(r.id, 'order', { id: o.id, table, total: o.total, items: items.map((i) => [i.id, i.qty, i.price]), by: member.id, bn: member.name, src: 'staff' });
   save();
   return o;
+}
+
+// ---------- Экран кухни: подтверждённые заказы по ссылке из ЛК менеджера (без входа); повар отмечает «Готово»,
+// официанты стола получают уведомление «Заказ готов»
+function kitchenRest(k) {
+  const r = Object.values(db.restaurants).find((x) => flowOf(x).kitchenScreen && x.flow?.kitchenKey && x.flow.kitchenKey === String(k || ''));
+  if (!r) throw fail(403, 'bad kitchen link');
+  return r;
+}
+function kitchenState(b, q) {
+  const r = kitchenRest(q.k), now = Date.now(), tags = new Map((r.menu || []).map((m) => [m.id, m.tags || []]));
+  const list = db.orders.filter((o) => o.restaurantId === r.id && o.status === 'confirmed' && !o.test
+    && now - (o.confirmedAt || o.at) < 12 * 3600e3 && (!o.readyAt || now - o.readyAt < 15 * 60e3));
+  return {
+    restaurant: { name: r.name, langs: r.langs }, build: BUILD,
+    orders: list.map((o) => ({
+      id: o.id, table: o.table, at: o.confirmedAt || o.at, readyAt: o.readyAt || 0, editedAt: o.editedAt || 0,
+      // блюда, разделённые между гостями, на кухне — одной строкой
+      items: Object.values(o.items.reduce((acc, i) => {
+        const k = `${i.id}|${i.opt || ''}`;
+        acc[k] ? (acc[k].qty += i.qty) : (acc[k] = { name: i.name, qty: i.qty, tags: tags.get(i.id) || [] });
+        return acc;
+      }, {})),
+    })),
+  };
+}
+function kitchenReady(b) {
+  const r = kitchenRest(b.k);
+  const o = db.orders.find((x) => x.id === b.id && x.restaurantId === r.id && x.status === 'confirmed');
+  if (!o) throw fail(400, 'bad order');
+  if (b.undo) delete o.readyAt;
+  else if (!o.readyAt) {
+    o.readyAt = Date.now();
+    logEvent(r.id, 'order_ready', { id: o.id, table: o.table, ms: o.readyAt - (o.confirmedAt || o.at) });
+    notify(r.id, o.table, 'ready');
+  }
+  save();
+  return {};
 }
 
 // Меню для правки заказа официантом
@@ -695,17 +841,58 @@ function staffAction(b) {
     Object.assign(x, { ackAt: Date.now(), ackBy: member.name });
     logEvent(r.id, 'order_ack', { ...who, id: x.id, table: x.table, ms: x.ackAt - x.at, total: x.total });
   };
+  // К оплате по строкам заказа (часть строк могли оплатить отдельные гости)
+  const due = (x) => x.items.filter((i) => !i.paidAt).reduce((a, i) => a + i.price * i.qty, 0);
+  const payAll = (x) => {
+    const sum = due(x);
+    x.items.forEach((i) => { i.paidAt ||= Date.now(); });
+    Object.assign(x, { paidAt: Date.now(), paidBy: member.name });
+    if (sum) logEvent(r.id, 'paid', { ...who, id: x.id, table: x.table, total: sum });
+  };
+  if (b.kind !== 'table' && b.kind !== 'guest' && b.kind !== 'guestpaid') {
+    const x = [...db.calls, ...db.orders].find((y) => y.id === b.id && y.restaurantId === r.id);
+    if (x) touchTable(r, x.table);
+  }
   if (b.kind === 'table') {
-    // «Стол свободен» или «Счёт оплачен» (когда касса не подключена): закрываем сессию стола
+    // «Закрыть стол» или «Счёт оплачен» (когда касса не подключена): закрываем сессию стола, телефоны гостей отключаются
     for (const x of [...db.calls, ...db.orders]) {
       if (x.restaurantId !== r.id || x.table !== b.id || x.closed) continue;
-      if (b.action === 'paid' && x.items && !x.paidAt) {
-        Object.assign(x, { paidAt: Date.now(), paidBy: member.name });
-        logEvent(r.id, 'paid', { ...who, id: x.id, table: x.table, total: x.total });
-      }
+      if (b.action === 'paid' && x.items && !x.paidAt && x.status !== 'rejected') payAll(x);
       x.closed = Date.now();
     }
+    dropTableKey(r, b.id);
     logEvent(r.id, 'close', { ...who, table: b.id });
+  } else if (b.kind === 'guest' && b.action === 'off') {
+    // Отключить телефон гостя (например, QR-код сфотографировал посторонний)
+    for (const g of Object.values(tableKey(r, b.id)?.s.guests || {})) if (g.n === Number(b.n)) g.off = Date.now();
+  } else if (b.kind === 'guestpaid') {
+    // Гость оплатил свою часть: все его строки в заказах стола
+    const n = Number(b.n) || 1;
+    let sum = 0;
+    for (const o of openAt(db.orders, r, b.id).filter((y) => y.status !== 'rejected')) {
+      for (const i of o.items) if ((i.g || o.guest || 1) === n && !i.paidAt) { i.paidAt = Date.now(); sum += i.price * i.qty; }
+      if (!o.paidAt && o.items.every((i) => i.paidAt)) Object.assign(o, { paidAt: Date.now(), paidBy: member.name });
+    }
+    if (sum) logEvent(r.id, 'paid', { ...who, table: b.id, total: sum, guest: n });
+    touchTable(r, b.id);
+  } else if (b.kind === 'order' && b.action === 'move') {
+    // Разделение счёта: перенести блюдо (qty штук) на другого гостя; кухни это не касается
+    const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && !y.closed && y.status !== 'rejected');
+    const i = Number(b.line), it = x?.items[i], to = Math.round(Number(b.to));
+    if (!it || it.paidAt || !(to >= 1 && to <= 99)) throw fail(400, 'bad action');
+    const qty = Math.min(it.qty, Math.max(1, Math.round(Number(b.qty)) || 1));
+    const same = x.items.find((y) => y !== it && y.id === it.id && (y.opt || '') === (it.opt || '') && (y.g || x.guest || 1) === to && !y.paidAt);
+    if (same) same.qty += qty;
+    else if (qty < it.qty) x.items.push({ ...it, qty, g: to });
+    if (same || qty < it.qty) { it.qty -= qty; if (!it.qty) x.items.splice(i, 1); } else it.g = to;
+  } else if (b.kind === 'order' && b.action === 'kitchen') {
+    // «Заказ отправлен на кухню»: снимает напоминание; в статистике — время от заказа до кухни
+    const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && y.status === 'confirmed');
+    if (!x) throw fail(400, 'bad action');
+    if (!x.kitchenAt) {
+      Object.assign(x, { kitchenAt: Date.now(), kitchenBy: member.name });
+      logEvent(r.id, 'order_kitchen', { ...who, id: x.id, table: x.table, ms: x.kitchenAt - x.at });
+    }
   } else if (b.kind === 'order' && (b.action === 'test' || b.action === 'untest')) {
     // «Тестовый заказ» — только менеджер: весь визит стола с этим заказом не идёт в статистику
     if (member.role !== 'manager') throw fail(403, 'managers only');
@@ -716,8 +903,7 @@ function staffAction(b) {
     // Оплачен один счёт стола; стол остаётся открытым, пока его не закроют
     const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && !y.closed && y.status !== 'rejected');
     if (!x) throw fail(400, 'bad action');
-    if (!x.paidAt) logEvent(r.id, 'paid', { ...who, id: x.id, table: x.table, total: x.total });
-    Object.assign(x, { paidAt: Date.now(), paidBy: member.name });
+    if (!x.paidAt) payAll(x);
   } else if (b.kind === 'order' && (b.action === 'ack' || b.action === 'edit')) {
     const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && !y.closed && y.status !== 'rejected');
     if (!x) throw fail(400, 'bad action');
@@ -751,7 +937,7 @@ function staffAction(b) {
 // Пуш всем сотрудникам ресторана, которые на смене и включили уведомления
 // Официантам этого стола (без назначенных столов — всех столов); менеджерам — напоминания
 // и вызовы, которые некому отправить
-function notify(restaurantId, table, kind, extra = '', reminder = false) {
+function notify(restaurantId, table, kind, extra = '', reminder = false, guest = null) {
   const r = db.restaurants[restaurantId];
   if (!r) return;
   const member = (s) => (r.staff || []).find((m) => m.id === s.staffId);
@@ -760,7 +946,8 @@ function notify(restaurantId, table, kind, extra = '', reminder = false) {
   const managers = active.filter((s) => member(s).role === 'manager');
   for (const s of new Set([...waiters, ...(reminder || !waiters.length ? managers : [])])) {
     const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en;
-    const data = { title: tableLabel(table, L.table), body: (reminder ? `${L.again}: ` : '') + L[kind] + extra, tag: `${kind}-${table}` };
+    const who = guest ? ` · ${guest.name || `${L.guest} ${guest.n}`}` : '';
+    const data = { title: tableLabel(table, L.table), body: (reminder ? `${L.again}: ` : '') + L[kind] + who + extra, tag: `${kind}-${table}` };
     for (const sub of s.subs) {
       sendPush(sub, data, db.vapid).then((ok) => {
         if (!ok) { s.subs = s.subs.filter((x) => x !== sub); save(); }
@@ -802,6 +989,9 @@ function managerGet(b, q) {
       menuSource: publicSource(r.menuSource),
       display: { ...DISPLAY, ...r.display },
       avatar: { ...AVATAR, ...r.avatar },
+      flow: { ...pick(flowOf(r), ['phones', 'kitchenBtn', 'kitchenScreen']),
+        kitchenUrl: r.flow?.kitchenKey ? `${PUBLIC_URL}/kitchen/?k=${r.flow.kitchenKey}` : '' },
+      pos: r.menuSource?.type === 'pos' ? r.menuSource.vendor || 'pos' : '',
     },
     ads: db.ads.filter((a) => a.active && (!a.restaurants?.length || a.restaurants.includes(r.id)))
       .map((a) => ({
@@ -818,7 +1008,7 @@ function managerGet(b, q) {
   };
 }
 
-const SECTIONS = { testVisit: 'пометка тестового визита', staffArchive: 'уволенные', staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы' };
+const SECTIONS = { testVisit: 'пометка тестового визита', staffArchive: 'уволенные', staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы', flow: 'заказы и кухня' };
 function managerSave(b) {
   const { r, member } = managerSession(b.token);
   const changed = Object.keys(SECTIONS).filter((k) => b[k] !== undefined).map((k) => SECTIONS[k]);
@@ -833,6 +1023,11 @@ function managerSave(b) {
   if (b.menuSource) r.menuSource = cleanSource(b.menuSource, r.menuSource);
   if (b.display) r.display = cleanDisplay(b.display);
   if (b.avatar) r.avatar = cleanAvatar(b.avatar, r);
+  if (b.flow) {
+    // ссылка экрана кухни создаётся при включении; «Новая ссылка» — старая перестаёт работать
+    const key = !b.flow.newKitchenKey && r.flow?.kitchenKey || crypto.randomBytes(12).toString('base64url');
+    r.flow = { phones: b.flow.phones !== false, kitchenBtn: b.flow.kitchenBtn !== false, kitchenScreen: !!b.flow.kitchenScreen, kitchenKey: key };
+  }
   if (Array.isArray(b.tables)) saveTables(r, b.tables);
   save();
   return {};
@@ -864,6 +1059,7 @@ function saveTables(r, list) {
   for (const x of [...db.calls, ...db.orders]) {
     if (x.restaurantId === r.id && !x.closed) x.table = move(x.table) || x.table;
   }
+  for (const k of Object.values(db.tableKeys)) if (k.r === r.id) k.table = move(k.table) || k.table;
   r.tables = rows.map((x) => x.to);
 }
 
@@ -1437,6 +1633,9 @@ const PUBLIC = {
   'GET /api/guest/state': guestState,
   'POST /api/guest/call': guestCall,
   'POST /api/guest/cancel': guestCancel,
+  'POST /api/guest/join': guestJoin,
+  'GET /api/kitchen/state': kitchenState,
+  'POST /api/kitchen/ready': kitchenReady,
   'POST /api/guest/order': guestOrder,
   'GET /api/staff/state': staffState,
   'POST /api/staff/action': staffAction,
@@ -1654,6 +1853,8 @@ http.createServer(async (req, res) => {
       res.writeHead(302, { location: '/login' });
       return res.end();
     }
+    // QR-код со стола: телефон гостя открывает ту же страницу, что и планшет
+    if (req.method === 'GET' && /^\/t\/[\w-]{8,40}$/.test(url.pathname)) return send(res, 200, FILES['guest.html'], TYPES.html);
     const file = req.method === 'GET' && STATIC[url.pathname];
     if (file) return send(res, 200, FILES[file], TYPES[file.split('.').pop()]);
 

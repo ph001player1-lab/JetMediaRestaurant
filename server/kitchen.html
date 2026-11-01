@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JET MEDIA · Кухня</title>
+<style>
+  /* Экран кухни: подтверждённые заказы крупно, на планшете или телевизоре; повар отмечает «Готово» */
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #121212; color: #f5f0e6; font-family: system-ui, -apple-system, "Noto Sans Thai", "Noto Sans SC", sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #1e1e1e; position: sticky; top: 0; z-index: 2; }
+  header h1 { flex: 1; margin: 0; font-size: 24px; }
+  header button { border: 0; border-radius: 10px; padding: 10px 14px; font-size: 16px; background: #2b2b2b; color: #f5f0e6; }
+  header button.on { background: #d4af37; color: #121212; }
+  #sound { background: #c8553d; color: #fff; }
+  main { padding: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .ord { background: #1e1e1e; border-radius: 16px; padding: 14px; border-top: 8px solid #c8553d; display: flex; flex-direction: column; }
+  .ord.late { border-color: #ff1744; }
+  .ord.ready { opacity: .45; border-color: #2e7d32; }
+  .ord .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .ord .tb { font-size: 30px; font-weight: 800; }
+  .ord .min { font-size: 22px; font-weight: 700; color: #d4af37; }
+  .ord .edited { color: #ffb74d; font-weight: 700; margin-top: 4px; }
+  .ord ul { list-style: none; padding: 0; margin: 10px 0; flex: 1; }
+  .ord li { font-size: 22px; padding: 6px 0; border-bottom: 1px solid #333; }
+  .ord li b { color: #d4af37; margin-right: 6px; }
+  .ord .tags { display: block; font-size: 16px; color: #ff8a65; margin-top: 2px; }
+  .ord button { border: 0; border-radius: 12px; padding: 18px; font-size: 22px; font-weight: 800; background: #2e7d32; color: #fff; }
+  .ord.ready button { background: #444; font-size: 16px; padding: 10px; }
+  h2 { font-size: 18px; color: #a39e93; margin: 22px 4px 8px; }
+  .empty { color: #a39e93; font-size: 22px; padding: 40px; text-align: center; }
+  #err { color: #ff8a65; padding: 40px; font-size: 22px; text-align: center; display: none; }
+</style>
+</head>
+<body>
+<header><h1 id="title">🍳</h1><span id="langs"></span><button id="sound"></button></header>
+<main><div id="err"></div><div class="grid" id="now"></div><h2 id="readyH" hidden></h2><div class="grid" id="ready"></div></main>
+<script>
+var K = new URLSearchParams(location.search).get('k') || '';
+var TAGS = {
+  vegan: { en: 'Vegan', ru: 'Веганское', th: 'วีแกน', zh: '纯素' },
+  vegetarian: { en: 'Vegetarian', ru: 'Вегетарианское', th: 'มังสวิรัติ', zh: '素食' },
+  gluten_free: { en: 'Gluten-free', ru: 'Без глютена', th: 'ไม่มีกลูเตน', zh: '无麸质' },
+  lactose_free: { en: 'Lactose-free', ru: 'Без лактозы', th: 'ไม่มีแลคโตส', zh: '无乳糖' },
+  nut_free: { en: 'Nut-free', ru: 'Без орехов', th: 'ไม่มีถั่ว', zh: '无坚果' },
+  seafood_free: { en: 'No seafood', ru: 'Без морепродуктов', th: 'ไม่มีอาหารทะเล', zh: '无海鲜' },
+  spicy: { en: 'Spicy', ru: 'Острое', th: 'เผ็ด', zh: '辣' },
+  mild: { en: 'Not spicy', ru: 'Не острое', th: 'ไม่เผ็ด', zh: '不辣' },
+  kids: { en: 'For kids', ru: 'Детям', th: 'สำหรับเด็ก', zh: '儿童' },
+  halal: { en: 'Halal', ru: 'Халяль', th: 'ฮาลาล', zh: '清真' }
+};
+var T = {
+  en: { ready: 'Ready', undo: 'Back to cooking', done: 'Done in the last 15 minutes', none: 'No orders to cook', min: 'min', edited: 'Order changed by the waiter', sound: '🔔 Turn on sound', soundOn: '🔔 Sound on', bad: 'The link is not valid. Ask the manager for the kitchen screen link (Manager → Kitchen).', table: 'Table' },
+  ru: { ready: 'Готово', undo: 'Вернуть в работу', done: 'Готово за последние 15 минут', none: 'Заказов в работе нет', min: 'мин', edited: 'Официант изменил заказ', sound: '🔔 Включить звук', soundOn: '🔔 Звук включён', bad: 'Ссылка недействительна. Возьмите ссылку экрана кухни у менеджера (ЛК → «Кухня»).', table: 'Стол' },
+  th: { ready: 'พร้อม', undo: 'กลับไปทำ', done: 'เสร็จใน 15 นาทีที่ผ่านมา', none: 'ไม่มีออร์เดอร์ที่ต้องทำ', min: 'นาที', edited: 'พนักงานแก้ไขออร์เดอร์', sound: '🔔 เปิดเสียง', soundOn: '🔔 เปิดเสียงแล้ว', bad: 'ลิงก์ใช้ไม่ได้ ขอลิงก์จอครัวจากผู้จัดการ', table: 'โต๊ะ' },
+  zh: { ready: '完成', undo: '退回制作', done: '最近15分钟完成', none: '暂无待做订单', min: '分钟', edited: '服务员修改了订单', sound: '🔔 打开声音', soundOn: '🔔 声音已开', bad: '链接无效，请向经理索取厨房屏幕链接', table: '桌' },
+};
+var lang = 'en', soundOn = false, known = null, state = null;
+try { lang = localStorage.getItem('jk:lang') || 'en'; } catch (e) {}
+function $(id) { return document.getElementById(id); }
+function t(k) { return (T[lang] || T.en)[k] || T.en[k]; }
+function tr(o) { o = o || {}; return o[lang] || o.en || o.ru || o.th || o.zh || ''; }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+function tbl(x) { return /^\d+$/.test(x) ? t('table') + ' ' + x : x; }
+
+// Звук нового заказа (браузер разрешает звук только после нажатия на экран)
+var ac = null;
+function beep() {
+  if (!soundOn || !ac) return;
+  [0, 0.25].forEach(function (d) {
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.value = 880; o.connect(g); g.connect(ac.destination);
+    g.gain.setValueAtTime(0.3, ac.currentTime + d); g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + d + 0.2);
+    o.start(ac.currentTime + d); o.stop(ac.currentTime + d + 0.22);
+  });
+}
+$('sound').onclick = function () {
+  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); } catch (e) {}
+  soundOn = true; render(); beep();
+};
+
+function card(o) {
+  var min = Math.floor((Date.now() - o.at) / 60000);
+  return '<div class="ord' + (o.readyAt ? ' ready' : min >= 20 ? ' late' : '') + '"><div class="top"><span class="tb">' + esc(tbl(o.table)) + '</span>' +
+    '<span class="min">' + (o.readyAt ? '✅' : min + ' ' + t('min')) + '</span></div>' +
+    (o.editedAt && !o.readyAt ? '<div class="edited">✎ ' + t('edited') + '</div>' : '') +
+    '<ul>' + o.items.map(function (i) {
+      var tg = (i.tags || []).filter(function (k) { return TAGS[k]; }).map(function (k) { return '#' + tr(TAGS[k]).toLowerCase(); }).join(' ');
+      return '<li><b>' + i.qty + ' ×</b>' + esc(tr(i.name)) + (tg ? '<span class="tags">' + esc(tg) + '</span>' : '') + '</li>';
+    }).join('') + '</ul>' +
+    '<button data-id="' + esc(o.id) + '"' + (o.readyAt ? ' data-undo="1">' + t('undo') : '>' + t('ready')) + '</button></div>';
+}
+
+function render() {
+  if (!state) return;
+  $('title').textContent = '🍳 ' + state.restaurant.name;
+  $('langs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {
+    return '<button data-l="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + l.toUpperCase() + '</button> ';
+  }).join('');
+  $('sound').textContent = t(soundOn ? 'soundOn' : 'sound');
+  var now = state.orders.filter(function (o) { return !o.readyAt; }).sort(function (a, b) { return a.at - b.at; });
+  var done = state.orders.filter(function (o) { return o.readyAt; }).sort(function (a, b) { return b.readyAt - a.readyAt; });
+  $('now').innerHTML = now.map(card).join('') || '<div class="empty">' + t('none') + '</div>';
+  $('readyH').hidden = !done.length;
+  $('readyH').textContent = t('done');
+  $('ready').innerHTML = done.map(card).join('');
+}
+
+function load() {
+  fetch('/api/kitchen/state?k=' + encodeURIComponent(K)).then(function (r) { return r.json(); }).then(function (s) {
+    if (s.error) { $('err').textContent = t('bad'); $('err').style.display = 'block'; $('now').innerHTML = ''; return; }
+    $('err').style.display = 'none';
+    var ids = s.orders.filter(function (o) { return !o.readyAt; }).map(function (o) { return o.id + o.editedAt; });
+    if (known && ids.some(function (id) { return known.indexOf(id) < 0; })) beep();
+    known = ids;
+    state = s;
+    render();
+  }).catch(function () {});
+}
+
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.l) { lang = b.dataset.l; try { localStorage.setItem('jk:lang', lang); } catch (x) {} render(); }
+  if (b.dataset.id) {
+    b.disabled = true;
+    fetch('/api/kitchen/ready', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ k: K, id: b.dataset.id, undo: !!b.dataset.undo }) }).then(load, load);
+  }
+});
+
+// Экран не гаснет, пока открыт экран кухни (где браузер это умеет)
+function wake() { try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(function () {}); } catch (e) {} }
+document.addEventListener('visibilitychange', function () { if (!document.hidden) wake(); });
+wake();
+load();
+setInterval(load, 5000);
+setInterval(render, 30000);
+</script>
+</body>
+</html>
