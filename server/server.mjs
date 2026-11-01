@@ -60,9 +60,11 @@ const SYNC_EVERY = { hourly: 3600_000, daily: 24 * 3600_000 };
 const DISPLAY = {
   idleSec: 60, slideSec: 7, titleSize: 38, textSize: 22, textColor: '#ffffff', bgColor: '#000000',
   adEvery: 2, // реклама после каждых N слайдов ресторана (1 — каждый второй слайд)
+  // смена слайдов: направление (ltr — слева направо, rtl — справа налево, ttb — сверху вниз, btt — снизу вверх) и длительность, мс
+  slideFx: 'ltr', slideMs: 600,
   theme: 'classic', // цветовая тема планшета (themes.mjs), выбирается во вкладке «Дизайн»
 };
-const DISPLAY_RANGE = { idleSec: [10, 600], slideSec: [3, 60], titleSize: [16, 80], textSize: [12, 48], adEvery: [1, 10] };
+const DISPLAY_RANGE = { idleSec: [10, 600], slideSec: [3, 60], titleSize: [16, 80], textSize: [12, 48], adEvery: [1, 10], slideMs: [200, 3000] };
 // ИИ-персонаж: как часто появляется в карусели, сколько держится, приветствия и подбор блюд по пожеланиям
 // lines — фразы ресторана для каждого персонажа: { [id персонажа]: { greetings, recommend, dayDish } };
 // пустой список — говорит фразы из пакета персонажа
@@ -992,6 +994,7 @@ function cleanMenu(menu) {
 function cleanDisplay(d) {
   return Object.fromEntries(Object.entries(DISPLAY).map(([k, def]) => {
     if (k === 'theme') return [k, themeOf(d.theme).id];
+    if (k === 'slideFx') return [k, ['ltr', 'rtl', 'ttb', 'btt'].includes(d.slideFx) ? d.slideFx : def];
     if (typeof def !== 'number') return [k, /^#[0-9a-f]{6}$/i.test(d[k]) ? d[k] : def];
     const [min, max] = DISPLAY_RANGE[k];
     return [k, Math.min(max, Math.max(min, Math.round(Number(d[k])) || def))];

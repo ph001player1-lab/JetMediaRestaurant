@@ -93,6 +93,9 @@
   .astage { position: absolute; top: 8vh; bottom: 15vh; left: 0; right: 0; overflow: hidden; background: #000; }
   #ctrack { position: absolute; top: 0; bottom: 0; left: 0; width: 300%; display: flex; }
   .slide { position: relative; width: 33.3333%; height: 100%; overflow: hidden; flex: none; }
+  /* смена слайдов сверху вниз / снизу вверх: лента — столбцом */
+  #ctrack.vert { width: 100%; height: 300%; bottom: auto; flex-direction: column; }
+  #ctrack.vert .slide { width: 100%; height: 33.3333%; }
   .slide .bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
   /* Поля вокруг картинки («показать целиком», сдвиг, уменьшение) — её же размытая копия */
   .slide .bgblur { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; -webkit-filter: blur(3vw) brightness(.55); filter: blur(3vw) brightness(.55); transform: scale(1.15); }
@@ -582,6 +585,15 @@ function cancelCall(type) {
 function slides() { return (state && state.slides) || []; }
 function width() { return $('attract').clientWidth; }
 
+// Смена слайдов из настроек менеджера («Дизайн»): направление и длительность.
+// next > 0 — следующий слайд стоит в ленте первым (въезжает слева или сверху), иначе — последним
+function fx() {
+  var d = (state && state.display) || {}, f = d.slideFx || 'ltr';
+  var vert = f === 'ttb' || f === 'btt';
+  return { vert: vert, next: f === 'ltr' || f === 'ttb' ? 1 : -1, ms: d.slideMs || 600,
+    unit: vert ? $('ctrack').parentNode.clientHeight : width() };
+}
+
 function qrSvg(text) {
   try {
     var q = qrcode(0, 'M');
@@ -641,7 +653,7 @@ function qrClass(pos) {
   return 'row-' + p[0] + ' col-' + (p[1] || 'right');
 }
 
-// Слева — следующий слайд, справа — предыдущий: показ «переезжает» слева направо
+// Лента из трёх слайдов: следующий, текущий, предыдущий — порядок и ось по настройке смены слайдов
 function renderCarousel() {
   var list = slides(), n = list.length;
   $('attract').className = '';
@@ -655,9 +667,11 @@ function renderCarousel() {
   cPrev = n ? (avShowing ? list[cIdx] : list[(cIdx - 1 + n) % n]) : null;
   if (cNext === cur) cNext = null;
   if (cPrev === cur) cPrev = null;
-  $('ctrack').innerHTML = '<div class="slide">' + slideHtml(cNext) + '</div>' +
+  var f = fx(), a = f.next > 0 ? cNext : cPrev, b = f.next > 0 ? cPrev : cNext;
+  $('ctrack').className = f.vert ? 'vert' : '';
+  $('ctrack').innerHTML = '<div class="slide">' + slideHtml(a) + '</div>' +
     '<div class="slide" id="curSlide">' + slideHtml(cur, true) + '</div>' +
-    '<div class="slide">' + slideHtml(cPrev) + '</div>';
+    '<div class="slide">' + slideHtml(b) + '</div>';
   setTrack(0, false);
   $('cdots').innerHTML = n > 1 ? list.map(function (s, i) { return '<i class="' + (!avShowing && i === cIdx ? 'on' : '') + '"></i>'; }).join('') : '';
   styleCaptions(state.display || {});
@@ -676,10 +690,11 @@ function avatarAuto() {
   return !!state.avatar && !(state.orders || []).length && Date.now() - avDismissedAt > 45 * 60000;
 }
 
-function setTrack(dx, animate) {
-  var tk = $('ctrack');
-  tk.style.transition = animate ? 'transform .6s ease' : 'none';
-  tk.style.transform = 'translateX(' + (dx - width()) + 'px)';
+// d — сдвиг ленты вдоль направления показа, px (0 — виден текущий слайд)
+function setTrack(d, animate) {
+  var tk = $('ctrack'), f = fx();
+  tk.style.transition = animate ? 'transform ' + f.ms + 'ms ease-in-out' : 'none';
+  tk.style.transform = (f.vert ? 'translateY(' : 'translateX(') + (d - f.unit) + 'px)';
 }
 
 // dir = 1 — следующий (лента уезжает вправо), -1 — предыдущий
@@ -688,13 +703,14 @@ function slideGo(dir) {
   // Время персонажа подошло, пока показывался текущий слайд, — подставляем его следующим
   if (dir > 0 && avatarDue() && cNext !== AV) {
     cNext = AV;
-    $('ctrack').firstChild.innerHTML = slideHtml(AV);
+    $('ctrack')[fx().next > 0 ? 'firstChild' : 'lastChild'].innerHTML = slideHtml(AV);
   }
   var target = dir > 0 ? cNext : cPrev;
   if (!target) { setTrack(0, true); return; }
   cBusy = true;
   stopSpeech();
-  setTrack(dir > 0 ? width() : -width(), true);
+  var f = fx();
+  setTrack(dir * f.next * f.unit, true);
   setTimeout(function () {
     var n = slides().length;
     if (target === AV) avShowing = true;
@@ -703,7 +719,7 @@ function slideGo(dir) {
     else if (n) cIdx = (cIdx - 1 + n) % n;
     cBusy = false;
     renderCarousel();
-  }, 620);
+  }, f.ms + 20);
 }
 
 function onSlideShown(s) {
@@ -763,20 +779,20 @@ function hideAttract() {
   if (state) renderAll();
 }
 
-// Листание пальцем: вправо — следующий слайд, влево — предыдущий
+// Листание пальцем вдоль направления показа: тянут со стороны следующего слайда — следующий, обратно — предыдущий
 $('attract').addEventListener('touchstart', function (e) {
   if (e.target.closest('.avpanel')) { holdUntil = Date.now() + 30000; return; }
   if (e.target.closest('button')) return;
-  cDrag = { x: e.touches[0].clientX, dx: 0 };
+  cDrag = { x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0 };
 }, { passive: true });
 $('attract').addEventListener('touchmove', function (e) {
   if (!cDrag || cBusy) return;
-  cDrag.dx = e.touches[0].clientX - cDrag.x;
+  cDrag.dx = fx().vert ? e.touches[0].clientY - cDrag.y : e.touches[0].clientX - cDrag.x;
   if (Math.abs(cDrag.dx) > 10) setTrack(cDrag.dx, false);
 }, { passive: true });
 $('attract').addEventListener('touchend', function () {
   if (!cDrag) return;
-  var dx = cDrag.dx;
+  var dx = cDrag.dx * fx().next; // > 0 — тянут в сторону, откуда въезжает следующий слайд
   cDrag = null;
   holdUntil = Date.now() + HOLD_AFTER_SWIPE_MS;
   if (dx > 60) slideGo(1);
