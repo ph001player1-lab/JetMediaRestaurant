@@ -81,7 +81,8 @@
   footer button.alarm, #attract .abtn.alarm { background: #e53935 !important; color: #fff !important; box-shadow: 0 0 0 3px rgba(229,57,53,.35); }
   /* QR-код «Заказ с телефона»: кнопка вверху, крупный код на весь экран, подсказка в углу при первом касании */
   .qrbtn { border: 2px solid var(--accent) !important; color: var(--accent) !important; font-weight: 700; }
-  #aLangs .qrbtn { border: 0 !important; background: rgba(255,255,255,.14) !important; color: #fff !important; }
+  /* на заставке — та же кнопка, что в меню: фон карточки, рамка и текст цвета темы */
+  #aLangs .qrbtn { background: var(--card) !important; border: .3vw solid var(--accent) !important; color: var(--accent) !important; padding: 1vw 2vw; font-weight: 700; }
   #qrBox { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 37; background: rgba(0,0,0,.65); display: none; align-items: center; justify-content: center; }
   #qrBox.show { display: flex; }
   .qrc { background: #fff; color: #1f1a17; border-radius: 24px; padding: 28px 28px 20px; width: 560px; max-width: 92%; text-align: center; font-size: 20px; line-height: 1.4; }
@@ -888,7 +889,7 @@ function renderAttract() {
   $('aTitle').innerHTML = esc(state.restaurant.name) + tableBadge();
   $('acts').innerHTML = (isEntrance() ? '' : '<button class="abtn' + (activeCall('waiter') ? ' alarm' : '') + '" id="aCall">' + t(activeCall('waiter') ? 'cancelCall' : 'call') + '</button>') +
     avatarChatBtn() + '<button class="abtn main" id="aMenu">' + aMenuText() + '</button>';
-  $('aLangs').innerHTML = (state.join ? '<button class="qrbtn" data-qr="1">📱</button>' : '') + (state.restaurant.langs || ['en']).map(function (l) {
+  $('aLangs').innerHTML = (state.join ? '<button class="qrbtn" data-qr="1">📱 ' + esc(t('phoneOrder')) + '</button>' : '') + (state.restaurant.langs || ['en']).map(function (l) {
     return '<button data-alang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
   }).join('');
   renderCarousel();

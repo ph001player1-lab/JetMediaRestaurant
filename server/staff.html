@@ -331,14 +331,24 @@ function beep() {
   navigator.vibrate?.([300, 150, 300]);
 }
 
-async function refresh() {
-  try {
-    render(await api(`/api/staff/state?token=${encodeURIComponent(token)}`));
-    $('login').hidden = true;
-    $('work').hidden = false;
-  } catch (e) {
-    if (e.status === 401) logout();
-  }
+// Новый запрос — только когда ответил предыдущий (на медленной сети запросы не копятся).
+// Нажали кнопку, пока запрос в пути, — после ответа сразу ещё один, чтобы показать результат нажатия
+let refreshing = null, refreshAgain = false;
+function refresh() {
+  if (refreshing) { refreshAgain = true; return refreshing; }
+  refreshing = (async () => {
+    try {
+      render(await api(`/api/staff/state?token=${encodeURIComponent(token)}`));
+      $('login').hidden = true;
+      $('work').hidden = false;
+    } catch (e) {
+      if (e.status === 401) logout();
+    }
+  })().finally(() => {
+    refreshing = null;
+    if (refreshAgain) { refreshAgain = false; refresh(); }
+  });
+  return refreshing;
 }
 
 function logout() {
@@ -384,10 +394,16 @@ async function enablePush() {
   refresh();
 }
 
+let renderSig = '';
 function render(s) {
   // Вышла новая версия приложения — перезагружаемся, если ничего не редактируется
   if (appBuild && s.build !== appBuild && !$('tWork').hidden && $('modal').hidden) return location.reload();
   appBuild ??= s.build;
+  // Ничего не изменилось — экран не перерисовываем: кнопки не пропадают из-под пальца, телефон не тормозит.
+  // Минуты в подписи — чтобы «5 min» обновлялись
+  const sig = `${lang}|${Math.floor(Date.now() / 60000)}|${JSON.stringify(s)}`;
+  if (sig === renderSig) return;
+  renderSig = sig;
   last = s;
   $('rname').textContent = s.restaurant.name;
   $('who').textContent = s.me.name;
@@ -423,8 +439,9 @@ function render(s) {
   };
   const money = (n) => `฿${n.toLocaleString('en')}`;
   const lineG = (o, i) => i.g || o.guest || 1;
-  const many = (tb) => (s.phones?.[tb] || []).length > 0
-    || s.orders.some((o) => o.table === tb && ((o.guest || 1) !== 1 || o.items.some((i) => lineG(o, i) !== 1)));
+  const manyT = new Set(Object.keys(s.phones || {}));
+  for (const o of s.orders) if ((o.guest || 1) !== 1 || o.items.some((i) => lineG(o, i) !== 1)) manyT.add(o.table);
+  const many = (tb) => manyT.has(tb);
   const flow = { ...s.flow };
   if (flow.kitchenScreen) flow.kitchenBtn = false;
   const orderCard = (o) => `<div class="card ${o.paidAt ? 'paid' : o.ackAt && o.status === 'pending' ? 'ack' : o.status}">
@@ -788,6 +805,12 @@ document.addEventListener('pointermove', (e) => {
   drag.ghost.style.top = `${e.clientY - 20}px`;
   document.querySelectorAll('.gcol').forEach((x) => x.classList.remove('over'));
   document.elementFromPoint(e.clientX, e.clientY)?.closest('.gcol')?.classList.add('over');
+});
+document.addEventListener('pointercancel', () => {
+  if (!drag) return;
+  drag.ghost?.remove();
+  drag = null;
+  document.querySelectorAll('.gcol').forEach((x) => x.classList.remove('over'));
 });
 document.addEventListener('pointerup', (e) => {
   if (!drag) return;
