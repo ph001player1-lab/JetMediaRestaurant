@@ -48,6 +48,8 @@
   .sheet h2 { margin: 0 0 8px; }
   .line { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .line .n { flex: 1; padding-right: 10px; }
+  .ltags { display: block; margin-top: 3px; font-size: 14px; color: var(--accent); }
+  .ltags i { font-style: normal; margin-right: 10px; white-space: nowrap; }
   .qty { white-space: nowrap; margin-right: 12px; }
   .qty button { width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--line); background: none; font-size: 22px; color: var(--ink); }
   .order { background: var(--bg); border-radius: 14px; padding: 6px 14px 12px; margin-top: 12px; }
@@ -424,7 +426,14 @@ function tableBadge() {
   return '<span class="tno">' + esc(/^\d+$/.test(n) ? t('table') + ' ' + n : m ? t('table') + ' ' + m[1] : n) + '</span>';
 }
 
+// Кнопка заставки: пока заказ пуст — «Открыть меню», иначе — как кнопка заказа в меню
+function aMenuText() {
+  var n = cartCount();
+  return n ? t('cart') + ' (' + n + ') · ' + money(cartTotal()) : t('menu');
+}
+
 function renderFooter() {
+  if ($('aMenu')) $('aMenu').textContent = aMenuText();
   if (isEntrance()) {
     $('foot').innerHTML = '<button class="main" id="backBtn">' + t('back') + '</button>' + avatarChatBtn();
     renderCallBar();
@@ -486,7 +495,13 @@ function lineOf(key) {
   if (!i) return null;
   var o = p[1] ? (i.options || []).filter(function (x) { return x.key === p[1]; })[0] : null;
   if (p[1] && !o) return null;
-  return { price: Number(o ? o.price : i.price) || 0, name: tr(i.name) + (o ? ' · ' + tr(o.label) : '') };
+  return { price: Number(o ? o.price : i.price) || 0, name: tr(i.name) + (o ? ' · ' + tr(o.label) : ''), tags: i.tags };
+}
+
+// Отметки блюда (не острое, без глютена…) хештегами под названием в заказе
+function tagsHtml(tags) {
+  var list = (tags || []).filter(function (k) { return TAGS[k]; });
+  return list.length ? '<span class="ltags">' + list.map(function (k) { return '<i>#' + esc(tr(TAGS[k]).toLowerCase()) + '</i>'; }).join('') + '</span>' : '';
 }
 
 function cartTotal() {
@@ -506,7 +521,7 @@ function renderCart() {
   sheetMode = 'cart';
   var lines = Object.keys(cart).filter(function (k) { return lineOf(k); }).map(function (k) {
     var l = lineOf(k);
-    return '<div class="line"><span class="n">' + esc(l.name) + '</span>' +
+    return '<div class="line"><span class="n">' + esc(l.name) + tagsHtml(l.tags) + '</span>' +
       '<span class="qty"><button data-dec="' + esc(k) + '">−</button> ' + cart[k] + ' <button data-inc="' + esc(k) + '">+</button></span>' +
       '<span class="price">' + money(l.price * cart[k]) + '</span></div>';
   }).join('');
@@ -516,7 +531,7 @@ function renderCart() {
   var ordered = state.orders.map(function (o, n) {
     return '<div class="order"><div class="ohead"><span>' + t('order') + ' ' + (n + 1) + '</span><span>' + t(o.paidAt ? 'paid' : o.status) + '</span></div>' +
       o.items.map(function (i) {
-        return '<div class="line"><span class="n">' + i.qty + ' × ' + esc(tr(i.name)) + '</span><span class="price">' + money(i.price * i.qty) + '</span></div>';
+        return '<div class="line"><span class="n">' + i.qty + ' × ' + esc(tr(i.name)) + tagsHtml((MENU[i.id] || {}).tags) + '</span><span class="price">' + money(i.price * i.qty) + '</span></div>';
       }).join('') +
       '<div class="total"><span>' + t('total') + '</span><span>' + money(o.total) + '</span></div></div>';
   }).join('');
@@ -718,7 +733,7 @@ function styleCaptions(ds) {
 function renderAttract() {
   $('aTitle').innerHTML = esc(state.restaurant.name) + tableBadge();
   $('acts').innerHTML = (isEntrance() ? '' : '<button class="abtn' + (activeCall('waiter') ? ' alarm' : '') + '" id="aCall">' + t(activeCall('waiter') ? 'cancelCall' : 'call') + '</button>') +
-    avatarChatBtn() + '<button class="abtn main" id="aMenu">' + t('menu') + '</button>';
+    avatarChatBtn() + '<button class="abtn main" id="aMenu">' + aMenuText() + '</button>';
   $('aLangs').innerHTML = (state.restaurant.langs || ['en']).map(function (l) {
     return '<button data-alang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
   }).join('');
@@ -1057,7 +1072,7 @@ document.addEventListener('click', function (e) {
     else if (a.dataset.cta) openLead(a.dataset.cta);
     else if (a.dataset.av !== undefined && avNode) avatarAction(avNode.buttons[Number(a.dataset.av)].go);
     else if (a.dataset.avchat) { if (!avShowing) { avShowing = true; renderCarousel(); } }
-    else if (a.id === 'aMenu') hideAttract();
+    else if (a.id === 'aMenu') { hideAttract(); if (cartCount()) { renderCart(); $('cart').className = 'overlay show'; } }
     else if (a.id === 'aCall') { if (activeCall('waiter')) cancelCall('waiter'); else { hideAttract(); call('waiter'); } }
     return;
   }
