@@ -626,7 +626,10 @@ function staffState(b, q) {
     me: { name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0 },
     vapidKey: db.vapid.publicKey,
     calls: db.calls.filter((c) => c.restaurantId === r.id && !c.closed && c.status !== 'done'),
-    orders: db.orders.filter((o) => o.restaurantId === r.id && !o.closed),
+    // у блюд — отметки из меню (не острое, без глютена…): официант видит их хештегами в заказе
+    orders: db.orders.filter((o) => o.restaurantId === r.id && !o.closed).map((o) => ({
+      ...o, items: o.items.map((i) => ({ ...i, tags: (r.menu || []).find((m) => m.id === i.id)?.tags || [] })),
+    })),
   };
 }
 

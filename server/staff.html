@@ -110,6 +110,7 @@
   main { padding: 0 16px 32px; max-width: 1100px; margin: auto; }
   .ml { display: flex; align-items: center; gap: 6px; }
   .ml span { width: 34px; font-size: 13px; color: #8a7f76; }
+  .otag { display: inline-block; margin-left: 8px; font-size: 13px; color: #c8553d; white-space: nowrap; }
   .tagbar { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
   .tagbar select { width: auto; max-width: 320px; flex: none; }
   .tagbar .empty { font-size: 12px; }
@@ -404,7 +405,7 @@ function render(s) {
   const orderCard = (o) => `<div class="card ${o.paidAt ? 'paid' : o.ackAt && o.status === 'pending' ? 'ack' : o.status}">
       <b>${esc(tbl(o.table))}</b>${o.test ? ` · <span class="due">🧪 ${t('testMark')}</span>` : ''} · ${ago(o.at)} · ${o.paidAt ? `${t('paidMark')} · ${esc(o.paidBy || '')}` : t(o.status) + by(o)}
       ${o.ackBy ? ` · ${t('going')}: ${esc(o.ackBy)}` : ''}${o.editedBy ? ` · ${t('editedBy')}: ${esc(o.editedBy)}` : ''}
-      <ul>${o.items.map((i) => `<li>${i.qty} × ${esc(itemName(i.name))}</li>`).join('')}</ul>
+      <ul>${o.items.map((i) => `<li>${i.qty} × ${esc(itemName(i.name))}${(i.tags || []).filter((k) => TAGS[k]).map((k) => `<span class="otag">#${esc(tagName(k).toLowerCase())}</span>`).join('')}</li>`).join('')}</ul>
       <b>฿${o.total.toLocaleString('en')}</b>
       <div>
         ${o.status === 'pending' && !o.ackAt ? btn('order', o.id, 'ack', 'going') : ''}
