@@ -726,6 +726,8 @@ function staffState(b, q) {
     restaurant: { name: r.name, pos: r.menuSource?.type === 'pos', tables: r.tables || [] },
     build: BUILD,
     me: { name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0 },
+    // «Столы» официанта: его столы из ЛК менеджера, а если не назначены — все столы ресторана
+    myTables: (r.tables || []).filter((tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb)),
     vapidKey: db.vapid.publicKey,
     calls: db.calls.filter((c) => c.restaurantId === r.id && !c.closed && c.status !== 'done'),
     flow: pick(flowOf(r), ['phones', 'kitchenBtn', 'kitchenScreen']),
