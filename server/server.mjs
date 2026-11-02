@@ -630,7 +630,12 @@ function guestCall(b) {
   // Гость нажал ещё раз — напоминаем, но не чаще раза в 20 секунд
   if (Date.now() - (c.notifiedAt || 0) > 20_000) {
     c.notifiedAt = Date.now();
-    notify(t.r.id, t.table, b.type, '', false, scope || t.n > 1 ? t : null);
+    // счёт: для кого (гость или весь стол) и на какую сумму — по неоплаченным строкам
+    if (b.type === 'bill') {
+      const due = openAt(db.orders, t.r, t.table).filter((o) => o.status !== 'rejected').reduce((a, o) => a + o.items
+        .filter((i) => !i.paidAt && !o.paidAt && (!scope || (i.g || o.guest || 1) === scope)).reduce((x, i) => x + i.price * i.qty, 0), 0);
+      notify(t.r.id, t.table, 'bill', ` · ฿${due.toLocaleString('en')}`, false, scope ? t : 'table');
+    } else notify(t.r.id, t.table, b.type, '', false, t.n > 1 ? t : null);
   }
   save();
   return c;
@@ -696,9 +701,9 @@ function buildItems(r, list) {
 // ---------- Персонал: вход по коду ресторана + личному PIN, уведомления через Web Push
 
 const PUSH_TEXT = {
-  en: { table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready' },
-  th: { table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ' },
-  ru: { table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов' },
+  en: { table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready', wholeTable: 'whole table' },
+  th: { table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ', wholeTable: 'ทั้งโต๊ะ' },
+  ru: { table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов', wholeTable: 'весь стол' },
 };
 
 function session(token) {
@@ -977,7 +982,7 @@ function notify(restaurantId, table, kind, extra = '', reminder = false, guest =
   const managers = active.filter((s) => member(s).role === 'manager');
   for (const s of new Set([...waiters, ...(reminder || !waiters.length ? managers : [])])) {
     const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en;
-    const who = guest ? ` · ${guest.name || `${L.guest} ${guest.n}`}` : '';
+    const who = guest === 'table' ? ` · ${L.wholeTable}` : guest ? ` · ${guest.name || `${L.guest} ${guest.n}`}` : '';
     const data = { title: tableLabel(table, L.table), body: (reminder ? `${L.again}: ` : '') + L[kind] + who + extra, tag: `${kind}-${table}` };
     for (const sub of s.subs) {
       sendPush(sub, data, db.vapid).then((ok) => {
