@@ -15,10 +15,10 @@
   #app { display: flex; flex-direction: column; height: 100%; }
   header { display: flex; align-items: center; padding: 14px 16px; background: var(--card); }
   header h1 { font-size: 26px; margin: 0; flex: 1; min-width: 0; display: flex; align-items: center; }
-  /* название ресторана и плашка стола — по центру строки; длинное название обрезается, стол не переносится */
-  .rn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .atop .tno { background: rgba(255,255,255,.16); color: #fff; font-size: 2.6vw; padding: .4vw 1.5vw; border-radius: 1.2vw; margin-left: 1.5vw; }
-  .tno { flex: none; display: inline-block; margin-left: 12px; padding: 3px 12px; border-radius: 10px; background: var(--soft); color: var(--ink); font-size: 22px; line-height: 1.25; white-space: nowrap; }
+
+  .atop .tno { color: #fff; font-size: 3.8vw; }
+  .tno { flex: none; font-size: 30px; font-weight: 800; line-height: 1.2; white-space: nowrap; color: var(--ink); }
+  .join .jt { font-size: 22px; font-weight: 700; }
   /* Круглая кнопка чата с ИИ-персонажем — между кнопками внизу */
   .avchat { flex: none !important; width: 72px; height: 72px; border-radius: 50% !important; padding: 0 !important; overflow: hidden; background: var(--soft) !important; border: 3px solid var(--accent) !important; align-self: center; }
   .avchat img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%; display: block; }
@@ -104,7 +104,7 @@
   .join button.ghost { background: var(--soft); color: var(--ink); }
   body.phone header { padding: 10px 12px; }
   body.phone header h1 { font-size: 20px; }
-  body.phone .tno { font-size: 16px; margin-left: 8px; padding: 3px 8px; }
+  body.phone .tno { font-size: 22px; }
   body.phone .langs button { padding: 7px 9px; font-size: 14px; margin-left: 4px; }
   body.phone #cats button { padding: 9px 13px; font-size: 15px; }
   body.phone .item { width: calc(50% - 10px); margin: 5px; }
@@ -403,7 +403,7 @@ function phoneGate(s) {
     return;
   }
   if ($('joinName')) return; // гость уже вводит имя — не перерисовываем
-  $('msg').innerHTML = '<div class="join"><h2>' + esc(t('joinHi')) + '</h2><div>' + esc(s.restaurant.name) + ' · ' + esc(s.table) + '</div>' +
+  $('msg').innerHTML = '<div class="join"><h2>' + esc(t('joinHi')) + '</h2><div class="jt">' + esc(tableName(s.table)) + '</div>' +
     '<p>' + esc(t('joinName')) + '</p><input id="joinName" maxlength="24" autocomplete="given-name" placeholder="' + esc(t('leadName')) + '">' +
     '<button data-join="1">' + esc(t('joinGo')) + '</button><button class="ghost" data-join="skip">' + esc(t('joinSkip')) + '</button></div>';
 }
@@ -434,7 +434,7 @@ function manyGuests() {
 function qrOpen() {
   if (!state.join) return;
   $('qrBox').innerHTML = '<div class="qrc"><h2>📱 ' + esc(t('qrTitle')) + '</h2><div>' + esc(t('qrText')) + '</div>' + qrSvg(state.join.url) +
-    '<div class="muted">' + esc(state.restaurant.name) + ' · ' + esc(state.table) + (state.join.phones ? ' · ' + esc(t('phonesOn')) + ': ' + state.join.phones : '') + '</div>' +
+    '<div class="muted">' + esc(tableName(state.table)) + (state.join.phones ? ' · ' + esc(t('phonesOn')) + ': ' + state.join.phones : '') + '</div>' +
     '<button data-qrclose="1">' + esc(t('close')) + '</button></div>';
   $('qrBox').className = 'show';
   $('qrCard').style.display = 'none';
@@ -475,7 +475,7 @@ function categories() {
 
 function renderAll() {
   // Название ресторана и стол: «Стол 5», а если стол назван словами («VIP», «Терраса 2») — как назван
-  $('title').innerHTML = '<span class="rn">' + esc(state.restaurant.name) + '</span>' + tableBadge();
+  $('title').innerHTML = tableBadge(); // вверху слева — только стол, крупно
   $('langs').innerHTML = (state.join && !PHONE ? '<button class="qrbtn" data-qr="1">📱 ' + esc(t('phoneOrder')) + '</button>' : '') + (state.restaurant.langs || ['en']).map(function (l) {
     return '<button data-lang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
   }).join('');
@@ -547,10 +547,12 @@ function applyTheme(ds) {
 
 // Плашка стола в шапке меню и на экране рекламы. Слово «Стол» — на языке гостя (Table, โต๊ะ, 桌),
 // номер или буква — как написал менеджер; название без этого слова («VIP-зал») — как есть
+function tableName(n) {
+  var m = String(n || '').match(/^(?:стол|table|โต๊ะ|桌)\s+(.+)$/i);
+  return !n ? '' : /^\d+$/.test(n) ? t('table') + ' ' + n : m ? t('table') + ' ' + m[1] : n;
+}
 function tableBadge() {
-  var n = state.table || '', m = n.match(/^(?:стол|table|โต๊ะ|桌)\s+(.+)$/i);
-  if (!n) return '';
-  return '<span class="tno">' + esc(/^\d+$/.test(n) ? t('table') + ' ' + n : m ? t('table') + ' ' + m[1] : n) + '</span>';
+  return state.table ? '<span class="tno">' + esc(tableName(state.table)) + '</span>' : '';
 }
 
 // Кнопка заставки: пока заказ пуст — «Открыть меню», иначе — как кнопка заказа в меню
@@ -899,7 +901,7 @@ function styleCaptions(ds) {
 }
 
 function renderAttract() {
-  $('aTitle').innerHTML = '<span class="rn">' + esc(state.restaurant.name) + '</span>' + tableBadge();
+  $('aTitle').innerHTML = tableBadge();
   $('acts').innerHTML = (isEntrance() ? '' : '<button class="abtn' + (activeCall('waiter') ? ' alarm' : '') + '" id="aCall">' + t(activeCall('waiter') ? 'cancelCall' : 'call') + '</button>') +
     avatarChatBtn() + '<button class="abtn main" id="aMenu">' + aMenuText() + '</button>';
   $('aLangs').innerHTML = (state.join ? '<button class="qrbtn" data-qr="1">📱 ' + esc(t('phoneOrder')) + '</button>' : '') + (state.restaurant.langs || ['en']).map(function (l) {
