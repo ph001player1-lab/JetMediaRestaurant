@@ -56,7 +56,6 @@ const FILE_TYPES = { ...IMAGE_TYPES, 'image/svg+xml': 'svg', 'audio/mpeg': 'mp3'
 const MIME = Object.fromEntries(Object.entries(FILE_TYPES).map(([m, e]) => [e, m]));
 const MAX_BODY = 25 * 1024 * 1024;
 const MAX_UPLOAD = 8 * 1024 * 1024;
-const SYNC_EVERY = { hourly: 3600_000, daily: 24 * 3600_000 };
 // Показ акций и рекламы на планшете: задержка простоя, длительность слайда, шрифты и цвета подписи
 const DISPLAY = {
   idleSec: 60, slideSec: 7, titleSize: 38, textSize: 22, textColor: '#ffffff', bgColor: '#000000',
@@ -87,6 +86,12 @@ const framing = (x) => ({
   imgScale: Math.min(200, Math.max(50, Math.round(Number(x.imgScale)) || 100)),
 });
 const DISH_TAGS = ['vegan', 'vegetarian', 'gluten_free', 'lactose_free', 'nut_free', 'seafood_free', 'spicy', 'mild', 'kids', 'halal'];
+// Блюдо на планшетах: не скрыто менеджером (⦸) и есть в наличии в источнике меню
+const onMenu = (i) => !i.hidden && !i.off;
+// Отметки ресторана: встроенные и свои (ЛК → «Особые пожелания»; появляются и сами из источника меню)
+const tagKeys = (r) => [...DISH_TAGS, ...(r.customTags || []).map((x) => x.key)];
+// Строка заказа: блюдо, вариант и выбранное в группах — разные выборы одного блюда — разные строки
+const lineKey = (i) => `${i.id}|${i.opt || ''}|${(i.mods || []).join(',')}`;
 
 let db = { devices: {}, restaurants: {}, calls: [], orders: [], sessions: {}, vapid: null, ads: [], stats: {}, characters: [] };
 try {
@@ -106,15 +111,20 @@ db.eleven ??= { key: '', model: 'eleven_v3' };
 db.vapid ??= createVapidKeys();
 
 let saveTimer;
+function writeDb() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  const cutoff = Date.now() - KEEP_MS;
+  db.calls = db.calls.filter((x) => !x.closed || x.closed > cutoff);
+  db.orders = db.orders.filter((x) => !x.closed || x.closed > cutoff);
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  // сначала во временный файл, потом подмена — при сбое посреди записи база не испортится
+  fs.writeFileSync(`${DB_FILE}.tmp`, JSON.stringify(db));
+  fs.renameSync(`${DB_FILE}.tmp`, DB_FILE);
+}
 function save() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    const cutoff = Date.now() - KEEP_MS;
-    db.calls = db.calls.filter((x) => !x.closed || x.closed > cutoff);
-    db.orders = db.orders.filter((x) => !x.closed || x.closed > cutoff);
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(DB_FILE, JSON.stringify(db));
-  }, 1000);
+  saveTimer = setTimeout(writeDb, 1000);
 }
 
 const uid = () => crypto.randomBytes(6).toString('hex');
@@ -473,12 +483,12 @@ function slidesFor(r, dev) {
     ...(r.promos || []).filter((p) => p.active && p.image).map((p) => ({
       type: 'promo', id: p.id, image: p.image, images: p.images || {}, phone: p.phone || '', // текст акции — на самой картинке
       // кнопка на слайде: «Заказать · цена» или «Заказать по акции» (строка меню создаётся сама)
-      order: promoMode(p) !== 'none' && (r.menu || []).some((i) => i.id === `promo-${p.id}` && !i.hidden) ? `promo-${p.id}` : '',
+      order: promoMode(p) !== 'none' && (r.menu || []).some((i) => i.id === `promo-${p.id}` && onMenu(i)) ? `promo-${p.id}` : '',
       price: promoMode(p) === 'price' ? p.price : 0,
       qr: p.link ? `${PUBLIC_URL}/go/p/${p.id}?r=${r.id}` : '', ...qrPlace(p), ...framing(p),
     })),
     // блюдо — только с галочкой «В показе акций» (блюдо дня без неё остаётся в меню и в советах персонажа)
-    ...(r.menu || []).filter((i) => i.promo && i.photo && !i.hidden).map((i) => ({ type: 'item', id: i.id, image: i.photo, title: i.name, price: i.price })),
+    ...(r.menu || []).filter((i) => i.promo && i.photo && onMenu(i)).map((i) => ({ type: 'item', id: i.id, image: i.photo, title: i.name, price: i.price })),
   ];
   const ads = r.tariff === 'premium' ? [] : db.ads
     .filter((a) => a.active && a.image && (!a.restaurants?.length || a.restaurants.includes(r.id)) && !(r.blockedAds || []).includes(a.id))
@@ -577,7 +587,7 @@ function guestState(b, q) {
   const base = {
     restaurant: { name: r.name, langs: r.langs },
     build: BUILD,
-    menu: (r.menu || []).filter((i) => !i.hidden),
+    menu: (r.menu || []).filter(onMenu), tags: r.customTags || [],
     slides: slidesFor(r, d.id),
     display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) },
     avatar: avatarFor(r),
@@ -606,7 +616,7 @@ function phoneState(q) {
   let w;
   try { w = guestOf(q); } catch (e) { return { ended: e.message === 'phone disconnected' ? 'off' : 'expired' }; }
   return {
-    ...base, menu: (r.menu || []).filter((i) => !i.hidden), slides: [], avatar: null,
+    ...base, menu: (r.menu || []).filter(onMenu), tags: r.customTags || [], slides: [], avatar: null,
     me: { n: w.n, name: w.name }, guests: guestNames(r, s.table), kitchen: flowOf(r).kitchenScreen,
     calls: openAt(db.calls, r, s.table).filter((c) => c.status !== 'done'),
     orders: openAt(db.orders, r, s.table),
@@ -682,7 +692,7 @@ function guestOrder(b) {
 
 // Строки заказа по меню: цены и названия берём из меню, а не из запроса
 function buildItems(r, list) {
-  const menu = new Map((r.menu || []).filter((i) => !i.hidden).map((i) => [i.id, i]));
+  const menu = new Map((r.menu || []).filter(onMenu).map((i) => [i.id, i]));
   return (list || [])
     .filter((x) => menu.has(x.id) && x.qty > 0)
     .slice(0, 50)
@@ -694,7 +704,21 @@ function buildItems(r, list) {
         ? Object.fromEntries(Object.entries(m.name).map(([l, v]) => [l, `${v} · ${opt.label[l] || Object.values(opt.label)[0] || ''}`]))
         : m.name;
       const g = Math.round(Number(x.g));
-      return { id: m.id, opt: opt?.key || '', name, price: Number(opt ? opt.price : m.price) || 0, qty: Math.min(99, x.qty | 0), ...(g >= 1 && g <= 99 ? { g } : {}) };
+      // Выбор в группах (начинка, острота, добавки): цена — из меню, а не с планшета; без выбора — как по умолчанию в источнике
+      const want = Array.isArray(x.mods) ? new Set(x.mods.map(String)) : null, picked = [];
+      for (const gr of m.groups || []) {
+        let sel = gr.opts.filter((o) => (want ? want.has(o.id) : o.def));
+        if (gr.type === 'one') sel = sel.slice(0, 1);
+        if (gr.req && !sel.length && gr.opts.length) sel = [gr.opts.find((o) => o.def) || gr.opts[0]];
+        picked.push(...sel);
+      }
+      const ml = picked.length ? Object.fromEntries([...new Set(picked.flatMap((o) => Object.keys(o.name)))].map((l) => [l,
+        picked.map((o) => o.name[l] || Object.values(o.name)[0] || '').join(' · ')])) : undefined;
+      const price = (Number(opt ? opt.price : m.price) || 0) + picked.reduce((a, o) => a + (Number(o.price) || 0), 0);
+      return {
+        id: m.id, opt: opt?.key || '', name, price, qty: Math.min(99, x.qty | 0), ...(g >= 1 && g <= 99 ? { g } : {}),
+        ...(picked.length ? { mods: picked.map((o) => o.id), ml } : {}),
+      };
     });
 }
 
@@ -735,7 +759,7 @@ function staffState(b, q) {
     myTables: (r.tables || []).filter((tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb)),
     vapidKey: db.vapid.publicKey,
     calls: db.calls.filter((c) => c.restaurantId === r.id && !c.closed && c.status !== 'done'),
-    flow: pick(flowOf(r), ['phones', 'kitchenBtn', 'kitchenScreen']),
+    flow: pick(flowOf(r), ['phones', 'kitchenBtn', 'kitchenScreen']), customTags: r.customTags || [],
     // телефоны гостей по столам (официант может отключить чужой) и имена гостей для подписей
     phones: Object.fromEntries((r.tables || []).map((tb) => [tb, Object.values(tableKey(r, tb)?.s.guests || {})
       .filter((g) => !g.off).map((g) => ({ n: g.n, name: g.name }))]).filter(([, l]) => l.length)),
@@ -775,8 +799,8 @@ function staffOrder(b) {
 function kitchenSnap(o) {
   const out = {};
   for (const i of o.items) {
-    const k = `${i.id}|${i.opt || ''}`;
-    out[k] = { name: i.name, qty: (out[k]?.qty || 0) + i.qty };
+    const k = lineKey(i);
+    out[k] = { name: i.name, ml: i.ml, qty: (out[k]?.qty || 0) + i.qty };
   }
   return out;
 }
@@ -798,7 +822,7 @@ function kitchenState(b, q) {
       // блюда, разделённые между гостями, — одной строкой; was — сколько было, когда заказ ушёл на кухню
       const cur = kitchenSnap(o), was = o.kitchenItems || cur;
       const keys = [...new Set([...Object.keys(was), ...Object.keys(cur)])];
-      const items = keys.map((k) => ({ name: (cur[k] || was[k]).name, qty: cur[k]?.qty || 0, was: was[k]?.qty || 0, tags: tags.get(k.split('|')[0]) || [] }));
+      const items = keys.map((k) => ({ name: (cur[k] || was[k]).name, ml: (cur[k] || was[k]).ml, qty: cur[k]?.qty || 0, was: was[k]?.qty || 0, tags: tags.get(k.split('|')[0]) || [] }));
       return {
         id: o.id, table: o.table, at: o.cookFrom || o.confirmedAt || o.at, readyAt: o.readyAt || 0, editedAt: o.editedAt || 0,
         changed: items.some((i) => i.qty !== i.was), items,
@@ -824,7 +848,7 @@ function kitchenReady(b) {
 // Меню для правки заказа официантом
 function staffMenu(b, q) {
   const { r } = session(q.token);
-  return (r.menu || []).filter((i) => !i.hidden).map(({ id, sku, name, price, options }) => ({ id, sku, name, price, options }));
+  return (r.menu || []).filter(onMenu).map(({ id, sku, name, price, options, groups }) => ({ id, sku, name, price, options, groups }));
 }
 
 function staffShift(b) {
@@ -910,7 +934,7 @@ function staffAction(b) {
     const i = Number(b.line), it = x?.items[i], to = Math.round(Number(b.to));
     if (!it || it.paidAt || !(to >= 1 && to <= 99)) throw fail(400, 'bad action');
     const qty = Math.min(it.qty, Math.max(1, Math.round(Number(b.qty)) || 1));
-    const same = x.items.find((y) => y !== it && y.id === it.id && (y.opt || '') === (it.opt || '') && (y.g || x.guest || 1) === to && !y.paidAt);
+    const same = x.items.find((y) => y !== it && lineKey(y) === lineKey(it) && (y.g || x.guest || 1) === to && !y.paidAt);
     if (same) same.qty += qty;
     else if (qty < it.qty) x.items.push({ ...it, qty, g: to });
     if (same || qty < it.qty) { it.qty -= qty; if (!it.qty) x.items.splice(i, 1); } else it.g = to;
@@ -1025,6 +1049,7 @@ function managerGet(b, q) {
       menuSource: publicSource(r.menuSource),
       display: { ...DISPLAY, ...r.display },
       avatar: { ...AVATAR, ...r.avatar },
+      customTags: r.customTags || [], tagRules: r.tagRules || DEFAULT_RULES,
       flow: { ...pick(flowOf(r), ['phones', 'kitchenBtn', 'kitchenScreen']),
         kitchenUrl: r.flow?.kitchenKey ? `${PUBLIC_URL}/kitchen/?k=${r.flow.kitchenKey}` : '' },
       pos: r.menuSource?.type === 'pos' ? r.menuSource.vendor || 'pos' : '',
@@ -1044,7 +1069,7 @@ function managerGet(b, q) {
   };
 }
 
-const SECTIONS = { testVisit: 'пометка тестового визита', staffArchive: 'уволенные', staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы', flow: 'заказы и кухня' };
+const SECTIONS = { testVisit: 'пометка тестового визита', staffArchive: 'уволенные', staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', customTags: 'особые пожелания', tagRules: 'правила отметок', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы', flow: 'заказы и кухня' };
 function managerSave(b) {
   const { r, member } = managerSession(b.token);
   const changed = Object.keys(SECTIONS).filter((k) => b[k] !== undefined).map((k) => SECTIONS[k]);
@@ -1052,7 +1077,20 @@ function managerSave(b) {
   if (Array.isArray(b.staff)) setStaff(r, b.staff, b.fired || {});
   if (Array.isArray(b.staffArchive)) setArchive(r, b.staffArchive);
   if (b.testVisit) markTest(r, b.testVisit.ids, b.testVisit.test);
-  if (Array.isArray(b.menu)) r.menu = cleanMenu(b.menu);
+  if (Array.isArray(b.menu)) {
+    if (r.menuSource && r.menuSource.type !== 'manual') {
+      const own = !!r.menuSource.ownTags, by = new Map(b.menu.map((i) => [i?.id, i]));
+      for (const it of r.menu || []) {
+        const n = by.get(it.id);
+        if (!n) continue;
+        Object.assign(it, { dayDish: !!n.dayDish, promo: !!n.promo, hidden: !!n.hidden });
+        if (own) it.tags = (Array.isArray(n.tags) ? n.tags : []).filter((x) => tagKeys(r).includes(x));
+      }
+    } else r.menu = cleanMenu(b.menu, r);
+  }
+  if (Array.isArray(b.customTags)) r.customTags = cleanCustomTags(b.customTags);
+  if (Array.isArray(b.tagRules)) r.tagRules = b.tagRules.filter((x) => x && String(x.text || '').trim() && tagKeys(r).includes(x.tag))
+    .slice(0, 50).map((x) => ({ text: String(x.text).trim().slice(0, 60), tag: x.tag }));
   if (Array.isArray(b.promos)) r.promos = cleanPromos(b.promos);
   if (Array.isArray(b.promos) || Array.isArray(b.menu)) syncPromoItems(r);
   if (Array.isArray(b.blockedAds)) r.blockedAds = b.blockedAds.map(String);
@@ -1108,8 +1146,16 @@ function managerStats(b, q) {
 
 async function managerSync(b) {
   const { r, member } = managerSession(b.token);
-  audit(`${member.name} (менеджер)`, 'ЛК: синхронизация меню', r.id);
-  await syncMenu(r);
+  audit(`${member.name} (менеджер)`, b.once ? 'ЛК: меню загружено из источника один раз' : 'ЛК: синхронизация меню', r.id);
+  if (b.once) {
+    // загрузить один раз и дальше править в ЛК: синхронизация выключается
+    const src = r.menuSource;
+    if (!src || src.type === 'manual') throw fail(400, 'no source');
+    await syncMenu(r, true);
+    if (src.lastError) throw fail(400, src.lastError);
+    r.menuSource = { ...src, type: 'manual', importedFrom: src.type };
+    save();
+  } else await syncMenu(r, true);
   return publicSource(r.menuSource);
 }
 
@@ -1130,7 +1176,9 @@ function cleanSource(b, prev = {}) {
     vendor: POS_VENDORS[b.vendor] ? b.vendor : 'loyverse',
     token: b.token ? String(b.token).trim() : prev.token || '',
     lang: ['en', 'th', 'ru', 'zh'].includes(b.lang) ? b.lang : prev.lang || 'en',
-    interval: ['hourly', 'daily', 'off'].includes(b.interval) ? b.interval : prev.interval || 'hourly',
+    // проверять изменения каждые N минут (1–60); ownTags — свои хештеги в ЛК, синхронизация их не меняет
+    everyMin: Math.min(60, Math.max(1, Math.round(Number(b.everyMin ?? prev.everyMin)) || 5)),
+    ownTags: b.ownTags !== undefined ? !!b.ownTags : !!prev.ownTags,
   };
 }
 
@@ -1143,31 +1191,68 @@ const nonEmpty = (o = {}) => Object.fromEntries(Object.entries(o).filter(([, v])
 function mergeMenu(r, items) {
   const old = new Map((r.menu || []).filter((i) => i.extId).map((i) => [i.extId, i]));
   const seen = new Set();
+  const own = !!r.menuSource?.ownTags;
   const synced = items.filter((s) => s.extId && Object.values(s.name || {}).some(Boolean)).map((s) => {
     seen.add(s.extId);
     const o = old.get(s.extId) || { id: uid(), cat: {}, name: {}, desc: {} };
     return {
       ...o, extId: s.extId, sku: s.sku || o.sku || '',
       cat: { ...o.cat, ...nonEmpty(s.cat) }, name: { ...o.name, ...nonEmpty(s.name) }, desc: { ...o.desc, ...nonEmpty(s.desc) },
-      price: Number(s.price) || 0, options: s.options || [],
+      price: Number(s.price) || 0, options: s.options || [], groups: s.groups || [],
       photo: o.photoManual ? o.photo : s.photo || o.photo || '',
-      hidden: s.available === false,
+      // «нет в наличии» — из источника; «скрыть с планшетов» (hidden) — решение менеджера, синхронизация его не трогает
+      off: s.available === false,
+      tags: own ? o.tags || [] : autoTags(r, s),
     };
   });
   const manual = (r.menu || []).filter((i) => !i.extId);
-  const gone = [...old.values()].filter((i) => !seen.has(i.extId)).map((i) => ({ ...i, hidden: true }));
+  const gone = [...old.values()].filter((i) => !seen.has(i.extId)).map((i) => ({ ...i, off: true }));
   r.menu = [...synced, ...manual, ...gone];
 }
 
+// Отметки блюда при синхронизации: из источника (известные — к нашим, новые — свои отметки ресторана)
+// и по правилам «вариант → отметка» (например, есть вариант «Не острое блюдо» — отметка «Не острое»)
+const TAG_WORDS = {
+  vegan: /vegan|веган/i, vegetarian: /vegetarian|вегетариан/i, gluten_free: /gluten|глютен/i, lactose_free: /lactose|лактоз/i,
+  nut_free: /nut|орех/i, seafood_free: /seafood.?free|без морепродукт/i, spicy: /^(spicy|острое|острый)$/i, mild: /not spicy|mild|не остр/i,
+  kids: /kid|child|дет/i, halal: /halal|халял/i,
+};
+const DEFAULT_RULES = [{ text: 'не остр', tag: 'mild' }, { text: 'not spicy', tag: 'mild' }, { text: 'остр', tag: 'spicy' }, { text: 'spicy', tag: 'spicy' }];
+function autoTags(r, s) {
+  const out = new Set();
+  for (const name of s.srcTags || []) {
+    const known = Object.keys(TAG_WORDS).find((k) => TAG_WORDS[k].test(name));
+    if (known) { out.add(known); continue; }
+    r.customTags ||= [];
+    let c = r.customTags.find((x) => Object.values(x.name).some((v) => v.toLowerCase() === name.toLowerCase()));
+    if (!c) r.customTags.push((c = { key: `c_${uid()}`, name: { ru: name, en: name, th: name, zh: name }, icon: '🏷' }));
+    out.add(c.key);
+  }
+  const words = (s.groups || []).flatMap((g) => g.opts.flatMap((o) => Object.values(o.name))).map((v) => v.toLowerCase());
+  for (const rule of r.tagRules || DEFAULT_RULES) {
+    if (rule.text && words.some((w) => w.includes(rule.text.toLowerCase())) && tagKeys(r).includes(rule.tag)) out.add(rule.tag);
+  }
+  return [...out];
+}
+
 const syncing = new Set();
-async function syncMenu(r) {
+async function syncMenu(r, force = false) {
   const src = r.menuSource;
   if (!src || src.type === 'manual' || syncing.has(r.id)) return;
   syncing.add(r.id);
   try {
     const items = await fetchMenu(src);
-    mergeMenu(r, items);
-    Object.assign(src, { lastCount: items.length, lastError: '' });
+    if (items?.unchanged) {
+      src.lastError = '';
+      return;
+    }
+    const hash = items.hash || crypto.createHash('sha1').update(JSON.stringify(items)).digest('hex');
+    if (hash !== src.lastHash || force) {
+      mergeMenu(r, items);
+      syncPromoItems(r);
+      src.lastChange = Date.now();
+    }
+    Object.assign(src, { lastCount: items.length, lastError: '', lastHash: hash });
   } catch (e) {
     src.lastError = e.message;
   } finally {
@@ -1177,13 +1262,14 @@ async function syncMenu(r) {
   }
 }
 
-// Проверяем источники раз в 5 минут; каждый ресторан — с выбранной частотой (раз в час или раз в день)
+// Постоянная синхронизация: каждый ресторан — раз в N минут (ЛК → «Меню»); проверка лёгкая, меню
+// перезаписывается, только если в источнике что-то изменилось
 setInterval(() => {
   for (const r of Object.values(db.restaurants)) {
     const s = r.menuSource;
-    if (s && s.type !== 'manual' && SYNC_EVERY[s.interval] && Date.now() - (s.lastSync || 0) > SYNC_EVERY[s.interval]) syncMenu(r);
+    if (s && s.type !== 'manual' && Date.now() - (s.lastSync || 0) > (s.everyMin || 5) * 60_000) syncMenu(r);
   }
-}, 5 * 60_000);
+}, 30_000);
 
 // Вебхук «меню изменилось» для POS или сайта: POST /api/menu/webhook?r=<id>&key=<syncKey>
 function menuWebhook(b, q) {
@@ -1210,15 +1296,23 @@ async function upload(req) {
 
 // ---------- Администратор
 
-function cleanMenu(menu) {
+// Свои отметки ресторана: { key, name: {ru,en,th,zh}, icon }
+function cleanCustomTags(list) {
+  return list.filter((x) => x && Object.values(texts(x.name)).length).slice(0, 40).map((x) => ({
+    key: /^c_[\w]+$/.test(x.key) ? x.key : `c_${uid()}`, name: texts(x.name), icon: String(x.icon || '🏷').slice(0, 4),
+  }));
+}
+
+function cleanMenu(menu, r = {}) {
   return menu
     .filter((i) => i && i.name && typeof i.name === 'object' && Object.values(i.name).some(Boolean))
     .map((i) => ({
       id: i.id || uid(), cat: i.cat || {}, name: i.name, desc: i.desc || {},
       price: Number(i.price) || 0, photo: String(i.photo || ''), promo: !!i.promo, dayDish: !!i.dayDish,
       extId: i.extId || undefined, sku: String(i.sku || ''), options: Array.isArray(i.options) ? i.options : [],
-      hidden: !!i.hidden, photoManual: !!i.photoManual, fromPromo: i.fromPromo ? String(i.fromPromo) : undefined,
-      tags: (Array.isArray(i.tags) ? i.tags : []).filter((x) => DISH_TAGS.includes(x)),
+      groups: Array.isArray(i.groups) ? i.groups : [],
+      hidden: !!i.hidden, off: !!i.off, photoManual: !!i.photoManual, fromPromo: i.fromPromo ? String(i.fromPromo) : undefined,
+      tags: (Array.isArray(i.tags) ? i.tags : []).filter((x) => tagKeys(r).includes(x)),
     }));
 }
 
@@ -1255,7 +1349,7 @@ function cleanAvatar(a, r) {
     enabled: !!a.enabled, characterId: charAllowed(db.characters.find((c) => c.id === id), r) ? id : '', speak: a.speak !== false,
     everyMin: num(a.everyMin, 1, 60, AVATAR.everyMin), durationSec: num(a.durationSec, 10, 180, AVATAR.durationSec),
     startWith: a.startWith !== false, lines,
-    filters: (Array.isArray(a.filters) ? a.filters : []).filter((f) => DISH_TAGS.includes(f)),
+    filters: (Array.isArray(a.filters) ? a.filters : []).filter((f) => tagKeys(r).includes(f)),
   };
 }
 
@@ -1871,13 +1965,24 @@ if (!db.migrations.phrases5) {
   save();
 }
 
+// Однократно: раньше синхронизация писала «нет в наличии» в hidden и стирала скрытие менеджера — теперь это off;
+// источник перечитаем при следующей проверке (с группами вариантов)
+if (!db.migrations.menuOff) {
+  for (const r of Object.values(db.restaurants)) {
+    for (const i of r.menu || []) if (i.extId) { i.off = !!i.hidden; i.hidden = false; }
+    if (r.menuSource) { delete r.menuSource.lastHash; r.menuSource.everyMin ||= 5; delete r.menuSource.interval; }
+  }
+  db.migrations.menuOff = Date.now();
+  save();
+}
+
 // Однократно: столы «1», «B1» → «Стол 1», «Стол B1» (вместе с планшетами, официантами и заказами)
 for (const r of Object.values(db.restaurants)) {
   if ((r.tables || []).some((n) => fullTable(n) !== n)) saveTables(r, r.tables.map((n) => ({ from: n, to: fullTable(n) })));
 }
 save();
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://local');
     // /staff и /guest без косой черты → на адрес с чертой
@@ -1962,4 +2067,15 @@ http.createServer(async (req, res) => {
   } catch (e) {
     send(res, e.status || 500, { error: e.message });
   }
-}).listen(PORT, () => console.log(`JET MEDIA server on :${PORT}`));
+});
+server.listen(PORT, () => console.log(`JET MEDIA server on :${PORT}`));
+
+// Обновление или перезапуск (docker stop): новые запросы не принимаем, начатые доводим до конца,
+// несохранённые изменения пишем на диск сразу — заказы, сделанные за секунду до остановки, не теряются
+function shutdown() {
+  server.close();
+  if (saveTimer) writeDb();
+  setTimeout(() => process.exit(0), 1500).unref();
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

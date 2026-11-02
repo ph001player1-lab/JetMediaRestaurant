@@ -26,6 +26,8 @@
   .ord li { font-size: 22px; padding: 6px 0; border-bottom: 1px solid #333; }
   .ord li b { color: #d4af37; margin-right: 6px; }
   .ord .tags { display: block; font-size: 16px; color: #ff8a65; margin-top: 2px; }
+  /* выбранное гостем: начинка, острота, добавки — крупно, повару это важно */
+  .ord .mods { display: block; font-size: 19px; color: #ffe082; margin-top: 2px; }
   /* правка официанта после отправки на кухню: новое — зелёным, убранное — зачёркнуто, изменённое количество — «2 → 3» */
   .ord li.new { color: #81c784; } .ord li.gone { color: #e57373; text-decoration: line-through; } .ord li.mod { color: #ffb74d; }
   .chg { display: inline-block; margin-left: 8px; font-size: 15px; font-weight: 800; padding: 1px 8px; border-radius: 8px; background: rgba(255,255,255,.14); text-decoration: none; }
@@ -89,12 +91,13 @@ function card(o) {
     '<span class="min">' + (o.readyAt ? '✅' : min + ' ' + t('min')) + '</span></div>' +
     (o.changed && !o.readyAt ? '<div class="edited">✎ ' + t('edited') + '</div>' : '') +
     '<ul>' + o.items.map(function (i) {
-      var tg = (i.tags || []).filter(function (k) { return TAGS[k]; }).map(function (k) { return '#' + tr(TAGS[k]).toLowerCase(); }).join(' ');
+      var tg = (i.tags || []).filter(function (k) { return TAGS[k] && !(i.ml && (k === 'spicy' || k === 'mild')); }).map(function (k) { return '#' + tr(TAGS[k]).toLowerCase(); }).join(' ');
       var cls = '', mark = '';
       if (!i.was) { cls = 'new'; mark = t('added'); }
       else if (!i.qty) { cls = 'gone'; mark = t('removed'); }
       else if (i.qty !== i.was) { cls = 'mod'; mark = i.was + ' → ' + i.qty; }
       return '<li class="' + cls + '"><b>' + (i.qty || i.was) + ' ×</b>' + esc(tr(i.name)) + (mark ? '<span class="chg">' + esc(mark) + '</span>' : '') +
+        (i.ml ? '<span class="mods">' + esc(tr(i.ml)) + '</span>' : '') +
         (tg ? '<span class="tags">' + esc(tg) + '</span>' : '') + '</li>';
     }).join('') + '</ul>' +
     '<button data-id="' + esc(o.id) + '"' + (o.readyAt ? ' data-undo="1">' + t('undo') : '>' + t('ready')) + '</button></div>';

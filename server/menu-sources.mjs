@@ -1,6 +1,10 @@
 // Источники меню: сайт ресторана, POS-система или JSON-фид собственной системы.
 // Каждый адаптер возвращает блюда в общем виде:
-//   { extId, sku, cat: {lang}, name: {lang}, desc: {lang}, price, photo, options: [{ key, label: {lang}, price }], available }
+//   { extId, sku, cat: {lang}, name: {lang}, desc: {lang}, price, photo, options: [{ key, label: {lang}, price }], available,
+//     groups: [{ id, name: {lang}, type: 'one'|'many', req, opts: [{ id, name: {lang}, price (доплата), def (выбрано по умолчанию) }] }],
+//     srcTags: ['vegan', …] — отметки источника как есть }
+// options — варианты с полной ценой (объём, размер); groups — группы выбора как в источнике (начинка, острота, добавки)
+import crypto from 'node:crypto';
 const HEADERS = { 'user-agent': 'Mozilla/5.0 (compatible; JetMediaMenuBot/1.0; +https://jetmedia.dev)' };
 
 const decode = (s) => String(s)
@@ -121,14 +125,19 @@ async function wooProducts(url, lang) {
 // ---------- Сайт на foodmenu.online: меню лежит в странице готовым JSON (const DISHES = {…}),
 // переводы — та же страница с ?lang=en|ru|th|cn
 
+const dishesRaw = (html) => html.match(/const DISHES = (\{[\s\S]*?\});\n/)?.[1] || '';
 const dishesJson = (html) => {
-  const m = html.match(/const DISHES = (\{[\s\S]*?\});\n/);
-  try { return m ? JSON.parse(m[1]) : null; } catch { return null; }
+  try { return JSON.parse(dishesRaw(html)) || null; } catch { return null; }
 };
+const tagName = (x) => String(typeof x === 'string' ? x : x?.n || x?.name || x?.title || '').trim();
 
+// Все группы выбора блюда — 1:1 как в источнике: «выберите одно» и добавки-галочки, доплаты, выбор по умолчанию.
+// Проверка изменений экономная: сначала одна страница и её «отпечаток»; переводы качаем, только если меню изменилось
 async function fromFoodmenu(src, html) {
-  const base = dishesJson(html);
+  const raw = dishesRaw(html), base = dishesJson(html);
   if (!base) return null;
+  const hash = crypto.createHash('sha1').update(raw).digest('hex');
+  if (src.lastHash === hash) return { unchanged: true, hash };
   const LANGS = { en: 'en', ru: 'ru', th: 'th', zh: 'cn' };
   const tr = { [src.lang || 'en']: base };
   for (const [ours, theirs] of Object.entries(LANGS)) {
@@ -137,23 +146,24 @@ async function fromFoodmenu(src, html) {
     try { tr[ours] = dishesJson(await (await get(u)).text()) || tr[ours]; } catch { /* без этого перевода */ }
   }
   const pick = (get) => Object.fromEntries(Object.keys(tr).map((l) => [l, String(get(tr[l]) ?? '').trim()]).filter(([, v]) => v));
-  return Object.values(base).map((d) => {
-    const groups = d.opts || [];
-    // одна группа «выберите одно» — варианты с ценой; несколько групп и добавки уточнит официант
-    const one = groups.length === 1 && groups[0].type === 'radio';
-    return {
-      extId: String(d.id), sku: d.sku || '',
-      cat: pick((t) => t[d.id]?.cat), name: pick((t) => t[d.id]?.name), desc: pick((t) => t[d.id]?.desc),
-      price: Number(d.min || d.price) || 0,
-      photo: d.img ? new URL(d.img, src.url).href : '',
-      options: one ? groups[0].opts.map((o, k) => ({
-        key: String(o.id),
-        label: pick((t) => t[d.id]?.opts?.[0]?.opts?.[k]?.n),
-        price: (Number(d.price) || 0) + (Number(o.p) || 0),
-      })) : [],
-      available: !d.off,
-    };
-  });
+  const items = Object.values(base).map((d) => ({
+    extId: String(d.id), sku: d.sku || '',
+    cat: pick((t) => t[d.id]?.cat), name: pick((t) => t[d.id]?.name), desc: pick((t) => t[d.id]?.desc),
+    price: Number(d.price || d.min) || 0,
+    photo: d.img ? new URL(d.img, src.url).href : '',
+    options: [],
+    groups: (d.opts || []).map((g, gi) => ({
+      id: String(g.cat || gi), type: g.type === 'checkbox' ? 'many' : 'one', req: !!g.req,
+      name: pick((t) => t[d.id]?.opts?.[gi]?.n),
+      opts: (g.opts || []).map((o, oi) => ({
+        id: String(o.id), name: pick((t) => t[d.id]?.opts?.[gi]?.opts?.[oi]?.n), price: Number(o.p) || 0, def: !!o.c,
+      })),
+    })),
+    srcTags: [...(d.tags || []), ...(d.allg || [])].map(tagName).filter(Boolean),
+    available: !d.off,
+  }));
+  items.hash = hash;
+  return items;
 }
 
 async function fromWebsite(src) {

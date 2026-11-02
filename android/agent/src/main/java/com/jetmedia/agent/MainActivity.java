@@ -180,7 +180,19 @@ public class MainActivity extends Activity {
         Watchdog.beat(this);
         Watchdog.pause(this, 0);
         hideBars();
-        if (isOwner()) startLockTask();
+        lockTask();
+    }
+
+    // Режим киоска. Если окно ещё не на переднем плане (включился экран, сверху системное окно),
+    // Android бросает «Invalid task, not in foreground» — не падаем, а повторяем, когда окно получит фокус
+    private void lockTask() {
+        if (!isOwner()) return;
+        if (getSystemService(ActivityManager.class).getLockTaskModeState() != ActivityManager.LOCK_TASK_MODE_NONE) return;
+        try {
+            startLockTask();
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            // повторим в onWindowFocusChanged
+        }
     }
 
     @Override
@@ -192,7 +204,10 @@ public class MainActivity extends Activity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) hideBars();
+        if (hasFocus) {
+            hideBars();
+            lockTask();
+        }
     }
 
     @Override

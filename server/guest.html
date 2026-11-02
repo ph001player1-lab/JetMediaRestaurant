@@ -118,6 +118,23 @@
   body.phone #callBar { height: 46px; line-height: 46px; padding: 0 6px; }
   body.phone.calling #app { padding-top: 46px; }
   .gsum .line { padding: 6px 0; }
+  .lmods { display: block; font-size: 15px; color: var(--muted); margin-top: 2px; }
+  .phead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .phead h2 { margin: 2px 0 6px; } .pcat { color: var(--accent); font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+  .pprice { font-size: 22px; color: #2e7d32; white-space: nowrap; }
+  .og { border-top: 1px solid var(--line); padding: 6px 0 4px; }
+  .og h4 { margin: 10px 0 6px; font-size: 18px; } .og .req { color: var(--accent); }
+  .orow { display: flex; align-items: center; width: 100%; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 12px;
+    padding: 14px; margin: 6px 0; font-size: 18px; text-align: left; }
+  .orow.on { border-color: var(--accent); background: var(--soft); }
+  .orow .mk { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--muted); margin-right: 12px; flex: none; color: #fff; font-size: 16px; line-height: 22px; text-align: center; }
+  .orow.on .mk { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 4px var(--card); }
+  .orow.many .mk { border-radius: 7px; } .orow.many.on .mk { box-shadow: none; }
+  .orow .op { margin-left: auto; color: var(--muted); font-size: 16px; padding-left: 10px; white-space: nowrap; }
+  .pbar { display: flex; align-items: center; gap: 10px; position: -webkit-sticky; position: sticky; bottom: -22px; background: var(--card); padding: 12px 0 4px; margin-top: 8px; }
+  .pbar .big { margin-top: 0; flex: 1; }
+  .pbar .qty { margin-right: 0; }
+  .pclose { width: 48px; height: 48px; border-radius: 24px; border: 1px solid var(--line); background: none; font-size: 20px; color: var(--ink); flex: none; }
   .gst { border-radius: 10px; padding: 2px 10px; font-weight: 700; font-size: .85em; white-space: nowrap; }
   .gst-pending { background: #fde3dc; color: #c62828; } .gst-stConfirmed { background: #e3f0fd; color: #1565c0; }
   .gst-stCooking { background: #fff3cd; color: #8a5a00; } .gst-stReady { background: #e2f4e4; color: #2e7d32; }
@@ -372,6 +389,8 @@ function load() {
     state = s;
     applyTheme(s.display || {});
     state.calls = s.calls || [];
+    // свои отметки ресторана (ЛК → «Особые пожелания»)
+    (s.tags || []).forEach(function (c) { TAGS[c.key] = c.name; TAG_ICONS[c.key] = c.icon || '🏷'; });
     state.orders = s.orders || [];
     if (!lang) lang = defLang();
     notifyChanges(first);
@@ -647,17 +666,29 @@ function priceLabel(i) {
 function cartCount() { var n = 0; for (var k in cart) n += cart[k]; return n; }
 function inCart(id) { var n = 0; for (var k in cart) if (k.split('|')[0] === id) n += cart[k]; return n; }
 
+// Строка корзины: «блюдо|вариант|выбранное в группах через запятую»
+function hasChoice(i) { return !!((i.options || []).length || (i.groups || []).length); }
+function pickedOf(i, ids) {
+  var out = [];
+  (i.groups || []).forEach(function (g) { g.opts.forEach(function (o) { if (ids.indexOf(o.id) >= 0) out.push(o); }); });
+  return out;
+}
 function lineOf(key) {
   var p = key.split('|'), i = MENU[p[0]];
   if (!i) return null;
   var o = p[1] ? (i.options || []).filter(function (x) { return x.key === p[1]; })[0] : null;
   if (p[1] && !o) return null;
-  return { price: Number(o ? o.price : i.price) || 0, name: tr(i.name) + (o ? ' · ' + tr(o.label) : ''), tags: i.tags };
+  var mods = pickedOf(i, p[2] ? p[2].split(',') : []);
+  return {
+    price: (Number(o ? o.price : i.price) || 0) + mods.reduce(function (a, m) { return a + (Number(m.price) || 0); }, 0),
+    name: tr(i.name) + (o ? ' · ' + tr(o.label) : ''), mods: mods.map(function (m) { return tr(m.name); }).join(' · '), tags: i.tags
+  };
 }
 
-// Отметки блюда (не острое, без глютена…) хештегами под названием в заказе
-function tagsHtml(tags) {
-  var list = (tags || []).filter(function (k) { return TAGS[k]; });
+// Отметки блюда (не острое, без глютена…) хештегами под названием в заказе. Если гость выбрал варианты,
+// «острое / не острое» не пишем — выбранная острота уже видна в вариантах
+function tagsHtml(tags, chosen) {
+  var list = (tags || []).filter(function (k) { return TAGS[k] && !(chosen && (k === 'spicy' || k === 'mild')); });
   return list.length ? '<span class="ltags">' + list.map(function (k) { return '<i>#' + esc(tr(TAGS[k]).toLowerCase()) + '</i>'; }).join('') + '</span>' : '';
 }
 
@@ -665,20 +696,59 @@ function cartTotal() {
   return Object.keys(cart).reduce(function (s, k) { var l = lineOf(k); return s + (l ? l.price * cart[k] : 0); }, 0);
 }
 
+// Окно блюда с выбором — как в источнике меню: вариант (объём, размер), группы «выберите одно» и добавки-галочки,
+// доплаты «+30 ฿», выбор по умолчанию, количество и кнопка «Добавить · сумма»
+var pick = null;
 function openOptions(id) {
   var i = MENU[id];
-  sheetMode = 'opts';
-  $('sheet').innerHTML = '<h2>' + esc(tr(i.name)) + '</h2>' + i.options.map(function (o) {
-    return '<button class="big ghost" data-opt="' + esc(id + '|' + o.key) + '">' + esc(tr(o.label)) + ' · ' + money(o.price) + '</button>';
-  }).join('') + '<button class="big ghost" data-close="1">' + t('close') + '</button>';
+  pick = { id: id, opt: (i.options || []).length ? i.options[0].key : '', mods: [], qty: 1 };
+  (i.groups || []).forEach(function (g) {
+    var d = g.opts.filter(function (o) { return o.def; });
+    if (g.type === 'one') d = d.slice(0, 1);
+    if (g.req && !d.length && g.opts.length) d = [g.opts[0]];
+    d.forEach(function (o) { pick.mods.push(o.id); });
+  });
+  renderPick();
   $('cart').className = 'overlay show';
+}
+function pickKey() { return pick.id + '|' + pick.opt + '|' + pickedOf(MENU[pick.id], pick.mods).map(function (o) { return o.id; }).join(','); }
+function renderPick() {
+  var i = MENU[pick.id], l = lineOf(pickKey());
+  sheetMode = 'opts';
+  var row = function (attrs, on, many, label, price) {
+    return '<button class="orow' + (on ? ' on' : '') + (many ? ' many' : '') + '" ' + attrs + '><span class="mk">' + (on && many ? '✓' : '') + '</span>' +
+      '<span class="on1">' + esc(label) + '</span>' + (price ? '<span class="op">' + price + '</span>' : '') + '</button>';
+  };
+  $('sheet').innerHTML = '<div class="phead"><div><div class="pcat">' + esc(tr(i.cat)) + '</div><h2>' + esc(tr(i.name)) + '</h2></div>' +
+      '<b class="pprice">' + money(l.price) + '</b></div>' +
+    ((i.options || []).length ? '<div class="og">' + i.options.map(function (o) {
+      return row('data-pv="' + esc(o.key) + '"', pick.opt === o.key, false, tr(o.label), money(o.price));
+    }).join('') + '</div>' : '') +
+    (i.groups || []).map(function (g, gi) {
+      return '<div class="og"><h4>' + esc(tr(g.name)) + (g.req ? ' <span class="req">*</span>' : '') + '</h4>' + g.opts.map(function (o) {
+        return row('data-pg="' + gi + '" data-po="' + esc(o.id) + '"', pick.mods.indexOf(o.id) >= 0, g.type === 'many', tr(o.name), o.price ? '+' + money(o.price) : '');
+      }).join('') + '</div>';
+    }).join('') +
+    '<div class="pbar"><button class="pclose" data-close="1">✕</button><span class="qty"><button data-pq="-1">−</button> ' + pick.qty + ' <button data-pq="1">+</button></span>' +
+      '<button class="big" data-padd="1">' + t('add') + ' · ' + money(l.price * pick.qty) + '</button></div>';
+}
+function pickToggle(gi, oid) {
+  var g = MENU[pick.id].groups[gi], on = pick.mods.indexOf(oid) >= 0;
+  if (g.type === 'one') {
+    if (on && g.req) return;
+    var ids = g.opts.map(function (o) { return o.id; });
+    pick.mods = pick.mods.filter(function (m) { return ids.indexOf(m) < 0; });
+    if (!on) pick.mods.push(oid);
+  } else if (on) pick.mods = pick.mods.filter(function (m) { return m !== oid; });
+  else pick.mods.push(oid);
+  renderPick();
 }
 
 function renderCart() {
   sheetMode = 'cart';
   var lines = Object.keys(cart).filter(function (k) { return lineOf(k); }).map(function (k) {
     var l = lineOf(k);
-    return '<div class="line"><span class="n">' + esc(l.name) + tagsHtml(l.tags) + '</span>' +
+    return '<div class="line"><span class="n">' + esc(l.name) + (l.mods ? '<span class="lmods">' + esc(l.mods) + '</span>' : '') + tagsHtml(l.tags, !!l.mods) + '</span>' +
       '<span class="qty"><button data-dec="' + esc(k) + '">−</button> ' + cart[k] + ' <button data-inc="' + esc(k) + '">+</button></span>' +
       '<span class="price">' + money(l.price * cart[k]) + '</span></div>';
   }).join('');
@@ -693,7 +763,8 @@ function renderCart() {
       o.items.map(function (i) {
         // блюдо, которое официант перенёс на другого гостя (разделение счёта)
         var moved = many && (i.g || og) !== og ? ' <span class="ltags"><i>→ ' + esc(guestLabel(i.g)) + '</i></span>' : '';
-        return '<div class="line"><span class="n">' + i.qty + ' × ' + esc(tr(i.name)) + tagsHtml((MENU[i.id] || {}).tags) + moved + '</span><span class="price">' + money(i.price * i.qty) + '</span></div>';
+        return '<div class="line"><span class="n">' + i.qty + ' × ' + esc(tr(i.name)) + (i.ml ? '<span class="lmods">' + esc(tr(i.ml)) + '</span>' : '') +
+          tagsHtml((MENU[i.id] || {}).tags, !!i.ml) + moved + '</span><span class="price">' + money(i.price * i.qty) + '</span></div>';
       }).join('') +
       '<div class="total"><span>' + t('total') + '</span><span>' + money(o.total) + '</span></div></div>';
   }).join('');
@@ -716,7 +787,7 @@ function orderStatus(o) {
 function sendOrder() {
   if (sending) return;
   sending = true;
-  var items = Object.keys(cart).map(function (k) { var p = k.split('|'); return { id: p[0], opt: p[1] || '', qty: cart[k] }; });
+  var items = Object.keys(cart).map(function (k) { var p = k.split('|'); return { id: p[0], opt: p[1] || '', mods: p[2] ? p[2].split(',') : [], qty: cart[k] }; });
   post('/api/guest/order', { items: items }).then(function (o) {
     if (!o.id) return;
     cart = {};
@@ -1110,7 +1181,7 @@ function sendLead() {
 function promoOrder(id) {
   if (!MENU[id]) return;
   hideAttract();
-  if ((MENU[id].options || []).length) { openOptions(id); return; } // сначала выбрать вариант
+  if (hasChoice(MENU[id])) { openOptions(id); return; } // сначала выбрать вариант
   cart[id] = (cart[id] || 0) + 1;
   renderAll();
   renderCart();
@@ -1121,7 +1192,7 @@ function avatarAdd(id) {
   var i = MENU[id];
   if (!i) return;
   gEvent('av_add', id);
-  if ((i.options || []).length) { hideAttract(); openOptions(id); return; }
+  if (hasChoice(i)) { hideAttract(); openOptions(id); return; }
   cart[id] = (cart[id] || 0) + 1;
   renderFooter();
   toast(t('added'));
@@ -1280,8 +1351,11 @@ document.addEventListener('click', function (e) {
   else if (d.cat) { cat = d.cat; renderAll(); }
   else if (d.diet) openDiet();
   else if (d.tagf !== undefined) { cat = d.tagf ? 'tag:' + d.tagf : null; $('cart').className = 'overlay'; renderAll(); $('items').scrollTop = 0; }
-  else if (d.add) { if ((MENU[d.add].options || []).length) openOptions(d.add); else { cart[d.add] = (cart[d.add] || 0) + 1; renderAll(); } }
-  else if (d.opt) { cart[d.opt] = (cart[d.opt] || 0) + 1; $('cart').className = 'overlay'; renderAll(); }
+  else if (d.add) { if (hasChoice(MENU[d.add])) openOptions(d.add); else { cart[d.add] = (cart[d.add] || 0) + 1; renderAll(); } }
+  else if (d.pv) { pick.opt = d.pv; renderPick(); }
+  else if (d.po) pickToggle(Number(d.pg), d.po);
+  else if (d.pq) { pick.qty = Math.max(1, Math.min(99, pick.qty + Number(d.pq))); renderPick(); }
+  else if (d.padd) { var pk = pickKey(); cart[pk] = (cart[pk] || 0) + pick.qty; $('cart').className = 'overlay'; toast(t('added')); renderAll(); }
   else if (d.inc) { cart[d.inc]++; renderCart(); renderAll(); }
   else if (d.dec) { if (--cart[d.dec] <= 0) delete cart[d.dec]; renderCart(); renderAll(); }
   else if (d.send) sendOrder();
