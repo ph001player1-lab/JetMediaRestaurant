@@ -95,6 +95,10 @@
   #qrCard { position: fixed; right: 16px; bottom: 120px; z-index: 6; background: #fff; color: #1f1a17; border-radius: 18px; padding: 14px 14px 12px;
     width: 240px; text-align: center; box-shadow: 0 8px 28px rgba(0,0,0,.35); display: none; font-size: 16px; line-height: 1.3; }
   #qrCard svg { width: 196px; height: 196px; display: block; margin: 0 auto 8px; }
+  /* кнопка мигает 5 раз после того, как в неё «залетел» QR-код */
+  @-webkit-keyframes qrBlink { 50% { -webkit-transform: scale(1.12); transform: scale(1.12); box-shadow: 0 0 0 6px var(--accent); } }
+  @keyframes qrBlink { 50% { -webkit-transform: scale(1.12); transform: scale(1.12); box-shadow: 0 0 0 6px var(--accent); } }
+  .qrbtn.blink { -webkit-animation: qrBlink .6s ease-in-out 5; animation: qrBlink .6s ease-in-out 5; }
   #qrCard .x { position: absolute; top: 2px; right: 4px; border: 0; background: none; font-size: 24px; color: #8a7f76; padding: 6px 10px; }
   /* Телефон гостя: экран «Как вас зовут?», компактное меню */
   .join { max-width: 420px; width: 100%; }
@@ -449,7 +453,30 @@ function qrHint() {
   $('qrCard').innerHTML = '<button class="x" data-qrx="1">✕</button>' + qrSvg(state.join.url) + esc(t('qrHint'));
   $('qrCard').style.display = 'block';
   clearTimeout(qrHint.timer);
-  qrHint.timer = setTimeout(function () { $('qrCard').style.display = 'none'; }, 20000);
+  qrHint.timer = setTimeout(qrFly, 20000);
+}
+
+// Подсказка не просто исчезает, а «залетает» в кнопку «Заказ с телефона», и кнопка 5 раз мигает:
+// гость видит, где взять QR-код потом
+function qrFly() {
+  var c = $('qrCard');
+  clearTimeout(qrHint.timer);
+  if (c.style.display !== 'block') return;
+  var btn = document.querySelector(($('attract').style.display === 'block' ? '#aLangs' : '#langs') + ' [data-qr]');
+  if (!btn) { c.style.display = 'none'; return; }
+  var a = c.getBoundingClientRect(), b = btn.getBoundingClientRect();
+  var dx = b.left + b.width / 2 - (a.left + a.width / 2), dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  c.style.transition = 'transform .8s ease-in-out, opacity .8s ease-in';
+  c.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(.1)';
+  c.style.opacity = '.2';
+  setTimeout(function () {
+    c.style.display = 'none';
+    c.style.transition = c.style.transform = c.style.opacity = '';
+    btn.classList.remove('blink');
+    void btn.offsetWidth; // перезапуск анимации, если кнопка уже мигала
+    btn.classList.add('blink');
+    setTimeout(function () { btn.classList.remove('blink'); }, 3200);
+  }, 820);
 }
 
 // Гостю показываем, когда официант идёт, подтвердил или изменил заказ
@@ -1266,7 +1293,7 @@ document.addEventListener('click', function (e) {
   else if (d.bill) { $('cart').className = 'overlay'; call('bill', d.bill === 'me' ? 'me' : ''); }
   else if (d.qr) { hideAttract(); qrOpen(); }
   else if (d.qrclose) $('qrBox').className = '';
-  else if (d.qrx) $('qrCard').style.display = 'none';
+  else if (d.qrx) qrFly();
   else if (d.join) joinTable(d.join === 'skip');
   else if (b.id === 'backBtn') showAttract();
   else if (d.avchat) showAttract('avatar');
