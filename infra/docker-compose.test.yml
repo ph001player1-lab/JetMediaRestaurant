@@ -1,0 +1,33 @@
+# Тестовая копия JET MEDIA (test.jetmedia.dev): свой код (/opt/jetmedia-test) и своя база — копия рабочей.
+# Запускает установщик: install.sh с TEST=1. Caddy рабочей версии пересылает сюда адрес test.jetmedia.dev.
+# Тестовая не пишет в Telegram и не шлёт уведомления официантам рабочего приложения.
+services:
+  api-test:
+    image: node:22-alpine
+    working_dir: /app
+    command: node server.mjs
+    volumes:
+      - ../server:/app:ro
+      - data:/data
+    environment:
+      - DATA_DIR=/data
+      - INSTANCE=test
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - DEVICE_KEY=${DEVICE_KEY}
+      - PUBLIC_URL=https://test.jetmedia.dev
+    restart: unless-stopped
+    stop_grace_period: 5s
+    # тестовая не должна отнимать процессор и память у рабочей
+    cpus: 0.5
+    mem_limit: 384m
+    networks: [infra]
+
+volumes:
+  data:
+    external: true
+    name: jetmedia-test_data
+
+networks:
+  infra:
+    external: true
+    name: infra_default

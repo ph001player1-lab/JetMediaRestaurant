@@ -2,3 +2,8 @@
 api.jetmedia.dev, app.jetmedia.dev {
 	reverse_proxy api:3000
 }
+
+# Тестовая копия (install.sh с TEST=1). Пока она не запущена — на этом адресе ошибка 502, рабочую это не задевает
+test.jetmedia.dev {
+	reverse_proxy api-test:3000
+}

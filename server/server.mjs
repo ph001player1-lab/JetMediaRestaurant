@@ -15,7 +15,7 @@ import { THEMES, themeOf } from './themes.mjs';
 import { ELEVEN_MODELS, elevenVoices, elevenUsage, cachedTts, synthesize } from './eleven.mjs';
 import { eventLog, thDay, restaurantReport, networkReport } from './stats.mjs';
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const DATA_DIR = process.env.DATA_DIR || './data';
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const PASS = process.env.ADMIN_PASSWORD || 'admin';
@@ -49,6 +49,27 @@ const TYPES = { html: 'text/html; charset=utf-8', json: 'application/manifest+js
 const FILES = Object.fromEntries(Object.values(STATIC).map((f) => [f, fs.readFileSync(new URL(`./${f}`, import.meta.url))]));
 // Версия интерфейса: открытые страницы стола и персонала сами перезагружаются, когда она меняется
 const BUILD = crypto.createHash('sha1').update(Buffer.concat(Object.values(FILES))).digest('hex').slice(0, 10);
+
+// ---------- Рабочая и тестовая версии. Тестовая — отдельная копия на test.jetmedia.dev со своей базой (копией рабочей):
+// не пишет в Telegram и не шлёт уведомления официантам рабочего приложения. Планшет переключают в портале рабочей версии
+const INSTANCE = process.env.INSTANCE === 'test' ? 'test' : 'prod';
+// Номер версии: дата и код изменения (файл VERSION пишет установщик), иначе — отпечаток файлов
+const VERSION = (() => {
+  try { return fs.readFileSync(new URL('./VERSION', import.meta.url), 'utf8').trim() || BUILD; } catch { return BUILD; }
+})();
+const TEST_URL = process.env.TEST_URL || 'https://test.jetmedia.dev';
+const TEST_API = process.env.TEST_API || 'http://api-test:3000';
+let testVersion = { at: 0, v: null };
+async function getTestVersion() {
+  if (Date.now() - testVersion.at < 60_000) return testVersion.v;
+  try {
+    const j = await (await fetch(`${TEST_API}/api/version`, { signal: AbortSignal.timeout(3000) })).json();
+    testVersion = { at: Date.now(), v: j.version || null };
+  } catch { testVersion = { at: Date.now(), v: null }; }
+  return testVersion.v;
+}
+// Страница планшета: рабочая или тестовая версия — по выбору в портале
+const guestUrl = (d) => `${d.channel === 'test' ? TEST_URL : PUBLIC_URL}/guest/?d=${encodeURIComponent(d.id)}`;
 const UPLOADS = path.join(DATA_DIR, 'uploads');
 const IMAGE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 // Что можно хранить в uploads: фото, картинки персонажей (в т. ч. SVG) и звук
@@ -207,6 +228,8 @@ function auditText(method, p, b) {
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/command$/))) return [`Команда «${b.type}» устройству ${dev(m[1])}`, db.devices[dev(m[1])]?.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/assign$/))) return [`Устройство ${dev(m[1])} → ${db.restaurants[b.restaurantId]?.name || 'не привязано'}${b.table ? ` · ${b.table}` : ''}`, b.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)$/))) return [`Устройство удалено: ${dev(m[1])}`];
+  if (p === '/api/devices/_channel') return [`${b.channel === 'test' ? 'На тестовую версию' : 'На рабочую версию'}: ${b.restaurantId ? db.restaurants[b.restaurantId]?.name || '' : 'вся сеть'}`, b.restaurantId];
+  if ((m = p.match(/^\/api\/devices\/([^/]+)\/channel$/))) return [`Устройство ${dev(m[1])} → ${b.channel === 'test' ? 'тестовая' : 'рабочая'} версия`, db.devices[dev(m[1])]?.restaurantId];
   if ((m = p.match(/^\/api\/pending\/([^/]+)\/approve$/))) return [`Новое устройство добавлено: ${dev(m[1])}`];
   if ((m = p.match(/^\/api\/pending\/([^/]+)$/))) return [`Новое устройство скрыто: ${dev(m[1])}`];
   if (p === '/api/ads') return [`Реклама сохранена: ${b.advertiser || ''}${b.title ? ` — ${b.title}` : ''}`];
@@ -586,7 +609,7 @@ function guestState(b, q) {
   if (!r || (!d.table && d.role !== 'entrance')) return { unassigned: true };
   const base = {
     restaurant: { name: r.name, langs: r.langs },
-    build: BUILD,
+    build: BUILD, instance: INSTANCE,
     menu: (r.menu || []).filter(onMenu), tags: r.customTags || [],
     slides: slidesFor(r, d.id),
     display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) },
@@ -609,7 +632,7 @@ function phoneState(q) {
   const s = db.tableKeys[q.k], r = s && db.restaurants[s.r];
   if (!r || Date.now() - s.last > KEY_IDLE_MS || !flowOf(r).phones) return { ended: 'expired' };
   const base = {
-    restaurant: { name: r.name, langs: r.langs }, build: BUILD, table: s.table, mode: 'phone',
+    restaurant: { name: r.name, langs: r.langs }, build: BUILD, instance: INSTANCE, table: s.table, mode: 'phone',
     display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) },
   };
   if (!q.g) return { ...base, join: true };
@@ -753,7 +776,7 @@ function staffState(b, q) {
   const { s, r, member } = session(q.token);
   return {
     restaurant: { name: r.name, pos: r.menuSource?.type === 'pos', tables: r.tables || [] },
-    build: BUILD,
+    build: BUILD, instance: INSTANCE, version: VERSION,
     me: { name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0 },
     // «Столы» официанта: его столы из ЛК менеджера, а если не назначены — все столы ресторана
     myTables: (r.tables || []).filter((tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb)),
@@ -1733,7 +1756,27 @@ function admin(method, p, b, me, q) {
     return syncMenu(db.restaurants[m[1]]).then(() => publicSource(db.restaurants[m[1]].menuSource));
   }
 
-  m = p.match(/^\/api\/devices\/([^/]+)(?:\/(command|assign))?$/);
+  // Версии (рабочая и тестовая) и переключение планшетов между ними
+  if (method === 'GET' && p === '/api/devices/_versions') {
+    return (INSTANCE === 'test' ? Promise.resolve(VERSION) : getTestVersion())
+      .then((test) => ({ instance: INSTANCE, prod: INSTANCE === 'prod' ? VERSION : null, test, testUrl: TEST_URL }));
+  }
+  if (method === 'POST' && p === '/api/devices/_channel') {
+    if (INSTANCE === 'test') throw fail(400, 'Переключать версии можно в рабочем портале');
+    if (scope && b.restaurantId && !scope.has(b.restaurantId)) throw fail(403, 'Нет доступа');
+    let n = 0;
+    for (const x of Object.values(db.devices)) {
+      if (!x.restaurantId || (scope && !scope.has(x.restaurantId)) || (b.restaurantId && x.restaurantId !== b.restaurantId)) continue;
+      // планшеты, которые уже на нужной версии, не перезагружаем (у гостя не пропадёт набранный заказ)
+      const ch = b.channel === 'test' ? 'test' : undefined;
+      if (x.channel === ch) continue;
+      x.channel = ch;
+      if (x.table || x.role === 'entrance') { x.queue.push({ type: 'url', url: guestUrl(x) }); n++; }
+    }
+    save();
+    return { n };
+  }
+  m = p.match(/^\/api\/devices\/([^/]+)(?:\/(command|assign|channel))?$/);
   const d = m && db.devices[decodeURIComponent(m[1])];
   if (!d) return undefined;
   if (scope && (!scope.has(d.restaurantId) || (m[2] === 'assign' && b.restaurantId && !scope.has(b.restaurantId)))) throw fail(403, 'Нет доступа');
@@ -1744,13 +1787,21 @@ function admin(method, p, b, me, q) {
     save();
     return {};
   }
+  if (method === 'POST' && m[2] === 'channel') {
+    if (INSTANCE === 'test') throw fail(400, 'Переключать версии можно в рабочем портале');
+    const ch = b.channel === 'test' ? 'test' : undefined;
+    if (d.channel !== ch && (d.table || d.role === 'entrance')) d.queue.push({ type: 'url', url: guestUrl({ ...d, channel: ch }) });
+    d.channel = ch;
+    save();
+    return {};
+  }
   if (method === 'POST' && m[2] === 'assign') {
     // Привязка к столу сразу переключает планшет на интерфейс стола
     d.restaurantId = b.restaurantId || null;
     d.role = b.restaurantId && b.table === 'entrance' ? 'entrance' : 'table';
     d.table = b.restaurantId && b.table && d.role === 'table' ? String(b.table) : null;
     const placed = d.table || d.role === 'entrance';
-    d.queue.push({ type: 'url', url: placed ? `${PUBLIC_URL}/guest/?d=${encodeURIComponent(d.id)}` : '' });
+    d.queue.push({ type: 'url', url: placed ? guestUrl(d) : '' });
     save();
     return {};
   }
@@ -1764,6 +1815,7 @@ const PUBLIC = {
   'POST /api/guest/call': guestCall,
   'POST /api/guest/cancel': guestCancel,
   'POST /api/guest/join': guestJoin,
+  'GET /api/version': () => ({ version: VERSION, instance: INSTANCE }),
   'GET /api/kitchen/state': kitchenState,
   'POST /api/kitchen/ready': kitchenReady,
   'POST /api/guest/order': guestOrder,
@@ -1973,6 +2025,13 @@ if (!db.migrations.menuOff) {
     if (r.menuSource) { delete r.menuSource.lastHash; r.menuSource.everyMin ||= 5; delete r.menuSource.interval; }
   }
   db.migrations.menuOff = Date.now();
+  save();
+}
+
+// Тестовая копия: база скопирована с рабочей — уведомления официантов принадлежат рабочему приложению, убираем их
+if (INSTANCE === 'test' && !db.migrations.testInstance) {
+  for (const x of Object.values(db.sessions)) x.subs = [];
+  db.migrations.testInstance = Date.now();
   save();
 }
 

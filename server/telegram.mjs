@@ -16,6 +16,8 @@ export async function tgApi(token, method, params = {}) {
 
 // strict — для кнопки «Тест»: ошибку показываем в портале, а не только в логе
 export async function tgSend(tg, text, strict = false) {
+  // тестовая копия не пишет в Telegram (кроме кнопки «Тест» в портале) — иначе дубли оповещений и заявок
+  if (process.env.INSTANCE === 'test' && !strict) return;
   if (!tg?.token || !tg.chats?.length) {
     if (strict) throw fail('Нет получателей: напишите боту /start и нажмите «Найти чаты»');
     return;

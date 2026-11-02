@@ -12,6 +12,8 @@ services:
       - DEVICE_KEY=${DEVICE_KEY}
       - PUBLIC_URL=https://app.jetmedia.dev
     restart: unless-stopped
+    # сервер при остановке дописывает базу и выходит за ~1,5 с; дольше не ждём
+    stop_grace_period: 5s
 
   caddy:
     image: caddy:2

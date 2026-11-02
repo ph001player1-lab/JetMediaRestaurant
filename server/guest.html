@@ -389,6 +389,14 @@ function load() {
     state = s;
     applyTheme(s.display || {});
     state.calls = s.calls || [];
+    // тестовая версия — маленькая отметка в углу, чтобы не спутать с рабочей
+    if (s.instance === 'test' && !$('testTag')) {
+      var tt = document.createElement('div');
+      tt.id = 'testTag';
+      tt.textContent = 'TEST';
+      tt.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:60;background:#c62828;color:#fff;font:700 12px system-ui;padding:2px 6px;border-radius:6px;opacity:.85;pointer-events:none';
+      document.body.appendChild(tt);
+    }
     // свои отметки ресторана (ЛК → «Особые пожелания»)
     (s.tags || []).forEach(function (c) { TAGS[c.key] = c.name; TAG_ICONS[c.key] = c.icon || '🏷'; });
     state.orders = s.orders || [];

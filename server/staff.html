@@ -450,7 +450,7 @@ function render(s) {
   renderSig = sig;
   last = s;
   addCustomTags(s.customTags);
-  $('rname').textContent = s.restaurant.name;
+  $('rname').textContent = s.restaurant.name + (s.instance === 'test' ? ' · 🧪 ТЕСТ' : '');
   $('who').textContent = s.me.name;
   $('shiftBtn').textContent = t(s.me.onShift ? 'shiftOn' : 'shiftOff');
   $('shiftBtn').className = s.me.onShift ? '' : 'off';

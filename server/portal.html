@@ -62,6 +62,7 @@
     <button onclick="toAll('url')">Страница для всех</button>
     <button onclick="toAll('update')">Обновить агент на всех</button>
   </p>
+  <div class="form" style="display:block" id="verBox"></div>
   <div class="filters">
     <select id="fRest" onchange="renderDevices()"></select>
     <select id="fStatus" onchange="renderDevices()">
@@ -74,7 +75,7 @@
     <span id="fCount" class="hint"></span>
   </div>
   <div class="wrap"><table>
-    <thead><tr><th>Устройство</th><th>Статус</th><th>Заряд</th><th>Агент</th><th>Ресторан · стол</th><th>На связи</th><th></th></tr></thead>
+    <thead><tr><th>Устройство</th><th>Статус</th><th>Заряд</th><th>Агент</th><th>Версия</th><th>Ресторан · стол</th><th>На связи</th><th></th></tr></thead>
     <tbody id="list"></tbody>
   </table></div>
   <div class="form" style="display:block" id="tgBox">
@@ -259,6 +260,7 @@ async function loadDevices() {
   // Пока выбирают стол в списке, не перерисовываем таблицу
   if (document.activeElement?.closest('#list select')) return;
   devices = await api('/api/devices');
+  if (!loadVersions.done) { loadVersions.done = true; await loadVersions(); }
   renderDevices();
 }
 
@@ -296,10 +298,10 @@ function renderDevices() {
     if (sort === 'place' && p.rest !== group) {
       group = p.rest;
       const same = rows.filter((x) => x.p.rest === p.rest);
-      head = `<tr class="grp"><td colspan="7"><b>${esc(p.rest || 'Не привязаны')}</b> · устройств: ${same.length} · онлайн: ${same.filter((x) => x.d.online).length}</td></tr>`;
+      head = `<tr class="grp"><td colspan="8"><b>${esc(p.rest || 'Не привязаны')}</b> · устройств: ${same.length} · онлайн: ${same.filter((x) => x.d.online).length}</td></tr>`;
     }
     return head + deviceRow(d, i);
-  }).join('') || '<tr><td colspan="7" class="hint">Ничего не найдено</td></tr>';
+  }).join('') || '<tr><td colspan="8" class="hint">Ничего не найдено</td></tr>';
 }
 
 function deviceRow(d, i) {
@@ -311,6 +313,7 @@ function deviceRow(d, i) {
         ${d.events?.length ? `<br><small class="offline" title="${esc(d.events.map((e) => new Date(e.at).toLocaleString() + ' — ' + e.text).join('\n'))}">сбой ${new Date(d.events[0].at).toLocaleString()}: ${esc(d.events[0].text.slice(0, 60))}</small>` : ''}</td>
       <td>${t.battery ?? '—'}%${t.charging ? ' ⚡' : ''}</td>
       <td>${esc(t.version)}</td>
+      <td>${verCell(d, i)}</td>
       <td><select onchange="assign(${i}, this.value)">${placeOptions(d)}</select><br><small>${esc(t.url || 'экран статуса')}</small></td>
       <td>${new Date(d.lastSeen).toLocaleString()}</td>
       <td>
@@ -320,6 +323,43 @@ function deviceRow(d, i) {
         <button onclick="send(${i}, 'update')">Обновить агент</button>
         <button onclick="removeDevice(${i})">Удалить</button>
       </td></tr>`;
+}
+
+// ---------- Рабочая и тестовая версии: номер версии на планшете и переключение (по планшету, ресторану, всей сети)
+let vers = { instance: 'prod' };
+async function loadVersions() {
+  vers = await api('/api/devices/_versions').catch(() => ({ instance: 'prod' }));
+  if (!rests.length) rests = await api('/api/restaurants').catch(() => []);
+  const test = vers.instance === 'test';
+  document.title = test ? 'JET MEDIA · ТЕСТ' : 'JET MEDIA';
+  $('verBox').innerHTML = test
+    ? `<b style="color:#c62828">🧪 Это ТЕСТОВАЯ версия ${esc(vers.test || '')}</b> — база скопирована с рабочей, в Telegram не пишет.
+       Планшеты переводят на тест в рабочем портале.`
+    : `<b>Версии:</b> рабочая <b>${esc(vers.prod || '—')}</b> · тестовая <b>${esc(vers.test || 'не запущена')}</b>
+       <span class="hint">· заказы и вызовы с планшетов на тестовой версии приходят только в тестовое приложение официанта (${esc(vers.testUrl)}/staff/)</span><br>
+       Перевести <select id="chRest"><option value="">всю сеть</option>${rests.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</select>
+       на <button onclick="setChannel('test')">🧪 тестовую</button> <button onclick="setChannel('')">рабочую</button>`;
+}
+function verCell(d, i) {
+  const test = d.channel === 'test';
+  const v = test || vers.instance === 'test' ? vers.test || '?' : vers.prod || '';
+  return `${test ? '<b style="color:#c62828">🧪 тест</b><br>' : ''}<small>${esc(v)}</small>`
+    + (vers.instance === 'prod' && d.restaurantId ? `<br><select onchange="setDeviceChannel(${i}, this.value)">
+      <option value="" ${test ? '' : 'selected'}>рабочая</option><option value="test" ${test ? 'selected' : ''}>тестовая</option></select>` : '');
+}
+async function setDeviceChannel(i, channel) {
+  if (channel === 'test' && !confirm('Перевести планшет на тестовую версию? Его заказы и вызовы будут приходить только в тестовое приложение официанта.')) return loadDevices();
+  await api(`/api/devices/${encodeURIComponent(devices[i].id)}/channel`, 'POST', { channel });
+  document.activeElement.blur();
+  loadDevices();
+}
+async function setChannel(channel) {
+  const rid = $('chRest').value, name = rid ? rests.find((r) => r.id === rid)?.name : 'всю сеть';
+  if (!confirm(`Перевести ${name} на ${channel ? 'ТЕСТОВУЮ' : 'рабочую'} версию?${channel ? ' Заказы и вызовы с этих планшетов будут приходить только в тестовое приложение официанта.' : ''}`)) return;
+  const r = await api('/api/devices/_channel', 'POST', { channel, restaurantId: rid });
+  if (r.error) return alert(r.error);
+  alert(`Готово: планшетов — ${r.n}. Они переключатся в течение 15 секунд.`);
+  loadDevices();
 }
 
 async function assign(i, value) {
