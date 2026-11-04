@@ -46,6 +46,9 @@
   .pvframe { width: 288px; height: 461px; overflow: hidden; border-radius: 10px; background: #000; }
   .pvframe iframe { width: 800px; height: 1280px; border: 0; transform: scale(.36); transform-origin: 0 0; }
   #ads input:not([type]) { width: 100%; min-width: 120px; box-sizing: border-box; }
+  .tg { display: inline-block; border: 1px solid #ddd; border-radius: 10px; padding: 1px 7px; margin: 1px; font-size: 12px; cursor: pointer; color: #777; }
+  .tg.on { background: #e2f4e4; border-color: #2e7d32; color: #2e7d32; }
+  .ctrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
 </style>
 </head>
 <body>
@@ -113,7 +116,16 @@
     <label>Проверять изменения каждые N минут <input id="sEvery" type="number" min="1" max="60" style="width:70px"></label>
     <label><input type="checkbox" id="sOwnTags" style="width:auto"> Свои хештеги из ЛК (синхронизация их не меняет)</label>
     <button id="syncBtn">Сохранить и синхронизировать</button>
+    <button id="onceBtn">Загрузить один раз и править вручную</button>
   </div>
+  <details class="form" id="tagsBox" style="display:block"><summary><b>Особые пожелания (хештеги)</b></summary>
+    <p class="hint">Свои хештеги ресторана в дополнение к встроенным (не острое, без глютена…): значок и название на языках гостей.
+      Их видно на планшетах и в подборе ИИ-персонажа. Новые хештеги из источника меню добавляются сами.</p>
+    <div id="ctList"></div><p><button id="ctAdd">+ Хештег</button></p>
+    <p class="hint"><b>Отметки по вариантам блюда</b> — при синхронизации: если у блюда есть вариант с этими словами, ставится отметка
+      (например, «не остр» → «Не острое»). Не применяются, когда включены свои хештеги.</p>
+    <div id="trList"></div><p><button id="trAdd">+ Правило</button> <button id="tagsSave">Сохранить хештеги</button></p>
+  </details>
   <p class="hint" id="srcInfo"></p>
   <p class="hint" id="staffInfo"></p>
   <h3>Персонал</h3>
@@ -125,7 +137,7 @@
   <h3>Меню</h3>
   <p><input id="mSearch" placeholder="Поиск по названию, коду или категории" size="40"></p>
   <div class="wrap"><table>
-    <thead><tr><th>Категория</th><th>Название</th><th>Описание</th><th>Цена ฿</th><th>Фото (ссылка)</th><th>Акция</th><th>Блюдо дня</th><th></th></tr></thead>
+    <thead><tr><th>Категория</th><th>Название</th><th>Описание</th><th>Цена ฿</th><th>Фото (ссылка)</th><th>Акция</th><th>Блюдо дня</th><th>Скрыть</th><th>Хештеги</th><th></th></tr></thead>
     <tbody id="menu"></tbody>
   </table></div>
   <p><button id="addBtn">+ Блюдо</button></p>
@@ -433,6 +445,7 @@ function edit(id) {
   $('staffInfo').innerHTML = cur.staffCode
     ? `Приложение персонала: <b>${location.origin}/staff/</b> · код ресторана: <b>${esc(cur.staffCode)}</b> · каждый сотрудник входит со своим PIN`
     : 'Сохраните ресторан, чтобы получить код для персонала.';
+  renderTags();
   renderMenu();
   renderStaff();
 }
@@ -466,20 +479,54 @@ $('staff').onclick = (e) => {
 };
 $('addStaffBtn').onclick = () => { cur.staff.push({ role: 'waiter' }); renderStaff(); };
 
+// Хештеги: встроенные и свои ресторана
+const BUILTIN_TAGS = { vegan: 'Веганское', vegetarian: 'Вегетарианское', gluten_free: 'Без глютена', lactose_free: 'Без лактозы', nut_free: 'Без орехов',
+  seafood_free: 'Без морепродуктов', spicy: 'Острое', mild: 'Не острое', kids: 'Детям', halal: 'Халяль' };
+const allTags = () => [...Object.entries(BUILTIN_TAGS), ...(cur.customTags || []).filter((c) => c.key).map((c) => [c.key, `${c.icon || ''} ${c.name?.ru || c.name?.en || Object.values(c.name || {})[0] || ''}`.trim()])];
+function renderTags() {
+  cur.customTags ||= [];
+  cur.tagRules ||= [];
+  $('ctList').innerHTML = cur.customTags.map((c, i) => `<div class="ctrow"><input data-ct="${i}" data-ctf="icon" value="${esc(c.icon || '🏷')}" style="width:50px">
+    ${['ru', 'en', 'th', 'zh'].map((l) => `<input data-ct="${i}" data-ctf="${l}" placeholder="${l.toUpperCase()}" value="${esc(c.name?.[l] || '')}">`).join('')}
+    <button data-ctdel="${i}">✕</button></div>`).join('') || '<p class="hint">Своих хештегов пока нет.</p>';
+  $('trList').innerHTML = cur.tagRules.map((x, i) => `<div class="ctrow">вариант содержит <input data-tr="${i}" data-trf="text" value="${esc(x.text)}">
+    → <select data-tr="${i}" data-trf="tag">${allTags().map(([k, n]) => `<option value="${k}" ${k === x.tag ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+    <button data-trdel="${i}">✕</button></div>`).join('');
+}
+$('tagsBox').oninput = $('tagsBox').onchange = (e) => {
+  const d = e.target.dataset;
+  if (d.ct !== undefined) { const c = cur.customTags[Number(d.ct)]; if (d.ctf === 'icon') c.icon = e.target.value; else c.name = { ...c.name, [d.ctf]: e.target.value }; }
+  if (d.tr !== undefined) cur.tagRules[Number(d.tr)][d.trf] = e.target.value;
+};
+$('tagsBox').onclick = (e) => {
+  const d = e.target.dataset;
+  if (d.ctdel !== undefined) { cur.customTags.splice(Number(d.ctdel), 1); renderTags(); }
+  if (d.trdel !== undefined) { cur.tagRules.splice(Number(d.trdel), 1); renderTags(); }
+};
+$('ctAdd').onclick = () => { cur.customTags.push({ icon: '🏷', name: {} }); renderTags(); };
+$('trAdd').onclick = () => { cur.tagRules.push({ text: '', tag: 'mild' }); renderTags(); };
+$('tagsSave').onclick = () => saveRestaurant(true);
+
 function renderMenu() {
   const l = $('eLang').value;
   const v = (o) => esc((o || {})[l] || '');
   const q = $('mSearch').value.trim().toLowerCase();
   const match = (it) => !q || `${it.sku || ''} ${Object.values(it.name || {}).join(' ')} ${Object.values(it.cat || {}).join(' ')}`.toLowerCase().includes(q);
-  $('menu').innerHTML = cur.menu.map((it, i) => !match(it) ? '' : `<tr data-i="${i}" ${it.hidden ? 'style="opacity:.45"' : ''}>
-    <td><input data-f="cat" value="${v(it.cat)}"></td>
-    <td><input data-f="name" value="${v(it.name)}"></td>
-    <td><input data-f="desc" value="${v(it.desc)}"></td>
-    <td><input data-f="price" type="number" value="${it.price ?? ''}" style="width:90px"></td>
-    <td><input data-f="photo" value="${esc(it.photo || '')}"><input type="file" accept="image/*" data-upload="photo"></td>
+  const src = cur.menuSource || {}, synced = src.type && src.type !== 'manual', ro = synced ? 'disabled' : '';
+  const tagsOn = !synced || src.ownTags, tags = allTags();
+  $('addBtn').hidden = !!synced;
+  $('menu').innerHTML = cur.menu.map((it, i) => !match(it) ? '' : `<tr data-i="${i}" ${it.hidden || it.off ? 'style="opacity:.45"' : ''}>
+    <td><input data-f="cat" value="${v(it.cat)}" ${ro}></td>
+    <td><input data-f="name" value="${v(it.name)}" ${ro}>${(it.groups || []).length ? `<br><small class="hint">вариантов выбора: ${it.groups.length}</small>` : ''}</td>
+    <td><input data-f="desc" value="${v(it.desc)}" ${ro}></td>
+    <td><input data-f="price" type="number" value="${it.price ?? ''}" style="width:90px" ${ro}></td>
+    <td>${synced ? (it.photo ? `<img src="${esc(it.photo)}" style="height:40px">` : '') : `<input data-f="photo" value="${esc(it.photo || '')}"><input type="file" accept="image/*" data-upload="photo">`}</td>
     <td><input data-f="promo" type="checkbox" ${it.promo ? 'checked' : ''}></td>
     <td><input data-f="dayDish" type="checkbox" ${it.dayDish ? 'checked' : ''}></td>
-    <td><button data-del="${i}">✕</button></td></tr>`).join('');
+    <td><input data-f="hidden" type="checkbox" ${it.hidden ? 'checked' : ''}>${it.off ? '<br><small class="hint">нет в наличии</small>' : ''}</td>
+    <td style="min-width:220px">${tags.map(([k, n]) => `<label class="tg${(it.tags || []).includes(k) ? ' on' : ''}"><input type="checkbox" data-tag="${k}" style="display:none"
+      ${(it.tags || []).includes(k) ? 'checked' : ''} ${tagsOn ? '' : 'disabled'}>${esc(n)}</label>`).join('')}</td>
+    <td>${synced ? '' : `<button data-del="${i}">✕</button>`}</td></tr>`).join('');
 }
 
 // Перед отправкой уменьшаем картинку до 1280 px
@@ -504,13 +551,20 @@ $('menu').oninput = $('menu').onchange = async (e) => {
     }
     return;
   }
+  // хештег блюда
+  if (e.target.dataset.tag && e.type === 'change') {
+    const k = e.target.dataset.tag;
+    it0.tags = e.target.checked ? [...new Set([...(it0.tags || []), k])] : (it0.tags || []).filter((x) => x !== k);
+    e.target.parentNode.classList.toggle('on', e.target.checked);
+    return;
+  }
   const f = e.target.dataset.f;
   if (!f) return;
   const it = it0;
   if (f === 'photo') it.photoManual = true;
   if (f === 'price') it.price = Number(e.target.value) || 0;
   else if (f === 'photo') it.photo = e.target.value.trim();
-  else if (f === 'promo' || f === 'dayDish') it[f] = e.target.checked;
+  else if (f === 'promo' || f === 'dayDish' || f === 'hidden') it[f] = e.target.checked;
   else it[f] = { ...(it[f] || {}), [$('eLang').value]: e.target.value };
 };
 
@@ -568,6 +622,16 @@ $('syncBtn').onclick = async () => {
   $('syncBtn').textContent = 'Синхронизация…';
   await api(`/api/restaurants/${encodeURIComponent(cur.id)}/sync`, 'POST');
   $('syncBtn').textContent = 'Сохранить и синхронизировать';
+  await loadRests(cur.id);
+};
+
+$('onceBtn').onclick = async () => {
+  if (!confirm('Загрузить меню из источника один раз? Синхронизация выключится — дальше меню правится вручную (в портале и в ЛК).')) return;
+  await saveRestaurant(false);
+  $('onceBtn').disabled = true;
+  const r = await api(`/api/restaurants/${encodeURIComponent(cur.id)}/sync`, 'POST', { once: true });
+  $('onceBtn').disabled = false;
+  if (r?.error) alert(r.error);
   await loadRests(cur.id);
 };
 

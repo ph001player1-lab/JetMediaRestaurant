@@ -256,7 +256,7 @@ function auditText(method, p, b) {
   let m;
   const dev = (x) => decodeURIComponent(x);
   if (p === '/api/restaurants') return [`Ресторан сохранён: ${b.name || ''}`, b.id];
-  if ((m = p.match(/^\/api\/restaurants\/([^/]+)\/sync$/))) return ['Синхронизация меню', m[1]];
+  if ((m = p.match(/^\/api\/restaurants\/([^/]+)\/sync$/))) return [b.once ? 'Меню загружено из источника один раз, дальше — вручную' : 'Синхронизация меню', m[1]];
   if ((m = p.match(/^\/api\/restaurants\/([^/]+)\/test-visit$/))) return [`Статистика: визит ${b.test ? 'помечен тестовым' : 'снова учитывается'}`, m[1]];
   if ((m = p.match(/^\/api\/restaurants\/([^/]+)$/))) return [`Ресторан удалён: ${m[1]}`, m[1]];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/command$/))) return [`Команда «${b.type}» устройству ${dev(m[1])}`, db.devices[dev(m[1])]?.restaurantId];
@@ -1135,14 +1135,11 @@ function managerSave(b) {
   if (Array.isArray(b.staff)) setStaff(r, b.staff, b.fired || {});
   if (Array.isArray(b.staffArchive)) setArchive(r, b.staffArchive);
   if (b.testVisit) markTest(r, b.testVisit.ids, b.testVisit.test);
-  if (Array.isArray(b.menu)) setMenu(r, b.menu);
-  if (Array.isArray(b.customTags)) r.customTags = cleanCustomTags(b.customTags);
-  if (Array.isArray(b.tagRules)) r.tagRules = b.tagRules.filter((x) => x && String(x.text || '').trim() && tagKeys(r).includes(x.tag))
-    .slice(0, 50).map((x) => ({ text: String(x.text).trim().slice(0, 60), tag: x.tag }));
+  // Меню из ЛК: при синхронизации — только ★ блюдо дня, 📣 в показе акций, ⦸ скрыть (хештеги и настройки синхронизации — в админке)
+  if (Array.isArray(b.menu)) setMenu(r, b.menu, undefined, false);
   if (Array.isArray(b.promos)) r.promos = cleanPromos(b.promos);
   if (Array.isArray(b.promos) || Array.isArray(b.menu)) syncPromoItems(r);
   if (Array.isArray(b.blockedAds)) r.blockedAds = b.blockedAds.map(String);
-  if (b.menuSource) r.menuSource = cleanSource(b.menuSource, r.menuSource);
   if (b.display) r.display = cleanDisplay(b.display);
   if (b.avatar) r.avatar = cleanAvatar(b.avatar, r);
   if (b.flow) {
@@ -1194,17 +1191,19 @@ function managerStats(b, q) {
 
 async function managerSync(b) {
   const { r, member } = managerSession(b.token);
-  audit(`${member.name} (менеджер)`, b.once ? 'ЛК: меню загружено из источника один раз' : 'ЛК: синхронизация меню', r.id);
-  if (b.once) {
-    // загрузить один раз и дальше править в ЛК: синхронизация выключается
-    const src = r.menuSource;
-    if (!src || src.type === 'manual') throw fail(400, 'no source');
-    await syncMenu(r, true);
-    if (src.lastError) throw fail(400, src.lastError);
-    r.menuSource = { ...src, type: 'manual', importedFrom: src.type };
-    save();
-  } else await syncMenu(r, true);
+  audit(`${member.name} (менеджер)`, 'ЛК: синхронизация меню', r.id);
+  await syncMenu(r, true);
   return publicSource(r.menuSource);
+}
+
+// Админка: «Загрузить один раз и править вручную» — меню из источника, синхронизация выключается
+async function importOnce(r) {
+  const src = r.menuSource;
+  if (!src || src.type === 'manual') throw fail(400, 'Источник меню не задан');
+  await syncMenu(r, true);
+  if (src.lastError) throw fail(400, src.lastError);
+  r.menuSource = { ...src, type: 'manual', importedFrom: src.type };
+  save();
 }
 
 // ---------- Синхронизация меню с сайтом, POS или JSON-фидом
@@ -1368,9 +1367,9 @@ async function upload(req) {
 // Меню из ЛК или портала. При синхронизации с источником блюда меняются там: здесь — только ★ блюдо дня,
 // 📣 в показе акций, ⦸ скрыть с планшетов (и хештеги, если включены свои); остальное в присланном меню не трогаем —
 // иначе страница, открытая до синхронизации, вернула бы старое меню
-function setMenu(r, list, synced = !!r.menuSource && r.menuSource.type !== 'manual') {
+function setMenu(r, list, synced = !!r.menuSource && r.menuSource.type !== 'manual', tagsAllowed = true) {
   if (synced) {
-    const own = !!r.menuSource.ownTags, by = new Map(list.map((i) => [i?.id, i]));
+    const own = tagsAllowed && !!r.menuSource.ownTags, by = new Map(list.map((i) => [i?.id, i]));
     for (const it of r.menu || []) {
       const n = by.get(it.id);
       // блюда, добавленные вручную до синхронизации, остаются скрытыми — на планшетах меню из источника
@@ -1380,6 +1379,9 @@ function setMenu(r, list, synced = !!r.menuSource && r.menuSource.type !== 'manu
     }
   } else r.menu = cleanMenu(list, r);
 }
+
+const cleanRules = (list, r) => list.filter((x) => x && String(x.text || '').trim() && tagKeys(r).includes(x.tag))
+  .slice(0, 50).map((x) => ({ text: String(x.text).trim().slice(0, 60), tag: x.tag }));
 
 // Свои отметки ресторана: { key, name: {ru,en,th,zh}, icon }
 function cleanCustomTags(list) {
@@ -1707,7 +1709,7 @@ function admin(method, p, b, me, q) {
   if (method === 'GET' && p === '/api/restaurants') {
     const list = Object.values(db.restaurants).filter((r) => !scope || scope.has(r.id));
     if (me.role === 'viewer') return list.map((r) => ({ id: r.id, name: r.name }));
-    return list.map((r) => ({ ...r, menuSource: publicSource(r.menuSource) }));
+    return list.map((r) => ({ ...r, menuSource: publicSource(r.menuSource), tagRules: r.tagRules || DEFAULT_RULES, customTags: r.customTags || [] }));
   }
   if (method === 'POST' && p === '/api/restaurants') {
     if (scope && !scope.has(b.id)) throw fail(403, 'Нет доступа к этому ресторану');
@@ -1724,9 +1726,11 @@ function admin(method, p, b, me, q) {
       tariff: b.tariff === 'premium' ? 'premium' : 'standard',
       blockedAds: prev.blockedAds || [],
       menuSource: b.menuSource ? cleanSource(b.menuSource, prev.menuSource) : prev.menuSource,
+      customTags: Array.isArray(b.customTags) ? cleanCustomTags(b.customTags) : prev.customTags,
       syncKey: prev.syncKey || crypto.randomBytes(12).toString('hex'),
     };
     // меню — по источнику до этого сохранения: если ресторан уже синхронизировался, присланное меню не заменяет синхронизированное
+    if (Array.isArray(b.tagRules)) db.restaurants[id].tagRules = cleanRules(b.tagRules, db.restaurants[id]);
     if (Array.isArray(b.menu)) setMenu(db.restaurants[id], b.menu, !!prev.menuSource && prev.menuSource.type !== 'manual');
     if (Array.isArray(b.staff)) setStaff(db.restaurants[id], b.staff, b.fired || {});
     if (Array.isArray(b.staffArchive)) setArchive(db.restaurants[id], b.staffArchive);
@@ -1817,7 +1821,8 @@ function admin(method, p, b, me, q) {
   m = p.match(/^\/api\/restaurants\/([^/]+)\/sync$/);
   if (m && method === 'POST' && db.restaurants[m[1]]) {
     if (scope && !scope.has(m[1])) throw fail(403, 'Нет доступа к этому ресторану');
-    return syncMenu(db.restaurants[m[1]], true).then(() => publicSource(db.restaurants[m[1]].menuSource));
+    const rr = db.restaurants[m[1]];
+    return (b.once ? importOnce(rr) : syncMenu(rr, true)).then(() => publicSource(rr.menuSource));
   }
 
   // Версии (рабочая и тестовая) и переключение планшетов между ними
