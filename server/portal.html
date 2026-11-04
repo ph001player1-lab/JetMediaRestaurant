@@ -350,7 +350,8 @@ function verCell(d, i) {
 }
 async function setDeviceChannel(i, channel) {
   if (channel === 'test' && !confirm('Перевести планшет на тестовую версию? Его заказы и вызовы будут приходить только в тестовое приложение официанта.')) return loadDevices();
-  await api(`/api/devices/${encodeURIComponent(devices[i].id)}/channel`, 'POST', { channel });
+  const r = await api(`/api/devices/${encodeURIComponent(devices[i].id)}/channel`, 'POST', { channel });
+  if (r?.error) alert(r.error);
   document.activeElement.blur();
   loadDevices();
 }

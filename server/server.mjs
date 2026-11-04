@@ -68,6 +68,40 @@ async function getTestVersion() {
   } catch { testVersion = { at: Date.now(), v: null }; }
   return testVersion.v;
 }
+// Тестовая копия узнаёт планшет у рабочей: если его нет в копии базы (добавили или переставили после копирования) —
+// берёт привязку к ресторану и столу по внутренней сети; заодно раз в 10 минут сверяет её
+const PROD_API = process.env.PROD_API || 'http://api:3000';
+const pulled = new Map();
+async function pullDevice(id) {
+  if (INSTANCE !== 'test' || !process.env.DEVICE_KEY || !id) return;
+  const d0 = db.devices[id], known = d0 && d0.restaurantId && (d0.table || d0.role === 'entrance');
+  if (Date.now() - (pulled.get(id) || 0) < (known ? 600_000 : 30_000)) return;
+  pulled.set(id, Date.now());
+  try {
+    const j = await (await fetch(`${PROD_API}/api/internal/device?d=${encodeURIComponent(id)}&key=${encodeURIComponent(process.env.DEVICE_KEY)}`,
+      { signal: AbortSignal.timeout(4000) })).json();
+    if (!j.device) return;
+    if (j.restaurant && !db.restaurants[j.restaurant.id]) db.restaurants[j.restaurant.id] = j.restaurant;
+    const tr = db.restaurants[j.device.restaurantId];
+    if (tr && j.device.table && !(tr.tables || []).includes(j.device.table)) tr.tables = [...(tr.tables || []), j.device.table];
+    db.devices[id] = { ...(d0 || {}), ...j.device, queue: d0?.queue || [] };
+    save();
+  } catch { /* рабочая недоступна — работаем с тем, что есть */ }
+}
+// Для тестовой копии: привязка планшета (только из внутренней сети, не через интернет)
+function internalDevice(b, q, req) {
+  if (INSTANCE !== 'prod' || !process.env.DEVICE_KEY || q.key !== process.env.DEVICE_KEY || req.headers['x-forwarded-for']) throw fail(403, 'forbidden');
+  const d = db.devices[q.d];
+  if (!d) throw fail(404, 'no device');
+  const { queue, ...device } = d;
+  return { device, restaurant: db.restaurants[d.restaurantId] || null };
+}
+// Перед переводом на тест — тестовая должна отвечать, иначе планшет показал бы ошибку
+async function testAlive() {
+  testVersion.at = 0;
+  if (!(await getTestVersion())) throw fail(502, 'Тестовая версия не отвечает — планшеты не переключены');
+}
+
 // Страница планшета: рабочая или тестовая версия — по выбору в портале
 const guestUrl = (d) => `${d.channel === 'test' ? TEST_URL : PUBLIC_URL}/guest/?d=${encodeURIComponent(d.id)}`;
 const UPLOADS = path.join(DATA_DIR, 'uploads');
@@ -602,8 +636,9 @@ function guestEvent(b) {
 // Первый вызов или заказ за свободным столом — «стол открыт» (до «Закрыть стол»)
 const tableIsFree = (r, table) => !openAt(db.calls, r, table).length && !openAt(db.orders, r, table).length;
 
-function guestState(b, q) {
+async function guestState(b, q) {
   if (q.k) return phoneState(q);
+  await pullDevice(q.d);
   const d = db.devices[q.d];
   const r = d && db.restaurants[d.restaurantId];
   if (!r || (!d.table && d.role !== 'entrance')) return { unassigned: true };
@@ -1793,17 +1828,19 @@ function admin(method, p, b, me, q) {
   if (method === 'POST' && p === '/api/devices/_channel') {
     if (INSTANCE === 'test') throw fail(400, 'Переключать версии можно в рабочем портале');
     if (scope && b.restaurantId && !scope.has(b.restaurantId)) throw fail(403, 'Нет доступа');
-    let n = 0;
-    for (const x of Object.values(db.devices)) {
-      if (!x.restaurantId || (scope && !scope.has(x.restaurantId)) || (b.restaurantId && x.restaurantId !== b.restaurantId)) continue;
-      // планшеты, которые уже на нужной версии, не перезагружаем (у гостя не пропадёт набранный заказ)
-      const ch = b.channel === 'test' ? 'test' : undefined;
-      if (x.channel === ch) continue;
-      x.channel = ch;
-      if (x.table || x.role === 'entrance') { x.queue.push({ type: 'url', url: guestUrl(x) }); n++; }
-    }
-    save();
-    return { n };
+    return (b.channel === 'test' ? testAlive() : Promise.resolve()).then(() => {
+      let n = 0;
+      for (const x of Object.values(db.devices)) {
+        if (!x.restaurantId || (scope && !scope.has(x.restaurantId)) || (b.restaurantId && x.restaurantId !== b.restaurantId)) continue;
+        // планшеты, которые уже на нужной версии, не перезагружаем (у гостя не пропадёт набранный заказ)
+        const ch = b.channel === 'test' ? 'test' : undefined;
+        if (x.channel === ch) continue;
+        x.channel = ch;
+        if (x.table || x.role === 'entrance') { x.queue.push({ type: 'url', url: guestUrl(x) }); n++; }
+      }
+      save();
+      return { n };
+    });
   }
   m = p.match(/^\/api\/devices\/([^/]+)(?:\/(command|assign|channel))?$/);
   const d = m && db.devices[decodeURIComponent(m[1])];
@@ -1819,10 +1856,12 @@ function admin(method, p, b, me, q) {
   if (method === 'POST' && m[2] === 'channel') {
     if (INSTANCE === 'test') throw fail(400, 'Переключать версии можно в рабочем портале');
     const ch = b.channel === 'test' ? 'test' : undefined;
-    if (d.channel !== ch && (d.table || d.role === 'entrance')) d.queue.push({ type: 'url', url: guestUrl({ ...d, channel: ch }) });
-    d.channel = ch;
-    save();
-    return {};
+    return (ch ? testAlive() : Promise.resolve()).then(() => {
+      if (d.channel !== ch && (d.table || d.role === 'entrance')) d.queue.push({ type: 'url', url: guestUrl({ ...d, channel: ch }) });
+      d.channel = ch;
+      save();
+      return {};
+    });
   }
   if (method === 'POST' && m[2] === 'assign') {
     // Привязка к столу сразу переключает планшет на интерфейс стола
@@ -1845,6 +1884,7 @@ const PUBLIC = {
   'POST /api/guest/cancel': guestCancel,
   'POST /api/guest/join': guestJoin,
   'GET /api/version': () => ({ version: VERSION, instance: INSTANCE }),
+  'GET /api/internal/device': internalDevice,
   'GET /api/kitchen/state': kitchenState,
   'POST /api/kitchen/ready': kitchenReady,
   'POST /api/guest/order': guestOrder,
