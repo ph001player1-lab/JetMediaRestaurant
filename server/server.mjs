@@ -146,7 +146,7 @@ async function serverPanel() {
   }
   const me = instanceStats();
   return {
-    at: Date.now(), here: INSTANCE, host: hostStats(DATA_DIR), telegram: !!(db.telegram?.token && db.telegram.chats?.length),
+    at: Date.now(), here: INSTANCE, host: hostStats(DATA_DIR), telegram: !!(db.telegram?.token && db.telegram.chats?.length), pinAt: db.servicePin?.at || 0,
     prod: INSTANCE === 'prod' ? me : peer, test: INSTANCE === 'test' ? me : peer,
   };
 }
@@ -358,7 +358,34 @@ function auditText(method, p, b) {
 }
 
 // Администраторы: список, добавление и изменение (почта, имя, роль, рестораны, пароль, отключение), удаление
+// PIN сервисного меню планшетов (7 быстрых касаний в углу). Хранится и уходит планшетам только как sha256(соль + PIN):
+// агент сверяет введённый PIN у себя, без сети тоже. Пока PIN не меняли — действует заданный при подготовке (1234)
+function pinStatus() {
+  const sp = db.servicePin, ver = sp?.hash.slice(0, 8);
+  const devs = Object.values(db.devices).filter((d) => d.restaurantId || d.telemetry?.version);
+  return {
+    changedAt: sp?.at || 0, by: sp?.by || '', instance: INSTANCE,
+    devices: devs.length,
+    got: ver ? devs.filter((d) => d.telemetry?.pin === ver).length : 0,
+    // агент старше 0.1.12 не умеет получать PIN с сервера
+    oldAgent: devs.filter((d) => !('pin' in (d.telemetry || {}))).map((d) => deviceName(d)),
+  };
+}
+function servicePinApi(method, b, me) {
+  if (method === 'GET') return pinStatus();
+  if (INSTANCE === 'test') throw fail(400, 'PIN планшетов меняется в рабочей админке (app.jetmedia.dev) — планшеты связаны с рабочей');
+  const pin = String(b.pin || '');
+  if (!/^\d{4,8}$/.test(pin)) throw fail(400, 'PIN — от 4 до 8 цифр');
+  if (/^(\d)\1+$/.test(pin) || '0123456789012'.includes(pin) || '9876543210987'.includes(pin)) throw fail(400, 'Слишком простой PIN (одинаковые цифры или подряд)');
+  const salt = crypto.randomBytes(8).toString('hex');
+  db.servicePin = { salt, hash: crypto.createHash('sha256').update(salt + pin).digest('hex'), at: Date.now(), by: me.email };
+  save();
+  audit(me.email, 'PIN сервисного меню планшетов изменён');
+  return pinStatus();
+}
+
 function adminsApi(method, p, b, me) {
+  if (p === '/api/admins/service-pin') return servicePinApi(method, b, me);
   if (method === 'GET') return db.admins.map(publicAdmin);
   const supers = (except) => db.admins.filter((a) => a.role === 'super' && !a.disabled && a.id !== except).length;
   const m = p.match(/^\/api\/admins\/([^/]+)$/);
@@ -463,7 +490,8 @@ function devicePoll(b, q, req) {
   d.ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   const commands = d.queue.splice(0);
   save();
-  return { commands };
+  // PIN сервисного меню (если меняли в админке): агент хранит у себя и сверяет введённый
+  return db.servicePin ? { commands, pin: { salt: db.servicePin.salt, hash: db.servicePin.hash } } : { commands };
 }
 
 // Сторож агента не смог поднять приложение — сообщает отдельно (не чаще раза в 10 минут)
@@ -1211,7 +1239,7 @@ function managerGet(b, q) {
     restaurant: {
       name: r.name, langs: r.langs || [], tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
       menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [], staffArchive: r.staffArchive || [],
-      menuSource: publicSource(r.menuSource),
+      menuSource: publicSource(r.menuSource), menuIssues: menuIssues(r),
       display: { ...DISPLAY, ...r.display },
       avatar: { ...AVATAR, ...r.avatar },
       customTags: r.customTags || [], tagRules: r.tagRules || DEFAULT_RULES,
@@ -1311,6 +1339,23 @@ async function importOnce(r) {
 // ---------- Синхронизация меню с сайтом, POS или JSON-фидом
 
 // Токен POS наружу не отдаём
+// Ошибки меню: что гости увидят не так — нет фото, цена 0, нет названия на английском, блюдо без раздела; сбой синхронизации.
+// Для меню из источника исправляют там (после синхронизации ошибка уходит сама), для ручного — в меню
+function menuIssues(r) {
+  const src = r.menuSource, list = (r.menu || []).filter((i) => onMenu(i) && !i.fromPromo);
+  const pick = (f) => list.filter(f).map((i) => ({ id: i.id, sku: i.sku || '', name: i.name || {}, cat: i.cat || {} }));
+  const priced = (i) => Number(i.price) > 0 || (i.options || []).some((o) => Number(o.price) > 0);
+  const filled = (o) => Object.values(o || {}).some((v) => String(v || '').trim());
+  return {
+    synced: !!src && src.type !== 'manual', error: src?.lastError || '', at: src?.lastSync || 0,
+    issues: [
+      { k: 'photo', items: pick((i) => !i.photo) },
+      { k: 'price', items: pick((i) => !priced(i)) },
+      { k: 'en', items: pick((i) => !String(i.name?.en || '').trim()) },
+      { k: 'cat', items: pick((i) => !filled(i.cat)) },
+    ].filter((x) => x.items.length),
+  };
+}
 const publicSource = (s) => {
   if (!s) return { type: 'manual' };
   const { token, ...rest } = s;
@@ -1849,7 +1894,7 @@ function admin(method, p, b, me, q) {
   if (method === 'GET' && p === '/api/restaurants') {
     const list = Object.values(db.restaurants).filter((r) => !scope || scope.has(r.id));
     if (me.role === 'viewer') return list.map((r) => ({ id: r.id, name: r.name }));
-    return list.map((r) => ({ ...r, menuSource: publicSource(r.menuSource), tagRules: r.tagRules || DEFAULT_RULES, customTags: r.customTags || [] }));
+    return list.map((r) => ({ ...r, menuSource: publicSource(r.menuSource), tagRules: r.tagRules || DEFAULT_RULES, customTags: r.customTags || [], menuIssues: menuIssues(r) }));
   }
   if (method === 'POST' && p === '/api/restaurants') {
     if (scope && !scope.has(b.id)) throw fail(403, 'Нет доступа к этому ресторану');

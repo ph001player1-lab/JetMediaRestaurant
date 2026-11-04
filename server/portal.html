@@ -285,6 +285,15 @@
 <section id="statsTab" hidden><div id="statsBox"></div></section>
 
 <section id="adminsTab" hidden>
+  <div class="form" id="pinBox" style="display:block">
+    <b>PIN сервисного меню планшетов</b> <small class="hint">— 7 быстрых касаний в самом левом верхнем углу планшета → PIN → настройки, перезагрузка, снятие владельца</small>
+    <div id="pinState" class="hint" style="margin:6px 0"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
+      <label>Новый PIN <span class="pinw"><input id="pinNew" class="masked" inputmode="numeric" autocomplete="off" maxlength="8" style="width:120px"><button type="button" class="eye" data-eye="1" title="Показать">👁</button></span></label>
+      <label>Ещё раз <span class="pinw"><input id="pinNew2" class="masked" inputmode="numeric" autocomplete="off" maxlength="8" style="width:120px"><button type="button" class="eye" data-eye="1" title="Показать">👁</button></span></label>
+      <button onclick="savePin()">Сменить PIN</button></div>
+    <small class="hint">4–8 цифр. Планшеты получат новый PIN, когда выйдут на связь (обычно за 15 секунд), и будут помнить его без интернета. Сам PIN нигде не хранится — только его отпечаток.</small>
+  </div>
   <p class="hint">Суперадмин — всё, включая этот список. Админ — всё, кроме списка админов; если отмечены рестораны — только эти рестораны и их планшеты
     (без рекламы, персонажей и общих настроек). «Только статистика» — просмотр статистики всех ресторанов или отмеченных. Пароль передайте человеку сами.</p>
   <div class="form" id="admForm">
@@ -536,6 +545,16 @@ async function loadRests(selectId) {
   edit(selectId ?? cur?.id ?? rests[0]?.id ?? '');
 }
 
+// Ошибки меню (то же, что менеджер видит в ЛК → «Меню» → «Ошибки меню»)
+const ISSUE_NAMES = { photo: 'нет фото', price: 'цена 0', en: 'нет названия на английском', cat: 'без раздела' };
+function issuesInfo(mi) {
+  if (!mi || !mi.issues.length) return mi ? '<br><span style="color:#2e7d32">✓ Ошибок в меню нет.</span>' : '';
+  const nm = (o) => o?.ru || o?.en || Object.values(o || {})[0] || '—';
+  return `<details style="margin-top:6px"><summary><b style="color:#c62828">⚠ Ошибки меню: ${mi.issues.map((x) => `${ISSUE_NAMES[x.k]} — ${x.items.length}`).join(', ')}</b></summary>
+    ${mi.issues.map((x) => `<div style="margin:4px 0"><b>${ISSUE_NAMES[x.k]} (${x.items.length}):</b> ${x.items.map((i) => `${i.sku ? `${esc(i.sku)} ` : ''}${esc(nm(i.name))}`).join(' · ')}</div>`).join('')}
+    <small>${mi.synced ? 'Исправляется в источнике меню — после синхронизации ошибка уйдёт сама.' : 'Исправляется в меню ниже.'} Менеджер видит этот список в ЛК → «Меню».</small></details>`;
+}
+
 async function edit(id) {
   cur = structuredClone(rests.find((r) => r.id === id) || blank());
   cur.staff ??= [];
@@ -570,7 +589,8 @@ async function edit(id) {
   $('sOwnTags').checked = !!s.ownTags;
   $('srcInfo').innerHTML = (s.lastSync ? `Последняя синхронизация: ${new Date(s.lastSync).toLocaleString()} — ${s.lastError ? `<b style="color:#c62828">${esc(s.lastError)}</b>` : `${s.lastCount} блюд`}. ` : '')
     + (s.type && s.type !== 'manual' ? 'Меню синхронизируется с источником: блюда, цены и варианты меняются там, здесь и в ЛК — только ★ блюдо дня, 📣 в показе акций, ⦸ скрыть. ' : '')
-    + (cur.syncKey ? `Вебхук «меню изменилось»: <code>${location.origin}/api/menu/webhook?r=${esc(cur.id)}&amp;key=${esc(cur.syncKey)}</code>` : '');
+    + (cur.syncKey ? `Вебхук «меню изменилось»: <code>${location.origin}/api/menu/webhook?r=${esc(cur.id)}&amp;key=${esc(cur.syncKey)}</code>` : '')
+    + issuesInfo(cur.menuIssues);
   $('staffInfo').innerHTML = cur.staffCode
     ? `Приложение персонала: <b>${location.origin}/staff/</b> · код ресторана: <b>${esc(cur.staffCode)}</b> · каждый сотрудник входит со своим PIN`
     : 'Сохраните ресторан, чтобы получить код для персонала.';
@@ -891,6 +911,7 @@ function renderServer() {
     ['eng2', 'ДВИГ 2 НЕ ОТВЕЧАЕТ', T ? '' : 'c'],
     ['eng2mem', 'ДВИГ 2 ПАМЯТЬ', T?.memLimit ? lvl(T.rss / T.memLimit, 0.85, 0.95) : ''],
     ['tg', 'НЕТ TELEGRAM', d.telegram ? '' : 'adv'],
+    ['pin', d.pinAt ? 'СМЕНИТЬ PIN' : 'PIN 1234', !d.pinAt ? 'c' : Date.now() - d.pinAt > 30 * 864e5 ? 'adv' : ''],
     ['tabs', `ПЛАНШЕТЫ OFF${offline ? ` · ${offline}` : ''}`, offline ? 'adv' : ''],
     ['run1', 'ДВИГ 1 РАБОТАЕТ', P ? 'ok' : ''],
     ['run2', 'ДВИГ 2 РАБОТАЕТ', T ? 'ok' : ''],
@@ -1466,7 +1487,32 @@ async function changePass() {
   alert(r.error || 'Пароль изменён');
 }
 
+// PIN сервисного меню: когда меняли, сколько планшетов уже получили, у каких старый агент
+async function loadPin() {
+  const st = await api('/api/admins/service-pin');
+  if (st.error) return;
+  const days = st.changedAt ? Math.floor((Date.now() - st.changedAt) / 864e5) : null;
+  $('pinState').innerHTML = (st.changedAt
+    ? `Изменён ${new Date(st.changedAt).toLocaleDateString('ru-RU')} (${days === 0 ? 'сегодня' : `${days} дн. назад`}), ${esc(st.by)}.${days >= 30 ? ' <b style="color:#c62828">Прошло больше месяца — пора сменить.</b>' : ''}
+       Получили новый PIN: <b>${st.got} из ${st.devices}</b> планшетов.`
+    : '<b style="color:#c62828">Действует PIN, заданный при подготовке планшетов (по умолчанию 1234).</b> Смените его.')
+    + (st.oldAgent.length ? `<br>Старый агент — PIN из админки не получат, пока агент не обновлён («Устройства» → «Обновить агент»): ${st.oldAgent.map(esc).join(', ')}` : '')
+    + (st.instance === 'test' ? '<br>Это тестовая админка: PIN меняется в рабочей (app.jetmedia.dev).' : '');
+}
+async function savePin() {
+  const a = $('pinNew').value.trim(), b = $('pinNew2').value.trim();
+  if (!/^\d{4,8}$/.test(a)) return alert('PIN — от 4 до 8 цифр');
+  if (a !== b) return alert('PIN не совпадает — введите одинаково в оба поля');
+  if (!confirm('Сменить PIN сервисного меню на всех планшетах?')) return;
+  const r = await api('/api/admins/service-pin', 'POST', { pin: a });
+  if (r.error) return alert(r.error);
+  $('pinNew').value = $('pinNew2').value = '';
+  loadPin();
+  alert('PIN сменён. Планшеты получат его, когда выйдут на связь. Запишите PIN в надёжное место.');
+}
+
 async function loadAdmins() {
+  loadPin();
   if (!rests.length) rests = await api('/api/restaurants');
   admins = await api('/api/admins');
   $('admList').innerHTML = admins.map((a, i) => `<tr class="${a.disabled ? 'hint' : ''}"><td>${esc(a.email)}</td><td>${esc(a.name || '')}</td>

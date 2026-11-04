@@ -54,6 +54,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.security.MessageDigest;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -390,7 +391,9 @@ public class MainActivity extends Activity {
             }
             t.put("version", BuildConfig.VERSION_NAME).put("model", Build.MODEL)
                     .put("android", Build.VERSION.RELEASE).put("owner", isOwner())
-                    .put("url", prefs.getString("url", "")).put("voices", voiceList());
+                    .put("url", prefs.getString("url", "")).put("voices", voiceList())
+                    // какой PIN сервисного меню у планшета (первые 8 знаков отпечатка) — портал показывает, кто уже получил новый
+                    .put("pin", prefs.getString("pinHash", "").length() >= 8 ? prefs.getString("pinHash", "").substring(0, 8) : "");
             String events = prefs.getString("events", "[]");
             JSONObject body = new JSONObject().put("id", deviceId()).put("key", prefs.getString("enroll", ""))
                     .put("telemetry", t).put("events", new JSONArray(events));
@@ -401,7 +404,13 @@ public class MainActivity extends Activity {
             c.setDoOutput(true);
             c.setRequestProperty("Content-Type", "application/json");
             c.getOutputStream().write(body.toString().getBytes(StandardCharsets.UTF_8));
-            JSONArray commands = new JSONObject(read(c.getInputStream())).optJSONArray("commands");
+            JSONObject resp = new JSONObject(read(c.getInputStream()));
+            JSONArray commands = resp.optJSONArray("commands");
+            // PIN сервисного меню из админки: храним только отпечаток sha256(соль + PIN)
+            JSONObject pin = resp.optJSONObject("pin");
+            if (pin != null && pin.optString("hash").length() == 64 && !pin.optString("hash").equals(prefs.getString("pinHash", ""))) {
+                prefs.edit().putString("pinSalt", pin.optString("salt")).putString("pinHash", pin.optString("hash")).apply();
+            }
             if (events.equals(prefs.getString("events", "[]"))) prefs.edit().remove("events").apply();
             for (int i = 0; commands != null && i < commands.length(); i++) {
                 JSONObject cmd = commands.getJSONObject(i);
@@ -603,9 +612,23 @@ public class MainActivity extends Activity {
         pin.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
         new AlertDialog.Builder(this).setTitle("Сервис: PIN").setView(pin)
                 .setPositiveButton("OK", (d, w) -> {
-                    if (pin.getText().toString().equals(prefs.getString("pin", "1234"))) serviceMenu();
+                    if (pinOk(pin.getText().toString())) serviceMenu();
                 })
                 .show();
+    }
+
+    // PIN из админки (отпечаток с сервера), а пока его не меняли — заданный при подготовке планшета (по умолчанию 1234)
+    private boolean pinOk(String entered) {
+        String hash = prefs.getString("pinHash", "");
+        if (hash.isEmpty()) return entered.equals(prefs.getString("pin", "1234"));
+        try {
+            byte[] d = MessageDigest.getInstance("SHA-256").digest((prefs.getString("pinSalt", "") + entered).getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte x : d) hex.append(String.format("%02x", x));
+            return hex.toString().equals(hash);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private void serviceMenu() {
