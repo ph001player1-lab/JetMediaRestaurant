@@ -47,6 +47,7 @@
   .pvframe iframe { width: 800px; height: 1280px; border: 0; transform: scale(.36); transform-origin: 0 0; }
   #ads input:not([type]) { width: 100%; min-width: 120px; box-sizing: border-box; }
   /* PIN персонала — точками; 👁 показывает. Не поле пароля — браузер не предлагает «сохранить пароль» */
+  .badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: #c62828; color: #fff; font-size: 12px; line-height: 18px; text-align: center; }
   .pinw { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
   .pinw input.masked { -webkit-text-security: disc; text-security: disc; }
   .pinw .eye { background: none; border: 0; padding: 4px 6px; font-size: 16px; cursor: pointer; opacity: .7; color: inherit; }
@@ -56,7 +57,7 @@
 </style>
 </head>
 <body>
-<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button><button data-tab="adsTab">Реклама</button><button data-tab="charTab">ИИ-персонажи</button><button data-tab="statsTab">Статистика</button><button data-tab="adminsTab">Администраторы</button><button data-tab="auditTab">Журнал</button>
+<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button><button data-tab="adsTab">Реклама</button><button data-tab="charTab">ИИ-персонажи</button><button data-tab="statsTab">Статистика</button><button data-tab="adminsTab">Администраторы</button><button data-tab="auditTab">Журнал</button><button data-tab="joinTab">Заявки на подключение <span id="joinBadge" class="badge" hidden></span></button>
   <span style="margin-left:auto"><small id="meInfo" class="hint"></small> <button onclick="changePass()">Сменить пароль</button><button onclick="logout()">Выйти</button></span></nav>
 
 <section id="devices">
@@ -106,6 +107,7 @@
     <label>Язык по умолчанию <select id="rLang"><option value="en">EN</option><option value="th">TH</option><option value="ru">RU</option><option value="zh">ZH</option></select></label>
     <label>Тариф <select id="rTariff"><option value="standard">Standard — с рекламой сети</option><option value="premium">Premium — без внешней рекламы</option></select></label>
     <label>Реклама после каждых N слайдов ресторана <input id="rAdEvery" type="number" min="1" max="10" style="width:70px"> <small class="hint">1 — каждый второй слайд</small></label>
+    <details style="flex-basis:100%"><summary>Типы рекламы, которые в этом ресторане не показывать <span id="rCatsN" class="hint"></span></summary><div id="rCats" class="hint" style="columns:3 220px"></div></details>
     <details style="flex-basis:100%"><summary>Реклама, которую в этом ресторане не показывать</summary><div id="rBlocked" class="hint"></div></details>
     <label>Язык редактирования
       <select id="eLang"><option value="en">EN</option><option value="th">TH</option><option value="ru">RU</option><option value="zh">ZH</option></select>
@@ -157,15 +159,16 @@
     Это область между верхней и нижней планками планшета, а не весь экран 800 × 1280. Важный текст — не ближе 40 px к краям;
     по центру слева и справа лежат стрелки листания, место блока с QR выбирается отдельно. Как макет ляжет на экран, показывает «👁».</p>
   <p class="hint">
-    Внешняя реклама показывается на планшетах ресторанов с тарифом Standard, в паузах между акциями ресторана. В колонке «Рестораны» отметьте, где показывать: «Во всех» или конкретные рестораны. Менеджер ресторана может заблокировать рекламу у себя. Рекламодатель и название на планшете не показываются — они для поиска.</p>
+    Внешняя реклама показывается на планшетах ресторанов с тарифом Standard, в паузах между акциями ресторана. В колонке «Рестораны» отметьте, где показывать: «Во всех» или конкретные рестораны. Скрыть отдельную рекламу или целые типы рекламы в ресторане — в карточке ресторана (вкладка «Рестораны и меню»); каннабис (18+) по умолчанию не показывается, пока его не разрешат там. Рекламодатель и название на планшете не показываются — они для поиска.</p>
   <div class="filters">
     <input id="aText" placeholder="Поиск: рекламодатель или название" oninput="renderAds()">
     <select id="aRest" onchange="renderAds()"></select>
+    <select id="aCat" onchange="renderAds()"></select>
     <select id="aState" onchange="renderAds()"><option value="">Включённые и выключенные</option><option value="on">Только включённые</option><option value="off">Только выключенные</option></select>
     <span id="aCount" class="hint"></span>
   </div>
   <div class="wrap"><table>
-    <thead><tr><th>Рекламодатель</th><th>Название</th><th>Картинка 800×986</th><th>Ссылка для QR</th><th>Телефон</th><th>QR и телефон: место / размер</th><th>Кадр: режим, сдвиг ↕, масштаб</th><th>Рестораны</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
+    <thead><tr><th>Рекламодатель</th><th>Название</th><th>Тип</th><th>Картинка 800×986</th><th>Ссылка для QR</th><th>Телефон</th><th>QR и телефон: место / размер</th><th>Кадр: режим, сдвиг ↕, масштаб</th><th>Рестораны</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
     <tbody id="ads"></tbody>
   </table></div>
   <p><button id="addAdBtn">+ Реклама</button>
@@ -215,6 +218,14 @@
   <div class="wrap"><table><thead><tr><th>Когда</th><th>Кто</th><th>Что</th><th>Ресторан</th></tr></thead><tbody id="audList"></tbody></table></div>
 </section>
 
+<section id="joinTab" hidden>
+  <p class="hint">Заявки с планшетов: гость нажал на номер стола вверху слева → «Подключить свой ресторан» и оставил имя и телефон.
+    Каждая заявка сразу приходит в бот оповещений портала (Telegram).</p>
+  <div class="filters"><select id="joinState" onchange="renderJoin()"><option value="new">Новые</option><option value="">Все</option><option value="done">Обработанные</option></select>
+    <span id="joinCount" class="hint"></span></div>
+  <div class="wrap"><table><thead><tr><th>Когда</th><th>Имя</th><th>Телефон</th><th>Откуда</th><th>Язык</th><th>Заметка</th><th>Обработана</th><th></th></tr></thead><tbody id="joinList"></tbody></table></div>
+</section>
+
 <div class="pv" id="pvPanel" hidden>
   <div class="pvbar"><b>Предпросмотр</b>
     <select id="pvLang"><option value="ru">RU</option><option value="en">EN</option><option value="th">TH</option><option value="zh">ZH</option></select>
@@ -237,7 +248,8 @@ let devices = [], rests = [], cur = null;
 
 document.querySelectorAll('nav button[data-tab]').forEach((b) => (b.onclick = () => {
   document.querySelectorAll('nav button[data-tab]').forEach((x) => x.classList.toggle('on', x === b));
-  for (const id of ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'adminsTab', 'auditTab']) $(id).hidden = id !== b.dataset.tab;
+  for (const id of ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'adminsTab', 'auditTab', 'joinTab']) $(id).hidden = id !== b.dataset.tab;
+  if (b.dataset.tab === 'joinTab') loadJoin();
   if (b.dataset.tab === 'adsTab') loadAds();
   if (b.dataset.tab === 'charTab') loadChars();
   if (b.dataset.tab === 'statsTab') openStats();
@@ -437,7 +449,13 @@ async function edit(id) {
   $('rTariff').value = cur.tariff || 'standard';
   $('rAdEvery').value = cur.display?.adEvery || 2;
   if (!ads.length) ads = await api('/api/ads').catch(() => []);
+  if (!adCats.length) adCats = await api('/api/ad-cats').catch(() => []);
   cur.blockedAds ||= [];
+  // типы: у ресторана, где ещё не выбирали, каннабис по умолчанию не показывается
+  const bc = cur.blockedCats ?? ['cannabis'];
+  $('rCats').innerHTML = adCats.map((c) => `<label style="display:block"><input type="checkbox" data-bcat="${c.id}" style="width:auto" ${bc.includes(c.id) ? 'checked' : ''}> ${esc(c.name)}</label>`).join('');
+  $('rCatsN').textContent = bc.length ? `— не показываются: ${bc.map(catName).join(', ')}` : '';
+  $('rCats').dataset.rid = cur.id || '';
   $('rBlocked').innerHTML = ads.filter((a) => a.id && (!a.restaurants?.length || a.restaurants.includes(cur.id))).map((a) => `<label style="display:block">
     <input type="checkbox" data-blk="${esc(a.id)}" style="width:auto" ${cur.blockedAds.includes(a.id) ? 'checked' : ''}> ${esc(a.advertiser || '')}${a.title ? ` — ${esc(a.title)}` : ''}</label>`).join('')
     || 'Рекламы для этого ресторана нет.';
@@ -670,6 +688,7 @@ async function saveRestaurant(notice) {
   cur.adEvery = Number($('rAdEvery').value) || 2;
   // список уже показан для этого ресторана — берём отметки из него
   if ($('rBlocked').dataset.rid === (cur.id || '')) cur.blockedAds = [...document.querySelectorAll('#rBlocked [data-blk]:checked')].map((x) => x.dataset.blk);
+  if ($('rCats').dataset.rid === (cur.id || '') && adCats.length) cur.blockedCats = [...document.querySelectorAll('#rCats [data-bcat]:checked')].map((x) => x.dataset.bcat);
   // Язык по умолчанию — первым в списке, остальные следом
   cur.langs = [$('rLang').value, ...['en', 'th', 'ru', 'zh'].filter((l) => l !== $('rLang').value)];
   cur.menuSource = {
@@ -708,28 +727,78 @@ $('delBtn').onclick = async () => {
   loadRests();
 };
 
+// ---------- Заявки на подключение ресторана (с планшетов)
+
+let joins = [];
+async function loadJoin() {
+  const list = await api('/api/join-requests').catch(() => null);
+  if (!Array.isArray(list)) return;
+  joins = list;
+  const n = joins.filter((x) => !x.done).length;
+  $('joinBadge').hidden = !n;
+  $('joinBadge').textContent = n;
+  if (!$('joinTab').hidden && !document.activeElement?.closest?.('#joinList')) renderJoin();
+}
+function renderJoin() {
+  const st = $('joinState').value;
+  const shown = joins.filter((x) => !st || (st === 'done' ? x.done : !x.done));
+  $('joinCount').textContent = `Показано ${shown.length} из ${joins.length}`;
+  $('joinList').innerHTML = shown.map((x) => `<tr data-jid="${esc(x.id)}">
+    <td>${new Date(x.at).toLocaleString()}</td><td>${esc(x.name || '—')}</td>
+    <td><a href="tel:${esc(x.phone.replace(/[^+\d]/g, ''))}">${esc(x.phone)}</a></td>
+    <td>${esc(x.rest || '')}${x.place ? ` · ${esc(x.place)}` : ''}<br><small class="hint">${esc(x.dev)}</small></td>
+    <td>${esc((x.lang || '').toUpperCase())}</td>
+    <td><input data-jnote="1" value="${esc(x.note || '')}" placeholder="например: позвонил, встреча в пятницу"></td>
+    <td><input type="checkbox" data-jdone="1" ${x.done ? 'checked' : ''}></td>
+    <td><button data-jdel="1">✕</button></td></tr>`).join('') || '<tr><td colspan="8" class="hint">Заявок нет</td></tr>';
+}
+$('joinList').onchange = async (e) => {
+  const row = e.target.closest('tr[data-jid]'), x = row && joins.find((j) => j.id === row.dataset.jid);
+  if (!x) return;
+  if (e.target.dataset.jdone) x.done = e.target.checked;
+  if (e.target.dataset.jnote) x.note = e.target.value.trim();
+  await api(`/api/join-requests/${encodeURIComponent(x.id)}`, 'POST', { done: x.done, note: x.note || '' });
+  loadJoin().then(renderJoin);
+};
+$('joinList').onclick = async (e) => {
+  const row = e.target.closest('tr[data-jid]');
+  if (!row || !e.target.dataset.jdel || !confirm('Удалить заявку?')) return;
+  await api(`/api/join-requests/${encodeURIComponent(row.dataset.jid)}`, 'DELETE');
+  loadJoin().then(renderJoin);
+};
+
 // ---------- Реклама
 
-let ads = [];
+let ads = [], adCats = [];
+const catName = (id) => adCats.find((c) => c.id === id)?.name || 'Другое';
 
 async function loadAds() {
+  if (!adCats.length) adCats = await api('/api/ad-cats');
   ads = await api('/api/ads');
   renderAds();
 }
 
 // Поиск и фильтры рекламы; «Рестораны» — галочки: «Во всех» или выбранные
 function renderAds() {
-  const q = $('aText').value.trim().toLowerCase(), rf = $('aRest').value, st = $('aState').value;
+  const q = $('aText').value.trim().toLowerCase(), rf = $('aRest').value, st = $('aState').value, cf = $('aCat').value;
   $('aRest').innerHTML = '<option value="">Все рестораны</option>' + rests.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
   $('aRest').value = rf;
+  // Типы рекламы: сколько реклам каждого типа (пустые типы — в конце списка)
+  const nCat = (id) => ads.filter((a) => (a.cat || 'other') === id).length;
+  $('aCat').innerHTML = '<option value="">Все типы</option>' + [...adCats].sort((a, b) => (nCat(b.id) > 0) - (nCat(a.id) > 0))
+    .map((c) => `<option value="${c.id}">${esc(c.name)} (${nCat(c.id)})</option>`).join('');
+  $('aCat').value = cf;
   const shown = ads.map((a, i) => ({ a, i })).filter(({ a }) =>
     (!q || `${a.advertiser} ${a.title}`.toLowerCase().includes(q))
     && (!rf || !(a.restaurants || []).length || a.restaurants.includes(rf))
-    && (!st || (st === 'on' ? a.active : !a.active)));
-  $('aCount').textContent = `Показано ${shown.length} из ${ads.length}`;
+    && (!st || (st === 'on' ? a.active : !a.active))
+    && (!cf || (a.cat || 'other') === cf));
+  const sum = (k) => shown.reduce((n, { a }) => n + (a[k] || 0), 0);
+  $('aCount').textContent = `Показано ${shown.length} из ${ads.length} · за 7 дней: ${sum('views')} показов, ${sum('scans')} сканов QR, заявок всего: ${sum('leads')}`;
   $('ads').innerHTML = shown.map(({ a, i }) => `<tr data-i="${i}">
     <td><input data-f="advertiser" value="${esc(a.advertiser)}"></td>
     <td><input data-f="title" value="${esc(a.title)}" placeholder="для поиска"></td>
+    <td><select data-f="cat" style="max-width:190px">${adCats.map((c) => `<option value="${c.id}" ${(a.cat || 'other') === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></td>
     <td>${a.image ? `<img class="athumb" src="${esc(a.image)}" data-pv="${i}" title="Предпросмотр">` : ''}
       <input data-f="image" value="${esc(a.image)}"><input type="file" accept="image/*" data-upload="image"></td>
     <td><input data-f="link" value="${esc(a.link || '')}" placeholder="https://"></td>
@@ -754,7 +823,7 @@ function ctaHtml(a, i) {
   const c = a.cta || {}, tg = a.leadTg || {};
   const row = (key, label) => `<tr><td>${label}</td>${['ru', 'en', 'th', 'zh'].map((l) =>
     `<td><input data-ctal="${key}|${l}" value="${esc((c[key] || {})[l] || '')}"></td>`).join('')}</tr>`;
-  return `<tr class="ctarow" data-i="${i}"><td colspan="11"><details data-ctaid="${esc(a.id || '')}" ${ctaOpen.has(a.id) ? 'open' : ''}>
+  return `<tr class="ctarow" data-i="${i}"><td colspan="12"><details data-ctaid="${esc(a.id || '')}" ${ctaOpen.has(a.id) ? 'open' : ''}>
     <summary><b>Кнопка заявки</b> — ${c.enabled ? 'включена' : 'выключена'} · заявок: ${a.leads || 0}</summary>
     <div class="ctabox">
       <div class="filters">
@@ -855,7 +924,7 @@ $('ads').onclick = async (e) => {
   }
 };
 
-$('addAdBtn').onclick = () => { ads.push({ active: true, restaurants: [] }); renderAds(); };
+$('addAdBtn').onclick = () => { ads.push({ active: true, restaurants: [], cat: $('aCat').value || 'other' }); renderAds(); };
 
 // ---------- Предпросмотр слайда: getSlide() собирает слайд из полей, панель обновляется при каждой правке
 
@@ -1052,7 +1121,7 @@ async function loadAudit() {
   me = await api('/api/me');
   $('meInfo').textContent = `${me.email} · ${ROLE_NAMES[me.role]}${scoped() ? ' (свои рестораны)' : ''}`;
   const show = me.role === 'viewer' ? ['statsTab'] : scoped() ? ['devices', 'rest', 'statsTab']
-    : me.role === 'admin' ? ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'auditTab'] : null;
+    : me.role === 'admin' ? ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'auditTab', 'joinTab'] : null;
   if (show) document.querySelectorAll('nav button[data-tab]').forEach((b) => { b.hidden = !show.includes(b.dataset.tab); });
   else $('adminsTab').hidden = true;
   if (me.role === 'viewer') return document.querySelector('nav button[data-tab="statsTab"]').click();
@@ -1060,6 +1129,7 @@ async function loadAudit() {
   for (const k of ['fStatus', 'fSort']) if (localStorage[k]) $(k).value = localStorage[k];
   await loadRests();
   loadDevices();
+  if (!scoped()) { loadJoin(); setInterval(loadJoin, 60000); }
   setInterval(loadDevices, 5000);
 })();
 </script>

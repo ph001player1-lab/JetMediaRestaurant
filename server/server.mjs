@@ -44,6 +44,7 @@ const STATIC = {
   '/favicon.svg': 'favicon.svg',
   '/vendor/qrcode.js': 'vendor/qrcode.js',
   '/vendor/stats.js': 'vendor/stats.js',
+  '/vendor/arrows.js': 'vendor/arrows.js',
 };
 const TYPES = { html: 'text/html; charset=utf-8', json: 'application/manifest+json', js: 'text/javascript', svg: 'image/svg+xml', png: 'image/png' };
 const FILES = Object.fromEntries(Object.values(STATIC).map((f) => [f, fs.readFileSync(new URL(`./${f}`, import.meta.url))]));
@@ -142,8 +143,19 @@ const DISPLAY = {
   // смена слайдов: направление (ltr — слева направо, rtl — справа налево, ttb — сверху вниз, btt — снизу вверх) и длительность, мс
   slideFx: 'ltr', slideMs: 600,
   theme: 'classic', // цветовая тема планшета (themes.mjs), выбирается во вкладке «Дизайн»
+  arrows: 'circle', arrowSize: 100, // вид стрелок карусели (vendor/arrows.js) и их размер, %
 };
-const DISPLAY_RANGE = { idleSec: [10, 600], slideSec: [3, 60], titleSize: [16, 80], textSize: [12, 48], adEvery: [1, 10], slideMs: [200, 3000] };
+const DISPLAY_RANGE = { idleSec: [10, 600], slideSec: [3, 60], titleSize: [16, 80], textSize: [12, 48], adEvery: [1, 10], slideMs: [200, 3000], arrowSize: [50, 200] };
+const ARROWS = ['circle', 'square', 'light', 'outline', 'chevron', 'accent', 'glass', 'tab', 'triangle', 'line', 'none'];
+// Типы рекламы: рекламодателю — один тип; ресторан может не показывать у себя целые типы (каннабис — по умолчанию нет)
+const AD_CATS = {
+  bikes: 'Аренда байков и авто', tours: 'Экскурсии и туры по островам', boats: 'Яхты, катера, рыбалка', diving: 'Дайвинг и снорклинг',
+  spa: 'Спа и массаж', beauty: 'Красота и салоны', medical: 'Медицина и стоматология', fitness: 'Фитнес, муай-тай, йога',
+  hotels: 'Отели и виллы', realty: 'Недвижимость', food: 'Рестораны, кафе и бары', night: 'Ночная жизнь и шоу',
+  events: 'Мероприятия и вечеринки', shopping: 'Шопинг и рынки', transfer: 'Трансфер и такси', finance: 'Обмен валют и финансы',
+  courses: 'Курсы', kids: 'Детские развлечения и аквапарки', cannabis: 'Каннабис (18+)', other: 'Другое',
+};
+const blockedCats = (r) => r.blockedCats ?? ['cannabis'];
 // ИИ-персонаж: как часто появляется в карусели, сколько держится, приветствия и подбор блюд по пожеланиям
 // lines — фразы ресторана для каждого персонажа: { [id персонажа]: { greetings, recommend, dayDish } };
 // пустой список — говорит фразы из пакета персонажа
@@ -287,6 +299,10 @@ function auditText(method, p, b) {
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/assign$/))) return [`Устройство ${dev(m[1])} → ${db.restaurants[b.restaurantId]?.name || 'не привязано'}${b.table ? ` · ${b.table}` : ''}`, b.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)$/))) return [`Устройство удалено: ${dev(m[1])}`];
   if (p === '/api/uploads/replace') return ['Картинка пережата и заменена'];
+  if ((m = p.match(/^\/api\/join-requests\/([^/]+)$/))) {
+    const jr = db.joinReqs.find((x) => x.id === m[1]);
+    return [`Заявка на подключение ${jr ? `${jr.name || ''} ${jr.phone}` : m[1]}: ${b.done === undefined ? 'удалена' : b.done ? 'обработана' : 'снова новая'}`];
+  }
   if (p === '/api/devices/_channel') return [`${b.channel === 'test' ? 'На тестовую версию' : 'На рабочую версию'}: ${b.restaurantId ? db.restaurants[b.restaurantId]?.name || '' : 'вся сеть'}`, b.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/channel$/))) return [`Устройство ${dev(m[1])} → ${b.channel === 'test' ? 'тестовая' : 'рабочая'} версия`, db.devices[dev(m[1])]?.restaurantId];
   if ((m = p.match(/^\/api\/pending\/([^/]+)\/approve$/))) return [`Новое устройство добавлено: ${dev(m[1])}`];
@@ -597,7 +613,8 @@ function slidesFor(r, dev) {
     ...(r.menu || []).filter((i) => i.promo && i.photo && onMenu(i)).map((i) => ({ type: 'item', id: i.id, image: i.photo, title: i.name, price: i.price })),
   ];
   const ads = r.tariff === 'premium' ? [] : db.ads
-    .filter((a) => a.active && a.image && (!a.restaurants?.length || a.restaurants.includes(r.id)) && !(r.blockedAds || []).includes(a.id))
+    .filter((a) => a.active && a.image && (!a.restaurants?.length || a.restaurants.includes(r.id)) && !(r.blockedAds || []).includes(a.id)
+      && !blockedCats(r).includes(a.cat || 'other'))
     .map((a) => ({
       type: 'ad', id: a.id, image: a.image, phone: a.phone || '', // рекламодатель и название — только для поиска в портале
       qr: a.link ? `${PUBLIC_URL}/go/a/${a.id}?r=${r.id}${dev ? `&d=${encodeURIComponent(dev)}` : ''}` : '', ...qrPlace(a), ...framing(a),
@@ -698,8 +715,8 @@ async function guestState(b, q) {
   const r = d && db.restaurants[d.restaurantId];
   if (!r || (!d.table && d.role !== 'entrance')) return { unassigned: true };
   const base = {
-    restaurant: { name: r.name, langs: r.langs },
-    build: BUILD, instance: INSTANCE,
+    restaurant: { name: r.name, langs: r.langs, address: r.address || '' },
+    build: BUILD, instance: INSTANCE, version: VERSION,
     menu: (r.menu || []).filter(onMenu), tags: r.customTags || [],
     slides: slidesFor(r, d.id),
     display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) },
@@ -1471,6 +1488,7 @@ function cleanDisplay(d) {
   return Object.fromEntries(Object.entries(DISPLAY).map(([k, def]) => {
     if (k === 'theme') return [k, themeOf(d.theme).id];
     if (k === 'slideFx') return [k, ['ltr', 'rtl', 'ttb', 'btt'].includes(d.slideFx) ? d.slideFx : def];
+    if (k === 'arrows') return [k, ARROWS.includes(d.arrows) ? d.arrows : def];
     if (typeof def !== 'number') return [k, /^#[0-9a-f]{6}$/i.test(d[k]) ? d[k] : def];
     const [min, max] = DISPLAY_RANGE[k];
     return [k, Math.min(max, Math.max(min, Math.round(Number(d[k])) || def))];
@@ -1633,7 +1651,7 @@ const publicCta = (c) => ({ pos: c.pos, shape: c.shape, text: c.text, submit: c.
 function cleanAd(a) {
   return {
     id: a.id || uid(), advertiser: String(a.advertiser || ''), title: String(a.title || ''), image: String(a.image || ''),
-    restaurants: (a.restaurants || []).map(String), active: !!a.active,
+    restaurants: (a.restaurants || []).map(String), active: !!a.active, cat: AD_CATS[a.cat] ? a.cat : 'other',
     link: String(a.link || '').trim(), phone: String(a.phone || '').trim(), ...qrPlace(a), ...framing(a),
     cta: cleanCta(a.cta), leadToMe: a.leadToMe !== false, // заявки — в бот оповещений портала (по умолчанию да)
   };
@@ -1664,6 +1682,26 @@ async function guestLead(b) {
   return {};
 }
 const publicLeadTg = (t) => ({ connected: !!t?.token, bot: t?.bot || '', chats: t?.chats || [] });
+
+// Заявка «Подключить свой ресторан» с планшета: имя и телефон → бот оповещений портала и список в портале
+db.joinReqs ??= [];
+async function guestJoinRequest(b) {
+  const d = db.devices[b.d], r = d && db.restaurants[d.restaurantId];
+  if (!d) throw fail(400, 'bad device');
+  const name = String(b.name || '').trim().slice(0, 60), phone = String(b.phone || '').trim().slice(0, 25);
+  if (!/^[+\d][\d\s()-]{4,}$/.test(phone)) throw fail(400, 'bad phone');
+  const hour = Math.floor(Date.now() / 3600e3), bud = leadBudget.get(`j:${d.id}`);
+  const n = bud?.hour === hour ? bud.n : 0;
+  if (n >= 5) throw fail(429, 'too many');
+  leadBudget.set(`j:${d.id}`, { hour, n: n + 1 });
+  const place = d.role === 'entrance' ? 'вход' : d.table ? tableLabel(d.table) : '';
+  const jr = { id: uid(), at: Date.now(), rid: r?.id || '', dev: d.id, place, name, phone, lang: String(b.lang || '').slice(0, 5), done: false };
+  db.joinReqs = [jr, ...db.joinReqs].slice(0, 2000);
+  save();
+  await tgSend(db.telegram, `🤝 Заявка на подключение ресторана\nИмя: ${name || '—'}\nТелефон: ${phone}\n`
+    + `Откуда: ${r ? r.name : 'планшет'}${place ? ` · ${place}` : ''} (${d.id})\nВремя: ${clock(jr.at)}`);
+  return {};
+}
 
 // Бот рекламодателя для заявок: токен, поиск чатов (написали боту /start), тест, удалить получателя
 async function adTelegram(a, p, b) {
@@ -1792,6 +1830,7 @@ function admin(method, p, b, me, q) {
       tariff: b.tariff === 'premium' ? 'premium' : 'standard',
       // реклама: после каждых N слайдов ресторана и какая реклама в этом ресторане не показывается
       blockedAds: Array.isArray(b.blockedAds) ? b.blockedAds.map(String) : prev.blockedAds || [],
+      blockedCats: Array.isArray(b.blockedCats) ? b.blockedCats.filter((c) => AD_CATS[c]) : prev.blockedCats,
       display: b.adEvery !== undefined ? { ...prev.display, adEvery: Math.min(10, Math.max(1, Math.round(Number(b.adEvery)) || 2)) } : prev.display,
       menuSource: b.menuSource ? cleanSource(b.menuSource, prev.menuSource) : prev.menuSource,
       customTags: Array.isArray(b.customTags) ? cleanCustomTags(b.customTags) : prev.customTags,
@@ -1809,6 +1848,18 @@ function admin(method, p, b, me, q) {
     })));
     save();
     return db.restaurants[id];
+  }
+  if (method === 'GET' && p === '/api/ad-cats') return Object.entries(AD_CATS).map(([id, name]) => ({ id, name }));
+  // Заявки на подключение ресторана с планшетов (окно «О системе» по нажатию на номер стола)
+  if (p.startsWith('/api/join-requests')) {
+    if (scope) throw fail(403, 'Нет доступа');
+    if (method === 'GET') return db.joinReqs.map((x) => ({ ...x, rest: db.restaurants[x.rid]?.name || '' }));
+    const jr = db.joinReqs.find((x) => x.id === decodeURIComponent(p.split('/')[3] || ''));
+    if (!jr) throw fail(404, 'Заявка не найдена');
+    if (method === 'DELETE') db.joinReqs = db.joinReqs.filter((x) => x !== jr);
+    else if (method === 'POST') { jr.done = !!b.done; jr.note = String(b.note ?? jr.note ?? '').slice(0, 300); }
+    save();
+    return {};
   }
   if (method === 'GET' && p === '/api/ads') {
     return db.ads.map(({ leadTg, ...a }) => ({ ...a, cta: cleanCta(a.cta), leadTg: publicLeadTg(leadTg), views: views(a.id), scans: scans(a.id),
@@ -2001,6 +2052,7 @@ const PUBLIC = {
   'POST /api/guest/impression': guestImpression,
   'POST /api/guest/event': guestEvent,
   'POST /api/guest/lead': guestLead,
+  'POST /api/guest/join-request': guestJoinRequest,
   'GET /api/manager/restaurant': managerGet,
   'POST /api/manager/restaurant': managerSave,
   'POST /api/manager/sync': managerSync,
