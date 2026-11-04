@@ -199,6 +199,10 @@
   .grp { margin: 4px 0; } .grp small { display: block; color: #6b625b; }
   .ctrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; } .ctrow input { flex: 1 1 110px; min-width: 0; }
   .ctrow select { flex: 0 1 200px; }
+  /* PIN персонала — точками; 👁 показывает. Не поле пароля — браузер не предлагает «сохранить пароль» */
+  .pinw { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .pinw input.masked { -webkit-text-security: disc; text-security: disc; }
+  .pinw .eye { background: none; border: 0; padding: 4px 6px; font-size: 16px; cursor: pointer; opacity: .7; color: inherit; }
   .warn { color: #c62828; font-weight: 800; font-size: 20px; line-height: 1.4; }
   button.danger { background: #c62828; color: #fff; }
   .tline .freemark { flex: none; background: #2e7d32; color: #fff; font-weight: 700; border-radius: 10px; padding: 10px 16px; }
@@ -230,7 +234,7 @@
     </div>
   </header>
   <nav class="tabs" id="tabs" hidden>
-    <button data-tab="tWork" class="on" data-t="tabWork"></button><button data-tab="tStaff" data-t="tabStaff"></button><button data-tab="tMenu" data-t="tabMenu"></button><button data-tab="tPromos" data-t="tabPromos"></button><button data-tab="tAds" data-t="tabAds"></button><button data-tab="tAI" data-t="tabAI"></button><button data-tab="tDesign" data-t="tabDesign"></button><button data-tab="tDev" data-t="tabDev"></button><button data-tab="tKitchen" data-t="tabKitchen"></button><button data-tab="tStats" data-t="tabStats"></button>
+    <button data-tab="tWork" class="on" data-t="tabWork"></button><button data-tab="tStaff" data-t="tabStaff"></button><button data-tab="tMenu" data-t="tabMenu"></button><button data-tab="tPromos" data-t="tabPromos"></button><button data-tab="tAI" data-t="tabAI"></button><button data-tab="tDesign" data-t="tabDesign"></button><button data-tab="tDev" data-t="tabDev"></button><button data-tab="tKitchen" data-t="tabKitchen"></button><button data-tab="tStats" data-t="tabStats"></button>
   </nav>
   </div>
   <main><section id="tWork">
@@ -241,7 +245,7 @@
     <h3 data-t="tables"></h3><div id="tables"></div>
   </section>
   <section id="tStaff" hidden></section><section id="tMenu" hidden></section>
-  <section id="tPromos" hidden></section><section id="tAds" hidden></section>
+  <section id="tPromos" hidden></section>
   <section id="tAI" hidden></section><section id="tDesign" hidden></section><section id="tDev" hidden></section><section id="tKitchen" hidden></section><section id="tStats" hidden></section>
   </main>
   <div class="modal" id="modal" hidden></div>
@@ -601,6 +605,11 @@ document.addEventListener('click', async (e) => {
   }
   const b = e.target.closest('button');
   if (!b) return;
+  if (b.dataset.eye) {
+    const i = b.previousElementSibling;
+    i.classList.toggle('masked');
+    return;
+  }
   if (b.dataset.l) {
     lang = localStorage.lang = b.dataset.l;
     texts();
@@ -699,9 +708,6 @@ document.addEventListener('click', async (e) => {
   } else if (b.dataset.pvpromo !== undefined) {
     const p = mgr.restaurant.promos[Number(b.dataset.pvpromo)];
     openPreview(() => slideOf('promo', p), () => mgr.restaurant.display);
-  } else if (b.dataset.pvad) {
-    const a = mgr.ads.find((x) => x.id === b.dataset.pvad);
-    openPreview(() => slideOf('ad', a), () => mgr.restaurant.display);
   } else if (b.dataset.view) {
     const [list, view] = b.dataset.view.split('|');
     views[list] = localStorage[`${list}View`] = view;
@@ -796,10 +802,6 @@ document.addEventListener('click', async (e) => {
     renderManager();
   } else if (b.dataset.save) {
     saveManager(true);
-  } else if (b.dataset.block) {
-    const r = mgr.restaurant, id = b.dataset.block;
-    r.blockedAds = r.blockedAds.includes(id) ? r.blockedAds.filter((x) => x !== id) : [...r.blockedAds, id];
-    saveManager(false);
   } else if (b.id === 'go') {
     $('err').textContent = '';
     login();
@@ -1083,7 +1085,7 @@ const parseTables = (s) => String(s || '').split(',').map((x) => x.trim()).filte
 
 function showTab(id) {
   document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('on', x.dataset.tab === id));
-  for (const s of ['tWork', 'tStaff', 'tMenu', 'tPromos', 'tAds', 'tAI', 'tDesign', 'tDev', 'tKitchen', 'tStats']) $(s).hidden = s !== id;
+  for (const s of ['tWork', 'tStaff', 'tMenu', 'tPromos', 'tAI', 'tDesign', 'tDev', 'tKitchen', 'tStats']) $(s).hidden = s !== id;
   // Статистика ресторана: период выбирается внутри; считается на сервере
   if (id === 'tStats') {
     JetStats.mount($('tStats'), {
@@ -1111,12 +1113,13 @@ async function saveManager(notice) {
   await api('/api/manager/restaurant', {
     token,
     staff: r.staff.map((m) => ({ ...m, tables: Array.isArray(m.tables) ? m.tables : parseTables(m.tables) })), fired: mgr.fired || {},
-    menu: r.menu, promos: r.promos, blockedAds: r.blockedAds,
+    menu: r.menu, promos: r.promos,
   });
   await loadManager();
   if (notice) alert(t('saved'));
 }
 
+const pinField = (v) => `<span class="pinw"><input data-f="pin" class="masked" inputmode="numeric" autocomplete="off" value="${esc(v || '')}"><button type="button" class="eye" data-eye="1" title="PIN">👁</button></span>`;
 const inp = (f, v, label, type = 'text') => `<label>${t(label)}<input data-f="${f}" type="${type}" value="${esc(v)}"></label>`;
 const chk = (f, on, label) => `<label class="chk"><input data-f="${f}" type="checkbox" ${on ? 'checked' : ''}>${t(label)}</label>`;
 const img = (src) => (src ? `<img src="${esc(src)}" alt="">` : '');
@@ -1134,13 +1137,13 @@ function renderManager() {
     ? `<div class="xlwrap"><table class="xl"><thead><tr><th>${t('nameF')}</th><th>${t('role')}</th><th>PIN</th><th>${t('tables')}</th><th>${t('testMark')}</th><th></th></tr></thead>
         <tbody data-list="staff">${r.staff.map((m, i) => `<tr data-i="${i}">
           <td><input data-f="name" value="${esc(m.name || '')}"></td><td>${roleSel(m)}</td>
-          <td><input data-f="pin" value="${esc(m.pin || '')}"></td><td><input data-f="tables" value="${esc(tablesOf(m))}"></td>
+          <td>${pinField(m.pin)}</td><td><input data-f="tables" value="${esc(tablesOf(m))}"></td>
           <td><input data-f="test" type="checkbox" ${m.test ? 'checked' : ''} title="${esc(t('testStaff'))}"> 🧪</td>
           <td><button class="del" data-del="${i}">✕</button></td></tr>`).join('')}</tbody></table></div>`
     : `<div data-list="staff">${r.staff.map((m, i) => `<div class="ed" data-i="${i}">
       ${inp('name', m.name, 'nameF')}
       <label>${t('role')}${roleSel(m)}</label>
-      ${inp('pin', m.pin, 'pinF')}
+      <label>${t('pinF')}${pinField(m.pin)}</label>
       ${inp('tables', tablesOf(m), 'tablesHint')}
       ${chk('test', m.test, 'testStaff')}
       ${del(i)}</div>`).join('')}</div>`) + saveBar('staff')
@@ -1202,18 +1205,6 @@ function renderManager() {
 
   const d = r.display;
   const dnum = (f, label) => `<label>${t(label)}<input data-df="${f}" type="number" value="${esc(d[f])}"></label>`;
-  $('tAds').innerHTML = `<div class="ed"><b>${t('display')}</b>
-      <div class="dset">${dnum('idleSec', 'idleSec')}${dnum('slideSec', 'slideSec')}${r.tariff === 'premium' ? '' : dnum('adEvery', 'adEvery')}</div>
-      <div class="bar"><button data-dsave="1">${t('save')}</button></div></div>`
-    + (r.tariff === 'premium' ? `<p class="empty">${t('premium')}</p>` : mgr.ads.map((a) => {
-    const blocked = r.blockedAds.includes(a.id);
-    return `<div class="pcard">${miniSlide(slideOf('ad', a))}<div class="pf">
-      <div class="full"><b>${esc(a.title || a.advertiser)}</b><br>
-        <span class="empty">${esc(a.advertiser)} · ${a.views} ${t('views')} · ${a.scans} ${t('scansL')}</span></div>
-      <div class="row full"><button class="ghostbtn" data-pvad="${esc(a.id)}">👁 ${t('preview')}</button>
-        <button data-block="${esc(a.id)}" style="background:${blocked ? '#c62828' : '#2e7d32'}">${t(blocked ? 'blocked' : 'shown')}</button></div>
-    </div></div>`;
-  }).join('') || `<p class="empty">${t('noAds')}</p>`);
 
   // ИИ-персонаж: включить, выбрать из библиотеки, говорить ли вслух
   const av = r.avatar, chosen = mgr.characters.find((c) => c.id === av.characterId);
@@ -1255,7 +1246,10 @@ function renderManager() {
   // Дизайн: одна из цветовых тем на весь интерфейс планшета
   const fxSel = (f, opts) => `<label>${t(f)}<select data-df="${f}" data-fxsave="1">${opts.map(([v, k]) =>
     `<option value="${v}" ${String(d[f]) === String(v) ? 'selected' : ''}>${t(k)}</option>`).join('')}</select></label>`;
-  $('tDesign').innerHTML = `<div class="ed"><b>${t('slideChange')}</b>
+  $('tDesign').innerHTML = `<div class="ed"><b>${t('display')}</b>
+      <div class="dset">${dnum('idleSec', 'idleSec')}${dnum('slideSec', 'slideSec')}</div>
+      <div class="bar"><button data-dsave="1">${t('save')}</button></div></div>
+    <div class="ed"><b>${t('slideChange')}</b>
       <div class="dset">${fxSel('slideFx', [['ltr', 'fxLtr'], ['rtl', 'fxRtl'], ['ttb', 'fxTtb'], ['btt', 'fxBtt']])}
         ${fxSel('slideMs', [[300, 'msFast'], [600, 'msNormal'], [1000, 'msSmooth'], [1600, 'msSmoother'], [2500, 'msSlow']])}
         <div class="fxdemo"><div class="fxtrack"><div style="background:#c8553d">1</div><div style="background:#2e7d32">2</div></div></div></div>
@@ -1480,16 +1474,38 @@ function closeItem() {
   medit = -1;
 }
 
-// Перед отправкой уменьшаем фото до 1280 px — планшетам не нужны тяжёлые файлы
-async function uploadImage(file) {
-  const bmp = await createImageBitmap(file);
-  const k = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+// Картинка для планшета: слайд акции или рекламы — чтобы закрывал экран планшета с запасом на чёткость (около 1080 × 1330),
+// фото блюда — до 800 px. Формат WebP: при том же виде в 2–3 раза легче JPEG; если браузер не умеет — JPEG
+async function shrinkImage(src, kind = 'slide') {
+  const bmp = await createImageBitmap(src);
+  let k = kind === 'photo' ? 800 / Math.max(bmp.width, bmp.height) : Math.max(1080 / bmp.width, 1330 / bmp.height);
+  k = Math.min(1, k, 2000 / Math.max(bmp.width, bmp.height));
   const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
   c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-  const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
-  const res = await fetch('/api/upload', { method: 'POST', headers: { 'content-type': 'image/jpeg', 'x-staff-token': token }, body: blob });
+  let blob = await new Promise((r) => c.toBlob(r, 'image/webp', 0.8));
+  if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.82));
+  return { blob, w: c.width, h: c.height };
+}
+const kb = (n) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} МБ` : `${Math.max(1, Math.round(n / 1024))} КБ`);
+// Короткая подсказка внизу экрана
+function note(text) {
+  let el = document.getElementById('note');
+  if (!el) {
+    el = Object.assign(document.createElement('div'), { id: 'note' });
+    el.style.cssText = 'position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#1f1a17;color:#fff;padding:10px 16px;border-radius:10px;z-index:99;font-size:14px;max-width:90%';
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(note.t);
+  note.t = setTimeout(() => { el.hidden = true; }, 5000);
+}
+async function uploadImage(file, kind) {
+  const { blob, w, h } = await shrinkImage(file, kind);
+  const res = await fetch('/api/upload', { method: 'POST', headers: { 'content-type': blob.type, 'x-staff-token': token }, body: blob });
   const j = await res.json();
   if (!res.ok) throw new Error(j.error);
+  note(`✓ ${w} × ${h} px, ${kb(blob.size)}${file.size > blob.size * 1.2 ? ` (было ${kb(file.size)})` : ''}`);
   return j.url;
 }
 
@@ -1561,14 +1577,14 @@ async function onEdit(e) {
   const card = el.closest('[data-i]'), list = el.closest('[data-list]');
   if (el.dataset.uplang && e.type === 'change' && el.files[0] && card) {
     const p = mgr.restaurant.promos[card.dataset.i];
-    const url = await uploadImage(el.files[0]);
+    const url = await uploadImage(el.files[0], 'slide');
     p.images = { ...(p.images || {}), [el.dataset.uplang]: url };
     if (!p.image) p.image = url;
     return renderManager();
   }
   if (el.type === 'file' && e.type === 'change' && el.files[0] && card && list) {
     const item = mgr.restaurant[list.dataset.list][card.dataset.i];
-    item[el.dataset.upload] = await uploadImage(el.files[0]);
+    item[el.dataset.upload] = await uploadImage(el.files[0], list.dataset.list === 'promos' ? 'slide' : 'photo');
     if (el.dataset.upload === 'photo') item.photoManual = true;
     if (list.dataset.list === 'draft') renderItem(); else renderManager();
     return;

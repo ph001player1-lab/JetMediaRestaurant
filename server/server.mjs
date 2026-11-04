@@ -286,6 +286,7 @@ function auditText(method, p, b) {
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/command$/))) return [`Команда «${b.type}» устройству ${dev(m[1])}`, db.devices[dev(m[1])]?.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/assign$/))) return [`Устройство ${dev(m[1])} → ${db.restaurants[b.restaurantId]?.name || 'не привязано'}${b.table ? ` · ${b.table}` : ''}`, b.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)$/))) return [`Устройство удалено: ${dev(m[1])}`];
+  if (p === '/api/uploads/replace') return ['Картинка пережата и заменена'];
   if (p === '/api/devices/_channel') return [`${b.channel === 'test' ? 'На тестовую версию' : 'На рабочую версию'}: ${b.restaurantId ? db.restaurants[b.restaurantId]?.name || '' : 'вся сеть'}`, b.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/channel$/))) return [`Устройство ${dev(m[1])} → ${b.channel === 'test' ? 'тестовая' : 'рабочая'} версия`, db.devices[dev(m[1])]?.restaurantId];
   if ((m = p.match(/^\/api\/pending\/([^/]+)\/approve$/))) return [`Новое устройство добавлено: ${dev(m[1])}`];
@@ -447,6 +448,30 @@ setInterval(() => {
   save();
 }, 864e5);
 
+// Раз в сутки — порядок в загрузках: картинки, на которые больше ничего не ссылается (удалённые акции, реклама,
+// заменённые фото), старше 7 дней; озвучка, которая не звучала 60 дней. Журнал статистики не трогаем
+function cleanUploads() {
+  let files = [];
+  try { files = fs.readdirSync(UPLOADS); } catch { return; }
+  const used = new Set(JSON.stringify(db).match(/\/uploads\/[a-f0-9]+\.\w+/g) || []);
+  const now = Date.now();
+  let n = 0, bytes = 0;
+  for (const f of files) {
+    const file = path.join(UPLOADS, f);
+    let st;
+    try { st = fs.statSync(file); } catch { continue; }
+    const age = now - st.mtimeMs;
+    const image = /^[a-f0-9]+\.(jpg|png|webp|svg)$/.test(f) && !used.has(`/uploads/${f}`) && age > 7 * 864e5;
+    const voice = /^[a-f0-9]+\.(mp3|ogg|wav)$/.test(f) && !used.has(`/uploads/${f}`) && age > 60 * 864e5;
+    if (image || voice) {
+      try { fs.unlinkSync(file); n++; bytes += st.size; } catch { /* занят — в следующий раз */ }
+    }
+  }
+  if (n) console.log(`Загрузки: удалено ${n} файлов, освобождено ${Math.round(bytes / 1048576)} МБ`);
+}
+setTimeout(cleanUploads, 10 * 60_000).unref();
+setInterval(cleanUploads, 864e5).unref();
+
 // Раз в минуту: устройства, пропавшие больше чем на 3 минуты, — одним сообщением
 setInterval(() => {
   const now = Date.now();
@@ -580,12 +605,17 @@ function slidesFor(r, dev) {
     }));
   // ИИ-персонаж — первым слайдом карусели
   // ИИ-персонаж в список не входит: планшет вставляет его в карусель по своему расписанию
-  const out = [];
-  if (!own.length) return ads;
-  // реклама — после каждых N слайдов ресторана (настройка менеджера во вкладке «Реклама»)
-  const n = { ...DISPLAY, ...r.display }.adEvery;
-  own.forEach((s, i) => { out.push(s); if ((i + 1) % n === 0 && ads.length) out.push(ads[Math.floor(i / n) % ads.length]); });
-  if (own.length < n && ads.length) out.push(ads[0]);
+  if (!own.length || !ads.length) return own.length ? own : ads;
+  // Реклама — после каждых N слайдов ресторана (настройка ресторана в админке). Карусель крутит этот круг по кругу,
+  // поэтому в круг входит каждая реклама хотя бы раз: если своих слайдов мало, они повторяются
+  // (2 слайда ресторана, 3 рекламы, N = 2 → А1 А2 Р1 А1 А2 Р2 А1 А2 Р3)
+  const n = { ...DISPLAY, ...r.display }.adEvery, out = [];
+  let a = 0;
+  for (let j = 0; j < 1000; j++) {
+    out.push(own[j % own.length]);
+    if ((j + 1) % n === 0) out.push(ads[a++ % ads.length]);
+    if (j + 1 >= own.length && a >= ads.length && (j + 1) % n === 0) break;
+  }
   return out;
 }
 
@@ -664,6 +694,7 @@ async function guestState(b, q) {
   if (q.k) return phoneState(q);
   await pullDevice(q.d);
   const d = db.devices[q.d];
+  if (d) d.pageSeen = Date.now(); // страница планшета открыта — для «есть ли в ресторане включённые планшеты»
   const r = d && db.restaurants[d.restaurantId];
   if (!r || (!d.table && d.role !== 'entrance')) return { unassigned: true };
   const base = {
@@ -1136,11 +1167,6 @@ function managerGet(b, q) {
         kitchenUrl: r.flow?.kitchenKey ? `${PUBLIC_URL}/kitchen/?k=${r.flow.kitchenKey}` : '' },
       pos: r.menuSource?.type === 'pos' ? r.menuSource.vendor || 'pos' : '',
     },
-    ads: db.ads.filter((a) => a.active && (!a.restaurants?.length || a.restaurants.includes(r.id)))
-      .map((a) => ({
-      id: a.id, title: a.title, advertiser: a.advertiser, image: a.image, link: a.link, phone: a.phone, ...qrPlace(a), ...framing(a),
-      views: views(a.id, r.id), scans: scans(a.id, r.id),
-    })),
     characters: db.characters.filter((c) => charAllowed(c, r))
       .map((c) => ({ id: c.id, name: c.name, image: c.images.idle, greetings: c.greetings, phrases: c.phrases })),
     themes: THEMES,
@@ -1163,8 +1189,8 @@ function managerSave(b) {
   if (Array.isArray(b.menu)) setMenu(r, b.menu, undefined, false);
   if (Array.isArray(b.promos)) r.promos = cleanPromos(b.promos);
   if (Array.isArray(b.promos) || Array.isArray(b.menu)) syncPromoItems(r);
-  if (Array.isArray(b.blockedAds)) r.blockedAds = b.blockedAds.map(String);
-  if (b.display) r.display = cleanDisplay(b.display);
+  // «реклама после каждых N слайдов» задаёт админка — из ЛК не меняется
+  if (b.display) r.display = { ...cleanDisplay(b.display), adEvery: { ...DISPLAY, ...r.display }.adEvery };
   if (b.avatar) r.avatar = cleanAvatar(b.avatar, r);
   if (b.flow) {
     // ссылка экрана кухни создаётся при включении; «Новая ссылка» — старая перестаёт работать
@@ -1281,14 +1307,16 @@ function mergeMenu(r, items) {
       price: Number(s.price) || 0, options: s.options || [], groups: s.groups || [],
       photo: o.photoManual ? o.photo : s.photo || o.photo || '',
       // «нет в наличии» — из источника; «скрыть с планшетов» (hidden) — решение менеджера, синхронизация его не трогает
-      off: s.available === false, srcKey: key,
+      off: s.available === false, srcKey: key, offAt: undefined,
       tags: own ? o.tags || [] : autoTags(r, s),
     };
   });
   // при синхронизации на планшетах — только меню источника: блюда, добавленные вручную, скрыты (строки акций остаются)
   const manual = (r.menu || []).filter((i) => !i.extId).map((i) => (i.fromPromo ? i : { ...i, hidden: true }));
   // пропавшие из этого же источника — «нет в наличии» (вернутся сами); оставшиеся от прежнего источника — убираем
-  const gone = [...old.values()].filter((i) => !seen.has(i.extId) && i.srcKey === key).map((i) => ({ ...i, off: true }));
+  // пропавшие больше 30 дней назад — удаляем совсем
+  const gone = [...old.values()].filter((i) => !seen.has(i.extId) && i.srcKey === key)
+    .map((i) => ({ ...i, off: true, offAt: i.offAt || Date.now() })).filter((i) => Date.now() - i.offAt < 30 * 864e5);
   r.menu = [...synced, ...manual, ...gone];
 }
 
@@ -1316,6 +1344,10 @@ function autoTags(r, s) {
   }
   return [...out];
 }
+
+// Включён ли в ресторане хоть один планшет: агент на связи или страница планшета (рабочей или тестовой) спрашивает меню
+const restaurantOn = (r) => Object.values(db.devices).some((d) => d.restaurantId === r.id
+  && Date.now() - Math.max(d.lastSeen || 0, d.pageSeen || 0) < 3 * 60_000);
 
 // Одна синхронизация ресторана за раз; кнопка во время фоновой — дождётся её и загрузит меню ещё раз целиком
 const syncing = new Map();
@@ -1363,8 +1395,10 @@ async function syncOnce(r, force) {
 setInterval(() => {
   for (const r of Object.values(db.restaurants)) {
     const s = r.menuSource;
-    // после смены источника — не дожидаясь интервала
-    if (s && s.type !== 'manual' && ((s.fresh && !s.lastError) || Date.now() - (s.lastSync || 0) > (s.everyMin || 5) * 60_000)) syncMenu(r);
+    // после смены источника — не дожидаясь интервала; только если в ресторане включён хотя бы один планшет
+    // (выключены все — меню не сверяем; включится планшет — сверим сразу, если пора)
+    if (s && s.type !== 'manual' && restaurantOn(r)
+      && ((s.fresh && !s.lastError) || Date.now() - (s.lastSync || 0) > (s.everyMin || 5) * 60_000)) syncMenu(r);
   }
 }, 30_000);
 
@@ -1756,7 +1790,9 @@ function admin(method, p, b, me, q) {
       staff: prev.staff || [],
       promos: Array.isArray(b.promos) ? cleanPromos(b.promos) : prev.promos || [],
       tariff: b.tariff === 'premium' ? 'premium' : 'standard',
-      blockedAds: prev.blockedAds || [],
+      // реклама: после каждых N слайдов ресторана и какая реклама в этом ресторане не показывается
+      blockedAds: Array.isArray(b.blockedAds) ? b.blockedAds.map(String) : prev.blockedAds || [],
+      display: b.adEvery !== undefined ? { ...prev.display, adEvery: Math.min(10, Math.max(1, Math.round(Number(b.adEvery)) || 2)) } : prev.display,
       menuSource: b.menuSource ? cleanSource(b.menuSource, prev.menuSource) : prev.menuSource,
       customTags: Array.isArray(b.customTags) ? cleanCustomTags(b.customTags) : prev.customTags,
       syncKey: prev.syncKey || crypto.randomBytes(12).toString('hex'),
@@ -1857,6 +1893,34 @@ function admin(method, p, b, me, q) {
     return (b.once ? importOnce(rr) : syncMenu(rr, true)).then(() => publicSource(rr.menuSource));
   }
 
+  // Тяжёлые картинки (больше 300 КБ) в загрузках, на которые ссылаются реклама, акции и меню, — портал пережимает их
+  if (method === 'GET' && p === '/api/uploads/heavy') {
+    if (scope) throw fail(403, 'Нет доступа');
+    const uses = new Map();
+    const add = (url, kind) => { if (typeof url === 'string' && /^\/uploads\/[a-f0-9]+\.(jpg|png|webp)$/.test(url) && !uses.has(url)) uses.set(url, kind); };
+    for (const a of db.ads) add(a.image, 'slide');
+    for (const r of Object.values(db.restaurants)) {
+      for (const pr of r.promos || []) { add(pr.image, 'slide'); Object.values(pr.images || {}).forEach((u) => add(u, 'slide')); }
+      for (const i of r.menu || []) add(i.photo, i.fromPromo ? 'slide' : 'photo');
+    }
+    return [...uses].map(([url, kind]) => {
+      try { return { url, kind, size: fs.statSync(path.join(UPLOADS, url.slice(9))).size }; } catch { return null; }
+    }).filter((x) => x && x.size > 300 * 1024);
+  }
+  if (method === 'POST' && p === '/api/uploads/replace') {
+    if (scope) throw fail(403, 'Нет доступа');
+    const ok = (u) => typeof u === 'string' && /^\/uploads\/[a-f0-9]+\.(jpg|png|webp)$/.test(u);
+    if (!ok(b.from) || !ok(b.to) || !fs.existsSync(path.join(UPLOADS, b.to.slice(9)))) throw fail(400, 'bad file');
+    let n = 0;
+    const swap = (o, k) => { if (o[k] === b.from) { o[k] = b.to; n++; } };
+    for (const a of db.ads) swap(a, 'image');
+    for (const r of Object.values(db.restaurants)) {
+      for (const pr of r.promos || []) { swap(pr, 'image'); for (const l of Object.keys(pr.images || {})) swap(pr.images, l); }
+      for (const i of r.menu || []) swap(i, 'photo');
+    }
+    save();
+    return { n };
+  }
   // Версии (рабочая и тестовая) и переключение планшетов между ними
   if (method === 'GET' && p === '/api/devices/_versions') {
     return (INSTANCE === 'test' ? Promise.resolve(VERSION) : getTestVersion())

@@ -46,6 +46,10 @@
   .pvframe { width: 288px; height: 461px; overflow: hidden; border-radius: 10px; background: #000; }
   .pvframe iframe { width: 800px; height: 1280px; border: 0; transform: scale(.36); transform-origin: 0 0; }
   #ads input:not([type]) { width: 100%; min-width: 120px; box-sizing: border-box; }
+  /* PIN персонала — точками; 👁 показывает. Не поле пароля — браузер не предлагает «сохранить пароль» */
+  .pinw { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .pinw input.masked { -webkit-text-security: disc; text-security: disc; }
+  .pinw .eye { background: none; border: 0; padding: 4px 6px; font-size: 16px; cursor: pointer; opacity: .7; color: inherit; }
   .tg { display: inline-block; border: 1px solid #ddd; border-radius: 10px; padding: 1px 7px; margin: 1px; font-size: 12px; cursor: pointer; color: #777; }
   .tg.on { background: #e2f4e4; border-color: #2e7d32; color: #2e7d32; }
   .ctrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
@@ -101,6 +105,8 @@
     <label>Столы <input id="rTables" placeholder="1-20, VIP1"></label>
     <label>Язык по умолчанию <select id="rLang"><option value="en">EN</option><option value="th">TH</option><option value="ru">RU</option><option value="zh">ZH</option></select></label>
     <label>Тариф <select id="rTariff"><option value="standard">Standard — с рекламой сети</option><option value="premium">Premium — без внешней рекламы</option></select></label>
+    <label>Реклама после каждых N слайдов ресторана <input id="rAdEvery" type="number" min="1" max="10" style="width:70px"> <small class="hint">1 — каждый второй слайд</small></label>
+    <details style="flex-basis:100%"><summary>Реклама, которую в этом ресторане не показывать</summary><div id="rBlocked" class="hint"></div></details>
     <label>Язык редактирования
       <select id="eLang"><option value="en">EN</option><option value="th">TH</option><option value="ru">RU</option><option value="zh">ZH</option></select>
     </label>
@@ -162,7 +168,8 @@
     <thead><tr><th>Рекламодатель</th><th>Название</th><th>Картинка 800×986</th><th>Ссылка для QR</th><th>Телефон</th><th>QR и телефон: место / размер</th><th>Кадр: режим, сдвиг ↕, масштаб</th><th>Рестораны</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
     <tbody id="ads"></tbody>
   </table></div>
-  <p><button id="addAdBtn">+ Реклама</button></p>
+  <p><button id="addAdBtn">+ Реклама</button>
+    <button id="heavyBtn" onclick="shrinkHeavy()" title="Акции, реклама и фото блюд тяжелее 300 КБ — пережать в лёгкие">Сжать тяжёлые картинки</button></p>
 </section>
 
 <section id="charTab" hidden>
@@ -421,13 +428,20 @@ async function loadRests(selectId) {
   edit(selectId ?? cur?.id ?? rests[0]?.id ?? '');
 }
 
-function edit(id) {
+async function edit(id) {
   cur = structuredClone(rests.find((r) => r.id === id) || blank());
   cur.staff ??= [];
   $('restSel').value = cur.id || '';
   $('rName').value = cur.name;
   $('rTables').value = cur.tables.join(', ');
   $('rTariff').value = cur.tariff || 'standard';
+  $('rAdEvery').value = cur.display?.adEvery || 2;
+  if (!ads.length) ads = await api('/api/ads').catch(() => []);
+  cur.blockedAds ||= [];
+  $('rBlocked').innerHTML = ads.filter((a) => a.id && (!a.restaurants?.length || a.restaurants.includes(cur.id))).map((a) => `<label style="display:block">
+    <input type="checkbox" data-blk="${esc(a.id)}" style="width:auto" ${cur.blockedAds.includes(a.id) ? 'checked' : ''}> ${esc(a.advertiser || '')}${a.title ? ` — ${esc(a.title)}` : ''}</label>`).join('')
+    || 'Рекламы для этого ресторана нет.';
+  $('rBlocked').dataset.rid = cur.id || '';
   $('rLang').value = (cur.langs || ['en'])[0];
   const s = cur.menuSource || { type: 'manual' };
   $('sType').value = s.type;
@@ -454,7 +468,7 @@ function renderStaff() {
   $('staff').innerHTML = cur.staff.map((m, i) => `<tr data-i="${i}">
     <td><input data-f="name" value="${esc(m.name)}"></td>
     <td><select data-f="role"><option value="waiter">Официант</option><option value="manager" ${m.role === 'manager' ? 'selected' : ''}>Менеджер</option></select></td>
-    <td><input data-f="pin" value="${esc(m.pin || '')}" inputmode="numeric" style="width:90px"></td>
+    <td><span class="pinw"><input data-f="pin" class="masked" value="${esc(m.pin || '')}" inputmode="numeric" autocomplete="off" style="width:90px"><button type="button" class="eye" data-eye="1" title="Показать PIN">👁</button></span></td>
     <td><label title="Тестовый: действия не идут в статистику"><input data-f="test" type="checkbox" ${m.test ? 'checked' : ''}> тест</label></td>
     <td><button data-del="${i}">✕</button></td></tr>`).join('')
     // Уволенные: войти не могут; галочка — их действия не идут в статистику (сохраняется вместе с рестораном)
@@ -529,14 +543,58 @@ function renderMenu() {
     <td>${synced ? '' : `<button data-del="${i}">✕</button>`}</td></tr>`).join('');
 }
 
-// Перед отправкой уменьшаем картинку до 1280 px
-async function uploadImage(file) {
-  const bmp = await createImageBitmap(file);
-  const k = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+// Картинка для планшета: слайд акции или рекламы — чтобы закрывал экран планшета с запасом на чёткость (около 1080 × 1330),
+// фото блюда — до 800 px. Формат WebP: при том же виде в 2–3 раза легче JPEG; если браузер не умеет — JPEG
+async function shrinkImage(src, kind = 'slide') {
+  const bmp = await createImageBitmap(src);
+  let k = kind === 'photo' ? 800 / Math.max(bmp.width, bmp.height) : Math.max(1080 / bmp.width, 1330 / bmp.height);
+  k = Math.min(1, k, 2000 / Math.max(bmp.width, bmp.height));
   const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
   c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-  const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
-  return (await (await fetch('/api/upload', { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: blob })).json()).url;
+  let blob = await new Promise((r) => c.toBlob(r, 'image/webp', 0.8));
+  if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.82));
+  return { blob, w: c.width, h: c.height };
+}
+const kb = (n) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} МБ` : `${Math.max(1, Math.round(n / 1024))} КБ`);
+// Короткая подсказка внизу экрана
+function note(text) {
+  let el = document.getElementById('note');
+  if (!el) {
+    el = Object.assign(document.createElement('div'), { id: 'note' });
+    el.style.cssText = 'position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#1f1a17;color:#fff;padding:10px 16px;border-radius:10px;z-index:99;font-size:14px;max-width:90%';
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(note.t);
+  note.t = setTimeout(() => { el.hidden = true; }, 5000);
+}
+async function uploadImage(file, kind) {
+  const { blob, w, h } = await shrinkImage(file, kind);
+  const url = (await (await fetch('/api/upload', { method: 'POST', headers: { 'content-type': blob.type }, body: blob })).json()).url;
+  note(`✓ ${w} × ${h} px, ${kb(blob.size)}${file.size > blob.size * 1.2 ? ` (было ${kb(file.size)})` : ''}`);
+  return url;
+}
+
+// Уже загруженные тяжёлые картинки (больше 300 КБ): пережать так же и подменить во всех акциях, рекламе и меню
+async function shrinkHeavy() {
+  const btn = $('heavyBtn'), list = await api('/api/uploads/heavy');
+  if (list.error) return alert(list.error);
+  if (!list.length) return alert('Тяжёлых картинок нет — все легче 300 КБ.');
+  if (!confirm(`Найдено тяжёлых картинок: ${list.length} (всего ${kb(list.reduce((a, x) => a + x.size, 0))}). Сжать?`)) return;
+  let saved = 0, done = 0;
+  for (const x of list) {
+    btn.textContent = `Сжимаю ${++done} из ${list.length}…`;
+    try {
+      const { blob } = await shrinkImage(await (await fetch(x.url)).blob(), x.kind);
+      if (blob.size > x.size * 0.85) continue; // выигрыш маленький — оставляем как есть
+      const to = (await (await fetch('/api/upload', { method: 'POST', headers: { 'content-type': blob.type }, body: blob })).json()).url;
+      const r = await api('/api/uploads/replace', 'POST', { from: x.url, to });
+      if (!r.error) saved += x.size - blob.size;
+    } catch { /* эту — пропускаем */ }
+  }
+  btn.textContent = 'Сжать тяжёлые картинки';
+  alert(`Готово: освобождено ${kb(saved)}. Планшеты получат лёгкие картинки при следующей смене слайда.`);
 }
 
 $('mSearch').oninput = renderMenu;
@@ -545,7 +603,7 @@ $('menu').oninput = $('menu').onchange = async (e) => {
   const it0 = e.target.closest('tr') && cur.menu[e.target.closest('tr').dataset.i];
   if (e.target.type === 'file') {
     if (e.type === 'change' && e.target.files[0]) {
-      it0.photo = await uploadImage(e.target.files[0]);
+      it0.photo = await uploadImage(e.target.files[0], 'photo');
       it0.photoManual = true;
       renderMenu();
     }
@@ -575,6 +633,11 @@ $('menu').onclick = (e) => {
 };
 
 $('addBtn').onclick = () => { cur.menu.push({}); renderMenu(); };
+// 👁 рядом с PIN — показать или снова скрыть
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-eye]');
+  if (b) b.previousElementSibling.classList.toggle('masked');
+});
 $('eLang').onchange = renderMenu;
 $('restSel').onchange = () => edit($('restSel').value);
 
@@ -604,6 +667,9 @@ async function saveRestaurant(notice) {
   cur.name = $('rName').value.trim() || 'Ресторан';
   cur.tables = parseTables($('rTables').value);
   cur.tariff = $('rTariff').value;
+  cur.adEvery = Number($('rAdEvery').value) || 2;
+  // список уже показан для этого ресторана — берём отметки из него
+  if ($('rBlocked').dataset.rid === (cur.id || '')) cur.blockedAds = [...document.querySelectorAll('#rBlocked [data-blk]:checked')].map((x) => x.dataset.blk);
   // Язык по умолчанию — первым в списке, остальные следом
   cur.langs = [$('rLang').value, ...['en', 'th', 'ru', 'zh'].filter((l) => l !== $('rLang').value)];
   cur.menuSource = {
@@ -728,7 +794,7 @@ $('ads').oninput = $('ads').onchange = async (e) => {
   const a = ads[e.target.closest('tr[data-i]')?.dataset.i];
   if (!a) return;
   if (e.target.type === 'file') {
-    if (e.type === 'change' && e.target.files[0]) { a.image = await uploadImage(e.target.files[0]); renderAds(); }
+    if (e.type === 'change' && e.target.files[0]) { a.image = await uploadImage(e.target.files[0], 'slide'); renderAds(); }
     return;
   }
   // Рестораны: «Во всех» снимает выбор; выбрали конкретные — «Во всех» гаснет; сняли все — снова «Во всех»

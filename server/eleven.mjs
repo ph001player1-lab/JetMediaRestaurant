@@ -43,7 +43,14 @@ export function cachedTts(dir, voiceId, model, text) {
 }
 export async function synthesize(dir, key, voiceId, model, text) {
   const f = cachedTts(dir, voiceId, model, text);
-  if (f.cached) return f.url;
+  if (f.cached) {
+    // отмечаем, что запись звучит: неиспользуемые 60 дней записи сервер удаляет (раз в сутки достаточно)
+    try {
+      const file = path.join(dir, f.name), st = fs.statSync(file);
+      if (Date.now() - st.mtimeMs > 864e5) fs.utimesSync(file, new Date(), new Date());
+    } catch { /* файл только что удалили — озвучим заново в следующий раз */ }
+    return f.url;
+  }
   if (!pending.has(f.name)) {
     pending.set(f.name, (async () => {
       const r = await elevenApi(key, `/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`, {

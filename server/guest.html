@@ -982,6 +982,8 @@ function renderCarousel() {
     '<div class="slide" id="curSlide">' + slideHtml(cur, true) + '</div>' +
     '<div class="slide">' + slideHtml(b) + '</div>';
   setTrack(0, false);
+  // слайд через один — заранее в кэш, чтобы смена не ждала загрузки картинки
+  if (n > 2) { var after = list[(cIdx + 2) % n]; if (after && after.image) new Image().src = imgOf(after); }
   $('cdots').innerHTML = n > 1 ? list.map(function (s, i) { return '<i class="' + (!avShowing && i === cIdx ? 'on' : '') + '"></i>'; }).join('') : '';
   styleCaptions(state.display || {});
   onSlideShown(cur);
