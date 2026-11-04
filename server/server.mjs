@@ -74,7 +74,7 @@ const PROD_API = process.env.PROD_API || 'http://api:3000';
 const pulled = new Map();
 async function pullDevice(id) {
   if (INSTANCE !== 'test' || !process.env.DEVICE_KEY || !id) return;
-  const d0 = db.devices[id], known = d0 && d0.restaurantId && (d0.table || d0.role === 'entrance');
+  const d0 = db.devices[id], known = d0 && db.restaurants[d0.restaurantId] && (d0.table || d0.role === 'entrance');
   if (Date.now() - (pulled.get(id) || 0) < (known ? 600_000 : 30_000)) return;
   pulled.set(id, Date.now());
   try {
@@ -88,6 +88,22 @@ async function pullDevice(id) {
     save();
   } catch { /* рабочая недоступна — работаем с тем, что есть */ }
 }
+// Тестовая копия: планшеты шлют сигнал «на связи» только рабочей — статус, заряд, привязку берём оттуда (раз в 10 с)
+let devicesPulled = 0;
+async function pullAllDevices() {
+  if (INSTANCE !== 'test' || !process.env.DEVICE_KEY || Date.now() - devicesPulled < 10_000) return;
+  devicesPulled = Date.now();
+  try {
+    const j = await (await fetch(`${PROD_API}/api/internal/devices?key=${encodeURIComponent(process.env.DEVICE_KEY)}`,
+      { signal: AbortSignal.timeout(4000) })).json();
+    for (const d of j.devices || []) db.devices[d.id] = { ...(db.devices[d.id] || {}), ...d, queue: db.devices[d.id]?.queue || [] };
+  } catch { /* рабочая недоступна */ }
+}
+function internalDevices(b, q, req) {
+  if (INSTANCE !== 'prod' || !process.env.DEVICE_KEY || q.key !== process.env.DEVICE_KEY || req.headers['x-forwarded-for']) throw fail(403, 'forbidden');
+  return { devices: Object.values(db.devices).map(({ queue, ...d }) => d) };
+}
+
 // Для тестовой копии: привязка планшета (только из внутренней сети, не через интернет)
 function internalDevice(b, q, req) {
   if (INSTANCE !== 'prod' || !process.env.DEVICE_KEY || q.key !== process.env.DEVICE_KEY || req.headers['x-forwarded-for']) throw fail(403, 'forbidden');
@@ -1241,10 +1257,13 @@ const nonEmpty = (o = {}) => Object.fromEntries(Object.entries(o).filter(([, v])
 // Поля из источника (названия на его языках, категория, цена, варианты, наличие) обновляем;
 // переводы на другие языки, «блюдо дня», акции и своё фото сохраняем.
 // Блюда, пропавшие из источника, скрываем, а добавленные вручную не трогаем.
+// Какой источник дал блюдо (тип, адрес, касса): блюда, оставшиеся от прежнего источника, при синхронизации убираются
+const srcKey = (s = {}) => `${s.type}|${s.url || ''}|${s.type === 'pos' ? s.vendor || '' : ''}`;
+
 function mergeMenu(r, items) {
   const old = new Map((r.menu || []).filter((i) => i.extId).map((i) => [i.extId, i]));
   const seen = new Set();
-  const own = !!r.menuSource?.ownTags;
+  const own = !!r.menuSource?.ownTags, key = srcKey(r.menuSource);
   const synced = items.filter((s) => s.extId && Object.values(s.name || {}).some(Boolean)).map((s) => {
     seen.add(s.extId);
     const o = old.get(s.extId) || { id: uid(), cat: {}, name: {}, desc: {} };
@@ -1254,12 +1273,14 @@ function mergeMenu(r, items) {
       price: Number(s.price) || 0, options: s.options || [], groups: s.groups || [],
       photo: o.photoManual ? o.photo : s.photo || o.photo || '',
       // «нет в наличии» — из источника; «скрыть с планшетов» (hidden) — решение менеджера, синхронизация его не трогает
-      off: s.available === false,
+      off: s.available === false, srcKey: key,
       tags: own ? o.tags || [] : autoTags(r, s),
     };
   });
-  const manual = (r.menu || []).filter((i) => !i.extId);
-  const gone = [...old.values()].filter((i) => !seen.has(i.extId)).map((i) => ({ ...i, off: true }));
+  // при синхронизации на планшетах — только меню источника: блюда, добавленные вручную, скрыты (строки акций остаются)
+  const manual = (r.menu || []).filter((i) => !i.extId).map((i) => (i.fromPromo ? i : { ...i, hidden: true }));
+  // пропавшие из этого же источника — «нет в наличии» (вернутся сами); оставшиеся от прежнего источника — убираем
+  const gone = [...old.values()].filter((i) => !seen.has(i.extId) && i.srcKey === key).map((i) => ({ ...i, off: true }));
   r.menu = [...synced, ...manual, ...gone];
 }
 
@@ -1702,9 +1723,12 @@ function admin(method, p, b, me, q) {
     }
   }
   if (method === 'GET' && p === '/api/devices') {
-    const now = Date.now();
-    return Object.values(db.devices).filter((d) => !scope || scope.has(d.restaurantId)).map(({ queue, ...d }) =>
-      ({ ...d, online: now - d.lastSeen < ONLINE_MS, pending: queue.length }));
+    const list = () => {
+      const now = Date.now();
+      return Object.values(db.devices).filter((d) => !scope || scope.has(d.restaurantId)).map(({ queue, ...d }) =>
+        ({ ...d, online: now - d.lastSeen < ONLINE_MS, pending: (queue || []).length }));
+    };
+    return INSTANCE === 'test' ? pullAllDevices().then(list) : list();
   }
   if (method === 'GET' && p === '/api/restaurants') {
     const list = Object.values(db.restaurants).filter((r) => !scope || scope.has(r.id));
@@ -1890,6 +1914,7 @@ const PUBLIC = {
   'POST /api/guest/join': guestJoin,
   'GET /api/version': () => ({ version: VERSION, instance: INSTANCE }),
   'GET /api/internal/device': internalDevice,
+  'GET /api/internal/devices': internalDevices,
   'GET /api/kitchen/state': kitchenState,
   'POST /api/kitchen/ready': kitchenReady,
   'POST /api/guest/order': guestOrder,
@@ -2106,6 +2131,21 @@ if (!db.migrations.menuOff) {
 if (INSTANCE === 'test' && !db.migrations.testInstance) {
   for (const x of Object.values(db.sessions)) x.subs = [];
   db.migrations.testInstance = Date.now();
+  save();
+}
+
+// Однократно: в ресторан DEMO — копии всех акций Чехова (у копий свои номера, статистика раздельная)
+if (!db.migrations.demoPromos) {
+  const all = Object.values(db.restaurants);
+  const demo = all.find((r) => /^demo$/i.test((r.name || '').trim())), ch = all.find((r) => /чехов|chekh/i.test(r.name || ''));
+  if (demo && ch) {
+    const have = new Set((demo.promos || []).map((p) => (p.name || '').toLowerCase()));
+    const add = (ch.promos || []).filter((p) => !have.has((p.name || '').toLowerCase())).map((p) => ({ ...structuredClone(p), id: uid() }));
+    demo.promos = cleanPromos([...(demo.promos || []), ...add]);
+    syncPromoItems(demo);
+    console.log(`DEMO: добавлено акций из Чехова — ${add.length}`);
+  }
+  db.migrations.demoPromos = Date.now();
   save();
 }
 

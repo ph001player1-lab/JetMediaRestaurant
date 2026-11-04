@@ -1398,11 +1398,13 @@ const tagsFree = () => !synced();
 
 
 function renderGrid() {
-  const menu = mgr.restaurant.menu;
+  // при синхронизации — только блюда источника и строки акций (блюда, оставшиеся от ручного меню, на планшетах не показываются)
+  const all = mgr.restaurant.menu.map((it, i) => [it, i]).filter(([it]) => !synced() || it.extId || it.fromPromo);
+  const menu = all.map(([it]) => it);
   const cats = new Map();
   for (const it of menu) cats.set(val(it.cat) || '—', (cats.get(val(it.cat) || '—') || 0) + 1);
   const q = mq.trim().toLowerCase();
-  const shown = menu.map((it, i) => [it, i]).filter(([it]) => (!mcat || (val(it.cat) || '—') === mcat)
+  const shown = all.filter(([it]) => (!mcat || (val(it.cat) || '—') === mcat)
     && (!q || `${it.sku || ''} ${Object.values(it.name || {}).join(' ')}`.toLowerCase().includes(q)));
   $('mgrid').innerHTML = `<div class="chips">
       <button data-mcat="" class="${mcat ? '' : 'on'}">${t('all')} · ${menu.length}</button>
