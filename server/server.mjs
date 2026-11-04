@@ -1100,17 +1100,7 @@ function managerSave(b) {
   if (Array.isArray(b.staff)) setStaff(r, b.staff, b.fired || {});
   if (Array.isArray(b.staffArchive)) setArchive(r, b.staffArchive);
   if (b.testVisit) markTest(r, b.testVisit.ids, b.testVisit.test);
-  if (Array.isArray(b.menu)) {
-    if (r.menuSource && r.menuSource.type !== 'manual') {
-      const own = !!r.menuSource.ownTags, by = new Map(b.menu.map((i) => [i?.id, i]));
-      for (const it of r.menu || []) {
-        const n = by.get(it.id);
-        if (!n) continue;
-        Object.assign(it, { dayDish: !!n.dayDish, promo: !!n.promo, hidden: !!n.hidden });
-        if (own) it.tags = (Array.isArray(n.tags) ? n.tags : []).filter((x) => tagKeys(r).includes(x));
-      }
-    } else r.menu = cleanMenu(b.menu, r);
-  }
+  if (Array.isArray(b.menu)) setMenu(r, b.menu);
   if (Array.isArray(b.customTags)) r.customTags = cleanCustomTags(b.customTags);
   if (Array.isArray(b.tagRules)) r.tagRules = b.tagRules.filter((x) => x && String(x.text || '').trim() && tagKeys(r).includes(x.tag))
     .slice(0, 50).map((x) => ({ text: String(x.text).trim().slice(0, 60), tag: x.tag }));
@@ -1193,7 +1183,7 @@ const publicSource = (s) => {
 
 function cleanSource(b, prev = {}) {
   const type = ['manual', 'website', 'pos', 'json'].includes(b.type) ? b.type : 'manual';
-  return {
+  const next = {
     ...prev, type,
     url: String(b.url ?? prev.url ?? '').trim(),
     vendor: POS_VENDORS[b.vendor] ? b.vendor : 'loyverse',
@@ -1203,6 +1193,12 @@ function cleanSource(b, prev = {}) {
     everyMin: Math.min(60, Math.max(1, Math.round(Number(b.everyMin ?? prev.everyMin)) || 5)),
     ownTags: b.ownTags !== undefined ? !!b.ownTags : !!prev.ownTags,
   };
+  // другой источник (тип, адрес, язык, касса или токен) — следующая синхронизация загрузит меню целиком
+  if (['type', 'url', 'lang', 'vendor', 'token'].some((k) => (next[k] || '') !== (prev[k] || ''))) {
+    delete next.lastHash;
+    if (type !== 'manual') next.fresh = true;
+  }
+  return next;
 }
 
 const pick = (o = {}, keys) => Object.fromEntries(keys.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));
@@ -1258,16 +1254,31 @@ function autoTags(r, s) {
   return [...out];
 }
 
-const syncing = new Set();
-async function syncMenu(r, force = false) {
+// Одна синхронизация ресторана за раз; кнопка во время фоновой — дождётся её и загрузит меню ещё раз целиком
+const syncing = new Map();
+function syncMenu(r, force = false) {
+  const run = syncing.get(r.id);
+  if (run) return force ? run.then(() => syncMenu(r, true)) : run;
+  const p = syncOnce(r, force).finally(() => syncing.delete(r.id));
+  syncing.set(r.id, p);
+  return p;
+}
+async function syncOnce(r, force) {
   const src = r.menuSource;
-  if (!src || src.type === 'manual' || syncing.has(r.id)) return;
-  syncing.add(r.id);
+  if (!src || src.type === 'manual') return;
   try {
+    // кнопка «Синхронизировать» и первая синхронизация после смены источника — всегда целиком
+    if (force || src.fresh || !(r.menu || []).some((i) => i.extId)) delete src.lastHash;
     const items = await fetchMenu(src);
     if (items?.unchanged) {
       src.lastError = '';
       return;
+    }
+    if (src.fresh) {
+      // меню теперь из источника: блюда, добавленные вручную, с планшетов убираем (не удаляем — их видно в ЛК со значком ⦸);
+      // строки акций остаются
+      for (const i of r.menu || []) if (!i.extId && !i.fromPromo) i.hidden = true;
+      delete src.fresh;
     }
     const hash = items.hash || crypto.createHash('sha1').update(JSON.stringify(items)).digest('hex');
     if (hash !== src.lastHash || force) {
@@ -1280,7 +1291,6 @@ async function syncMenu(r, force = false) {
     src.lastError = e.message;
   } finally {
     src.lastSync = Date.now();
-    syncing.delete(r.id);
     save();
   }
 }
@@ -1290,7 +1300,8 @@ async function syncMenu(r, force = false) {
 setInterval(() => {
   for (const r of Object.values(db.restaurants)) {
     const s = r.menuSource;
-    if (s && s.type !== 'manual' && Date.now() - (s.lastSync || 0) > (s.everyMin || 5) * 60_000) syncMenu(r);
+    // после смены источника — не дожидаясь интервала
+    if (s && s.type !== 'manual' && ((s.fresh && !s.lastError) || Date.now() - (s.lastSync || 0) > (s.everyMin || 5) * 60_000)) syncMenu(r);
   }
 }, 30_000);
 
@@ -1318,6 +1329,22 @@ async function upload(req) {
 }
 
 // ---------- Администратор
+
+// Меню из ЛК или портала. При синхронизации с источником блюда меняются там: здесь — только ★ блюдо дня,
+// 📣 в показе акций, ⦸ скрыть с планшетов (и хештеги, если включены свои); остальное в присланном меню не трогаем —
+// иначе страница, открытая до синхронизации, вернула бы старое меню
+function setMenu(r, list, synced = !!r.menuSource && r.menuSource.type !== 'manual') {
+  if (synced) {
+    const own = !!r.menuSource.ownTags, by = new Map(list.map((i) => [i?.id, i]));
+    for (const it of r.menu || []) {
+      const n = by.get(it.id);
+      // блюда, добавленные вручную до синхронизации, остаются скрытыми — на планшетах меню из источника
+      if (!n || (!it.extId && !it.fromPromo)) continue;
+      Object.assign(it, { dayDish: !!n.dayDish, promo: !!n.promo, hidden: !!n.hidden });
+      if (own) it.tags = (Array.isArray(n.tags) ? n.tags : []).filter((x) => tagKeys(r).includes(x));
+    }
+  } else r.menu = cleanMenu(list, r);
+}
 
 // Свои отметки ресторана: { key, name: {ru,en,th,zh}, icon }
 function cleanCustomTags(list) {
@@ -1656,7 +1683,7 @@ function admin(method, p, b, me, q) {
       name: String(b.name || 'Ресторан'),
       tables: prev.tables || [],
       langs: b.langs || prev.langs || ['en', 'th', 'ru', 'zh'],
-      menu: Array.isArray(b.menu) ? cleanMenu(b.menu) : prev.menu || [],
+      menu: prev.menu || [],
       staff: prev.staff || [],
       promos: Array.isArray(b.promos) ? cleanPromos(b.promos) : prev.promos || [],
       tariff: b.tariff === 'premium' ? 'premium' : 'standard',
@@ -1664,6 +1691,8 @@ function admin(method, p, b, me, q) {
       menuSource: b.menuSource ? cleanSource(b.menuSource, prev.menuSource) : prev.menuSource,
       syncKey: prev.syncKey || crypto.randomBytes(12).toString('hex'),
     };
+    // меню — по источнику до этого сохранения: если ресторан уже синхронизировался, присланное меню не заменяет синхронизированное
+    if (Array.isArray(b.menu)) setMenu(db.restaurants[id], b.menu, !!prev.menuSource && prev.menuSource.type !== 'manual');
     if (Array.isArray(b.staff)) setStaff(db.restaurants[id], b.staff, b.fired || {});
     if (Array.isArray(b.staffArchive)) setArchive(db.restaurants[id], b.staffArchive);
     // Из портала приходят номера («1-10, B1») — превращаем в полные названия, сохраняя привязки
@@ -1753,7 +1782,7 @@ function admin(method, p, b, me, q) {
   m = p.match(/^\/api\/restaurants\/([^/]+)\/sync$/);
   if (m && method === 'POST' && db.restaurants[m[1]]) {
     if (scope && !scope.has(m[1])) throw fail(403, 'Нет доступа к этому ресторану');
-    return syncMenu(db.restaurants[m[1]]).then(() => publicSource(db.restaurants[m[1]].menuSource));
+    return syncMenu(db.restaurants[m[1]], true).then(() => publicSource(db.restaurants[m[1]].menuSource));
   }
 
   // Версии (рабочая и тестовая) и переключение планшетов между ними

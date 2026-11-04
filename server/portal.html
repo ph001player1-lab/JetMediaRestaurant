@@ -110,7 +110,8 @@
     <label>POS <select id="sVendor"><option value="loyverse">Loyverse</option></select></label>
     <label>API-токен POS <input id="sToken"></label>
     <label>Язык источника <select id="sLang"><option>en</option><option>th</option><option>ru</option><option>zh</option></select></label>
-    <label>Проверять изменения <select id="sInterval"><option value="hourly">каждый час</option><option value="daily">раз в день</option><option value="off">только по кнопке</option></select></label>
+    <label>Проверять изменения каждые N минут <input id="sEvery" type="number" min="1" max="60" style="width:70px"></label>
+    <label><input type="checkbox" id="sOwnTags" style="width:auto"> Свои хештеги из ЛК (синхронизация их не меняет)</label>
     <button id="syncBtn">Сохранить и синхронизировать</button>
   </div>
   <p class="hint" id="srcInfo"></p>
@@ -422,8 +423,11 @@ function edit(id) {
   $('sToken').value = '';
   $('sToken').placeholder = s.hasToken ? '•••••••• (сохранён)' : '';
   $('sLang').value = s.lang || 'en';
-  $('sInterval').value = s.interval || 'hourly';
+  // те же настройки, что у менеджера в ЛК → «Меню»
+  $('sEvery').value = s.everyMin || 5;
+  $('sOwnTags').checked = !!s.ownTags;
   $('srcInfo').innerHTML = (s.lastSync ? `Последняя синхронизация: ${new Date(s.lastSync).toLocaleString()} — ${s.lastError ? `<b style="color:#c62828">${esc(s.lastError)}</b>` : `${s.lastCount} блюд`}. ` : '')
+    + (s.type && s.type !== 'manual' ? 'Меню синхронизируется с источником: блюда, цены и варианты меняются там, здесь и в ЛК — только ★ блюдо дня, 📣 в показе акций, ⦸ скрыть. ' : '')
     + (cur.syncKey ? `Вебхук «меню изменилось»: <code>${location.origin}/api/menu/webhook?r=${esc(cur.id)}&amp;key=${esc(cur.syncKey)}</code>` : '');
   $('staffInfo').innerHTML = cur.staffCode
     ? `Приложение персонала: <b>${location.origin}/staff/</b> · код ресторана: <b>${esc(cur.staffCode)}</b> · каждый сотрудник входит со своим PIN`
@@ -549,7 +553,7 @@ async function saveRestaurant(notice) {
   cur.langs = [$('rLang').value, ...['en', 'th', 'ru', 'zh'].filter((l) => l !== $('rLang').value)];
   cur.menuSource = {
     type: $('sType').value, url: $('sUrl').value.trim(), vendor: $('sVendor').value,
-    token: $('sToken').value.trim(), lang: $('sLang').value, interval: $('sInterval').value,
+    token: $('sToken').value.trim(), lang: $('sLang').value, everyMin: Number($('sEvery').value) || 5, ownTags: $('sOwnTags').checked,
   };
   const saved = await api('/api/restaurants', 'POST', cur);
   await loadRests(saved.id);
