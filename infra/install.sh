@@ -91,6 +91,15 @@ else
   $PROD up -d
 fi
 
+# Тестовая — на ту же версию, что рабочая (с RELEASE=1 она и так та же; база тестовой не меняется)
+if [ -d "$TDIR/.git" ] && [ "$(git -C "$TDIR" rev-parse HEAD)" != "$(git -C "$DIR" rev-parse HEAD)" ]; then
+  checkout "$TDIR" "$(git -C "$DIR" rev-parse HEAD)"
+  version "$TDIR"
+  cp "$DIR/infra/.env" "$TDIR/infra/.env"
+  $TESTC up -d --force-recreate
+  echo "Тестовая обновлена до той же версии $(cat "$TDIR/server/VERSION")."
+fi
+
 # Сброс пароля суперадмина на первый: curl … install.sh | sudo RESET_ADMIN=1 bash
 if [ "$RESET_ADMIN" = 1 ]; then
   sleep 3
@@ -101,6 +110,7 @@ fi
 
 echo
 echo "Готово. Рабочая версия $(cat "$DIR/server/VERSION"). Портал: https://app.jetmedia.dev"
+[ -f "$TDIR/server/VERSION" ] && echo "Тестовая версия $(cat "$TDIR/server/VERSION"): https://test.jetmedia.dev"
 echo "Вход: ph001player1@gmail.com (или admin)   Первый пароль: $(grep ADMIN_PASSWORD .env | cut -d= -f2)"
 echo "Если пароль меняли в портале и забыли — сброс: curl -fsSL https://raw.githubusercontent.com/ph001player1-lab/JetMediaRestaurant/$BRANCH/infra/install.sh | sudo RESET_ADMIN=1 bash"
 echo "Ключ регистрации устройств (для provision.cmd): $(grep DEVICE_KEY .env | cut -d= -f2)"

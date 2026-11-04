@@ -93,10 +93,18 @@ let devicesPulled = 0;
 async function pullAllDevices() {
   if (INSTANCE !== 'test' || !process.env.DEVICE_KEY || Date.now() - devicesPulled < 10_000) return;
   devicesPulled = Date.now();
+  const key = encodeURIComponent(process.env.DEVICE_KEY);
+  const merge = (d) => { if (d?.id) db.devices[d.id] = { ...(db.devices[d.id] || {}), ...d, queue: db.devices[d.id]?.queue || [] }; };
   try {
-    const j = await (await fetch(`${PROD_API}/api/internal/devices?key=${encodeURIComponent(process.env.DEVICE_KEY)}`,
-      { signal: AbortSignal.timeout(4000) })).json();
-    for (const d of j.devices || []) db.devices[d.id] = { ...(db.devices[d.id] || {}), ...d, queue: db.devices[d.id]?.queue || [] };
+    const j = await (await fetch(`${PROD_API}/api/internal/devices?key=${key}`, { signal: AbortSignal.timeout(4000) })).json().catch(() => ({}));
+    if (Array.isArray(j.devices)) { j.devices.forEach(merge); return; }
+    // рабочая версия старше тестовой и списка ещё не умеет — спрашиваем каждый планшет отдельно (это она умеет)
+    await Promise.all(Object.keys(db.devices).map(async (id) => {
+      try {
+        const x = await (await fetch(`${PROD_API}/api/internal/device?d=${encodeURIComponent(id)}&key=${key}`, { signal: AbortSignal.timeout(4000) })).json();
+        merge(x.device);
+      } catch { /* этот планшет — в следующий раз */ }
+    }));
   } catch { /* рабочая недоступна */ }
 }
 function internalDevices(b, q, req) {
