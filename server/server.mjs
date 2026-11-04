@@ -14,6 +14,7 @@ import { tgApi, tgSend, tgFindChats } from './telegram.mjs';
 import { THEMES, themeOf } from './themes.mjs';
 import { ELEVEN_MODELS, elevenVoices, elevenUsage, cachedTts, synthesize } from './eleven.mjs';
 import { eventLog, thDay, restaurantReport, networkReport } from './stats.mjs';
+import { countRequest, selfStats, hostStats } from './sysinfo.mjs';
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -121,6 +122,34 @@ function internalDevice(b, q, req) {
   const { queue, ...device } = d;
   return { device, restaurant: db.restaurants[d.restaurantId] || null };
 }
+// Раздел «Сервер» в портале: показатели своей версии; вторую (рабочая ↔ тестовая) спрашиваем по внутренней сети
+function instanceStats() {
+  const devs = Object.values(db.devices);
+  return {
+    instance: INSTANCE, version: VERSION, ...selfStats(DATA_DIR),
+    devices: { total: devs.length, online: devs.filter((d) => Date.now() - (d.lastSeen || 0) < ONLINE_MS).length },
+  };
+}
+function internalServer(b, q, req) {
+  if (!process.env.DEVICE_KEY || q.key !== process.env.DEVICE_KEY || req.headers['x-forwarded-for']) throw fail(403, 'forbidden');
+  return { self: instanceStats() };
+}
+async function serverPanel() {
+  let peer = null;
+  if (process.env.DEVICE_KEY) {
+    try {
+      const j = await (await fetch(`${INSTANCE === 'prod' ? TEST_API : PROD_API}/api/internal/server?key=${encodeURIComponent(process.env.DEVICE_KEY)}`,
+        { signal: AbortSignal.timeout(3000) })).json();
+      peer = j.self || null;
+    } catch { /* вторая версия не отвечает или ещё не умеет */ }
+  }
+  const me = instanceStats();
+  return {
+    at: Date.now(), here: INSTANCE, host: hostStats(DATA_DIR), telegram: !!(db.telegram?.token && db.telegram.chats?.length),
+    prod: INSTANCE === 'prod' ? me : peer, test: INSTANCE === 'test' ? me : peer,
+  };
+}
+
 // Перед переводом на тест — тестовая должна отвечать, иначе планшет показал бы ошибку
 async function testAlive() {
   testVersion.at = 0;
@@ -1849,6 +1878,10 @@ function admin(method, p, b, me, q) {
     save();
     return db.restaurants[id];
   }
+  if (method === 'GET' && p === '/api/server') {
+    if (scope) throw fail(403, 'Нет доступа');
+    return serverPanel();
+  }
   if (method === 'GET' && p === '/api/ad-cats') return Object.entries(AD_CATS).map(([id, name]) => ({ id, name }));
   // Заявки на подключение ресторана с планшетов (окно «О системе» по нажатию на номер стола)
   if (p.startsWith('/api/join-requests')) {
@@ -2038,6 +2071,7 @@ const PUBLIC = {
   'GET /api/version': () => ({ version: VERSION, instance: INSTANCE }),
   'GET /api/internal/device': internalDevice,
   'GET /api/internal/devices': internalDevices,
+  'GET /api/internal/server': internalServer,
   'GET /api/kitchen/state': kitchenState,
   'POST /api/kitchen/ready': kitchenReady,
   'POST /api/guest/order': guestOrder,
@@ -2280,6 +2314,7 @@ for (const r of Object.values(db.restaurants)) {
 save();
 
 const server = http.createServer(async (req, res) => {
+  countRequest();
   try {
     const url = new URL(req.url, 'http://local');
     // /staff и /guest без косой черты → на адрес с чертой
