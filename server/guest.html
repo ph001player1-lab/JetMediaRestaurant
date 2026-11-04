@@ -18,6 +18,9 @@
 
   .atop .tno { color: #fff; font-size: 3.8vw; }
   .tno { flex: none; font-size: 30px; font-weight: 800; line-height: 1.2; white-space: nowrap; color: var(--ink); }
+  /* номер стола на планшете — кнопка «О системе», оформлена как кнопки языков */
+  button.tno { border: 1px solid var(--line); background: none; border-radius: 12px; padding: 6px 18px; font-family: inherit; cursor: pointer; }
+  .atop button.tno { border: 0; background: rgba(255,255,255,.14); border-radius: 1.5vw; padding: 1.2vw 2.8vw; color: #fff; }
   .join .jt { font-size: 22px; font-weight: 700; }
   /* Круглая кнопка чата с ИИ-персонажем — между кнопками внизу */
   .avchat { flex: none !important; width: 72px; height: 72px; border-radius: 50% !important; padding: 0 !important; overflow: hidden; background: var(--soft) !important; border: 3px solid var(--accent) !important; align-self: center; }
@@ -554,7 +557,7 @@ function categories() {
 
 function renderAll() {
   // Название ресторана и стол: «Стол 5», а если стол назван словами («VIP», «Терраса 2») — как назван
-  $('title').innerHTML = tableBadge(); // вверху слева — только стол, крупно
+  setHtml($('title'), tableBadge()); // вверху слева — только стол, крупно
   $('langs').innerHTML = (state.join && !PHONE ? '<button class="qrbtn" data-qr="1">📱 ' + esc(t('phoneOrder')) + '</button>' : '') + (state.restaurant.langs || ['en']).map(function (l) {
     return '<button data-lang="' + l + '" class="' + (l === lang ? 'on' : '') + '">' + (LANG_NAMES[l] || l) + '</button>';
   }).join('');
@@ -679,8 +682,17 @@ function tableName(n) {
   var m = String(n || '').match(/^(?:стол|table|โต๊ะ|桌)\s+(.+)$/i);
   return !n ? '' : /^\d+$/.test(n) ? t('table') + ' ' + n : m ? t('table') + ' ' + m[1] : n;
 }
+// На планшете стол — кнопка: открывает «О системе»; на телефоне гостя — просто надпись
 function tableBadge() {
-  return state.table ? '<span class="tno">' + esc(tableName(state.table)) + '</span>' : '';
+  if (!state.table) return '';
+  var n = esc(tableName(state.table));
+  return PHONE ? '<span class="tno">' + n + '</span>' : '<button class="tno" data-info="1">' + n + '</button>';
+}
+// Перерисовываем, только если изменилось: иначе кнопка, которую как раз нажимают, подменяется новой и нажатие теряется
+function setHtml(el, html) {
+  if (el._html === html) return;
+  el._html = html;
+  el.innerHTML = html;
 }
 
 // Кнопка заставки: пока заказ пуст — «Открыть меню», иначе — как кнопка заказа в меню
@@ -1097,7 +1109,7 @@ function applyArrows(ds) {
 
 function renderAttract() {
   applyArrows(state.display || {});
-  $('aTitle').innerHTML = tableBadge();
+  setHtml($('aTitle'), tableBadge());
   $('acts').innerHTML = (isEntrance() ? '' : '<button class="abtn' + (activeCall('waiter') ? ' alarm' : '') + '" id="aCall">' + t(activeCall('waiter') ? 'cancelCall' : 'call') + '</button>') +
     avatarChatBtn() + '<button class="abtn main" id="aMenu">' + aMenuText() + '</button>';
   $('aLangs').innerHTML = (state.join ? '<button class="qrbtn" data-qr="1">📱 ' + esc(t('phoneOrder')) + '</button>' : '') + (state.restaurant.langs || ['en']).map(function (l) {
