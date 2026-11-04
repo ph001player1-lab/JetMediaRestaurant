@@ -23,30 +23,64 @@ async function get(url, headers = {}) {
 }
 
 // ---------- Сайт: тема WordPress с карточками <article data-dish-…> (так устроен сайт VERANDA)
+// Выбор у блюда — 1:1 как в окне выбора на сайте:
+//   volume — объём с полной ценой (варианты), filling — начинка (выбрать обязательно), thai-coconut — кокосовое молоко
+//   (+ data-dish-modifier-price), temperature — горячий / холодный, dumplings — способ приготовления и бульон
+//   (бульон только у варёных — поэтому одна группа: «Варёные, с бульоном» / «Варёные, без бульона» / «Жареные»)
 
-const FILLINGS = {
-  chicken: { ru: 'Курица', en: 'Chicken' }, pork: { ru: 'Свинина', en: 'Pork' }, beef: { ru: 'Говядина', en: 'Beef' },
-  shrimp: { ru: 'Креветки', en: 'Shrimp' }, seafood: { ru: 'Морепродукты', en: 'Seafood' }, vegetables: { ru: 'Овощи', en: 'Vegetables' },
+// Названия групп — заголовки окна выбора на странице (<fieldset data-modifier-fieldset><legend>)
+function modifierLegends(html) {
+  const out = {};
+  for (const m of html.matchAll(/<fieldset[^>]*data-modifier-fieldset="([\w-]+)"([^>]*)>[\s\S]*?<legend[^>]*>([\s\S]*?)<\/legend>/g)) {
+    const key = m[1] === 'dumplings' ? (/data-dumpling-broth/.test(m[2]) ? 'broth' : 'cooking') : m[1] === 'thai-coconut' ? 'coconut' : m[1];
+    out[key] ??= text(m[3]);
+  }
+  return out;
+}
+const LEGENDS = {
+  cooking: { ru: 'Способ приготовления', en: 'Cooking method' }, broth: { ru: 'Бульон', en: 'Broth' },
+  coconut: { ru: 'Кокосовое молоко', en: 'Coconut milk' }, filling: { ru: 'Начинка', en: 'Filling' },
+  temperature: { ru: 'Температура', en: 'Temperature' }, volume: { ru: 'Объём', en: 'Volume' },
 };
+const optName = (o) => ({ ru: String(o.labelRu || o.label || o.key).replace(/\s*\+\s*\d+\s*฿/, ''), en: String(o.labelEn || o.label || o.key).replace(/\s*\+\s*\d+\s*฿/, '') });
 
-function cardOptions(tag, price) {
+function cardChoices(tag, price, legends) {
+  const none = { options: [], groups: [] };
+  let fixed, volume;
   try {
-    const volume = JSON.parse(attr(tag, 'data-dish-volume-options') || '[]');
-    if (volume.length) {
-      return volume.map((o) => ({ key: String(o.key), label: { ru: o.labelRu || o.label, en: o.labelEn || o.label }, price: Number(o.price) || price }));
+    volume = JSON.parse(attr(tag, 'data-dish-volume-options') || '[]');
+    fixed = JSON.parse(attr(tag, 'data-dish-fixed-options') || '{}') || {};
+  } catch { return none; } // битый JSON в атрибуте — без выбора
+  const mod = attr(tag, 'data-dish-modifier'), extra = Number(attr(tag, 'data-dish-modifier-price')) || 0;
+  const gname = (key) => ({ ru: legends.ru?.[key] || LEGENDS[key]?.ru || key, en: legends.en?.[key] || LEGENDS[key]?.en || key });
+  if (Array.isArray(volume) && volume.length) {
+    return { options: volume.filter((o) => o && o.key).map((o) => ({ key: String(o.key), label: optName(o), price: Number(o.price) || price })), groups: [] };
+  }
+  if (mod === 'dumplings' && fixed.cooking) {
+    const opts = [];
+    for (const c of fixed.cooking) {
+      if (c.key === 'boiled' && fixed.broth?.length) {
+        for (const br of fixed.broth) {
+          opts.push({ id: `${c.key}-${br.key}`, price: 0, def: br.key === 'without',
+            name: { ru: `${optName(c).ru}, ${String(br.messageRu || optName(br).ru).toLowerCase()}`, en: `${optName(c).en}, ${String(br.messageEn || optName(br).en).toLowerCase()}` } });
+        }
+      } else opts.push({ id: String(c.key), name: optName(c), price: 0, def: false });
     }
-    const fillings = attr(tag, 'data-dish-fillings').split(',').map((s) => s.trim()).filter(Boolean);
-    if (fillings.length) return fillings.map((f) => ({ key: f, label: FILLINGS[f] || { en: f }, price }));
-    // Одна группа вариантов без доплаты (например, «варёные / жареные»); несколько групп уточнит официант
-    const fixed = Object.values(JSON.parse(attr(tag, 'data-dish-fixed-options') || '{}'));
-    if (fixed.length === 1) {
-      return fixed[0].map((o) => ({ key: String(o.key), label: { ru: o.labelRu || o.label, en: o.labelEn || o.label }, price }));
-    }
-  } catch { /* битый JSON в атрибуте — без вариантов */ }
-  return [];
+    return { options: [], groups: [{ id: 'cooking', name: gname('cooking'), type: 'one', req: true, opts }] };
+  }
+  const allowed = attr(tag, 'data-dish-fillings').split(',').map((x) => x.trim()).filter(Boolean);
+  const groups = Object.entries(fixed).filter(([, list]) => Array.isArray(list) && list.length).map(([key, list]) => ({
+    id: key, name: gname(key), type: 'one', req: true,
+    opts: list.filter((o) => key !== 'filling' || !allowed.length || allowed.includes(o.key)).map((o) => ({
+      id: String(o.key), name: optName(o),
+      // кокосовое молоко: «с молоком» — доплата из data-dish-modifier-price, «без» — выбор по умолчанию, как на сайте
+      price: key === 'coconut' && o.key === 'with' ? extra : 0, def: key === 'coconut' && o.key === 'without',
+    })),
+  }));
+  return { options: [], groups };
 }
 
-function parseDishCards(html, lang) {
+function parseDishCards(html, lang, legends = {}) {
   if (!html.includes('data-dish-id')) return null;
   const cats = {};
   for (const m of html.matchAll(/<a[^>]*href="#(menu-cat-\d+)"[^>]*>([\s\S]*?)<\/a>/g)) cats[m[1]] ??= text(m[2]);
@@ -66,7 +100,7 @@ function parseDishCards(html, lang) {
         desc: {},
         price,
         photo: img ? img[1] : '',
-        options: cardOptions(tag, price),
+        ...cardChoices(tag, price, legends),
       });
     }
   }
@@ -169,17 +203,30 @@ async function fromFoodmenu(src, html) {
 async function fromWebsite(src) {
   const lang = src.lang || 'en';
   const html = await (await get(src.url)).text();
-  const cards = parseDishCards(html, lang);
-  if (cards) {
-    // Названия категорий на английском — со страницы hreflang="en", если она есть
-    const alt = html.match(/<link[^>]*href="([^"]+)"[^>]*hreflang="en"/) || html.match(/<link[^>]*hreflang="en"[^>]*href="([^"]+)"/);
-    if (alt && alt[1] !== src.url && lang !== 'en') {
+  if (html.includes('data-dish-id')) {
+    // «Отпечаток» карточек, разделов и окна выбора: не изменились — меню не трогаем и английскую страницу не качаем
+    // (v2 — разбор с группами выбора: после обновления разбора меню перечитывается один раз)
+    const sig = [...html.matchAll(/<article\s[^>]*data-dish-id[^>]*>|<section id="menu-cat-\d+"|<a[^>]*href="#menu-cat-\d+"[^>]*>[\s\S]*?<\/a>|<img[^>]*\ssrc="[^"]+"|<legend[^>]*>[\s\S]*?<\/legend>/g)].join('');
+    const hash = crypto.createHash('sha1').update(`v2|${sig}`).digest('hex');
+    if (src.lastHash === hash) return { unchanged: true, hash };
+    // язык самой страницы (<html lang="ru-RU">) — по нему подписываем разделы; вторая страница (hreflang) даёт другой язык
+    const pageLang = { ru: 'ru', en: 'en', th: 'th', zh: 'zh' }[(html.match(/<html[^>]*\slang="([a-z]{2})/i)?.[1] || '').toLowerCase()] || lang;
+    const other = pageLang === 'ru' ? 'en' : 'ru';
+    const legends = { [pageLang]: modifierLegends(html) };
+    const cards = parseDishCards(html, pageLang, legends);
+    // Названия разделов и групп выбора на втором языке — со страницы hreflang, если она есть
+    const re = (l) => new RegExp(`<link[^>]*href="([^"]+)"[^>]*hreflang="${l}"|<link[^>]*hreflang="${l}"[^>]*href="([^"]+)"`);
+    const m = html.match(re(other)), alt = m && (m[1] || m[2]);
+    if (cards && alt && alt !== src.url) {
       try {
-        const en = new Map((parseDishCards(await (await get(alt[1])).text(), 'en') || []).map((i) => [i.extId, i.cat.en]));
-        for (const i of cards) if (en.get(i.extId)) i.cat.en = en.get(i.extId);
-      } catch { /* без английских категорий */ }
+        const altHtml = await (await get(alt)).text();
+        legends[other] = modifierLegends(altHtml);
+        for (const i of cards) for (const g of i.groups) if (legends[other][g.id]) g.name[other] = legends[other][g.id];
+        const tr = new Map((parseDishCards(altHtml, other) || []).map((i) => [i.extId, i.cat[other]]));
+        for (const i of cards) if (tr.get(i.extId)) i.cat[other] = tr.get(i.extId);
+      } catch { /* без второго языка разделов */ }
     }
-    return cards;
+    if (cards) { cards.hash = hash; return cards; }
   }
   const fm = await fromFoodmenu(src, html);
   if (fm) return fm;
