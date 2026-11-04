@@ -15,6 +15,7 @@ import { THEMES, themeOf } from './themes.mjs';
 import { ELEVEN_MODELS, elevenVoices, elevenUsage, cachedTts, synthesize } from './eleven.mjs';
 import { eventLog, thDay, restaurantReport, networkReport } from './stats.mjs';
 import { countRequest, selfStats, hostStats } from './sysinfo.mjs';
+import { DISTRICTS, DISTRICT_IDS, OUTLINE, cleanGeo, resolveMapLink } from './geo.mjs';
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -185,6 +186,10 @@ const AD_CATS = {
   courses: 'Курсы', kids: 'Детские развлечения и аквапарки', cannabis: 'Каннабис (18+)', other: 'Другое',
 };
 const blockedCats = (r) => r.blockedCats ?? ['cannabis'];
+// Где показывать рекламу: ничего не выбрано — во всех ресторанах; иначе — выбранные рестораны и все рестораны выбранных районов
+// (новый ресторан в выбранном районе попадает в показ сам)
+const adReaches = (a, r) => (!a.restaurants?.length && !a.districts?.length)
+  || (a.restaurants || []).includes(r.id) || (!!r.district && (a.districts || []).includes(r.district));
 // ИИ-персонаж: как часто появляется в карусели, сколько держится, приветствия и подбор блюд по пожеланиям
 // lines — фразы ресторана для каждого персонажа: { [id персонажа]: { greetings, recommend, dayDish } };
 // пустой список — говорит фразы из пакета персонажа
@@ -347,6 +352,7 @@ function auditText(method, p, b) {
   if ((m = p.match(/^\/api\/characters\/([^/]+)$/))) return [`Персонаж удалён: ${m[1]}`];
   if (p === '/api/eleven') return [b.key ? 'ElevenLabs: ключ изменён' : 'ElevenLabs: настройки изменены'];
   if (p === '/api/eleven/preview') return null;
+  if (p === '/api/geo/resolve') return null;
   if (p.startsWith('/api/telegram')) return [`Telegram: ${{ '/api/telegram': 'бот изменён', '/api/telegram/find': 'поиск чатов', '/api/telegram/test': 'тест', '/api/telegram/remove': 'получатель удалён' }[p] || p}`];
   return [`${method} ${p}`];
 }
@@ -642,7 +648,7 @@ function slidesFor(r, dev) {
     ...(r.menu || []).filter((i) => i.promo && i.photo && onMenu(i)).map((i) => ({ type: 'item', id: i.id, image: i.photo, title: i.name, price: i.price })),
   ];
   const ads = r.tariff === 'premium' ? [] : db.ads
-    .filter((a) => a.active && a.image && (!a.restaurants?.length || a.restaurants.includes(r.id)) && !(r.blockedAds || []).includes(a.id)
+    .filter((a) => a.active && a.image && adReaches(a, r) && !(r.blockedAds || []).includes(a.id)
       && !blockedCats(r).includes(a.cat || 'other'))
     .map((a) => ({
       type: 'ad', id: a.id, image: a.image, phone: a.phone || '', // рекламодатель и название — только для поиска в портале
@@ -744,7 +750,7 @@ async function guestState(b, q) {
   const r = d && db.restaurants[d.restaurantId];
   if (!r || (!d.table && d.role !== 'entrance')) return { unassigned: true };
   const base = {
-    restaurant: { name: r.name, langs: r.langs, address: r.address || '' },
+    restaurant: { name: r.name, langs: r.langs, address: r.address || '', district: DISTRICTS.find((x) => x.id === r.district) || null },
     build: BUILD, instance: INSTANCE, version: VERSION,
     menu: (r.menu || []).filter(onMenu), tags: r.customTags || [],
     slides: slidesFor(r, d.id),
@@ -1680,7 +1686,8 @@ const publicCta = (c) => ({ pos: c.pos, shape: c.shape, text: c.text, submit: c.
 function cleanAd(a) {
   return {
     id: a.id || uid(), advertiser: String(a.advertiser || ''), title: String(a.title || ''), image: String(a.image || ''),
-    restaurants: (a.restaurants || []).map(String), active: !!a.active, cat: AD_CATS[a.cat] ? a.cat : 'other',
+    restaurants: (a.restaurants || []).map(String), districts: (a.districts || []).map(String).filter((x) => DISTRICT_IDS.has(x)),
+    active: !!a.active, cat: AD_CATS[a.cat] ? a.cat : 'other',
     link: String(a.link || '').trim(), phone: String(a.phone || '').trim(), ...qrPlace(a), ...framing(a),
     cta: cleanCta(a.cta), leadToMe: a.leadToMe !== false, // заявки — в бот оповещений портала (по умолчанию да)
   };
@@ -1857,6 +1864,10 @@ function admin(method, p, b, me, q) {
       staff: prev.staff || [],
       promos: Array.isArray(b.promos) ? cleanPromos(b.promos) : prev.promos || [],
       tariff: b.tariff === 'premium' ? 'premium' : 'standard',
+      // где ресторан: район Пхукета, адрес, точка на карте (из ссылки Google Maps)
+      district: b.district !== undefined ? (DISTRICT_IDS.has(b.district) ? b.district : '') : prev.district || '',
+      address: b.address !== undefined ? String(b.address || '').trim().slice(0, 200) : prev.address || '',
+      geo: b.geo !== undefined ? cleanGeo(b.geo) : prev.geo || null,
       // реклама: после каждых N слайдов ресторана и какая реклама в этом ресторане не показывается
       blockedAds: Array.isArray(b.blockedAds) ? b.blockedAds.map(String) : prev.blockedAds || [],
       blockedCats: Array.isArray(b.blockedCats) ? b.blockedCats.filter((c) => AD_CATS[c]) : prev.blockedCats,
@@ -1878,6 +1889,9 @@ function admin(method, p, b, me, q) {
     save();
     return db.restaurants[id];
   }
+  // Районы и схема острова для карты; ссылка Google Maps → координаты и ближайший район
+  if (method === 'GET' && p === '/api/geo') return { districts: DISTRICTS, outline: OUTLINE };
+  if (method === 'POST' && p === '/api/geo/resolve') return resolveMapLink(b.url);
   if (method === 'GET' && p === '/api/server') {
     if (scope) throw fail(403, 'Нет доступа');
     return serverPanel();

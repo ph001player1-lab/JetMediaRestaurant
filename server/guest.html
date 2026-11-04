@@ -1302,7 +1302,7 @@ function infoArm() {
 function openInfo() {
   var r = state.restaurant || {}, ver = state.version || state.build || '';
   $('info').innerHTML = '<div class="box"><button class="x" data-iclose="1">✕</button>' +
-    '<div class="irest">' + esc(r.name || '') + '</div>' + (r.address ? '<div class="iaddr">' + esc(r.address) + '</div>' : '') +
+    '<div class="irest">' + esc(r.name || '') + '</div>' + (r.address || r.district ? '<div class="iaddr">' + esc([r.district ? (lang === 'ru' ? r.district.ru : r.district.en) : '', r.address].filter(Boolean).join(' · ')) + '</div>' : '') +
     (state.table ? '<div class="itbl">' + esc(tableName(state.table)) + '</div>' : '') +
     '<div class="itech">' + t('infoDevice') + ': <b>' + esc(D) + '</b> · ' + t('infoVersion') + ': <b>' + esc(ver) + '</b>' +
     (state.instance === 'test' ? ' · TEST' : '') + ' · <span class="' + (online ? 'on' : 'off') + '">● ' + t(online ? 'infoOnline' : 'infoOffline') + '</span></div>' +

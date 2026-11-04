@@ -105,6 +105,30 @@
   .tleg small { color: var(--dim); }
   .tdet { margin-top: 8px; font-size: 12px; color: var(--dim); line-height: 1.6; }
   .cp-foot { font-size: 12px; color: var(--dim); margin-top: 4px; }
+  /* схема Пхукета */
+  .pmap { display: block; height: auto; user-select: none; }
+  .pmap .sea { fill: #dceaf5; } .pmap .seat { fill: #9fb8cc; font: 700 9px system-ui; letter-spacing: .3em; text-anchor: middle; }
+  .pmap .land { fill: #f4ecd9; } .pmap .coast { fill: none; stroke: #b9a77f; stroke-width: 1.2; pointer-events: none; }
+  .pmap .cell { fill: transparent; stroke: #d9c9a3; stroke-width: .7; cursor: pointer; }
+  .pmap .cell:hover { fill: rgba(42,120,214,.12); } .pmap .cell.on { fill: rgba(42,120,214,.32); stroke: #2a78d6; }
+  .pmap .dl { font: 600 7.5px system-ui; fill: #6b5f45; text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: #f4ecd9; stroke-width: 2px; }
+  .pmap .dl.on { fill: #164d8f; font-weight: 800; stroke: #dbe6f3; }
+  .pmap .dot { fill: #8b93a0; stroke: #fff; stroke-width: 1.5; cursor: pointer; } .pmap .dot.on { fill: #eb6834; }
+  .pmap .dot.cur { stroke: #1a1a1a; stroke-width: 2; } .pmap .rose path { fill: #6b5f45; } .pmap .rose text { font: 800 8px system-ui; fill: #6b5f45; text-anchor: middle; }
+  .pleg { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: #666; margin-top: 6px; }
+  .pleg i { display: inline-block; width: 11px; height: 11px; margin-right: 4px; vertical-align: -1px; }
+  .pleg .sw.on { background: rgba(42,120,214,.32); border: 1px solid #2a78d6; } .pleg .dt { border-radius: 50%; background: #8b93a0; } .pleg .dt.on { background: #eb6834; }
+  .modal { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal[hidden] { display: none; }
+  .mbox { background: #fff; border-radius: 14px; width: min(980px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; overflow: hidden; }
+  .mhead, .mfoot { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #eee; } .mfoot { border: 0; border-top: 1px solid #eee; justify-content: flex-end; }
+  .mhead b { flex: 1; font-size: 16px; }
+  .tgt { display: flex; gap: 16px; padding: 12px 16px; overflow: auto; flex-wrap: wrap; }
+  .tgt-map { flex: none; width: 300px; max-width: 100%; } .tgt-list { flex: 1; min-width: 260px; }
+  .tgt-sum { position: sticky; top: 0; background: #fff8e1; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; z-index: 1; }
+  .tgd { border: 1px solid #eee; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; } .tgd.on { border-color: #2a78d6; background: #f3f7fd; }
+  .tgd small { color: #888; } .tdn { display: block; } .tr { display: block; margin-left: 22px; font-size: 14px; } .tr.in { color: #b4441b; font-weight: 600; }
+  .tr input, .tdn input { width: auto; }
   .badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: #c62828; color: #fff; font-size: 12px; line-height: 18px; text-align: center; }
   .pinw { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
   .pinw input.masked { -webkit-text-security: disc; text-security: disc; }
@@ -163,6 +187,12 @@
     <label>Название <input id="rName"></label>
     <label>Столы <input id="rTables" placeholder="1-20, VIP1"></label>
     <label>Язык по умолчанию <select id="rLang"><option value="en">EN</option><option value="th">TH</option><option value="ru">RU</option><option value="zh">ZH</option></select></label>
+    <label>Район <select id="rDistrict"></select></label>
+    <label style="flex:1;min-width:260px">Адрес <input id="rAddress" placeholder="улица, дом — гости видят в окне «О системе»"></label>
+    <label style="flex-basis:100%">Место на карте — ссылка Google Maps (необязательно)
+      <span style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><input id="rMapLink" style="flex:1;min-width:240px" placeholder="Google Maps → место → «Поделиться» → «Копировать ссылку» → вставьте сюда">
+        <button id="rMapBtn" type="button">Найти на карте</button></span><span id="rGeo" class="hint"></span></label>
+    <details style="flex-basis:100%"><summary>Схема острова — нажмите на район, чтобы выбрать его</summary><div id="rMap"></div></details>
     <label>Тариф <select id="rTariff"><option value="standard">Standard — с рекламой сети</option><option value="premium">Premium — без внешней рекламы</option></select></label>
     <label>Реклама после каждых N слайдов ресторана <input id="rAdEvery" type="number" min="1" max="10" style="width:70px"> <small class="hint">1 — каждый второй слайд</small></label>
     <details style="flex-basis:100%"><summary>Типы рекламы, которые в этом ресторане не показывать <span id="rCatsN" class="hint"></span></summary><div id="rCats" class="hint" style="columns:3 220px"></div></details>
@@ -226,7 +256,7 @@
     <span id="aCount" class="hint"></span>
   </div>
   <div class="wrap"><table>
-    <thead><tr><th>Рекламодатель</th><th>Название</th><th>Тип</th><th>Картинка 800×986</th><th>Ссылка для QR</th><th>Телефон</th><th>QR и телефон: место / размер</th><th>Кадр: режим, сдвиг ↕, масштаб</th><th>Рестораны</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
+    <thead><tr><th>Рекламодатель</th><th>Название</th><th>Тип</th><th>Картинка 800×986</th><th>Ссылка для QR</th><th>Телефон</th><th>QR и телефон: место / размер</th><th>Кадр: режим, сдвиг ↕, масштаб</th><th>Где показывать</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
     <tbody id="ads"></tbody>
   </table></div>
   <p><button id="addAdBtn">+ Реклама</button>
@@ -275,6 +305,9 @@
     <span class="hint">Последние 300 записей: изменения админов в портале и менеджеров в ЛК.</span></div>
   <div class="wrap"><table><thead><tr><th>Когда</th><th>Кто</th><th>Что</th><th>Ресторан</th></tr></thead><tbody id="audList"></tbody></table></div>
 </section>
+
+<div id="tgtModal" class="modal" hidden><div class="mbox"><div class="mhead"><b>Где показывать рекламу</b><button data-tclose="1">✕</button></div>
+  <div id="tgtBody" class="tgt"></div><div class="mfoot"><span class="hint" style="flex:1">Выбранные районы и рестораны складываются. Ничего не выбрано — во всех ресторанах.</span><button data-tclose="1">Отмена</button><button data-tok="1"><b>Готово</b></button></div></div></div>
 
 <section id="srvTab" hidden><div id="srvPanel"><p class="hint">Загрузка приборов…</p></div></section>
 
@@ -519,10 +552,11 @@ async function edit(id) {
   $('rCats').innerHTML = adCats.map((c) => `<label style="display:block"><input type="checkbox" data-bcat="${c.id}" style="width:auto" ${bc.includes(c.id) ? 'checked' : ''}> ${esc(c.name)}</label>`).join('');
   $('rCatsN').textContent = bc.length ? `— не показываются: ${bc.map(catName).join(', ')}` : '';
   $('rCats').dataset.rid = cur.id || '';
-  $('rBlocked').innerHTML = ads.filter((a) => a.id && (!a.restaurants?.length || a.restaurants.includes(cur.id))).map((a) => `<label style="display:block">
+  $('rBlocked').innerHTML = ads.filter((a) => a.id && adReachesC(a, cur)).map((a) => `<label style="display:block">
     <input type="checkbox" data-blk="${esc(a.id)}" style="width:auto" ${cur.blockedAds.includes(a.id) ? 'checked' : ''}> ${esc(a.advertiser || '')}${a.title ? ` — ${esc(a.title)}` : ''}</label>`).join('')
     || 'Рекламы для этого ресторана нет.';
   $('rBlocked').dataset.rid = cur.id || '';
+  fillRestGeo();
   $('rLang').value = (cur.langs || ['en'])[0];
   const s = cur.menuSource || { type: 'manual' };
   $('sType').value = s.type;
@@ -749,6 +783,7 @@ async function saveRestaurant(notice) {
   cur.tables = parseTables($('rTables').value);
   cur.tariff = $('rTariff').value;
   cur.adEvery = Number($('rAdEvery').value) || 2;
+  if (GEO) { cur.district = $('rDistrict').value; cur.address = $('rAddress').value.trim(); }
   // список уже показан для этого ресторана — берём отметки из него
   if ($('rBlocked').dataset.rid === (cur.id || '')) cur.blockedAds = [...document.querySelectorAll('#rBlocked [data-blk]:checked')].map((x) => x.dataset.blk);
   if ($('rCats').dataset.rid === (cur.id || '') && adCats.length) cur.blockedCats = [...document.querySelectorAll('#rCats [data-bcat]:checked')].map((x) => x.dataset.bcat);
@@ -977,6 +1012,164 @@ $('joinList').onclick = async (e) => {
   loadJoin().then(renderJoin);
 };
 
+// ---------- Пхукет: районы, схема острова, рестораны на карте; где показывать рекламу
+
+let GEO = null, geoCells = null;
+const geoData = async () => (GEO ||= await api('/api/geo'));
+const distName = (id) => GEO?.districts.find((d) => d.id === id)?.ru || '';
+// проекция: градусы → точки схемы (север вверху)
+const PX = (lon) => (lon - 98.255) * 1287.5, PY = (lat) => (8.215 - lat) * 1300;
+// Районы — ячейки «чья точка ближе» вокруг центров районов, обрезанные по контуру острова
+function districtCells() {
+  if (geoCells) return geoCells;
+  const pts = GEO.districts.map((d) => [PX(d.lon), PY(d.lat)]);
+  const clip = (poly, [px, py], [nx, ny]) => { // оставляем часть, где (X − P)·N ≤ 0
+    const out = [], side = ([x, y]) => (x - px) * nx + (y - py) * ny;
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length], sa = side(a), sb = side(b);
+      if (sa <= 0) out.push(a);
+      if ((sa < 0) !== (sb < 0) && sa !== sb) { const t = sa / (sa - sb); out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+    }
+    return out;
+  };
+  geoCells = pts.map((p, i) => {
+    let poly = [[-40, -40], [280, -40], [280, 660], [-40, 660]];
+    pts.forEach((q, j) => { if (j !== i) poly = clip(poly, [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], [q[0] - p[0], q[1] - p[1]]); });
+    return 'M' + poly.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join('L') + 'Z';
+  });
+  return geoCells;
+}
+// Точка ресторана: по координатам из ссылки Google Maps, иначе — рядом с центром района
+function restPoint(r) {
+  if (r.geo && r.geo.lat > 7.7 && r.geo.lat < 8.25 && r.geo.lon > 98.2 && r.geo.lon < 98.5) return [PX(r.geo.lon), PY(r.geo.lat)];
+  const d = GEO.districts.find((x) => x.id === r.district);
+  if (!d) return null;
+  let h = 0;
+  for (const c of r.id || r.name || '') h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const a = (h % 360) * Math.PI / 180, k = 5 + (h % 7);
+  return [PX(d.lon) + Math.cos(a) * k, PY(d.lat) + Math.sin(a) * k];
+}
+const devCount = (rid) => devices.filter((d) => d.restaurantId === rid).length;
+// o: { sel: районы, закрашенные; on: рестораны «в показе»; cur: текущий ресторан; width }
+function phuketMap(o = {}) {
+  const sel = o.sel || new Set(), on = o.on || new Set(), cells = districtCells(), list = o.list || rests;
+  const coast = 'M' + GEO.outline.map(([la, lo]) => `${PX(lo).toFixed(1)} ${PY(la).toFixed(1)}`).join('L') + 'Z';
+  const inDist = (id) => rests.filter((r) => r.district === id).length;
+  const clipId = `pmIsl${++phuketMap.n}`; // у каждой схемы своя обрезка: схема в скрытом блоке не должна мешать видимой
+  return `<svg class="pmap" viewBox="-6 -6 242 622" style="width:${o.width || 260}px" role="img" aria-label="Схема Пхукета: районы и рестораны">
+    <defs><clipPath id="${clipId}"><path d="${coast}"/></clipPath></defs>
+    <rect x="-6" y="-6" width="242" height="622" class="sea"/>
+    <text x="8" y="300" class="seat" transform="rotate(-90 8 300)">АНДАМАНСКОЕ МОРЕ</text>
+    <path d="${coast}" class="land"/>
+    <g clip-path="url(#${clipId})">${GEO.districts.map((d, i) => `<path d="${cells[i]}" class="cell ${sel.has(d.id) ? 'on' : ''}" data-dist="${d.id}"><title>${esc(d.ru)} · ресторанов: ${inDist(d.id)}</title></path>`).join('')}</g>
+    <path d="${coast}" class="coast"/>
+    ${GEO.districts.map((d) => `<text x="${PX(d.lon).toFixed(1)}" y="${(PY(d.lat) + (d.ly || -7)).toFixed(1)}" class="dl ${sel.has(d.id) ? 'on' : ''}">${esc(d.ru)}</text>`).join('')}
+    <g class="rose" transform="translate(212 22)"><path d="M0 -14 L5 4 L0 0 L-5 4 Z"/><text y="16">С</text></g>
+    ${list.map((r) => { const p = restPoint(r); return p ? `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${r.id === o.cur ? 6 : 4.5}" data-rid="${esc(r.id)}"
+      class="dot ${on.has(r.id) ? 'on' : ''} ${r.id === o.cur ? 'cur' : ''}"><title>${esc(r.name)}${r.district ? ` · ${esc(distName(r.district))}` : ''} · планшетов: ${devCount(r.id)}</title></circle>` : ''; }).join('')}
+  </svg>`;
+}
+
+phuketMap.n = 0;
+
+// Реклама «где показывать»: ничего не выбрано — во всех; иначе — выбранные рестораны + все рестораны выбранных районов
+const adReachesC = (a, r) => (!a.restaurants?.length && !a.districts?.length)
+  || (a.restaurants || []).includes(r.id) || (!!r.district && (a.districts || []).includes(r.district));
+// Где реклама реально будет на экранах: без ресторанов Premium и тех, где её или её тип скрыли
+function reachOf(a) {
+  const rs = rests.filter((r) => r.id && r.tariff !== 'premium' && adReachesC(a, r) && !(r.blockedAds || []).includes(a.id)
+    && !(r.blockedCats ?? ['cannabis']).includes(a.cat || 'other'));
+  return { rs, tabs: rs.reduce((n, r) => n + devCount(r.id), 0) };
+}
+const reachText = (a) => { const x = reachOf(a); return `${x.rs.length} ${x.rs.length === 1 ? 'ресторан' : x.rs.length > 1 && x.rs.length < 5 ? 'ресторана' : 'ресторанов'} · ${x.tabs} планш.`; };
+const targetText = (a) => (!a.restaurants?.length && !a.districts?.length) ? 'Во всех ресторанах'
+  : [(a.districts || []).length ? `районы: ${a.districts.map(distName).join(', ')}` : '', (a.restaurants || []).length ? `рестораны: ${a.restaurants.map((id) => rests.find((r) => r.id === id)?.name || '?').join(', ')}` : ''].filter(Boolean).join('; ');
+
+let tgtAd = null;
+async function openTarget(i) {
+  await geoData();
+  tgtAd = { i, districts: [...(ads[i].districts || [])], restaurants: [...(ads[i].restaurants || [])] };
+  $('tgtModal').hidden = false;
+  renderTarget();
+}
+function renderTarget() {
+  const a = { ...ads[tgtAd.i], districts: tgtAd.districts, restaurants: tgtAd.restaurants }, x = reachOf(a);
+  const byDist = (id) => rests.filter((r) => r.id && (r.district || '') === id);
+  const rRow = (r) => `<label class="tr ${x.rs.includes(r) ? 'in' : ''}"><input type="checkbox" data-trest="${esc(r.id)}" ${a.restaurants.includes(r.id) ? 'checked' : ''}>
+    ${esc(r.name)} <small>${devCount(r.id)} планш.${r.tariff === 'premium' ? ' · Premium — без рекламы' : ''}${(r.blockedAds || []).includes(a.id) ? ' · скрыл эту рекламу' : ''}${(r.blockedCats ?? ['cannabis']).includes(a.cat || 'other') ? ' · скрыл этот тип' : ''}</small></label>`;
+  $('tgtBody').innerHTML = `<div class="tgt-map">${phuketMap({ sel: new Set(a.districts), on: new Set(x.rs.map((r) => r.id)), width: 300 })}
+      <div class="hint">Нажмите на район — выбрать весь район (новые рестораны района попадут в показ сами). Нажмите на точку — выбрать ресторан.</div>
+      <div class="pleg"><span><i class="sw on"></i>выбранный район</span><span><i class="dt on"></i>в показе</span><span><i class="dt"></i>не в показе</span></div></div>
+    <div class="tgt-list">
+      <div class="tgt-sum"><b>${a.districts.length || a.restaurants.length ? 'Будет показываться' : 'Во всех ресторанах'}:</b> ${reachText(a)}
+        <button data-tall="1" ${a.districts.length || a.restaurants.length ? '' : 'disabled'}>Во всех ресторанах</button></div>
+      ${GEO.districts.map((d) => { const list = byDist(d.id); return `<div class="tgd ${a.districts.includes(d.id) ? 'on' : ''}">
+        <label class="tdn"><input type="checkbox" data-tdist="${d.id}" ${a.districts.includes(d.id) ? 'checked' : ''}> <b>${esc(d.ru)}</b> <small>ресторанов: ${list.length}</small></label>
+        ${list.map(rRow).join('')}</div>`; }).join('')}
+      ${byDist('').length ? `<div class="tgd"><div class="tdn"><b>Район не указан</b> <small>укажите в карточке ресторана</small></div>${byDist('').map(rRow).join('')}</div>` : ''}
+    </div>`;
+}
+$('tgtModal').onclick = async (e) => {
+  const bd = e.target.closest('button')?.dataset || {};
+  if (e.target.id === 'tgtModal' || bd.tclose) { $('tgtModal').hidden = true; return; }
+  const dist = e.target.closest('[data-dist]')?.dataset.dist, rid = e.target.closest('[data-rid]')?.dataset.rid;
+  const tog = (list, v) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+  if (dist) { tgtAd.districts = tog(tgtAd.districts, dist); return renderTarget(); }
+  if (rid) { tgtAd.restaurants = tog(tgtAd.restaurants, rid); return renderTarget(); }
+  if (bd.tall) { tgtAd.districts = []; tgtAd.restaurants = []; return renderTarget(); }
+  if (bd.tok) {
+    const a = ads[tgtAd.i];
+    a.districts = tgtAd.districts;
+    a.restaurants = tgtAd.restaurants;
+    $('tgtModal').hidden = true;
+    if (a.id) { const { views, scans, leads } = a; ads[tgtAd.i] = { ...(await api('/api/ads', 'POST', a)), views, scans, leads }; }
+    renderAds();
+  }
+};
+$('tgtModal').onchange = (e) => {
+  const { tdist, trest } = e.target.dataset;
+  if (tdist) tgtAd.districts = e.target.checked ? [...new Set([...tgtAd.districts, tdist])] : tgtAd.districts.filter((x) => x !== tdist);
+  if (trest) tgtAd.restaurants = e.target.checked ? [...new Set([...tgtAd.restaurants, trest])] : tgtAd.restaurants.filter((x) => x !== trest);
+  if (tdist || trest) renderTarget();
+};
+
+// Карточка ресторана: район, адрес, точка из ссылки Google Maps, схема острова (нажатие на район — выбрать его)
+function renderRestGeo() {
+  if (!GEO || !cur) return;
+  $('rGeo').innerHTML = cur.geo ? `📍 ${cur.geo.lat.toFixed(5)}, ${cur.geo.lon.toFixed(5)} <a href="https://www.google.com/maps?q=${cur.geo.lat},${cur.geo.lon}" target="_blank" rel="noopener">открыть</a> · <a href="#" data-geoclear="1">убрать</a>` : 'точка не указана — ресторан стоит на карте в центре района';
+  // на схеме — несохранённый район и точка этого ресторана
+  const show = { ...cur, id: cur.id || '_new', district: $('rDistrict').value };
+  $('rMap').innerHTML = phuketMap({ list: [...rests.filter((r) => r.id !== cur.id), show], sel: new Set(show.district ? [show.district] : []), cur: show.id, on: new Set([show.id]), width: 240 });
+}
+async function fillRestGeo() {
+  await geoData();
+  $('rDistrict').innerHTML = '<option value="">— не указан —</option>' + GEO.districts.map((d) => `<option value="${d.id}">${esc(d.ru)}</option>`).join('');
+  $('rDistrict').value = cur.district || '';
+  $('rAddress').value = cur.address || '';
+  $('rMapLink').value = '';
+  renderRestGeo();
+}
+$('rDistrict').onchange = renderRestGeo;
+$('rMap').onclick = (e) => {
+  const dist = e.target.closest('[data-dist]')?.dataset.dist;
+  if (dist) { $('rDistrict').value = dist; renderRestGeo(); }
+};
+$('rGeo').onclick = (e) => { if (e.target.dataset.geoclear) { e.preventDefault(); cur.geo = null; renderRestGeo(); } };
+async function findOnMap() {
+  const url = $('rMapLink').value.trim();
+  if (!url) return;
+  $('rMapBtn').disabled = true;
+  const r = await api('/api/geo/resolve', 'POST', { url }).catch(() => null);
+  $('rMapBtn').disabled = false;
+  if (!r?.geo) return alert('Не нашёл координаты в ссылке. В Google Maps: место → «Поделиться» → «Копировать ссылку», и вставьте сюда. Подойдут и координаты вида 7.8961, 98.2966');
+  cur.geo = r.geo;
+  if (r.district) $('rDistrict').value = r.district;
+  if (!$('rAddress').value.trim() && r.name && r.name !== cur.name) $('rAddress').placeholder = `в Google Maps: ${r.name}`;
+  renderRestGeo();
+}
+$('rMapBtn').onclick = findOnMap;
+$('rMapLink').addEventListener('paste', () => setTimeout(findOnMap, 50));
+
 // ---------- Реклама
 
 let ads = [], adCats = [];
@@ -984,6 +1177,7 @@ const catName = (id) => adCats.find((c) => c.id === id)?.name || 'Другое';
 
 async function loadAds() {
   if (!adCats.length) adCats = await api('/api/ad-cats');
+  await geoData();
   ads = await api('/api/ads');
   renderAds();
 }
@@ -1000,7 +1194,7 @@ function renderAds() {
   $('aCat').value = cf;
   const shown = ads.map((a, i) => ({ a, i })).filter(({ a }) =>
     (!q || `${a.advertiser} ${a.title}`.toLowerCase().includes(q))
-    && (!rf || !(a.restaurants || []).length || a.restaurants.includes(rf))
+    && (!rf || adReachesC(a, rests.find((r) => r.id === rf) || {}))
     && (!st || (st === 'on' ? a.active : !a.active))
     && (!cf || (a.cat || 'other') === cf));
   const sum = (k) => shown.reduce((n, { a }) => n + (a[k] || 0), 0);
@@ -1018,8 +1212,7 @@ function renderAds() {
     <td class="frame"><select data-f="fit"><option value="cover">заполнить экран</option><option value="contain" ${a.fit === 'contain' ? 'selected' : ''}>показать целиком</option></select>
       <input type="range" data-f="imgY" min="-50" max="50" value="${Number(a.imgY) || 0}" title="Сдвиг вверх / вниз">
       <input type="range" data-f="imgScale" min="50" max="200" value="${Number(a.imgScale) || 100}" title="Масштаб"></td>
-    <td class="rchk"><label><input type="checkbox" data-allrest="1" ${(a.restaurants || []).length ? '' : 'checked'}> <b>Во всех</b></label>
-      ${rests.map((r) => `<label><input type="checkbox" data-rest="${esc(r.id)}" ${(a.restaurants || []).includes(r.id) ? 'checked' : ''}> ${esc(r.name)}</label>`).join('')}</td>
+    <td style="min-width:170px"><div>${esc(targetText(a))}</div><small class="hint">${reachText(a)}</small><br><button data-tgt="${i}">📍 Где показывать</button></td>
     <td><input data-f="active" type="checkbox" ${a.active ? 'checked' : ''}></td>
     <td>${a.views ?? 0} показов<br>${a.scans ?? 0} сканов QR</td>
     <td><button data-pv="${i}">👁</button><button data-save="${i}">Сохранить</button><button data-del="${i}">✕</button></td></tr>${ctaHtml(a, i)}`).join('');
@@ -1076,13 +1269,6 @@ $('ads').oninput = $('ads').onchange = async (e) => {
     if (e.type === 'change' && e.target.files[0]) { a.image = await uploadImage(e.target.files[0], 'slide'); renderAds(); }
     return;
   }
-  // Рестораны: «Во всех» снимает выбор; выбрали конкретные — «Во всех» гаснет; сняли все — снова «Во всех»
-  if (e.type === 'change' && (e.target.dataset.rest || e.target.dataset.allrest)) {
-    if (e.target.dataset.allrest) a.restaurants = [];
-    else a.restaurants = [...e.target.closest('td').querySelectorAll('[data-rest]:checked')].map((x) => x.dataset.rest);
-    renderAds();
-    return;
-  }
   // Кнопка заявки: включение, форма, время сообщения, тексты по языкам
   const { cta, ctal } = e.target.dataset;
   if (cta || ctal) {
@@ -1104,7 +1290,8 @@ $('ads').addEventListener('toggle', (e) => {
 }, true);
 
 $('ads').onclick = async (e) => {
-  const { save, del, pv, qrpos, ctapos, tg, tgrm, leads } = e.target.dataset;
+  const { save, del, pv, qrpos, ctapos, tg, tgrm, leads, tgt } = e.target.dataset;
+  if (tgt !== undefined) return openTarget(Number(tgt));
   if (qrpos) { ads[e.target.closest('tr').dataset.i].qrPos = qrpos; renderAds(); return sendPreview(); }
   const row = e.target.closest('tr[data-i]'), a = row && ads[row.dataset.i];
   if (ctapos) { a.cta = { ...(a.cta || {}), pos: ctapos }; renderAds(); return sendPreview(); }
