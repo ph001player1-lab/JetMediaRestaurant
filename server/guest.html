@@ -256,6 +256,11 @@
   #info .send { width: 100%; border: 0; border-radius: 2vw; padding: 3vw; font-size: 4vw; font-weight: 700; background: var(--accent); color: var(--accent-ink); margin-top: 1vw; }
   #info .lerr { color: #c62828; font-size: 3.2vw; min-height: 3.6vw; }
   #info .msg { font-size: 4.4vw; text-align: center; padding: 5vw 3vw; line-height: 1.35; }
+  /* пока вводят имя или телефон: экранная клавиатура закрывает низ экрана (планшет во весь экран, страница не сжимается) —
+     окно поднимаем к верху и прячем всё, кроме формы, чтобы кнопка «Отправить» была над клавиатурой */
+  #info.typing .box, #lead.typing .box { margin-top: 2vh; }
+  #info.typing .itech, #info.typing .isys, #info.typing .iaddr { display: none; }
+  #info.typing .ijoin { margin-top: 2vw; padding-top: 2vw; }
   .porder { position: absolute; left: 50%; bottom: 4vw; -webkit-transform: translateX(-50%); transform: translateX(-50%); z-index: 2; border: 0; border-radius: 3vw;
     padding: 2.2vw 6vw; font-size: 3.4vw; font-weight: 700; background: var(--accent); color: var(--accent-ink); box-shadow: 0 1vw 3vw rgba(0,0,0,.35); white-space: nowrap; }
   .avadd { border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 1.5vw; padding: 1.5vw 2.5vw; font-size: 2.3vw; font-weight: 600; }
@@ -1266,8 +1271,8 @@ function openLead(adId) {
   leadAd = s;
   holdUntil = Date.now() + 120000; // пока заполняют форму, показ не листается
   $('lead').innerHTML = '<div class="box"><button class="x" data-lclose="1">✕</button><b>' + esc(tr(s.cta.text)) + '</b>' +
-    '<input id="leadName" placeholder="' + esc(t('leadName')) + '" autocomplete="name">' +
-    '<input id="leadPhone" type="tel" placeholder="' + esc(t('leadPhone')) + '" autocomplete="tel">' +
+    '<input id="leadName" placeholder="' + esc(t('leadName')) + '" autocomplete="name" enterkeyhint="next">' +
+    '<input id="leadPhone" type="tel" placeholder="' + esc(t('leadPhone')) + '" autocomplete="tel" enterkeyhint="send">' +
     '<p class="lerr" id="leadErr"></p><button class="send" data-lsend="1">' + esc(tr(s.cta.submit)) + '</button></div>';
   $('lead').className = 'show';
 }
@@ -1284,6 +1289,7 @@ function sendLead() {
   if (!/^[+\d][\d\s()-]{4,}$/.test(phone)) { $('leadErr').textContent = t('leadBad'); return; }
   post('/api/guest/lead', { ad: leadAd.id, name: $('leadName').value.trim(), phone: phone }).then(function (r) {
     if (r && r.error) { $('leadErr').textContent = t('leadBad'); return; }
+    if (document.activeElement) document.activeElement.blur();
     $('lead').innerHTML = '<div class="box"><button class="x" data-lclose="1">✕</button><div class="msg">' + esc(tr(c.done)) + '</div></div>';
     holdUntil = Date.now() + (c.doneSec || 10) * 1000 + 8000;
     leadTimer = setTimeout(closeLead, (c.doneSec || 10) * 1000);
@@ -1308,8 +1314,8 @@ function openInfo() {
     (state.instance === 'test' ? ' · TEST' : '') + ' · <span class="' + (online ? 'on' : 'off') + '">● ' + t(online ? 'infoOnline' : 'infoOffline') + '</span></div>' +
     '<div class="isys"><div class="iqr">' + qrSvg('https://jetmedia.dev') + '</div><div><b>' + t('infoSys') + '</b><div class="isite">jetmedia.dev</div></div></div>' +
     '<div class="ijoin" id="iJoin"><b>' + t('infoJoin') + '</b><small>' + t('infoJoinHint') + '</small>' +
-    '<input id="iName" placeholder="' + esc(t('leadName')) + '" autocomplete="off" maxlength="60">' +
-    '<input id="iPhone" type="tel" inputmode="tel" placeholder="' + esc(t('leadPhone')) + '" autocomplete="off" maxlength="25">' +
+    '<input id="iName" placeholder="' + esc(t('leadName')) + '" autocomplete="off" maxlength="60" enterkeyhint="next">' +
+    '<input id="iPhone" type="tel" inputmode="tel" placeholder="' + esc(t('leadPhone')) + '" autocomplete="off" maxlength="25" enterkeyhint="send">' +
     '<div class="lerr" id="iErr"></div><button class="send" data-isend="1">' + t('infoSend') + '</button></div></div>';
   $('info').className = 'show';
   infoArm();
@@ -1324,12 +1330,34 @@ function sendInfo() {
   if (!/^[+\d][\d\s()-]{4,}$/.test(phone)) { $('iErr').textContent = t('leadBad'); return; }
   post('/api/guest/join-request', { name: $('iName').value.trim(), phone: phone }).then(function (r) {
     if (r && r.error) { $('iErr').textContent = r.error === 'too many' ? t('offline') : t('leadBad'); return; }
+    if (document.activeElement) document.activeElement.blur(); // убрать клавиатуру
+    $('info').classList.remove('typing');
     $('iJoin').innerHTML = '<div class="msg">' + t('infoThanks') + '</div>';
     clearTimeout(infoTimer);
     infoTimer = setTimeout(closeInfo, 8000);
   }).catch(function () { $('iErr').textContent = t('offline'); });
 }
 $('info').addEventListener('input', infoArm);
+// мимо окна — закрыть, но только если и касание началось мимо окна: при фокусе в поле окно поднимается под пальцем
+var infoBg = false;
+$('info').addEventListener('pointerdown', function (e) { infoBg = e.target === $('info'); });
+// Экранная клавиатура: поле в фокусе — окно наверху и компактное; ушли из полей — как было.
+// Синяя кнопка клавиатуры: в имени — к телефону, в телефоне — отправить
+['info', 'lead'].forEach(function (id) {
+  var box = $(id);
+  box.addEventListener('focusin', function (e) { if (e.target.tagName === 'INPUT') box.classList.add('typing'); });
+  box.addEventListener('focusout', function () {
+    setTimeout(function () { var a = document.activeElement; if (!a || a.tagName !== 'INPUT' || !box.contains(a)) box.classList.remove('typing'); }, 150);
+  });
+  box.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.keyCode !== 13) return;
+    var el = e.target;
+    if (el.id === 'iName') { e.preventDefault(); $('iPhone').focus(); }
+    else if (el.id === 'iPhone') { e.preventDefault(); sendInfo(); }
+    else if (el.id === 'leadName') { e.preventDefault(); $('leadPhone').focus(); }
+    else if (el.id === 'leadPhone') { e.preventDefault(); sendLead(); }
+  });
+});
 
 // «Заказать» на слайде акции: строка акции — в корзину, сразу показываем корзину
 function promoOrder(id) {
@@ -1473,7 +1501,7 @@ document.addEventListener('click', function (e) {
   // «О системе» (нажатие на номер стола на планшете)
   if (e.target.closest('#info')) {
     var ib = e.target.closest('button');
-    if (e.target.id === 'info' || (ib && ib.dataset.iclose)) closeInfo();
+    if ((e.target.id === 'info' && infoBg) || (ib && ib.dataset.iclose)) closeInfo();
     else if (ib && ib.dataset.isend) sendInfo();
     else infoArm();
     return;
