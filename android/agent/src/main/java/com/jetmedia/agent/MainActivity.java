@@ -67,7 +67,7 @@ import java.util.concurrent.Executors;
 /**
  * Киоск: блокирует планшет (если агент — владелец устройства) и показывает веб-страницу.
  * Конфиг приходит от provision.ps1: am start ... --es config <base64 JSON>.
- * Сервисное меню: 7 быстрых касаний в левом верхнем углу → PIN.
+ * Сервисное меню: 7 быстрых касаний в самом левом верхнем углу (квадрат 36 dp) → PIN.
  */
 public class MainActivity extends Activity {
     private static final String[] RESTRICTIONS = {
@@ -149,7 +149,9 @@ public class MainActivity extends Activity {
         corner.setOnClickListener(v -> onCornerTap());
         FrameLayout root = new FrameLayout(this);
         root.addView(web);
-        root.addView(corner, new FrameLayout.LayoutParams(120, 120, Gravity.TOP | Gravity.START));
+        // Маленький квадрат в самом углу: рядом, у края экрана, — кнопка стола («О системе»), касания по ней не перехватываем
+        int cornerPx = Math.round(36 * getResources().getDisplayMetrics().density);
+        root.addView(corner, new FrameLayout.LayoutParams(cornerPx, cornerPx, Gravity.TOP | Gravity.START));
         setContentView(root);
 
         if (isOwner()) applyPolicies();
