@@ -933,7 +933,10 @@ function cancelCall(type) {
 
 // ---------- Карусель акций, рекламы и ИИ-персонажа
 
-function slides() { return (state && state.slides) || []; }
+// Слайды на языке гостя: акция, у которой на этом языке снята галочка «показывать», пропускается
+function slides() {
+  return ((state && state.slides) || []).filter(function (x) { return !(x.off && x.off.indexOf(lang) >= 0); });
+}
 function width() { return $('attract').clientWidth; }
 
 // Смена слайдов из настроек менеджера («Дизайн»): направление и длительность.

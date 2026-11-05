@@ -286,7 +286,7 @@ function allowed(a, method, p) {
   if (p.startsWith('/api/admins')) return false;
   if (a.role === 'viewer') return method === 'GET' && (p === '/api/stats' || p === '/api/restaurants');
   if (!scopeOf(a)) return true;
-  return /^\/api\/(devices|restaurants|stats)(\/|$)/.test(p);
+  return /^\/api\/(devices|restaurants|stats|crm)(\/|$)/.test(p);
 }
 
 // Журнал изменений: кто, когда, что (админы портала и менеджеры ресторанов)
@@ -333,10 +333,17 @@ function auditText(method, p, b) {
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/assign$/))) return [`Устройство ${dev(m[1])} → ${db.restaurants[b.restaurantId]?.name || 'не привязано'}${b.table ? ` · ${b.table}` : ''}`, b.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)$/))) return [`Устройство удалено: ${dev(m[1])}`];
   if (p === '/api/uploads/replace') return ['Картинка пережата и заменена'];
+  if (p === '/api/crm/clients') return [`CRM: клиент сохранён — ${b.name || db.restaurants[b.rid]?.name || ''}`, b.rid || undefined];
+  if (p === '/api/crm/pricing') return ['CRM: прайс изменён'];
+  if ((m = p.match(/^\/api\/crm\/clients\/([^/]+)(\/paid|\/unpay)?$/))) {
+    const c = db.clients.find((x) => x.id === m[1]);
+    return [`CRM: ${c?.name || m[1]} — ${m[2] === '/paid' ? `оплата${b.amount !== undefined ? ` ${b.amount} ฿` : ''}` : m[2] === '/unpay' ? 'оплата отменена' : 'клиент удалён'}`, c?.rid || undefined];
+  }
   if ((m = p.match(/^\/api\/join-requests\/([^/]+)$/))) {
     const jr = db.joinReqs.find((x) => x.id === m[1]);
     return [`Заявка на подключение ${jr ? `${jr.name || ''} ${jr.phone}` : m[1]}: ${b.done === undefined ? 'удалена' : b.done ? 'обработана' : 'снова новая'}`];
   }
+  if (p === '/api/devices/_wifi') return [`Планшеты: чужие открытые Wi-Fi при потере связи — ${b.allowOpen ? 'разрешены' : 'запрещены'}`];
   if (p === '/api/devices/_channel') return [`${b.channel === 'test' ? 'На тестовую версию' : 'На рабочую версию'}: ${b.restaurantId ? db.restaurants[b.restaurantId]?.name || '' : 'вся сеть'}`, b.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/channel$/))) return [`Устройство ${dev(m[1])} → ${b.channel === 'test' ? 'тестовая' : 'рабочая'} версия`, db.devices[dev(m[1])]?.restaurantId];
   if ((m = p.match(/^\/api\/pending\/([^/]+)\/approve$/))) return [`Новое устройство добавлено: ${dev(m[1])}`];
@@ -415,7 +422,7 @@ function adminsApi(method, p, b, me) {
   if (a.role === 'super' && (role !== 'super' || b.disabled) && !supers(a.id)) throw fail(400, 'Нужен хотя бы один суперадмин');
   const was = a.email ? `${a.email} (${a.role}${a.disabled ? ', отключён' : ''})` : '';
   Object.assign(a, {
-    email, name: String(b.name || '').slice(0, 60), role, disabled: !!b.disabled,
+    email, name: String(b.name || '').slice(0, 60), role, disabled: !!b.disabled, crm: role === 'admin' && !!b.crm,
     restaurants: role === 'super' ? [] : (Array.isArray(b.restaurants) ? b.restaurants : []).filter((id) => db.restaurants[id]),
   }, pass ? hashPass(pass) : {});
   if (a.disabled || pass) for (const [k, s] of Object.entries(db.adminSessions)) if (s.adminId === a.id && a.id !== me.id) delete db.adminSessions[k];
@@ -485,13 +492,23 @@ function devicePoll(b, q, req) {
     tgAlert(`⚠️ ${deviceName(d)}: ${text}`);
     if (d.restaurantId) logEvent(d.restaurantId, 'dev_crash', { dev: d.id });
   }
+  // журнал смен Wi-Fi от агента (0.1.13+): «сеть X → Y, причина» — показываем в портале, в Telegram не шлём
+  for (const n of (Array.isArray(b.netlog) ? b.netlog : []).slice(-20)) {
+    const at = Number(n.at) || Date.now();
+    if ((d.netlog || []).some((x) => x.at === at)) continue;
+    d.netlog = [{ at, from: String(n.from || '').slice(0, 64), to: String(n.to || '').slice(0, 64), why: String(n.why || '').slice(0, 160) },
+      ...(d.netlog || [])].sort((x, y) => y.at - x.at).slice(0, 30);
+  }
   d.telemetry = b.telemetry || {};
   d.lastSeen = Date.now();
   d.ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   const commands = d.queue.splice(0);
   save();
-  // PIN сервисного меню (если меняли в админке): агент хранит у себя и сверяет введённый
-  return db.servicePin ? { commands, pin: { salt: db.servicePin.salt, hash: db.servicePin.hash } } : { commands };
+  // PIN сервисного меню (если меняли в админке): агент хранит у себя и сверяет введённый.
+  // allowOpenWifi — можно ли при потере связи подключаться к чужим открытым сетям (по умолчанию нет)
+  const out = { commands, allowOpenWifi: !!db.allowOpenWifi };
+  if (db.servicePin) out.pin = { salt: db.servicePin.salt, hash: db.servicePin.hash };
+  return out;
 }
 
 // Сторож агента не смог поднять приложение — сообщает отдельно (не чаще раза в 10 минут)
@@ -666,7 +683,7 @@ function guestJoin(b) {
 function slidesFor(r, dev) {
   const own = [
     ...(r.promos || []).filter((p) => p.active && p.image).map((p) => ({
-      type: 'promo', id: p.id, image: p.image, images: p.images || {}, phone: p.phone || '', // текст акции — на самой картинке
+      type: 'promo', id: p.id, image: p.image, images: p.images || {}, phone: p.phone || '', off: p.langOff || [], // текст акции — на самой картинке
       // кнопка на слайде: «Заказать · цена» или «Заказать по акции» (строка меню создаётся сама)
       order: promoMode(p) !== 'none' && (r.menu || []).some((i) => i.id === `promo-${p.id}` && onMenu(i)) ? `promo-${p.id}` : '',
       price: promoMode(p) === 'price' ? p.price : 0,
@@ -1522,6 +1539,164 @@ async function upload(req) {
   return { url: storeFile(Buffer.concat(chunks), ext) };
 }
 
+// ---------- CRM: клиенты по ресторанам, договоры, тарифы, платежи. Напоминания о платежах — в бот оповещений портала.
+// Цена — как в прайсе jetmedia.dev: софт за ресторан + аренда каждого устройства, по сезонам (высокий — ноябрь–март),
+// Premium дороже в premium раз; подключение — разово. Даты — строки ГГГГ-ММ-ДД по времени Бангкока
+db.clients ??= [];
+db.pricing ??= { low: { software: 1600, device: 240 }, high: { software: 3900, device: 590 }, premium: 2, setupFee: 5000 };
+const CRM_STATUS = ['lead', 'test', 'active', 'paused', 'gone'];
+const PERIODS = { month: 1, quarter: 3, year: 12 };
+const crmAccess = (me) => me.role === 'super' || (me.role === 'admin' && !!me.crm);
+const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+const todayBkk = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+const dayNum = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 864e5;
+const daysTo = (s) => (isDate(s) ? dayNum(s) - dayNum(todayBkk()) : null);
+function addMonths(s, n) {
+  const y = +s.slice(0, 4), m = +s.slice(5, 7) - 1 + n, d = +s.slice(8, 10);
+  const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(y, m, Math.min(d, last))).toISOString().slice(0, 10);
+}
+const highSeason = (s) => { const m = +s.slice(5, 7); return m >= 11 || m <= 3; };
+// устройства клиента: вручную или все планшеты его ресторана
+const autoDevices = (c) => (c.rid ? Object.values(db.devices).filter((d) => d.restaurantId === c.rid && (d.table || d.role === 'entrance')).length : 0);
+const clientDevices = (c) => (c.devicesManual >= 0 && c.devicesManual !== null && c.devicesManual !== '' ? Number(c.devicesManual) : autoDevices(c));
+function monthPrice(c, s) {
+  if (c.customMonthly > 0) return c.customMonthly + (c.extra || 0);
+  const pr = db.pricing, season = highSeason(s) ? pr.high : pr.low, k = c.tariff === 'premium' ? pr.premium : 1;
+  return Math.round((season.software + season.device * clientDevices(c)) * k) + (c.extra || 0);
+}
+function periodAmount(c, due) {
+  let sum = 0;
+  for (let i = 0; i < PERIODS[c.period || 'month']; i++) sum += monthPrice(c, addMonths(due, i));
+  return sum;
+}
+const visibleClients = (me) => {
+  const scope = scopeOf(me);
+  return db.clients.filter((c) => !scope || scope.has(c.rid));
+};
+function publicClient(c) {
+  const due = c.nextDue;
+  return {
+    ...c, rest: db.restaurants[c.rid]?.name || '', devices: clientDevices(c), devicesAuto: autoDevices(c),
+    monthNow: monthPrice(c, todayBkk()), amount: isDate(due) ? periodAmount(c, due) : 0, days: daysTo(due),
+    contractDays: daysTo(c.contract?.until),
+  };
+}
+function cleanClient(b, prev = {}) {
+  const str = (v, n = 120) => String(v ?? '').trim().slice(0, n);
+  const num = (v) => (v === '' || v === null || v === undefined ? null : Math.max(0, Math.round(Number(v)) || 0));
+  const ct = b.contact || {}, k = b.contract || {}, su = b.setup || {};
+  return {
+    ...prev, id: prev.id || uid(), at: prev.at || Date.now(),
+    rid: db.restaurants[b.rid] ? b.rid : '', name: str(b.name) || db.restaurants[b.rid]?.name || 'Клиент',
+    status: CRM_STATUS.includes(b.status) ? b.status : 'lead', legal: str(b.legal, 200),
+    contact: { name: str(ct.name), phone: str(ct.phone, 40), tg: str(ct.tg, 60), email: str(ct.email) },
+    contract: { no: str(k.no, 60), date: isDate(k.date) ? k.date : '', until: isDate(k.until) ? k.until : '', file: /^[a-f0-9]{20}\.(pdf|jpg|png|webp)$/.test(k.file || '') ? k.file : '', fileName: str(k.fileName) },
+    tariff: b.tariff === 'premium' ? 'premium' : 'standard', period: PERIODS[b.period] ? b.period : 'month',
+    devicesManual: num(b.devicesManual), extra: num(b.extra) || 0, customMonthly: num(b.customMonthly) || 0,
+    setup: { amount: num(su.amount) ?? db.pricing.setupFee, paid: !!su.paid, date: isDate(su.date) ? su.date : '' },
+    nextDue: isDate(b.nextDue) ? b.nextDue : '', notes: str(b.notes, 3000), payments: prev.payments || [],
+  };
+}
+function crmApi(method, p, b, me) {
+  if (!crmAccess(me)) throw fail(403, 'Нет доступа к CRM');
+  const scope = scopeOf(me);
+  const own = (c) => c && (!scope || scope.has(c.rid));
+  if (method === 'GET' && p === '/api/crm') {
+    return { clients: visibleClients(me).map(publicClient), pricing: db.pricing, canPricing: me.role === 'super', today: todayBkk() };
+  }
+  if (method === 'POST' && p === '/api/crm/pricing') {
+    if (me.role !== 'super') throw fail(403, 'Прайс меняет суперадмин');
+    const n = (v, d) => Math.max(0, Math.round(Number(v)) || d);
+    db.pricing = {
+      low: { software: n(b.low?.software, 1600), device: n(b.low?.device, 240) }, high: { software: n(b.high?.software, 3900), device: n(b.high?.device, 590) },
+      premium: Math.max(1, Number(b.premium) || 2), setupFee: n(b.setupFee, 5000),
+    };
+    save();
+    return db.pricing;
+  }
+  if (method === 'POST' && p === '/api/crm/clients') {
+    const prev = b.id ? db.clients.find((c) => c.id === b.id) : null;
+    if (b.id && !own(prev)) throw fail(404, 'Клиент не найден');
+    if (scope && !scope.has(b.rid)) throw fail(403, 'Нет доступа к этому ресторану');
+    const c = cleanClient(b, prev || {});
+    if (prev) Object.assign(prev, c); else db.clients.push(c);
+    save();
+    return publicClient(prev || c);
+  }
+  const m = p.match(/^\/api\/crm\/clients\/([^/]+)(\/paid|\/unpay)?$/);
+  const c = m && db.clients.find((x) => x.id === m[1]);
+  if (!own(c)) throw fail(404, 'Клиент не найден');
+  if (method === 'DELETE' && !m[2]) { db.clients = db.clients.filter((x) => x !== c); save(); return {}; }
+  // «Оплачено»: платёж в историю, следующая дата — через период
+  if (method === 'POST' && m[2] === '/paid') {
+    const due = isDate(c.nextDue) ? c.nextDue : todayBkk();
+    const amount = b.amount !== undefined ? Math.max(0, Math.round(Number(b.amount)) || 0) : periodAmount(c, due);
+    c.payments = [{ at: Date.now(), date: isDate(b.date) ? b.date : todayBkk(), due, amount, period: c.period, note: String(b.note || '').slice(0, 200), by: me.email }, ...(c.payments || [])].slice(0, 200);
+    c.nextDue = addMonths(due, PERIODS[c.period || 'month']);
+    save();
+    return publicClient(c);
+  }
+  if (method === 'POST' && m[2] === '/unpay') {
+    const last = (c.payments || [])[0];
+    if (!last) throw fail(400, 'Платежей нет');
+    c.payments = c.payments.slice(1);
+    c.nextDue = last.due;
+    save();
+    return publicClient(c);
+  }
+  throw fail(404, 'not found');
+}
+// Файл договора (PDF или фото): хранится отдельно от общих загрузок и отдаётся только тем, у кого есть доступ к CRM
+const CRM_DIR = path.join(DATA_DIR, 'crm');
+const CRM_TYPES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+async function crmUpload(req, me) {
+  if (!me || !crmAccess(me)) throw fail(403, 'Нет доступа к CRM');
+  const ext = CRM_TYPES[String(req.headers['content-type'] || '').split(';')[0]];
+  if (!ext) throw fail(400, 'Только PDF, JPG, PNG или WEBP');
+  const chunks = [];
+  let size = 0;
+  for await (const ch of req) { size += ch.length; if (size > 20 * 1024 * 1024) throw fail(413, 'Файл больше 20 МБ'); chunks.push(ch); }
+  const data = Buffer.concat(chunks), name = `${crypto.createHash('sha1').update(data).digest('hex').slice(0, 20)}.${ext}`;
+  fs.mkdirSync(CRM_DIR, { recursive: true });
+  fs.writeFileSync(path.join(CRM_DIR, name), data);
+  return { file: name };
+}
+
+// Напоминания — только вам, в бот оповещений портала: за 7, 3, 1 день до платежа, в день платежа и каждый день просрочки;
+// договор заканчивается — за 30 и 7 дней; по понедельникам — сводка на неделю. Не раньше 9:00 по Бангкоку, раз в день
+const baht = (n) => `${Math.round(n || 0).toLocaleString('ru-RU')} ฿`;
+const ruDate = (s) => (isDate(s) ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : '—');
+const PERIOD_RU = { month: 'месяц', quarter: 'квартал', year: 'год' };
+function crmRemind() {
+  if (INSTANCE === 'test' || !db.telegram?.token) return;
+  const now = new Date(Date.now() + 7 * 3600e3), today = todayBkk();
+  if (now.getUTCHours() < 9) return;
+  const lines = [];
+  for (const c of db.clients) {
+    if (c.status !== 'active' || c.remindDay === today) continue;
+    const pc = publicClient(c), d = pc.days, what = `${c.name}: ${baht(pc.amount)} за ${PERIOD_RU[c.period || 'month']} (${c.tariff === 'premium' ? 'Premium' : 'Standard'}, устройств: ${pc.devices})`;
+    if (d !== null && d < 0) lines.push(`🔴 Просрочен платёж ${-d} дн. — ${ruDate(c.nextDue)}\n${what}`);
+    else if (d === 0) lines.push(`🟠 Сегодня платёж — ${what}`);
+    else if ([1, 3, 7].includes(d)) lines.push(`💳 Через ${d} дн. платёж (${ruDate(c.nextDue)}) — ${what}`);
+    const cd = pc.contractDays;
+    if ([30, 7].includes(cd)) lines.push(`📄 ${c.name}: договор${c.contract.no ? ` № ${c.contract.no}` : ''} заканчивается через ${cd} дн. (${ruDate(c.contract.until)})`);
+    c.remindDay = today;
+  }
+  if (now.getUTCDay() === 1 && db.crmWeekly !== today) {
+    db.crmWeekly = today;
+    const week = db.clients.filter((c) => c.status === 'active' && daysTo(c.nextDue) !== null && daysTo(c.nextDue) <= 7)
+      .map((c) => { const pc = publicClient(c); return `• ${c.name} — ${ruDate(c.nextDue)}${pc.days < 0 ? ' (просрочен)' : ''}, ${baht(pc.amount)}`; });
+    const month = db.clients.filter((c) => c.status === 'active').reduce((n, c) => n + monthPrice(c, today), 0);
+    lines.push(`📊 Сводка на неделю: ${week.length ? `\n${week.join('\n')}` : 'платежей на этой неделе нет'}\nАктивные клиенты в месяц сейчас: ${baht(month)}`);
+  }
+  if (!lines.length) return;
+  save();
+  tgSend(db.telegram, `JET MEDIA · CRM\n\n${lines.join('\n\n')}`);
+}
+setTimeout(crmRemind, 60_000).unref();
+setInterval(crmRemind, 30 * 60_000).unref();
+
 // ---------- Администратор
 
 // Меню из ЛК или портала. При синхронизации с источником блюда меняются там: здесь — только ★ блюдо дня,
@@ -1640,6 +1815,8 @@ function cleanPromos(list) {
   const imagesOf = (p) => Object.fromEntries(['ru', 'en', 'th', 'zh'].map((l) => [l, String(p.images?.[l] || '')]).filter(([, v]) => v));
   return list.filter((p) => p && (p.image || Object.keys(imagesOf(p)).length)).map((p) => ({
     id: p.id || uid(), images: imagesOf(p), name: promoName(p, old).trim().slice(0, 80), active: !!p.active,
+    // языки, на которых акцию не показывать (галочка «показывать» снята у картинки языка)
+    langOff: [...new Set((Array.isArray(p.langOff) ? p.langOff : []).filter((l) => ['ru', 'en', 'th', 'zh'].includes(l)))],
     image: String(p.image || Object.values(imagesOf(p))[0]),
     price: Math.max(0, Math.round(Number(p.price)) || 0),
     orderMode: ['price', 'free', 'none'].includes(p.orderMode) ? p.orderMode : p.price > 0 ? 'price' : 'free',
@@ -1854,6 +2031,7 @@ function admin(method, p, b, me, q) {
     return {};
   }
   if (p.startsWith('/api/admins')) return adminsApi(method, p, b, me);
+  if (p.startsWith('/api/crm')) return crmApi(method, p, b, me);
   if (method === 'GET' && p === '/api/audit') return readAudit(q, scope);
   // Статистика: сеть (все доступные рестораны) и, если выбран ресторан, его подробный отчёт
   if (method === 'GET' && p === '/api/stats') {
@@ -1882,6 +2060,11 @@ function admin(method, p, b, me, q) {
       save();
       return {};
     }
+  }
+  if (p === '/api/devices/_wifi') {
+    if (scope) throw fail(403, 'Нет доступа');
+    if (method === 'POST') { db.allowOpenWifi = !!b.allowOpen; save(); }
+    return { allowOpen: !!db.allowOpenWifi };
   }
   if (method === 'GET' && p === '/api/devices') {
     const list = () => {
@@ -2406,6 +2589,16 @@ const server = http.createServer(async (req, res) => {
       if (!target) return send(res, 404, { error: 'link not found' });
       res.writeHead(302, { location: target });
       return res.end();
+    }
+    // CRM: файл договора — загрузка и выдача только с доступом к CRM
+    if (req.method === 'POST' && url.pathname === '/api/crm/upload') return send(res, 200, await crmUpload(req, currentAdmin(req)));
+    const cf = req.method === 'GET' && url.pathname.match(/^\/api\/crm\/file\/([a-f0-9]{20}\.(pdf|jpg|png|webp))$/);
+    if (cf) {
+      const me = currentAdmin(req), f = path.join(CRM_DIR, cf[1]);
+      if (!me || !crmAccess(me)) return send(res, 403, { error: 'Нет доступа к CRM' });
+      if (!fs.existsSync(f)) return send(res, 404, { error: 'not found' });
+      res.writeHead(200, { 'content-type': cf[2] === 'pdf' ? 'application/pdf' : MIME[cf[2]] || 'image/jpeg', 'cache-control': 'private, no-store', 'content-security-policy': "script-src 'none'" });
+      return fs.createReadStream(f).pipe(res);
     }
     if (req.method === 'POST' && url.pathname === '/api/upload') {
       const token = req.headers['x-staff-token'];

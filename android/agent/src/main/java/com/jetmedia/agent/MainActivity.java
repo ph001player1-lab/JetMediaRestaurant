@@ -84,7 +84,7 @@ public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Runnable retryLoad = this::load;
-    private long offlineSince, lastPreferCheck;
+    private long lastServerOk = System.currentTimeMillis(), lastWifiTry, lastPreferCheck;
     private boolean showingOffline, resumed, ttsReady;
     private TextToSpeech tts;
     private DevicePolicyManager dpm;
@@ -395,8 +395,16 @@ public class MainActivity extends Activity {
                     // какой PIN сервисного меню у планшета (первые 8 знаков отпечатка) — портал показывает, кто уже получил новый
                     .put("pin", prefs.getString("pinHash", "").length() >= 8 ? prefs.getString("pinHash", "").substring(0, 8) : "");
             String events = prefs.getString("events", "[]");
+            // смена сети, которую сделал сам Android (не агент), — тоже в журнал
+            String ssidNow = t.optString("wifi", "");
+            String ssidWas = prefs.getString("lastSsid", "");
+            if (!ssidNow.isEmpty() && !ssidNow.equals(ssidWas)) {
+                if (!ssidWas.isEmpty()) netLog(ssidWas, ssidNow, "переключился сам Android");
+                prefs.edit().putString("lastSsid", ssidNow).apply();
+            }
+            String netlog = prefs.getString("netlog", "[]");
             JSONObject body = new JSONObject().put("id", deviceId()).put("key", prefs.getString("enroll", ""))
-                    .put("telemetry", t).put("events", new JSONArray(events));
+                    .put("telemetry", t).put("events", new JSONArray(events)).put("netlog", new JSONArray(netlog));
 
             HttpURLConnection c = (HttpURLConnection) new URL(server() + "/api/device/poll").openConnection();
             c.setConnectTimeout(10000);
@@ -405,6 +413,10 @@ public class MainActivity extends Activity {
             c.setRequestProperty("Content-Type", "application/json");
             c.getOutputStream().write(body.toString().getBytes(StandardCharsets.UTF_8));
             JSONObject resp = new JSONObject(read(c.getInputStream()));
+            lastServerOk = System.currentTimeMillis(); // сервер ответил — связь есть, что бы ни думал Android
+            if (netlog.equals(prefs.getString("netlog", "[]"))) prefs.edit().remove("netlog").apply();
+            // разрешены ли чужие открытые сети как запасные (включается в админке, по умолчанию — нет)
+            prefs.edit().putBoolean("allowOpen", resp.optBoolean("allowOpenWifi", false)).apply();
             JSONArray commands = resp.optJSONArray("commands");
             // PIN сервисного меню из админки: храним только отпечаток sha256(соль + PIN)
             JSONObject pin = resp.optJSONObject("pin");
@@ -425,25 +437,22 @@ public class MainActivity extends Activity {
         return (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
     }
 
-    // Интернета нет дольше минуты — подключаемся к сохранённой сети, а если её не видно — к самой сильной открытой.
-    // Владельцу устройства Android разрешает управлять Wi-Fi напрямую.
+    // Связь пропала = наш сервер не отвечает 3 минуты подряд (отметка Android «нет интернета» не в счёт: у раздачи
+    // с телефона она снимается на короткие провалы). Тогда — другая СОХРАНЁННАЯ сеть; чужая открытая — только если
+    // разрешено в админке. Сеть, на которой стоит планшет, не удаляем и не отключаем; каждую смену пишем в журнал.
+    private static final long OFFLINE_MS = 3 * 60_000;
+
     private void checkWifi() {
         try {
             preferSavedWifi();
-            ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-            NetworkCapabilities caps = cm.getNetworkCapabilities(cm.getActiveNetwork());
-            if (caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
-                offlineSince = 0;
-                return;
-            }
             long now = System.currentTimeMillis();
-            if (offlineSince == 0) offlineSince = now;
-            if (now - offlineSince < 60000 || !isOwner()) return;
-            offlineSince = now; // следующая попытка — через минуту
+            if (now - lastServerOk < OFFLINE_MS || now - lastWifiTry < OFFLINE_MS || !isOwner()) return;
+            lastWifiTry = now; // следующая попытка — не раньше чем через 3 минуты
 
             WifiManager wifi = wifi();
             if (!wifi.isWifiEnabled()) {
                 wifi.setWifiEnabled(true);
+                netLog("", "", "Wi-Fi был выключен — включил");
                 return;
             }
             wifi.startScan();
@@ -454,7 +463,7 @@ public class MainActivity extends Activity {
             for (ScanResult s : wifi.getScanResults()) {
                 if (s.SSID == null || s.SSID.isEmpty()) continue;
                 String quoted = "\"" + s.SSID + "\"";
-                if (quoted.equals(current)) continue; // текущая сеть без интернета — ищем другую
+                if (quoted.equals(current)) continue; // текущая сеть без связи с сервером — ищем другую
                 for (WifiConfiguration c : saved) {
                     if (quoted.equals(c.SSID) && (bestSaved == null || s.level > bestSaved.level)) {
                         bestSaved = s;
@@ -464,14 +473,23 @@ public class MainActivity extends Activity {
                 boolean open = !s.capabilities.matches(".*(WEP|PSK|EAP|SAE|OWE).*");
                 if (open && (bestOpen == null || s.level > bestOpen.level)) bestOpen = s;
             }
+            String from = current == null ? "" : current.replace("\"", "");
+            String why = "нет связи с сервером " + (now - lastServerOk) / 60_000 + " мин";
             if (bestSaved != null) {
-                wifi.enableNetwork(savedId, true);
-            } else if (bestOpen != null) {
+                wifi.enableNetwork(savedId, false); // false — остальные сети не отключаем, Android может вернуться сам
+                netLog(from, bestSaved.SSID, why + " → сохранённая сеть");
+            } else if (bestOpen != null && prefs.getBoolean("allowOpen", false)) {
                 WifiConfiguration c = new WifiConfiguration();
                 c.SSID = "\"" + bestOpen.SSID + "\"";
                 c.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
                 int id = wifi.addNetwork(c);
-                if (id != -1) wifi.enableNetwork(id, true);
+                if (id != -1) {
+                    wifi.enableNetwork(id, false);
+                    prefs.edit().putString("addedOpen", prefs.getString("addedOpen", "") + "," + id).apply();
+                    netLog(from, bestOpen.SSID, why + " → открытая сеть (разрешено в админке)");
+                }
+            } else {
+                netLog(from, from, why + " → другой сохранённой сети рядом нет, переподключаюсь к этой");
             }
             wifi.reconnect();
         } catch (Exception ignored) {
@@ -479,20 +497,19 @@ public class MainActivity extends Activity {
         }
     }
 
-    // Сидим на открытой сети, а рядом снова видна сохранённая сеть с паролем — раз в минуту проверяем
-    // и возвращаемся на неё; открытые запасные сети удаляем, чтобы Android сам не перескакивал на них обратно.
+    // Стоим на запасной открытой сети, которую добавил сам агент, а рядом снова видна сохранённая сеть с паролем —
+    // возвращаемся на неё и удаляем только свои запасные сети (сети, добавленные людьми, не трогаем никогда)
     private void preferSavedWifi() {
         long now = System.currentTimeMillis();
         if (now - lastPreferCheck < 60000 || !isOwner()) return;
         lastPreferCheck = now;
+        String added = prefs.getString("addedOpen", "");
+        if (added.isEmpty()) return;
         WifiManager wifi = wifi();
         WifiInfo info = wifi.getConnectionInfo();
-        if (info == null || info.getNetworkId() == -1) return;
-        List<WifiConfiguration> saved = wifi.getConfiguredNetworks();
-        WifiConfiguration current = null;
-        for (WifiConfiguration c : saved) if (c.networkId == info.getNetworkId()) current = c;
-        if (current == null || !isOpen(current)) return; // уже на сети с паролем
+        if (info == null || info.getNetworkId() == -1 || !("," + added + ",").contains("," + info.getNetworkId() + ",")) return;
         wifi.startScan();
+        List<WifiConfiguration> saved = wifi.getConfiguredNetworks();
         ScanResult best = null;
         int bestId = -1;
         for (ScanResult s : wifi.getScanResults()) {
@@ -505,9 +522,28 @@ public class MainActivity extends Activity {
             }
         }
         if (best == null) return;
-        for (WifiConfiguration c : saved) if (isOpen(c)) wifi.removeNetwork(c.networkId);
-        wifi.enableNetwork(bestId, true);
+        String from = info.getSSID().replace("\"", "");
+        wifi.enableNetwork(bestId, false);
         wifi.reconnect();
+        for (String id : added.split(",")) {
+            if (!id.isEmpty() && Integer.parseInt(id) != bestId) wifi.removeNetwork(Integer.parseInt(id));
+        }
+        prefs.edit().remove("addedOpen").apply();
+        netLog(from, best.SSID, "вернулся с запасной открытой сети на сохранённую");
+    }
+
+    // Журнал смен сети: уходит на сервер с ближайшим опросом, портал показывает его у устройства
+    private void netLog(String from, String to, String why) {
+        try {
+            JSONArray log = new JSONArray(prefs.getString("netlog", "[]"));
+            log.put(new JSONObject().put("at", System.currentTimeMillis()).put("from", from).put("to", to).put("why", why));
+            while (log.length() > 20) log.remove(0);
+            SharedPreferences.Editor e = prefs.edit().putString("netlog", log.toString());
+            if (!to.isEmpty()) e.putString("lastSsid", to); // свою смену не записываем второй раз как «Android сам»
+            e.apply();
+        } catch (Exception ignored) {
+            // журнал не важнее связи
+        }
     }
 
     private static boolean isOpen(WifiConfiguration c) {

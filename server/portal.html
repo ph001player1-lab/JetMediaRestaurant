@@ -129,6 +129,11 @@
   .tgd { border: 1px solid #eee; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; } .tgd.on { border-color: #2a78d6; background: #f3f7fd; }
   .tgd small { color: #888; } .tdn { display: block; } .tr { display: block; margin-left: 22px; font-size: 14px; } .tr.in { color: #b4441b; font-weight: 600; }
   .tr input, .tdn input { width: auto; }
+  .due { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 13px; white-space: nowrap; }
+  .due.ok { background: #e2f4e4; color: #2e7d32; } .due.soon { background: #fff4d6; color: #8a5a00; } .due.bad { background: #fde2e2; color: #c62828; font-weight: 600; }
+  .cgrid { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; } .cgrid label { display: flex; flex-direction: column; font-size: 13px; gap: 4px; min-width: 200px; flex: 1; }
+  .cgrid .full { flex-basis: 100%; } .cgrid textarea { width: 100%; } .pays td { padding: 3px 8px; }
+  .crmprice input { width: 70px; } .crmprice { margin: 8px 0; line-height: 2.2; }
   .badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: #c62828; color: #fff; font-size: 12px; line-height: 18px; text-align: center; }
   .pinw { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
   .pinw input.masked { -webkit-text-security: disc; text-security: disc; }
@@ -139,7 +144,7 @@
 </style>
 </head>
 <body>
-<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button><button data-tab="adsTab">Реклама</button><button data-tab="charTab">ИИ-персонажи</button><button data-tab="statsTab">Статистика</button><button data-tab="adminsTab">Администраторы</button><button data-tab="auditTab">Журнал</button><button data-tab="srvTab">Сервер</button><button data-tab="joinTab">Заявки на подключение <span id="joinBadge" class="badge" hidden></span></button>
+<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button><button data-tab="adsTab">Реклама</button><button data-tab="charTab">ИИ-персонажи</button><button data-tab="statsTab">Статистика</button><button data-tab="adminsTab">Администраторы</button><button data-tab="auditTab">Журнал</button><button data-tab="crmTab">Клиенты</button><button data-tab="srvTab">Сервер</button><button data-tab="joinTab">Заявки на подключение <span id="joinBadge" class="badge" hidden></span></button>
   <span style="margin-left:auto"><small id="meInfo" class="hint"></small> <button onclick="changePass()">Сменить пароль</button><button onclick="logout()">Выйти</button></span></nav>
 
 <section id="devices">
@@ -151,6 +156,8 @@
   <p>
     <button onclick="toAll('url')">Страница для всех</button>
     <button onclick="toAll('update')">Обновить агент на всех</button>
+    <label id="wifiOpenBox" style="margin-left:12px" title="Если наш сервер не отвечает 3 минуты, планшет ищет другую сохранённую сеть. С галочкой — может подключиться и к чужой открытой сети рядом (кафе, уличный Wi-Fi). Агент 0.1.13 и новее">
+      <input type="checkbox" id="wifiOpen" style="width:auto"> при потере связи разрешить чужие открытые Wi-Fi</label>
   </p>
   <div class="form" style="display:block" id="verBox"></div>
   <div class="filters">
@@ -303,6 +310,7 @@
     <label>Роль<select id="admRole"><option value="admin">Админ</option><option value="viewer">Только статистика</option><option value="super">Суперадмин</option></select></label>
     <label>Пароль<input id="admPass" type="text" placeholder="новый — не короче 8 символов" style="width:220px" autocomplete="off"></label>
     <label style="flex-direction:row;align-items:center"><input type="checkbox" id="admOff"> отключён</label>
+    <label style="flex-direction:row;align-items:center" title="Раздел «Клиенты»: договоры, тарифы, платежи. Для роли «Админ»; суперадмин видит всегда"><input type="checkbox" id="admCrm"> доступ к CRM</label>
     <div style="width:100%"><small class="hint">Рестораны (ничего не отмечено — все):</small> <span id="admRests"></span></div>
     <button onclick="saveAdmin()">Сохранить</button><button onclick="editAdmin()">Очистить форму</button>
   </div>
@@ -317,6 +325,18 @@
 
 <div id="tgtModal" class="modal" hidden><div class="mbox"><div class="mhead"><b>Где показывать рекламу</b><button data-tclose="1">✕</button></div>
   <div id="tgtBody" class="tgt"></div><div class="mfoot"><span class="hint" style="flex:1">Выбранные районы и рестораны складываются. Ничего не выбрано — во всех ресторанах.</span><button data-tclose="1">Отмена</button><button data-tok="1"><b>Готово</b></button></div></div></div>
+
+<section id="crmTab" hidden>
+  <div class="filters"><select id="crmState"><option value="">Все статусы</option><option value="lead">Лиды</option><option value="test">Тест</option><option value="active">Активные</option><option value="paused">Приостановлены</option><option value="gone">Ушли</option></select>
+    <button id="crmAdd">+ Клиент</button> <span id="crmSum" class="hint"></span></div>
+  <div class="wrap"><table><thead><tr><th>Клиент</th><th>Статус</th><th>Тариф</th><th>Сумма</th><th>Следующий платёж</th><th>Договор</th><th></th></tr></thead><tbody id="crmList"></tbody></table></div>
+  <p class="hint">Напоминания в Telegram (бот оповещений портала) — по активным клиентам: за 7, 3 и 1 день до платежа, в день платежа и каждый день просрочки; договор заканчивается — за 30 и 7 дней; по понедельникам — сводка на неделю. С тестовой копии напоминания не уходят.</p>
+  <div id="crmPriceBox" hidden><div class="form" style="display:block"><b>Прайс</b> <small class="hint">— как на jetmedia.dev: софт за ресторан + аренда каждого устройства в месяц</small>
+    <div id="crmPrice" class="crmprice"></div><button id="crmPriceSave">Сохранить прайс</button></div></div>
+</section>
+<div id="cliModal" class="modal" hidden><div class="mbox"><div class="mhead"><b>Клиент</b><button data-cclose="1">✕</button></div>
+  <div id="cliBody" style="padding:12px 16px;overflow:auto"></div>
+  <div class="mfoot"><button id="cliDel" style="margin-right:auto">Удалить клиента</button><button data-cclose="1">Отмена</button><button id="cliSave"><b>Сохранить</b></button></div></div></div>
 
 <section id="srvTab" hidden><div id="srvPanel"><p class="hint">Загрузка приборов…</p></div></section>
 
@@ -350,7 +370,8 @@ let devices = [], rests = [], cur = null;
 
 document.querySelectorAll('nav button[data-tab]').forEach((b) => (b.onclick = () => {
   document.querySelectorAll('nav button[data-tab]').forEach((x) => x.classList.toggle('on', x === b));
-  for (const id of ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'adminsTab', 'auditTab', 'joinTab', 'srvTab']) $(id).hidden = id !== b.dataset.tab;
+  for (const id of ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'adminsTab', 'auditTab', 'joinTab', 'srvTab', 'crmTab']) $(id).hidden = id !== b.dataset.tab;
+  if (b.dataset.tab === 'crmTab') loadCrm();
   // приборы сервера обновляются, только пока раздел открыт
   clearInterval(srvTimer);
   if (b.dataset.tab === 'srvTab') { loadServer(); srvTimer = setInterval(loadServer, 5000); }
@@ -447,6 +468,7 @@ function deviceRow(d, i) {
       <td>${esc(t.model)}<br><small>${esc(d.id)}</small></td>
       <td class="${d.online ? 'online' : 'offline'}">${d.online ? 'онлайн' : 'офлайн'}${d.pending ? ` · в очереди: ${d.pending}` : ''}
         ${t.wifi ? `<br><small>Wi-Fi: ${esc(t.wifi)} · ${esc(t.rssi)} dBm</small>` : ''}
+        ${d.netlog?.length ? `<br><small class="hint" title="${esc(d.netlog.map((n) => `${new Date(n.at).toLocaleString()} — ${n.from || '?'} → ${n.to || '?'}: ${n.why}`).join('\n'))}">📶 ${new Date(d.netlog[0].at).toLocaleString()}: ${esc(d.netlog[0].from || '?')} → ${esc(d.netlog[0].to || '?')} · ${esc(d.netlog[0].why.slice(0, 50))} (наведите — весь журнал)</small>` : ''}
         ${d.events?.length ? `<br><small class="offline" title="${esc(d.events.map((e) => new Date(e.at).toLocaleString() + ' — ' + e.text).join('\n'))}">сбой ${new Date(d.events[0].at).toLocaleString()}: ${esc(d.events[0].text.slice(0, 60))}</small>` : ''}</td>
       <td>${t.battery ?? '—'}%${t.charging ? ' ⚡' : ''}</td>
       <td>${esc(t.version)}</td>
@@ -519,6 +541,19 @@ async function send(i, type) {
   const cmd = ask(type);
   if (cmd) { await command(devices[i].id, cmd); loadDevices(); }
 }
+
+// Чужие открытые Wi-Fi как запасные при потере связи (по умолчанию — нет)
+async function loadWifiOpt() {
+  const r = await api('/api/devices/_wifi').catch(() => null);
+  if (!r || r.error) { $('wifiOpenBox').hidden = true; return; }
+  $('wifiOpen').checked = r.allowOpen;
+}
+$('wifiOpen').onchange = async (e) => {
+  const on = e.target.checked;
+  if (on && !confirm('Разрешить планшетам при потере связи подключаться к чужим открытым сетям? Там часто страница входа или нет интернета.')) { e.target.checked = false; return; }
+  await api('/api/devices/_wifi', 'POST', { allowOpen: on });
+};
+loadWifiOpt();
 
 async function toAll(type) {
   const cmd = ask(type);
@@ -992,6 +1027,153 @@ $('srvPanel').onclick = (e) => {
   for (const k of srvActive[c] || []) srvAck.add(`${c}:${k}`); // горящие сейчас сигналы этого цвета — увидели
   renderServer();
 };
+
+// ---------- CRM: клиенты, договоры, тарифы, платежи (видят суперадмин и админы с доступом к CRM)
+let crm = null, crmEdit = null;
+const CRM_ST = { lead: 'Лид', test: 'Тест', active: 'Активный', paused: 'Приостановлен', gone: 'Ушёл' };
+const CRM_PER = { month: 'месяц', quarter: 'квартал', year: 'год' };
+const bt = (n) => `${Math.round(n || 0).toLocaleString('ru-RU')} ฿`;
+const dRu = (s) => (s ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : '—');
+async function loadCrm() {
+  const r = await api('/api/crm');
+  if (r.error) { $('crmList').innerHTML = `<tr><td class="hint">${esc(r.error)}</td></tr>`; return; }
+  crm = r;
+  if (!rests.length) rests = await api('/api/restaurants');
+  renderCrm();
+}
+function dueChip(c) {
+  if (!c.nextDue) return '<span class="hint">не задан</span>';
+  const d = c.days, cls = d < 0 ? 'bad' : d <= 7 ? 'soon' : 'ok';
+  return `<span class="due ${cls}">${dRu(c.nextDue)} · ${d < 0 ? `просрочен ${-d} дн.` : d === 0 ? 'сегодня' : `через ${d} дн.`}</span>`;
+}
+function renderCrm() {
+  const st = $('crmState').value, list = crm.clients.filter((c) => !st || c.status === st);
+  const act = crm.clients.filter((c) => c.status === 'active');
+  $('crmSum').innerHTML = `Активных: <b>${act.length}</b> · в месяц сейчас: <b>${bt(act.reduce((n, c) => n + c.monthNow, 0))}</b>
+    · просрочено: <b style="color:${act.some((c) => c.days < 0) ? '#c62828' : 'inherit'}">${act.filter((c) => c.days < 0).length}</b>
+    · платежей в ближайшие 7 дней: <b>${act.filter((c) => c.days !== null && c.days >= 0 && c.days <= 7).length}</b>`;
+  $('crmList').innerHTML = list.map((c) => `<tr>
+    <td><b>${esc(c.name)}</b>${c.rest && c.rest !== c.name ? `<br><small class="hint">${esc(c.rest)}</small>` : ''}${c.contact.phone ? `<br><small><a href="tel:${esc(c.contact.phone.replace(/[^+\d]/g, ''))}">${esc(c.contact.phone)}</a></small>` : ''}</td>
+    <td>${CRM_ST[c.status]}</td>
+    <td>${c.tariff === 'premium' ? 'Premium' : 'Standard'} · устройств: ${c.devices}<br><small class="hint">${bt(c.monthNow)}/мес сейчас${c.customMonthly ? ' (индивидуально)' : ''}</small></td>
+    <td>${c.nextDue ? `${bt(c.amount)} за ${CRM_PER[c.period]}` : '—'}</td>
+    <td>${dueChip(c)}</td>
+    <td>${c.contract.no ? `№ ${esc(c.contract.no)}` : '—'}${c.contract.until ? `<br><small class="${c.contractDays !== null && c.contractDays < 30 ? 'offline' : 'hint'}">до ${dRu(c.contract.until)}</small>` : ''}
+      ${c.contract.file ? `<br><a href="/api/crm/file/${esc(c.contract.file)}" target="_blank" rel="noopener">📄 файл</a>` : ''}</td>
+    <td><button data-cedit="${esc(c.id)}">Изменить</button>${c.status === 'active' && c.nextDue ? ` <button data-cpaid="${esc(c.id)}">✓ Оплачено</button>` : ''}</td></tr>`).join('')
+    || '<tr><td colspan="7" class="hint">Клиентов нет — нажмите «+ Клиент»</td></tr>';
+  $('crmPriceBox').hidden = !crm.canPricing;
+  if (crm.canPricing) {
+    const p = crm.pricing;
+    $('crmPrice').innerHTML = `Низкий сезон (апрель–октябрь): софт <input data-pr="low.software" value="${p.low.software}"> + устройство <input data-pr="low.device" value="${p.low.device}">
+      · Высокий (ноябрь–март): софт <input data-pr="high.software" value="${p.high.software}"> + устройство <input data-pr="high.device" value="${p.high.device}">
+      · Premium × <input data-pr="premium" value="${p.premium}"> · подключение <input data-pr="setupFee" value="${p.setupFee}"> ฿`;
+  }
+}
+$('crmState').onchange = renderCrm;
+$('crmAdd').onclick = () => openClient({ status: 'lead', tariff: 'standard', period: 'month', contact: {}, contract: {}, setup: { amount: crm.pricing.setupFee }, payments: [] });
+$('crmList').onclick = async (e) => {
+  const { cedit, cpaid } = e.target.dataset;
+  if (cedit) openClient(crm.clients.find((c) => c.id === cedit));
+  if (cpaid) {
+    const c = crm.clients.find((x) => x.id === cpaid);
+    const v = prompt(`${c.name}: оплата за ${CRM_PER[c.period]} (платёж от ${dRu(c.nextDue)}). Сумма, ฿:`, c.amount);
+    if (v === null) return;
+    const r = await api(`/api/crm/clients/${encodeURIComponent(c.id)}/paid`, 'POST', v.trim() === '' ? {} : { amount: Number(v.replace(/\s/g, '')) });
+    if (r.error) return alert(r.error);
+    loadCrm();
+  }
+};
+$('crmPriceSave').onclick = async () => {
+  const p = structuredClone(crm.pricing);
+  document.querySelectorAll('#crmPrice [data-pr]').forEach((i) => { const [a, b] = i.dataset.pr.split('.'); if (b) p[a][b] = Number(i.value); else p[a] = Number(i.value); });
+  const r = await api('/api/crm/pricing', 'POST', p);
+  if (r.error) return alert(r.error);
+  alert('Прайс сохранён — суммы клиентов пересчитаны');
+  loadCrm();
+};
+
+// Карточка клиента
+function openClient(c) {
+  crmEdit = structuredClone(c);
+  const v = (x) => esc(x ?? '');
+  const ro = (id, label, val, type = 'text', extra = '') => `<label>${label}<input id="${id}" type="${type}" value="${v(val)}" ${extra}></label>`;
+  $('cliBody').innerHTML = `<div class="cgrid">
+    <label>Ресторан<select id="cRid"><option value="">— ещё не подключён —</option>${rests.map((r) => `<option value="${esc(r.id)}" ${r.id === c.rid ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></label>
+    ${ro('cName', 'Название клиента', c.name)}
+    <label>Статус<select id="cStatus">${Object.entries(CRM_ST).map(([k, n]) => `<option value="${k}" ${k === c.status ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+    ${ro('cLegal', 'Юрлицо', c.legal)}
+    ${ro('cCName', 'Контакт: имя', c.contact?.name)}${ro('cPhone', 'Телефон', c.contact?.phone)}${ro('cTg', 'Telegram', c.contact?.tg)}${ro('cEmail', 'Почта', c.contact?.email)}
+    <b class="full">Договор</b>
+    ${ro('kNo', 'Номер', c.contract?.no)}${ro('kDate', 'Дата', c.contract?.date, 'date')}${ro('kUntil', 'Действует до', c.contract?.until, 'date')}
+    <label>Файл договора (PDF или фото)<input id="kFile" type="file" accept="application/pdf,image/*"><small id="kFileInfo" class="hint">${c.contract?.file ? `<a href="/api/crm/file/${esc(c.contract.file)}" target="_blank" rel="noopener">📄 ${esc(c.contract.fileName || 'открыть')}</a>` : 'не загружен'}</small></label>
+    <b class="full">Тариф и оплата</b>
+    <label>Тариф<select id="cTariff"><option value="standard">Standard</option><option value="premium" ${c.tariff === 'premium' ? 'selected' : ''}>Premium</option></select></label>
+    ${ro('cDev', `Устройств (пусто — авто: ${c.devicesAuto ?? 0})`, c.devicesManual, 'number', 'min="0"')}
+    <label>Период оплаты<select id="cPeriod">${Object.entries(CRM_PER).map(([k, n]) => `<option value="${k}" ${k === c.period ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+    ${ro('cExtra', 'Доп. модули, ฿/мес', c.extra || '', 'number', 'min="0"')}
+    ${ro('cCustom', 'Индивидуальная цена, ฿/мес (пусто — по прайсу)', c.customMonthly || '', 'number', 'min="0"')}
+    ${ro('cDue', 'Следующий платёж', c.nextDue, 'date')}
+    ${ro('sAmount', 'Подключение, ฿', c.setup?.amount ?? crm.pricing.setupFee, 'number', 'min="0"')}
+    <label style="flex-direction:row;align-items:center;gap:6px"><input id="sPaid" type="checkbox" style="width:auto" ${c.setup?.paid ? 'checked' : ''}> подключение оплачено</label>
+    ${ro('sDate', 'Дата оплаты подключения', c.setup?.date, 'date')}
+    <div class="full hint" id="cCalc"></div>
+    <label class="full">Заметки<textarea id="cNotes" rows="3">${v(c.notes)}</textarea></label>
+    ${c.id ? `<div class="full"><b>Платежи</b> ${(c.payments || []).length ? `<button id="cUnpay">Отменить последнюю оплату</button>` : ''}
+      <table class="pays">${(c.payments || []).map((p) => `<tr><td>${dRu(p.date)}</td><td>${bt(p.amount)}</td><td class="hint">за ${CRM_PER[p.period] || ''} от ${dRu(p.due)}${p.note ? ` · ${esc(p.note)}` : ''} · ${esc(p.by || '')}</td></tr>`).join('') || '<tr><td class="hint">пока нет</td></tr>'}</table></div>` : ''}
+  </div>`;
+  $('cliDel').hidden = !c.id;
+  $('cliModal').hidden = false;
+  calcClient();
+}
+// Расчёт по прайсу прямо в карточке — как в калькуляторе на jetmedia.dev
+function calcClient() {
+  const p = crm.pricing, prem = $('cTariff').value === 'premium' ? p.premium : 1;
+  const dev = $('cDev').value !== '' ? Number($('cDev').value) : (crmEdit.devicesAuto ?? 0), extra = Number($('cExtra').value) || 0, custom = Number($('cCustom').value) || 0;
+  const m = (s) => Math.round((s.software + s.device * dev) * prem) + extra;
+  $('cCalc').innerHTML = custom ? `Индивидуальная цена: <b>${bt(custom + extra)}</b>/мес`
+    : `По прайсу${prem > 1 ? ' (Premium × ' + prem + ')' : ''}: низкий сезон <b>${bt(m(p.low))}</b>/мес (${p.low.software} + ${dev} × ${p.low.device}${extra ? ` + ${extra}` : ''}), высокий <b>${bt(m(p.high))}</b>/мес (${p.high.software} + ${dev} × ${p.high.device}${extra ? ` + ${extra}` : ''})`;
+}
+$('cliBody').addEventListener('input', (e) => { if (['cTariff', 'cDev', 'cExtra', 'cCustom'].includes(e.target.id)) calcClient(); });
+$('cliBody').addEventListener('change', async (e) => {
+  if (e.target.id === 'cTariff') calcClient();
+  if (e.target.id === 'cRid' && !$('cName').value) $('cName').value = rests.find((r) => r.id === e.target.value)?.name || '';
+  if (e.target.id === 'kFile' && e.target.files[0]) {
+    const f = e.target.files[0];
+    $('kFileInfo').textContent = 'Загружаю…';
+    const r = await (await fetch('/api/crm/upload', { method: 'POST', headers: { 'content-type': f.type }, body: f })).json();
+    if (r.error) { $('kFileInfo').textContent = r.error; return; }
+    crmEdit.contract = { ...(crmEdit.contract || {}), file: r.file, fileName: f.name };
+    $('kFileInfo').innerHTML = `<a href="/api/crm/file/${esc(r.file)}" target="_blank" rel="noopener">📄 ${esc(f.name)}</a> — сохранится кнопкой «Сохранить»`;
+  }
+});
+$('cliBody').addEventListener('click', async (e) => {
+  if (e.target.id !== 'cUnpay' || !confirm('Отменить последнюю оплату? Дата следующего платежа вернётся назад.')) return;
+  const r = await api(`/api/crm/clients/${encodeURIComponent(crmEdit.id)}/unpay`, 'POST', {});
+  if (r.error) return alert(r.error);
+  await loadCrm();
+  openClient(crm.clients.find((c) => c.id === crmEdit.id));
+});
+$('cliSave').onclick = async () => {
+  const g = (id) => $(id).value;
+  const r = await api('/api/crm/clients', 'POST', {
+    id: crmEdit.id, rid: g('cRid'), name: g('cName'), status: g('cStatus'), legal: g('cLegal'),
+    contact: { name: g('cCName'), phone: g('cPhone'), tg: g('cTg'), email: g('cEmail') },
+    contract: { no: g('kNo'), date: g('kDate'), until: g('kUntil'), file: crmEdit.contract?.file || '', fileName: crmEdit.contract?.fileName || '' },
+    tariff: g('cTariff'), devicesManual: g('cDev'), period: g('cPeriod'), extra: g('cExtra'), customMonthly: g('cCustom'), nextDue: g('cDue'),
+    setup: { amount: g('sAmount'), paid: $('sPaid').checked, date: g('sDate') }, notes: g('cNotes'),
+  });
+  if (r.error) return alert(r.error);
+  $('cliModal').hidden = true;
+  loadCrm();
+};
+$('cliDel').onclick = async () => {
+  if (!confirm(`Удалить клиента ${crmEdit.name} вместе с историей платежей?`)) return;
+  await api(`/api/crm/clients/${encodeURIComponent(crmEdit.id)}`, 'DELETE');
+  $('cliModal').hidden = true;
+  loadCrm();
+};
+$('cliModal').onclick = (e) => { if (e.target.id === 'cliModal' || e.target.dataset.cclose) $('cliModal').hidden = true; };
 
 // ---------- Заявки на подключение ресторана (с планшетов)
 
@@ -1516,7 +1698,7 @@ async function loadAdmins() {
   if (!rests.length) rests = await api('/api/restaurants');
   admins = await api('/api/admins');
   $('admList').innerHTML = admins.map((a, i) => `<tr class="${a.disabled ? 'hint' : ''}"><td>${esc(a.email)}</td><td>${esc(a.name || '')}</td>
-    <td>${ROLE_NAMES[a.role]}${a.disabled ? ' · отключён' : ''}</td>
+    <td>${ROLE_NAMES[a.role]}${a.role === 'admin' && a.crm ? ' · CRM' : ''}${a.disabled ? ' · отключён' : ''}</td>
     <td>${(a.restaurants || []).length ? esc(a.restaurants.map((id) => rests.find((r) => r.id === id)?.name || id).join(', ')) : 'все'}</td>
     <td>${a.lastLogin ? new Date(a.lastLogin).toLocaleString() : '—'}</td>
     <td><button onclick="editAdmin(${i})">Изменить</button><button onclick="delAdmin(${i})">✕</button></td></tr>`).join('');
@@ -1530,12 +1712,13 @@ function editAdmin(i) {
   $('admRole').value = a.role;
   $('admPass').value = '';
   $('admOff').checked = !!a.disabled;
+  $('admCrm').checked = !!a.crm;
   $('admRests').innerHTML = rests.map((r) => `<label style="display:inline-block;margin-right:10px"><input type="checkbox" value="${esc(r.id)}" ${(a.restaurants || []).includes(r.id) ? 'checked' : ''}> ${esc(r.name)}</label>`).join('');
 }
 async function saveAdmin() {
   const r = await api('/api/admins', 'POST', {
     id: $('admId').value || undefined, email: $('admEmail').value, name: $('admName').value, role: $('admRole').value,
-    password: $('admPass').value || undefined, disabled: $('admOff').checked,
+    password: $('admPass').value || undefined, disabled: $('admOff').checked, crm: $('admCrm').checked,
     restaurants: [...$('admRests').querySelectorAll('input:checked')].map((x) => x.value),
   });
   if (r.error) return alert(r.error);
@@ -1563,8 +1746,8 @@ async function loadAudit() {
 (async () => {
   me = await api('/api/me');
   $('meInfo').textContent = `${me.email} · ${ROLE_NAMES[me.role]}${scoped() ? ' (свои рестораны)' : ''}`;
-  const show = me.role === 'viewer' ? ['statsTab'] : scoped() ? ['devices', 'rest', 'statsTab']
-    : me.role === 'admin' ? ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'auditTab', 'srvTab', 'joinTab'] : null;
+  const show = me.role === 'viewer' ? ['statsTab'] : scoped() ? ['devices', 'rest', 'statsTab', ...(me.crm ? ['crmTab'] : [])]
+    : me.role === 'admin' ? ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'auditTab', ...(me.crm ? ['crmTab'] : []), 'srvTab', 'joinTab'] : null;
   if (show) document.querySelectorAll('nav button[data-tab]').forEach((b) => { b.hidden = !show.includes(b.dataset.tab); });
   else $('adminsTab').hidden = true;
   if (me.role === 'viewer') return document.querySelector('nav button[data-tab="statsTab"]').click();
