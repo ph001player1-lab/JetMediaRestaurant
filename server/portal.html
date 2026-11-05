@@ -586,12 +586,13 @@ async function loadRests(selectId) {
 }
 
 // Ошибки меню (то же, что менеджер видит в ЛК → «Меню» → «Ошибки меню»)
-const ISSUE_NAMES = { photo: 'нет фото', price: 'цена 0', en: 'нет названия на английском', cat: 'без раздела' };
+const ISSUE_NAMES = { photo: 'нет фото', price: 'цена 0', cat: 'без раздела' };
+const issueRu = (k) => (k.startsWith('tr_') ? `нет перевода на ${k.slice(3).toUpperCase()}` : ISSUE_NAMES[k] || k);
 function issuesInfo(mi) {
   if (!mi || !mi.issues.length) return mi ? '<br><span style="color:#2e7d32">✓ Ошибок в меню нет.</span>' : '';
   const nm = (o) => o?.ru || o?.en || Object.values(o || {})[0] || '—';
-  return `<details style="margin-top:6px"><summary><b style="color:#c62828">⚠ Ошибки меню: ${mi.issues.map((x) => `${ISSUE_NAMES[x.k]} — ${x.items.length}`).join(', ')}</b></summary>
-    ${mi.issues.map((x) => `<div style="margin:4px 0"><b>${ISSUE_NAMES[x.k]} (${x.items.length}):</b> ${x.items.map((i) => `${i.sku ? `${esc(i.sku)} ` : ''}${esc(nm(i.name))}`).join(' · ')}</div>`).join('')}
+  return `<details style="margin-top:6px"><summary><b style="color:#c62828">⚠ Ошибки меню: ${mi.issues.map((x) => `${issueRu(x.k)} — ${x.items.length}`).join(', ')}</b></summary>
+    ${mi.issues.map((x) => `<div style="margin:4px 0"><b>${issueRu(x.k)} (${x.items.length}):</b> ${x.items.map((i) => `${i.sku ? `${esc(i.sku)} ` : ''}${esc(nm(i.name))}`).join(' · ')}</div>`).join('')}
     <small>${mi.synced ? 'Исправляется в источнике меню — после синхронизации ошибка уйдёт сама.' : 'Исправляется в меню ниже.'} Менеджер видит этот список в ЛК → «Меню».</small></details>`;
 }
 

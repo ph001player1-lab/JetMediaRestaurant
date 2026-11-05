@@ -1441,7 +1441,9 @@ function menuIssues(r) {
     issues: [
       { k: 'photo', items: pick((i) => !i.photo) },
       { k: 'price', items: pick((i) => !priced(i)) },
-      { k: 'en', items: pick((i) => !String(i.name?.en || '').trim()) },
+      // нет перевода названия или раздела на один из языков ресторана (новое блюдо в источнике, словаря ещё нет)
+      ...(r.langs?.length ? r.langs : ['en']).map((l) => ({ k: `tr_${l}`,
+        items: pick((i) => !String(i.name?.[l] || '').trim() || (filled(i.cat) && !String(i.cat?.[l] || '').trim())) })),
       { k: 'cat', items: pick((i) => !filled(i.cat)) },
     ].filter((x) => x.items.length),
   };
