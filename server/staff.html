@@ -379,6 +379,7 @@ async function api(path, body) {
 }
 
 // Сигнал и вибрация, пока страница открыта; на заблокированном телефоне работают push-уведомления
+let lastNag = Date.now();
 function beep() {
   if (audio) {
     for (const d of [0, 0.5]) {
@@ -489,7 +490,10 @@ function render(s) {
   for (const x of [...s.calls.filter((c) => c.status === 'new'), ...s.orders.filter((o) => o.status === 'pending')]) {
     if (!seen.has(x.id)) { seen.add(x.id); fresh = true; }
   }
-  if (fresh && !first) beep();
+  // пока есть непринятые вызовы и неподтверждённые заказы — сигнал снова каждые 45 секунд (приложение открыто)
+  const waiting = s.me.onShift && (s.calls.some((c) => c.status === 'new') || s.orders.some((o) => o.status === 'pending' && !o.ackAt));
+  if (fresh && !first) { beep(); lastNag = Date.now(); }
+  else if (waiting && Date.now() - lastNag > 45_000) { if (!first) beep(); lastNag = Date.now(); }
   first = false;
 
   // Гости стола: «Анна» / «Гость 2»; подписи — только когда за столом несколько гостей

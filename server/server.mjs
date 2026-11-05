@@ -27,8 +27,9 @@ const PUBLIC_URL = process.env.PUBLIC_URL || 'https://app.jetmedia.dev';
 const ONLINE_MS = 45_000;
 const OFFLINE_ALERT_MS = 3 * 60_000; // столько минут без связи — пишем администратору в Telegram
 const KEEP_MS = 7 * 24 * 3600_000;
-const REMIND_MS = 45_000;
-const MAX_REMINDERS = 5;
+// Напоминания, пока никто не нажал «Иду» / «Подтвердить»: первые 5 — каждые 45 секунд, дальше — каждые 2 минуты,
+// пока вызов не приняли или не сняли как забытый; заказ — не дольше 30 минут
+const REMIND_MS = 45_000, REMIND_SLOW_MS = 120_000, FAST_REMINDERS = 5, ORDER_REMIND_MAX_MS = 30 * 60_000;
 const COMMANDS = ['url', 'reload', 'reboot', 'update', 'say'];
 const STATIC = {
   '/': 'portal.html',
@@ -1226,7 +1227,10 @@ function notify(restaurantId, table, kind, extra = '', reminder = false, guest =
   for (const s of new Set([...waiters, ...(reminder || !waiters.length ? managers : [])])) {
     const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en;
     const who = guest === 'table' ? ` · ${L.wholeTable}` : guest ? ` · ${guest.name || `${L.guest} ${guest.n}`}` : '';
-    const data = { title: tableLabel(table, L.table), body: (reminder ? `${L.again}: ` : '') + L[kind] + who + extra, tag: `${kind}-${table}` };
+    // каждое напоминание — новое уведомление (у обновлённого старого Android часто не включает звук);
+    // предыдущее того же стола и вида приложение убирает само (group)
+    const data = { title: tableLabel(table, L.table), body: (reminder ? `${L.again}: ` : '') + L[kind] + who + extra,
+      group: `${kind}-${table}`, tag: `${kind}-${table}-${Date.now()}` };
     for (const sub of s.subs) {
       sendPush(sub, data, db.vapid).then((ok) => {
         if (!ok) { s.subs = s.subs.filter((x) => x !== sub); save(); }
@@ -1243,7 +1247,9 @@ setInterval(() => {
     ...db.orders.filter((o) => o.status === 'pending' && !o.ackAt).map((o) => [o, 'order']),
   ];
   for (const [x, kind] of waiting) {
-    if (x.closed || (x.reminders || 0) >= MAX_REMINDERS || now - (x.notifiedAt || x.at) < REMIND_MS) continue;
+    const n = x.reminders || 0;
+    if (x.closed || now - (x.notifiedAt || x.at) < (n < FAST_REMINDERS ? REMIND_MS : REMIND_SLOW_MS)) continue;
+    if (kind === 'order' && now - x.at > ORDER_REMIND_MAX_MS) continue;
     x.reminders = (x.reminders || 0) + 1;
     x.notifiedAt = now;
     notify(x.restaurantId, x.table, kind, '', true);
