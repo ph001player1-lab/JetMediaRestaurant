@@ -1319,7 +1319,7 @@ function managerGet(b, q) {
   const { r } = managerSession(q.token);
   return {
     restaurant: {
-      name: r.name, langs: r.langs || [], tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
+      id: r.id, name: r.name, langs: r.langs || [], tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
       menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [], staffArchive: r.staffArchive || [],
       menuSource: publicSource(r.menuSource), menuIssues: menuIssues(r),
       display: { ...DISPLAY, ...r.display },
@@ -1342,6 +1342,14 @@ function managerGet(b, q) {
 const SECTIONS = { testVisit: 'пометка тестового визита', staffArchive: 'уволенные', staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', customTags: 'особые пожелания', tagRules: 'правила отметок', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы', flow: 'заказы и кухня' };
 function managerSave(b) {
   const { r, member } = managerSession(b.token);
+  // Страница ЛК открыта с данными другого ресторана (вышли и вошли другим кодом без перезагрузки) — не сохраняем,
+  // иначе персонал, меню и акции одного ресторана записываются в другой
+  if (b.rid !== undefined && b.rid !== r.id) throw fail(409, 'Страница открыта для другого ресторана — обновите страницу и повторите');
+  if (Array.isArray(b.staff)) {
+    const mine = new Set((r.staff || []).concat(r.staffArchive || []).map((m) => m.id));
+    const foreign = b.staff.find((m) => m.id && !mine.has(m.id) && Object.values(db.restaurants).some((o) => o.id !== r.id && (o.staff || []).some((x) => x.id === m.id)));
+    if (foreign) throw fail(409, 'В списке персонала сотрудники другого ресторана — обновите страницу и повторите');
+  }
   const changed = Object.keys(SECTIONS).filter((k) => b[k] !== undefined).map((k) => SECTIONS[k]);
   if (changed.length) audit(`${member.name} (менеджер)`, `ЛК: сохранено — ${changed.join(', ')}`, r.id);
   if (Array.isArray(b.staff)) setStaff(r, b.staff, b.fired || {});

@@ -414,6 +414,7 @@ function refresh() {
 
 function logout() {
   if (token) api('/api/staff/logout', { token }).catch(() => {});
+  forgetManager();
   clearInterval(timer);
   localStorage.removeItem('token');
   token = '';
@@ -424,6 +425,7 @@ function logout() {
 async function login() {
   try {
     const r = await api('/api/staff/login', { code: $('code').value, pin: $('pin').value, lang });
+    forgetManager(); // данные прошлого входа (другой ресторан) — забываем
     token = localStorage.token = r.token;
     localStorage.code = $('code').value;
     $('pin').value = '';
@@ -1125,6 +1127,15 @@ function showTab(id) {
 let tablesDraft = null;
 setInterval(() => { if (!$('tDev').hidden && !document.hidden && !tablesDraft) loadManager(); }, 10000);
 
+// Выход или вход другим кодом: кабинет прошлого ресторана не должен остаться в памяти страницы
+function forgetManager() {
+  mgr = null;
+  tablesDraft = null;
+  renderSig = '';
+  for (const id of ['tStaff', 'tMenu', 'tPromos', 'tAI', 'tDesign', 'tDev', 'tKitchen', 'tStats']) $(id).innerHTML = '';
+  showTab('tWork');
+}
+
 async function loadManager() {
   mgr = await api(`/api/manager/restaurant?token=${encodeURIComponent(token)}`);
   addCustomTags(mgr.restaurant.customTags);
@@ -1134,7 +1145,7 @@ async function loadManager() {
 async function saveManager(notice) {
   const r = mgr.restaurant;
   await api('/api/manager/restaurant', {
-    token,
+    token, rid: r.id,
     staff: r.staff.map((m) => ({ ...m, tables: Array.isArray(m.tables) ? m.tables : parseTables(m.tables) })), fired: mgr.fired || {},
     menu: r.menu, promos: r.promos,
   });
