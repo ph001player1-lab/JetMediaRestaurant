@@ -422,7 +422,18 @@ function load() {
     if (BUILD && s.build && s.build !== BUILD && !cartCount() && Date.now() - lastTouch > 30000) { location.reload(); return; }
     BUILD = BUILD || s.build;
     var first = !state;
+    // стол закрыли (гости ушли) — язык ресторана по умолчанию и пустая корзина для следующих гостей
+    if (!PHONE && state && s.visit && state.visit !== undefined && s.visit !== state.visit) { lang = null; cart = {}; }
     state = s;
+    // после перезагрузки страницы (вышла новая версия) — язык гостя этого же визита, если касались недавно
+    if (first && !PHONE) {
+      try {
+        var sv = JSON.parse(localStorage.jmGuestLang || 'null');
+        if (sv && sv.visit === (s.visit || 0) && Date.now() - sv.touch < ((s.timers || {}).langMin || 120) * 60000 && (s.restaurant.langs || []).indexOf(sv.lang) >= 0) { lang = sv.lang; lastTouch = sv.touch; }
+      } catch (e) { /* нет хранилища — язык по умолчанию */ }
+    }
+    if (!lang) lang = defLang();
+    if (!PHONE) { try { localStorage.jmGuestLang = JSON.stringify({ lang: lang, visit: s.visit || 0, touch: lastTouch }); } catch (e) { /* без хранилища */ } }
     applyTheme(s.display || {});
     state.calls = s.calls || [];
     // тестовая версия — маленькая отметка в углу, чтобы не спутать с рабочей
@@ -1602,16 +1613,15 @@ document.addEventListener('click', function (e) {
 
 document.addEventListener('pointerdown', function () { lastTouch = Date.now(); }, true);
 
-// Простой: карусель после заданной паузы (у входа — всегда), автоперелистывание, сброс корзины и языка через 3 минуты
+// Простой: карусель после заданной паузы (у входа — всегда), автоперелистывание.
+// Неотправленная корзина очищается через N минут без касаний, язык гостя держится, пока стол не закрыли
+// («Закрыть стол» у официанта), а если стол забыли закрыть — сбрасывается после долгого простоя (сроки — в ЛК → «Устройства»)
 setInterval(function () {
   if (!state || PHONE) return;
-  var now = Date.now(), idle = now - lastTouch, ds = state.display || {};
-  if (idle > IDLE_RESET_MS && (cartCount() || lang !== defLang())) {
-    cart = {};
-    lang = defLang();
-    $('cart').className = 'overlay';
-    renderAll();
-  }
+  var now = Date.now(), idle = now - lastTouch, ds = state.display || {}, tm = state.timers || {}, changed = false;
+  if (cartCount() && idle > (tm.cartMin || 10) * 60000) { cart = {}; $('cart').className = 'overlay'; changed = true; }
+  if (lang !== defLang() && idle > (tm.langMin || 120) * 60000) { lang = defLang(); changed = true; }
+  if (changed) renderAll();
   var visible = $('attract').style.display === 'block';
   if (!visible && idle > (ds.idleSec || 60) * 1000 && slides().length) showAttract();
   else if (visible && now > holdUntil && now - slideAt >= (ds.slideSec || 7) * 1000) slideGo(1);

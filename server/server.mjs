@@ -484,7 +484,7 @@ function devicePoll(b, q, req) {
   const d = (db.devices[b.id] ??= { id: b.id, firstSeen: Date.now(), queue: [] });
   if (d.restaurantId) { bump(`up|${d.restaurantId}|${day()}`); bump(`dup|${d.id}|${day()}`); }
   if (d.offlineAlert) {
-    tgAlert(`🟢 ${deviceName(d)}: снова на связи (не было ${Math.round((Date.now() - d.lastSeen) / 60_000)} мин)`);
+    tgAlert(`🟢 ${deviceName(d)}: снова на связи (не было ${fmtDur(Date.now() - d.lastSeen)})`);
     d.offlineAlert = 0;
   }
   // Сбои, после которых агент перезапустился сам: падение, зависание, нехватка памяти
@@ -583,7 +583,7 @@ setInterval(() => {
   tgAlert('🔴 Нет связи с устройствами:\n' + lost.map((d) => {
     const t = d.telemetry || {};
     const low = t.battery <= 5 && !t.charging ? ', вероятно, сел аккумулятор' : '';
-    return `• ${deviceName(d)} — с ${clock(d.lastSeen)}, заряд ${t.battery ?? '?'}%${low}`;
+    return `• ${deviceName(d)} — с ${clock(d.lastSeen)} (${fmtDur(now - d.lastSeen)}), заряд ${t.battery ?? '?'}%${low}`;
   }).join('\n'));
 }, 60_000);
 
@@ -801,6 +801,7 @@ async function guestState(b, q) {
   const base = {
     restaurant: { name: r.name, langs: r.langs, address: r.address || '', district: DISTRICTS.find((x) => x.id === r.district) || null },
     build: BUILD, instance: INSTANCE, version: VERSION,
+    timers: pick(timersOf(r), ['cartMin', 'langMin']), visit: r.visits?.[d.table] || 0,
     menu: (r.menu || []).filter(onMenu), tags: r.customTags || [],
     slides: slidesFor(r, d.id),
     display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) },
@@ -1129,6 +1130,9 @@ function staffAction(b) {
       x.closed = Date.now();
     }
     dropTableKey(r, b.id);
+    // гости ушли: планшет стола возвращается к языку ресторана по умолчанию
+    r.visits ??= {};
+    r.visits[b.id] = Date.now();
     logEvent(r.id, 'close', { ...who, table: b.id });
   } else if (b.kind === 'guest' && b.action === 'off') {
     // Отключить телефон гостя (например, QR-код сфотографировал посторонний)
@@ -1251,7 +1255,17 @@ setInterval(() => {
 // (есть заказ — остаётся, гость ещё за столом). Заказ без единого действия 8 часов — забыт и снимается.
 // Принятый вызов, который так и не завершили, снимается через 8 часов. Список забытых за сегодня и вчера —
 // внизу у официантов и менеджера, с подсказкой, что делать, чтобы не забывалось
-const CALL_FORGET_MS = 60 * 60_000, ORDER_FORGET_MS = 8 * 3600_000;
+// Сроки сбросов — настройка ресторана (ЛК → «Устройства»): корзина и язык планшета, забытые вызовы и заказы
+const TIMERS = { cartMin: 10, langMin: 120, callMin: 60, orderHours: 8 };
+const TIMER_RANGE = { cartMin: [1, 120], langMin: [10, 720], callMin: [10, 600], orderHours: [1, 48] };
+const timersOf = (r) => ({ ...TIMERS, ...(r?.timers || {}) });
+const cleanTimers = (b) => Object.fromEntries(Object.entries(TIMERS).map(([k, def]) => [k, Math.min(TIMER_RANGE[k][1], Math.max(TIMER_RANGE[k][0], Math.round(Number(b?.[k])) || def))]));
+const callForgetMs = (r) => timersOf(r).callMin * 60_000, orderForgetMs = (r) => timersOf(r).orderHours * 3600_000;
+// «2 д 3 ч 15 мин» — длительность для сообщений в Telegram
+function fmtDur(ms) {
+  const m = Math.max(0, Math.round(ms / 60_000)), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+  return [d && `${d} д`, h && `${h} ч`, (mm || (!d && !h)) && `${mm} мин`].filter(Boolean).join(' ');
+}
 db.forgotten ??= [];
 const lastAct = (x) => Math.max(...Object.entries(x).filter(([k, v]) => (k === 'at' || /At$/.test(k)) && typeof v === 'number').map(([, v]) => v));
 function sweepForgotten() {
@@ -1259,7 +1273,7 @@ function sweepForgotten() {
   let changed = false;
   // сначала заказы (8 часов без действий), потом вызовы — снятый забытый заказ больше не держит вызов
   for (const o of db.orders) {
-    if (o.closed || now - lastAct(o) < ORDER_FORGET_MS) continue;
+    if (o.closed || now - lastAct(o) < orderForgetMs(db.restaurants[o.restaurantId])) continue;
     const last = lastAct(o);
     Object.assign(o, { closed: now, autoClosed: 'forgotten' });
     db.forgotten.unshift({ id: o.id, kind: 'order', r: o.restaurantId, table: o.table, at: o.at, last, when: now, removed: true,
@@ -1271,7 +1285,7 @@ function sweepForgotten() {
     if (c.closed || c.status === 'done') continue;
     const r = db.restaurants[c.restaurantId];
     if (!r) continue;
-    if (c.status === 'new' && now - c.at >= CALL_FORGET_MS) {
+    if (c.status === 'new' && now - c.at >= callForgetMs(r)) {
       const keep = openAt(db.orders, r, c.table).length > 0;
       let f = c.forgot && db.forgotten.find((x) => x.id === c.id);
       if (!c.forgot) {
@@ -1287,7 +1301,7 @@ function sweepForgotten() {
         if (f) f.removed = true;
         changed = true;
       }
-    } else if (c.status !== 'new' && now - lastAct(c) >= ORDER_FORGET_MS) {
+    } else if (c.status !== 'new' && now - lastAct(c) >= orderForgetMs(r)) {
       Object.assign(c, { status: 'done', doneAt: now, closed: now, autoClosed: 'forgotten' });
       db.forgotten.unshift({ id: c.id, kind: 'call', type: c.type, r: c.restaurantId, table: c.table, at: c.at, when: now, removed: true, acked: c.by || '' });
       changed = true;
@@ -1321,7 +1335,7 @@ function managerGet(b, q) {
     restaurant: {
       id: r.id, name: r.name, langs: r.langs || [], tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
       menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [], staffArchive: r.staffArchive || [],
-      menuSource: publicSource(r.menuSource), menuIssues: menuIssues(r),
+      menuSource: publicSource(r.menuSource), menuIssues: menuIssues(r), timers: timersOf(r),
       display: { ...DISPLAY, ...r.display },
       avatar: { ...AVATAR, ...r.avatar },
       customTags: r.customTags || [], tagRules: r.tagRules || DEFAULT_RULES,
@@ -1339,7 +1353,7 @@ function managerGet(b, q) {
   };
 }
 
-const SECTIONS = { testVisit: 'пометка тестового визита', staffArchive: 'уволенные', staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', customTags: 'особые пожелания', tagRules: 'правила отметок', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы', flow: 'заказы и кухня' };
+const SECTIONS = { testVisit: 'пометка тестового визита', staffArchive: 'уволенные', staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', customTags: 'особые пожелания', tagRules: 'правила отметок', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы', flow: 'заказы и кухня', timers: 'сроки сбросов' };
 function managerSave(b) {
   const { r, member } = managerSession(b.token);
   // Страница ЛК открыта с данными другого ресторана (вышли и вошли другим кодом без перезагрузки) — не сохраняем,
@@ -1360,6 +1374,7 @@ function managerSave(b) {
   if (Array.isArray(b.promos)) r.promos = cleanPromos(b.promos);
   if (Array.isArray(b.promos) || Array.isArray(b.menu)) syncPromoItems(r);
   // «реклама после каждых N слайдов» задаёт админка — из ЛК не меняется
+  if (b.timers) r.timers = cleanTimers(b.timers);
   if (b.display) r.display = { ...cleanDisplay(b.display), adEvery: { ...DISPLAY, ...r.display }.adEvery };
   if (b.avatar) r.avatar = cleanAvatar(b.avatar, r);
   if (b.flow) {
