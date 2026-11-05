@@ -16,6 +16,7 @@ import { ELEVEN_MODELS, elevenVoices, elevenUsage, cachedTts, synthesize } from 
 import { eventLog, thDay, restaurantReport, networkReport } from './stats.mjs';
 import { countRequest, selfStats, hostStats } from './sysinfo.mjs';
 import { DISTRICTS, DISTRICT_IDS, OUTLINE, cleanGeo, resolveMapLink } from './geo.mjs';
+import { writeZip } from './zip.mjs';
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -333,6 +334,7 @@ function auditText(method, p, b) {
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/assign$/))) return [`Устройство ${dev(m[1])} → ${db.restaurants[b.restaurantId]?.name || 'не привязано'}${b.table ? ` · ${b.table}` : ''}`, b.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)$/))) return [`Устройство удалено: ${dev(m[1])}`];
   if (p === '/api/uploads/replace') return ['Картинка пережата и заменена'];
+  if (p === '/api/export/link') return ['Создана ссылка на 48 ч: все фото акций и рекламы (ZIP)'];
   if (p === '/api/crm/clients') return [`CRM: клиент сохранён — ${b.name || db.restaurants[b.rid]?.name || ''}`, b.rid || undefined];
   if (p === '/api/crm/pricing') return ['CRM: прайс изменён'];
   if ((m = p.match(/^\/api\/crm\/clients\/([^/]+)(\/paid|\/unpay)?$/))) {
@@ -696,7 +698,9 @@ function slidesFor(r, dev) {
     .filter((a) => a.active && a.image && adReaches(a, r) && !(r.blockedAds || []).includes(a.id)
       && !blockedCats(r).includes(a.cat || 'other'))
     .map((a) => ({
-      type: 'ad', id: a.id, image: a.image, phone: a.phone || '', // рекламодатель и название — только для поиска в портале
+      // strict — без картинки на языке гостя реклама не показывается (у акций — запасная картинка)
+      type: 'ad', id: a.id, image: a.image, images: a.images || {}, off: a.langOff || [], strict: true,
+      phone: a.phone || '', // рекламодатель и название — только для поиска в портале
       qr: a.link ? `${PUBLIC_URL}/go/a/${a.id}?r=${r.id}${dev ? `&d=${encodeURIComponent(dev)}` : ''}` : '', ...qrPlace(a), ...framing(a),
       cta: a.cta?.enabled ? publicCta(a.cta) : null,
     }));
@@ -969,6 +973,7 @@ function staffState(b, q) {
     myTables: (r.tables || []).filter((tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb)),
     vapidKey: db.vapid.publicKey,
     calls: db.calls.filter((c) => c.restaurantId === r.id && !c.closed && c.status !== 'done'),
+    forgotten: forgottenFor(r, member),
     flow: pick(flowOf(r), ['phones', 'kitchenBtn', 'kitchenScreen']), customTags: r.customTags || [],
     // телефоны гостей по столам (официант может отключить чужой) и имена гостей для подписей
     phones: Object.fromEntries((r.tables || []).map((tb) => [tb, Object.values(tableKey(r, tb)?.s.guests || {})
@@ -1241,6 +1246,66 @@ setInterval(() => {
     logEvent(x.restaurantId, 'remind', { table: x.table, kind });
   }
 }, 15_000);
+
+// ---------- Забытые вызовы и заказы. Вызов без реакции официанта больше часа — забыт: снимается, если за столом нет заказа
+// (есть заказ — остаётся, гость ещё за столом). Заказ без единого действия 8 часов — забыт и снимается.
+// Принятый вызов, который так и не завершили, снимается через 8 часов. Список забытых за сегодня и вчера —
+// внизу у официантов и менеджера, с подсказкой, что делать, чтобы не забывалось
+const CALL_FORGET_MS = 60 * 60_000, ORDER_FORGET_MS = 8 * 3600_000;
+db.forgotten ??= [];
+const lastAct = (x) => Math.max(...Object.entries(x).filter(([k, v]) => (k === 'at' || /At$/.test(k)) && typeof v === 'number').map(([, v]) => v));
+function sweepForgotten() {
+  const now = Date.now();
+  let changed = false;
+  // сначала заказы (8 часов без действий), потом вызовы — снятый забытый заказ больше не держит вызов
+  for (const o of db.orders) {
+    if (o.closed || now - lastAct(o) < ORDER_FORGET_MS) continue;
+    const last = lastAct(o);
+    Object.assign(o, { closed: now, autoClosed: 'forgotten' });
+    db.forgotten.unshift({ id: o.id, kind: 'order', r: o.restaurantId, table: o.table, at: o.at, last, when: now, removed: true,
+      status: o.status, total: o.total, by: o.ackBy || o.by || '' });
+    logEvent(o.restaurantId, 'forgotten', { kind: 'order', table: o.table });
+    changed = true;
+  }
+  for (const c of db.calls) {
+    if (c.closed || c.status === 'done') continue;
+    const r = db.restaurants[c.restaurantId];
+    if (!r) continue;
+    if (c.status === 'new' && now - c.at >= CALL_FORGET_MS) {
+      const keep = openAt(db.orders, r, c.table).length > 0;
+      let f = c.forgot && db.forgotten.find((x) => x.id === c.id);
+      if (!c.forgot) {
+        c.forgot = now;
+        f = { id: c.id, kind: 'call', type: c.type, r: c.restaurantId, table: c.table, at: c.at, when: now, removed: false };
+        db.forgotten.unshift(f);
+        logEvent(c.restaurantId, 'forgotten', { kind: 'call', table: c.table });
+        changed = true;
+      }
+      // за столом нет заказа — снимаем (и тот, что держали из-за заказа, когда заказ закрыли)
+      if (!keep) {
+        Object.assign(c, { status: 'done', doneAt: now, closed: now, autoClosed: 'forgotten' });
+        if (f) f.removed = true;
+        changed = true;
+      }
+    } else if (c.status !== 'new' && now - lastAct(c) >= ORDER_FORGET_MS) {
+      Object.assign(c, { status: 'done', doneAt: now, closed: now, autoClosed: 'forgotten' });
+      db.forgotten.unshift({ id: c.id, kind: 'call', type: c.type, r: c.restaurantId, table: c.table, at: c.at, when: now, removed: true, acked: c.by || '' });
+      changed = true;
+    }
+  }
+  const before = db.forgotten.length;
+  db.forgotten = db.forgotten.filter((f) => now - f.when < 3 * 864e5).slice(0, 1000);
+  if (changed || before !== db.forgotten.length) save();
+}
+setTimeout(sweepForgotten, 20_000).unref();
+setInterval(sweepForgotten, 60_000).unref();
+// Забытые за сегодня и вчера (по Бангкоку); официант с назначенными столами видит свои столы
+function forgottenFor(r, member) {
+  const today = thDay(), yesterday = thDay(Date.now() - 864e5);
+  const mine = (tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb);
+  const list = db.forgotten.filter((f) => f.r === r.id && mine(f.table));
+  return { today: list.filter((f) => thDay(f.when) === today), yesterday: list.filter((f) => thDay(f.when) === yesterday) };
+}
 
 // ---------- Менеджер ресторана: персонал и столы, меню, акции, блокировка внешней рекламы
 
@@ -1905,9 +1970,14 @@ function cleanCta(c = {}) {
 }
 const publicCta = (c) => ({ pos: c.pos, shape: c.shape, text: c.text, submit: c.submit, done: c.done, doneSec: c.doneSec || 10 });
 
+// Картинки рекламы по языкам: реклама показывается гостю только на тех языках, где есть картинка и не снята галочка
+const AD_LANGS = ['ru', 'en', 'th', 'zh'];
+const adImages = (a) => Object.fromEntries(AD_LANGS.map((l) => [l, String(a.images?.[l] || '')]).filter(([, v]) => v));
 function cleanAd(a) {
+  const images = adImages(a);
   return {
-    id: a.id || uid(), advertiser: String(a.advertiser || ''), title: String(a.title || ''), image: String(a.image || ''),
+    id: a.id || uid(), advertiser: String(a.advertiser || ''), title: String(a.title || ''), images,
+    image: Object.values(images)[0] || '', langOff: [...new Set((Array.isArray(a.langOff) ? a.langOff : []).filter((l) => AD_LANGS.includes(l)))],
     restaurants: (a.restaurants || []).map(String), districts: (a.districts || []).map(String).filter((x) => DISTRICT_IDS.has(x)),
     active: !!a.active, cat: AD_CATS[a.cat] ? a.cat : 'other',
     link: String(a.link || '').trim(), phone: String(a.phone || '').trim(), ...qrPlace(a), ...framing(a),
@@ -2124,6 +2194,14 @@ function admin(method, p, b, me, q) {
     if (scope) throw fail(403, 'Нет доступа');
     return serverPanel();
   }
+  if (method === 'POST' && p === '/api/export/link') {
+    if (scope) throw fail(403, 'Нет доступа');
+    for (const [k, l] of Object.entries(db.exportLinks)) if (l.until < Date.now()) delete db.exportLinks[k];
+    const token = crypto.randomBytes(24).toString('base64url'), until = Date.now() + 48 * 3600e3;
+    db.exportLinks[token] = { until, by: me.email };
+    save();
+    return { url: `${PUBLIC_URL}/export/${token}/photos.zip`, until };
+  }
   if (method === 'GET' && p === '/api/ad-cats') return Object.entries(AD_CATS).map(([id, name]) => ({ id, name }));
   // Заявки на подключение ресторана с планшетов (окно «О системе» по нажатию на номер стола)
   if (p.startsWith('/api/join-requests')) {
@@ -2224,7 +2302,7 @@ function admin(method, p, b, me, q) {
     if (scope) throw fail(403, 'Нет доступа');
     const uses = new Map();
     const add = (url, kind) => { if (typeof url === 'string' && /^\/uploads\/[a-f0-9]+\.(jpg|png|webp)$/.test(url) && !uses.has(url)) uses.set(url, kind); };
-    for (const a of db.ads) add(a.image, 'slide');
+    for (const a of db.ads) { add(a.image, 'slide'); Object.values(a.images || {}).forEach((u) => add(u, 'slide')); }
     for (const r of Object.values(db.restaurants)) {
       for (const pr of r.promos || []) { add(pr.image, 'slide'); Object.values(pr.images || {}).forEach((u) => add(u, 'slide')); }
       for (const i of r.menu || []) add(i.photo, i.fromPromo ? 'slide' : 'photo');
@@ -2239,7 +2317,7 @@ function admin(method, p, b, me, q) {
     if (!ok(b.from) || !ok(b.to) || !fs.existsSync(path.join(UPLOADS, b.to.slice(9)))) throw fail(400, 'bad file');
     let n = 0;
     const swap = (o, k) => { if (o[k] === b.from) { o[k] = b.to; n++; } };
-    for (const a of db.ads) swap(a, 'image');
+    for (const a of db.ads) { swap(a, 'image'); for (const l of Object.keys(a.images || {})) swap(a.images, l); }
     for (const r of Object.values(db.restaurants)) {
       for (const pr of r.promos || []) { swap(pr, 'image'); for (const l of Object.keys(pr.images || {})) swap(pr.images, l); }
       for (const i of r.menu || []) swap(i, 'photo');
@@ -2365,6 +2443,52 @@ for (const r of Object.values(db.restaurants)) {
 
 // Однократно: всё, что было до этого обновления (пилотные тесты), и все нынешние сотрудники — тестовые
 db.migrations ??= {};
+// Все фото акций и рекламы одним ZIP: «Ресторан/Акции/01 Название_RU.jpg», «Реклама/Рекламодатель — название/RU.jpg»,
+// плюс постеры Чехова на других языках, которые сделал Claude (assets/chekhoff/gen) — «Чехов/Новые языки (Claude)/…»
+const safeName = (x) => String(x || '').replace(/[\\/:*?"<>|\n\r]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 70) || 'без названия';
+function photoFiles() {
+  const files = [], seen = new Set();
+  const add = (name, url) => {
+    const m = String(url || '').match(/^\/uploads\/([a-f0-9]+\.(jpg|png|webp))$/);
+    if (!m) return;
+    const ext = m[2], full = `${name}.${ext}`;
+    if (seen.has(full)) return;
+    try { files.push({ name: full, data: fs.readFileSync(path.join(UPLOADS, m[1])) }); seen.add(full); } catch { /* файла нет */ }
+  };
+  for (const r of Object.values(db.restaurants)) {
+    (r.promos || []).forEach((p, i) => {
+      const base = `${safeName(r.name)}/Акции/${String(i + 1).padStart(2, '0')} ${safeName(p.name)}${p.active ? '' : ' (выключена)'}`;
+      const imgs = Object.entries(p.images || {});
+      if (imgs.length) imgs.forEach(([l, u]) => add(`${base}_${l.toUpperCase()}`, u));
+      else add(`${base}_ВСЕ ЯЗЫКИ`, p.image);
+    });
+  }
+  for (const a of db.ads) {
+    const base = `Реклама/${safeName([a.advertiser, a.title].filter(Boolean).join(' — '))}${a.active ? '' : ' (выключена)'}`;
+    const imgs = Object.entries(a.images || {});
+    if (imgs.length) imgs.forEach(([l, u]) => add(`${base}/${l.toUpperCase()}`, u));
+    else add(`${base}/ВСЕ ЯЗЫКИ`, a.image);
+  }
+  const gen = new URL('./assets/chekhoff/gen/', import.meta.url);
+  try {
+    for (const f of fs.readdirSync(gen).sort()) if (/\.(jpg|png|webp)$/.test(f)) files.push({ name: `Чехов/Новые языки (Claude)/${f}`, data: fs.readFileSync(new URL(f, gen)) });
+  } catch { /* нет готовых */ }
+  return files;
+}
+function sendPhotosZip(res) {
+  const stamp = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  res.writeHead(200, { 'content-type': 'application/zip', 'cache-control': 'no-store',
+    'content-disposition': `attachment; filename="jetmedia-photos-${stamp}.zip"` });
+  writeZip(res, photoFiles());
+}
+// Ссылка только на чтение на тот же ZIP — на 48 часов (передать без пароля к админке)
+db.exportLinks ??= {};
+
+// Однократно: у рекламы была одна картинка — теперь это русская, остальные языки загружают отдельно
+if (!db.migrations.adLangs) {
+  for (const a of db.ads) if (a.image && !a.images) a.images = { ru: a.image };
+  db.migrations.adLangs = true;
+}
 if (!db.migrations.testAll) {
   for (const r of Object.values(db.restaurants)) {
     r.testBefore = Date.now();
@@ -2589,6 +2713,18 @@ const server = http.createServer(async (req, res) => {
       if (!target) return send(res, 404, { error: 'link not found' });
       res.writeHead(302, { location: target });
       return res.end();
+    }
+    // Все фото акций и рекламы одним ZIP: из админки или по временной ссылке только на чтение
+    if (req.method === 'GET' && url.pathname === '/api/export/photos.zip') {
+      const me = currentAdmin(req);
+      if (!me || me.role === 'viewer' || scopeOf(me)) return send(res, 403, { error: 'Нет доступа' });
+      return sendPhotosZip(res);
+    }
+    const ex = req.method === 'GET' && url.pathname.match(/^\/export\/([A-Za-z0-9_-]{20,64})\/photos\.zip$/);
+    if (ex) {
+      const l = db.exportLinks[ex[1]];
+      if (!l || l.until < Date.now()) return send(res, 410, 'Ссылка устарела — создайте новую в админке (Реклама → «Ссылка только на чтение»)', 'text/plain; charset=utf-8');
+      return sendPhotosZip(res);
     }
     // CRM: файл договора — загрузка и выдача только с доступом к CRM
     if (req.method === 'POST' && url.pathname === '/api/crm/upload') return send(res, 200, await crmUpload(req, currentAdmin(req)));

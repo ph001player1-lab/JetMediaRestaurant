@@ -134,6 +134,9 @@
   .cgrid { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; } .cgrid label { display: flex; flex-direction: column; font-size: 13px; gap: 4px; min-width: 200px; flex: 1; }
   .cgrid .full { flex-basis: 100%; } .cgrid textarea { width: 100%; } .pays td { padding: 3px 8px; }
   .crmprice input { width: 70px; } .crmprice { margin: 8px 0; line-height: 2.2; }
+  .alangs { display: flex; gap: 6px; } .alang { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 12px; width: 70px; }
+  .alang .athumb { width: 60px; height: 74px; object-fit: cover; } .alang .anone { width: 60px; height: 74px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 10px; color: #999; background: #f3f3f3; border-radius: 4px; font-style: normal; }
+  .alang .aup { cursor: pointer; text-decoration: underline; color: #2a78d6; } .alang .alon { display: flex; gap: 3px; align-items: center; } .alang .alon input { width: auto; }
   .badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: #c62828; color: #fff; font-size: 12px; line-height: 18px; text-align: center; }
   .pinw { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
   .pinw input.masked { -webkit-text-security: disc; text-security: disc; }
@@ -263,10 +266,12 @@
     <span id="aCount" class="hint"></span>
   </div>
   <div class="wrap"><table>
-    <thead><tr><th>Рекламодатель</th><th>Название</th><th>Тип</th><th>Картинка 800×986</th><th>Ссылка для QR</th><th>Телефон</th><th>QR и телефон: место / размер</th><th>Кадр: режим, сдвиг ↕, масштаб</th><th>Где показывать</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
+    <thead><tr><th>Рекламодатель</th><th>Название</th><th>Тип</th><th>Картинки по языкам 800×986</th><th>Ссылка для QR</th><th>Телефон</th><th>QR и телефон: место / размер</th><th>Кадр: режим, сдвиг ↕, масштаб</th><th>Где показывать</th><th>Включена</th><th>За 7 дней</th><th></th></tr></thead>
     <tbody id="ads"></tbody>
   </table></div>
   <p><button id="addAdBtn">+ Реклама</button>
+    <a href="/api/export/photos.zip" download><button type="button" title="Все фото акций всех ресторанов и всей рекламы, разложено по папкам">Скачать все фото (ZIP)</button></a>
+    <button type="button" onclick="exportLink()" title="Ссылка на тот же ZIP без пароля к админке, действует 48 часов">Ссылка только на чтение</button>
     <button id="heavyBtn" onclick="shrinkHeavy()" title="Акции, реклама и фото блюд тяжелее 300 КБ — пережать в лёгкие">Сжать тяжёлые картинки</button></p>
 </section>
 
@@ -744,6 +749,14 @@ async function uploadImage(file, kind) {
   const url = (await (await fetch('/api/upload', { method: 'POST', headers: { 'content-type': blob.type }, body: blob })).json()).url;
   note(`✓ ${w} × ${h} px, ${kb(blob.size)}${file.size > blob.size * 1.2 ? ` (было ${kb(file.size)})` : ''}`);
   return url;
+}
+
+// Ссылка только на чтение на ZIP со всеми фото (48 часов)
+async function exportLink() {
+  const r = await api('/api/export/link', 'POST', {});
+  if (r.error) return alert(r.error);
+  try { await navigator.clipboard.writeText(r.url); } catch { /* без буфера обмена */ }
+  prompt(`Ссылка скопирована, действует до ${new Date(r.until).toLocaleString('ru-RU')}:`, r.url);
 }
 
 // Уже загруженные тяжёлые картинки (больше 300 КБ): пережать так же и подменить во всех акциях, рекламе и меню
@@ -1406,8 +1419,11 @@ function renderAds() {
     <td><input data-f="advertiser" value="${esc(a.advertiser)}"></td>
     <td><input data-f="title" value="${esc(a.title)}" placeholder="для поиска"></td>
     <td><select data-f="cat" style="max-width:190px">${adCats.map((c) => `<option value="${c.id}" ${(a.cat || 'other') === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></td>
-    <td>${a.image ? `<img class="athumb" src="${esc(a.image)}" data-pv="${i}" title="Предпросмотр">` : ''}
-      <input data-f="image" value="${esc(a.image)}"><input type="file" accept="image/*" data-upload="image"></td>
+    <td style="min-width:300px"><div class="alangs">${['ru', 'en', 'th', 'zh'].map((l) => { const u = (a.images || {})[l]; return `<div class="alang">
+      <b>${l.toUpperCase()}</b>${u ? `<img class="athumb" src="${esc(u)}" data-pv="${i}" data-pvl="${l}" title="Предпросмотр">` : '<i class="anone">нет —<br>не показывается</i>'}
+      <label class="aup">${u ? 'Заменить' : 'Загрузить'}<input type="file" accept="image/*" data-upl="${l}" hidden></label>
+      ${u ? `<button type="button" data-adel="${l}" title="Убрать картинку этого языка">✕</button>` : ''}
+      <label class="alon"><input type="checkbox" data-alon="${l}" ${(a.langOff || []).includes(l) ? '' : 'checked'}> показывать</label></div>`; }).join('')}</div></td>
     <td><input data-f="link" value="${esc(a.link || '')}" placeholder="https://"></td>
     <td><input data-f="phone" value="${esc(a.phone || '')}"></td>
     <td>${qrGrid(a.qrPos)}
@@ -1461,15 +1477,26 @@ const qrGrid = (cur) => {
 };
 const QR_SIZE = { s: 'маленький', m: 'средний', l: 'большой' };
 const adSlide = (a) => ({
-  type: 'ad', image: a.image, phone: a.phone, qr: a.link, qrPos: a.qrPos, qrSize: a.qrSize,
+  type: 'ad', image: (a.images || {})[$('pvLang')?.value] || a.image, images: a.images || {}, phone: a.phone, qr: a.link, qrPos: a.qrPos, qrSize: a.qrSize,
   fit: a.fit, imgY: a.imgY, imgScale: a.imgScale, cta: a.cta?.enabled ? { ...a.cta, pos: a.cta.pos || 'bottom-center' } : null,
 });
 
 $('ads').oninput = $('ads').onchange = async (e) => {
   const a = ads[e.target.closest('tr[data-i]')?.dataset.i];
   if (!a) return;
+  // Картинка языка: реклама показывается гостям только на языках, где картинка есть и стоит «показывать»
   if (e.target.type === 'file') {
-    if (e.type === 'change' && e.target.files[0]) { a.image = await uploadImage(e.target.files[0], 'slide'); renderAds(); }
+    const l = e.target.dataset.upl;
+    if (e.type === 'change' && e.target.files[0] && l) {
+      a.images = { ...(a.images || {}), [l]: await uploadImage(e.target.files[0], 'slide') };
+      a.image = Object.values(a.images)[0];
+      renderAds();
+    }
+    return;
+  }
+  if (e.target.dataset.alon && e.type === 'change') {
+    const l = e.target.dataset.alon;
+    a.langOff = e.target.checked ? (a.langOff || []).filter((x) => x !== l) : [...new Set([...(a.langOff || []), l])];
     return;
   }
   // Кнопка заявки: включение, форма, время сообщения, тексты по языкам
@@ -1493,8 +1520,17 @@ $('ads').addEventListener('toggle', (e) => {
 }, true);
 
 $('ads').onclick = async (e) => {
-  const { save, del, pv, qrpos, ctapos, tg, tgrm, leads, tgt } = e.target.dataset;
+  const { save, del, pv, qrpos, ctapos, tg, tgrm, leads, tgt, adel, pvl } = e.target.dataset;
   if (tgt !== undefined) return openTarget(Number(tgt));
+  if (adel) {
+    const a0 = ads[e.target.closest('tr[data-i]').dataset.i];
+    if (!confirm(`Убрать картинку ${adel.toUpperCase()}? Гостям на этом языке реклама перестанет показываться.`)) return;
+    a0.images = { ...(a0.images || {}) };
+    delete a0.images[adel];
+    a0.image = Object.values(a0.images)[0] || '';
+    return renderAds();
+  }
+  if (pvl && $('pvLang')) $('pvLang').value = pvl;
   if (qrpos) { ads[e.target.closest('tr').dataset.i].qrPos = qrpos; renderAds(); return sendPreview(); }
   const row = e.target.closest('tr[data-i]'), a = row && ads[row.dataset.i];
   if (ctapos) { a.cta = { ...(a.cta || {}), pos: ctapos }; renderAds(); return sendPreview(); }

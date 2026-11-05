@@ -578,6 +578,18 @@ function renderAll() {
   // Меню — одной лентой: все категории подряд, заголовок над каждой; листаешь — категория вверху меняется сама.
   // Ленту строим заново, только когда сменились меню, язык или подбор, — иначе страница не прыгает при добавлении блюда
   var sig = menuSig + '|' + lang + '|' + tag + '|' + isEntrance();
+  // на экране слайдов меню не видно — перестраиваем его не сразу (смена языка — мгновенно), а в паузе
+  if (sig !== feedSig && $('attract').style.display === 'block') {
+    clearTimeout(feedTimer);
+    feedTimer = setTimeout(function () { if ($('attract').style.display === 'block') buildFeed(list, tag, sig); }, 1500);
+  } else if (sig !== feedSig) buildFeed(list, tag, sig);
+  updateAddButtons();
+  renderFooter();
+  if ($('attract').style.display === 'block') renderAttract();
+}
+
+var feedTimer = null;
+function buildFeed(list, tag, sig) {
   if (sig !== feedSig) {
     feedSig = sig;
     $('items').innerHTML = tag
@@ -586,10 +598,8 @@ function renderAll() {
         return '<section class="msec" data-sec="' + esc(c) + '"><h3 class="mcat">' + esc(c === DAY ? t('day') : c) + '</h3><div class="grid">' +
           state.menu.filter(function (i) { return c === DAY ? i.dayDish : (tr(i.cat) || '—') === c; }).map(cardHtml).join('') + '</div></section>';
       }).join('');
+    updateAddButtons();
   }
-  updateAddButtons();
-  renderFooter();
-  if ($('attract').style.display === 'block') renderAttract();
 }
 
 var feedSig = '';
@@ -742,8 +752,14 @@ function renderCallBar() {
   if (w) parts.push(t('callOn'));
   if (b) parts.push(t('billOn'));
   if (o.length) parts.push(t('orderOn'));
-  var on = parts.length > 0;
-  $('callBar').textContent = going ? t('comingBar') : parts.join('  ·  ');
+  var on = parts.length > 0, text = going ? t('comingBar') : parts.join('  ·  ');
+  var a = $('aCall');
+  if (a) { a.className = 'abtn' + (w ? ' alarm' : ''); a.textContent = t(w ? 'cancelCall' : 'call'); }
+  // та же полоса — не трогаем: подбор шрифта меряет страницу, а с большим меню это заметная задержка
+  var sig = text + '|' + on + '|' + going;
+  if (sig === callBarSig) return;
+  callBarSig = sig;
+  $('callBar').textContent = text;
   $('callBar').className = going ? 'go' : '';
   $('callBar').style.display = on ? 'block' : 'none';
   document.body.classList.toggle('calling', on);
@@ -752,9 +768,8 @@ function renderCallBar() {
     $('callBar').style.fontSize = fs + 'px';
     if (!on || $('callBar').scrollWidth <= $('callBar').clientWidth) break;
   }
-  var a = $('aCall');
-  if (a) { a.className = 'abtn' + (w ? ' alarm' : ''); a.textContent = t(w ? 'cancelCall' : 'call'); }
 }
+var callBarSig = '';
 
 function priceLabel(i) {
   var prices = (i.options || []).map(function (o) { return Number(o.price) || 0; }).filter(Boolean);
@@ -935,7 +950,10 @@ function cancelCall(type) {
 
 // Слайды на языке гостя: акция, у которой на этом языке снята галочка «показывать», пропускается
 function slides() {
-  return ((state && state.slides) || []).filter(function (x) { return !(x.off && x.off.indexOf(lang) >= 0); });
+  return ((state && state.slides) || []).filter(function (x) {
+    if (x.off && x.off.indexOf(lang) >= 0) return false;
+    return !x.strict || !!(x.images || {})[lang]; // реклама — только с картинкой на этом языке
+  });
 }
 function width() { return $('attract').clientWidth; }
 
@@ -948,12 +966,14 @@ function fx() {
     unit: vert ? $('ctrack').parentNode.clientHeight : width() };
 }
 
+var qrCache = {};
 function qrSvg(text) {
+  if (qrCache[text]) return qrCache[text];
   try {
     var q = qrcode(0, 'M');
     q.addData(text);
     q.make();
-    return q.createSvgTag(4, 8);
+    return (qrCache[text] = q.createSvgTag(4, 8));
   } catch (e) { return ''; }
 }
 
@@ -1008,7 +1028,20 @@ function qrClass(pos) {
 }
 
 // Лента из трёх слайдов: следующий, текущий, предыдущий — порядок и ось по настройке смены слайдов
+// Картинки слайдов на всех языках — заранее в кэш (в паузе), чтобы при смене языка картинка не догружалась
+var preloaded = {};
+function preloadSlides() {
+  var urls = [];
+  slidesAll().forEach(function (x) { var m = x.images || {}; for (var k in m) urls.push(m[k]); if (x.image) urls.push(x.image); });
+  urls.filter(function (u) { return u && !preloaded[u]; }).forEach(function (u, i) {
+    preloaded[u] = 1;
+    setTimeout(function () { new Image().src = u; }, 2000 + i * 400);
+  });
+}
+function slidesAll() { return (state && state.slides) || []; }
+
 function renderCarousel() {
+  preloadSlides();
   var list = slides(), n = list.length;
   $('attract').className = '';
   if (!n && !state.avatar) return;
@@ -1078,7 +1111,9 @@ function slideGo(dir) {
   }, f.ms + 20);
 }
 
+var quietRender = false;
 function onSlideShown(s) {
+  if (quietRender) return; // тот же слайд на другом языке — не новый показ
   slideAt = Date.now();
   if ((s.type === 'ad' || s.type === 'promo') && !PREVIEW) post('/api/guest/impression', { id: s.id }).catch(function () {});
   if (s.type === 'avatar' && !PREVIEW) post('/api/guest/impression', { kind: 'avatar' }).catch(function () {});
@@ -1526,7 +1561,7 @@ document.addEventListener('click', function (e) {
     var card = e.target.closest('[data-avcard]');
     if (card && !a) return avatarAction('dish:' + card.dataset.avcard);
     if (!a) return;
-    if (a.dataset.alang) { lang = a.dataset.alang; renderAll(); }
+    if (a.dataset.alang) { lang = a.dataset.alang; quietRender = true; try { renderAttract(); renderCallBar(); } finally { quietRender = false; } }
     else if (a.dataset.cgo) slideGo(Number(a.dataset.cgo));
     else if (a.dataset.qr) { holdUntil = Date.now() + 60000; qrOpen(); }
     else if (a.dataset.avadd) avatarAdd(a.dataset.avadd);
