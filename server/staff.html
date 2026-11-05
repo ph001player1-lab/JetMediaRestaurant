@@ -232,6 +232,9 @@
   #tables button { margin: 4px; background: #efe7df; color: #1f1a17; }
   .empty { color: #8a7f76; }
   .err { color: #c62828; min-height: 1em; }
+.install summary { cursor: pointer; font-size: 1.05em; } .install h4 { margin: 14px 0 4px; } .install ol { margin: 4px 0; padding-left: 22px; } .install li { margin: 3px 0; }
+.install .slides { max-width: 100%; display: flex; gap: 8px; overflow-x: auto; margin: 8px 0; } .install .slides img { height: 340px !important; width: auto !important; max-width: none !important; max-height: none !important; object-fit: contain; flex: none; border-radius: 10px; border: 1px solid #ccc; display: block; }
+.install { display: block; border: 2px solid var(--accent, #c8553d); min-width: 0; max-width: 100%; box-sizing: border-box; overflow: hidden; }
 </style>
 </head>
 <body>
@@ -1212,12 +1215,49 @@ const langBar = () => `<div class="bar"><label>${t('editLang')} <select class="e
   ['en', 'th', 'ru', 'zh'].map((l) => `<option value="${l}" ${l === elang ? 'selected' : ''}>${l.toUpperCase()}</option>`).join('')}</select></label></div>`;
 const saveBar = (list) => `<div class="bar"><button data-add="${list}">+ ${t('add')}</button><button data-save="1">${t('save')}</button></div>`;
 
+// Инструкция установки приложения для персонала (ЛК → Персонал, вверху)
+const INSTALL = {
+  ru: { title: '📱 Как установить приложение JET Staff', link: 'Ссылка', need: 'Для входа нужны <b>код ресторана</b> ({code}) и <b>личный PIN</b> сотрудника (из списка ниже).',
+    ios: ['Откройте ссылку в <b>Safari</b> (в другом браузере установить не получится).', 'Нажмите «Поделиться» (квадрат со стрелкой вверх) → <b>«На экран „Домой“»</b> → «Добавить».', 'Закройте Safari и откройте приложение со значка приложения, появившегося на экране.', 'Введите код ресторана и PIN.', 'Нажмите <b>«Включить уведомления»</b> → «Разрешить».'],
+    and: ['Откройте ссылку в <b>Chrome</b>.', 'Меню ⋮ вверху справа → <b>«Установить приложение»</b> → «Установить».', 'Откройте приложение со значка на экране.', 'Введите код ресторана и PIN.', 'Нажмите <b>«Включить уведомления»</b> → «Разрешить».'],
+    andT: 'Android (кроме Samsung)', samT: 'Samsung', samNote: 'На Samsung устанавливайте только через <b>Samsung Browser</b>: через Chrome уведомления не приходят, пока приложение закрыто.',
+    sam: ['Откройте ссылку в <b>Samsung Browser</b>.', 'Нажмите значок установки в адресной строке вверху справа — второй от правого края, со стрелкой вниз (слайд 1).', 'Если появится окно «Google Play Защита: Подозрительное приложение заблокировано» — нажмите <b>«Подробнее»</b> (слайд 2), затем <b>«Все равно установить»</b> (слайд 3). Это нормально: приложение собирает сам Samsung, и защита его не узнаёт.', 'Откройте приложение со значка на экране.', 'Введите код ресторана и PIN.', 'Нажмите <b>«Включить уведомления»</b> → «Разрешить».', 'Режим звука телефона — «Звук» (не «Без звука»).'],
+    chkT: '✅ Проверка (для всех)', chk: ['Включите <b>«На смене»</b>.', 'Нажмите <b>«Проверить уведомление»</b> и сразу заблокируйте телефон.', 'Через ~10 секунд должно прийти уведомление со звуком.', 'Откройте приложение: строка 🔔 должна показывать «телефон получил… · показано».'],
+    imp: '<b>Важно:</b> не смахивайте приложение из списка открытых — пусть висит в фоне.' },
+  en: { title: '📱 How to install the JET Staff app', link: 'Link', need: 'To sign in you need the <b>restaurant code</b> ({code}) and the staff member\'s <b>personal PIN</b> (from the list below).',
+    ios: ['Open the link in <b>Safari</b> (other browsers cannot install it).', 'Tap Share (square with an up arrow) → <b>“Add to Home Screen”</b> → “Add”.', 'Close Safari and open the app from its new icon on the home screen.', 'Enter the restaurant code and PIN.', 'Tap <b>“Turn on notifications”</b> → “Allow”.'],
+    and: ['Open the link in <b>Chrome</b>.', 'Menu ⋮ top right → <b>“Install app”</b> → “Install”.', 'Open the app from its icon on the home screen.', 'Enter the restaurant code and PIN.', 'Tap <b>“Turn on notifications”</b> → “Allow”.'],
+    andT: 'Android (except Samsung)', samT: 'Samsung', samNote: 'On Samsung install only via <b>Samsung Browser</b>: with Chrome, notifications do not arrive while the app is closed.',
+    sam: ['Open the link in <b>Samsung Browser</b>.', 'Tap the install icon in the address bar, top right — second from the right edge, with a down arrow (slide 1).', 'If “Google Play Protect: Suspicious app blocked” appears, tap <b>“More details”</b> (slide 2), then <b>“Install anyway”</b> (slide 3). This is normal: Samsung builds the app itself and Play Protect does not recognise it.', 'Open the app from its icon on the home screen.', 'Enter the restaurant code and PIN.', 'Tap <b>“Turn on notifications”</b> → “Allow”.', 'Phone sound mode must be “Sound” (not “Mute”).'],
+    chkT: '✅ Check (everyone)', chk: ['Turn on <b>“On shift”</b>.', 'Tap <b>“Test notification”</b> and lock the phone right away.', 'A notification with sound should arrive in about 10 seconds.', 'Open the app: the 🔔 line should say the phone received it and it was shown.'],
+    imp: '<b>Important:</b> do not swipe the app away from recent apps — leave it running in the background.' },
+  th: { title: '📱 วิธีติดตั้งแอป JET Staff', link: 'ลิงก์', need: 'การเข้าสู่ระบบต้องใช้ <b>รหัสร้าน</b> ({code}) และ <b>PIN ส่วนตัว</b> ของพนักงาน (จากรายการด้านล่าง)',
+    ios: ['เปิดลิงก์ใน <b>Safari</b> (เบราว์เซอร์อื่นติดตั้งไม่ได้)', 'แตะ “แชร์” (สี่เหลี่ยมมีลูกศรขึ้น) → <b>“เพิ่มไปยังหน้าจอโฮม”</b> → “เพิ่ม”', 'ปิด Safari แล้วเปิดแอปจากไอคอนที่ปรากฏบนหน้าจอ', 'ใส่รหัสร้านและ PIN', 'แตะ <b>“เปิดการแจ้งเตือน”</b> → “อนุญาต”'],
+    and: ['เปิดลิงก์ใน <b>Chrome</b>', 'เมนู ⋮ มุมขวาบน → <b>“ติดตั้งแอป”</b> → “ติดตั้ง”', 'เปิดแอปจากไอคอนบนหน้าจอ', 'ใส่รหัสร้านและ PIN', 'แตะ <b>“เปิดการแจ้งเตือน”</b> → “อนุญาต”'],
+    andT: 'Android (ยกเว้น Samsung)', samT: 'Samsung', samNote: 'บน Samsung ให้ติดตั้งผ่าน <b>Samsung Browser</b> เท่านั้น: ถ้าใช้ Chrome การแจ้งเตือนจะไม่มาเมื่อปิดแอป',
+    sam: ['เปิดลิงก์ใน <b>Samsung Browser</b>', 'แตะไอคอนติดตั้งในแถบที่อยู่ มุมขวาบน — อันที่สองจากขอบขวา มีลูกศรชี้ลง (สไลด์ 1)', 'ถ้ามีหน้าต่าง “Google Play Protect: บล็อกแอปที่น่าสงสัย” ให้แตะ <b>“รายละเอียดเพิ่มเติม”</b> (สไลด์ 2) แล้วแตะ <b>“ติดตั้งต่อไป”</b> (สไลด์ 3) เป็นเรื่องปกติ: Samsung สร้างแอปเองและ Play Protect ไม่รู้จัก', 'เปิดแอปจากไอคอนบนหน้าจอ', 'ใส่รหัสร้านและ PIN', 'แตะ <b>“เปิดการแจ้งเตือน”</b> → “อนุญาต”', 'โหมดเสียงของโทรศัพท์ต้องเป็น “เสียง” (ไม่ใช่ “ปิดเสียง”)'],
+    chkT: '✅ ตรวจสอบ (ทุกคน)', chk: ['เปิด <b>“อยู่ในกะ”</b>', 'แตะ <b>“ทดสอบการแจ้งเตือน”</b> แล้วล็อกโทรศัพท์ทันที', 'ภายในประมาณ 10 วินาทีควรมีการแจ้งเตือนพร้อมเสียง', 'เปิดแอป: บรรทัด 🔔 ควรแสดงว่าโทรศัพท์ได้รับและแสดงแล้ว'],
+    imp: '<b>สำคัญ:</b> อย่าปัดแอปทิ้งจากรายการแอปล่าสุด — ปล่อยให้ทำงานอยู่เบื้องหลัง' },
+};
+function installGuide(code) {
+  const L = INSTALL[lang] || INSTALL.en, url = location.origin + '/staff/';
+  const ol = (a) => `<ol>${a.map((x) => `<li>${x}</li>`).join('')}</ol>`;
+  return `<details class="ed install"><summary><b>${L.title}</b></summary>
+    <p>${L.link}: <a href="${url}" target="_blank"><b>${url}</b></a></p>
+    <p>${L.need.replace('{code}', `<b>${esc(code || '—')}</b>`)}</p>
+    <h4>🍏 iPhone</h4>${ol(L.ios)}
+    <h4>🤖 ${L.andT}</h4>${ol(L.and)}
+    <h4>📲 ${L.samT}</h4><p>${L.samNote}</p>${ol(L.sam)}
+    <div class="slides">${[1, 2, 3].map((n) => `<a href="/staff/install/samsung-${n}.jpg" target="_blank"><img loading="lazy" src="/staff/install/samsung-${n}.jpg" alt="${n}"></a>`).join('')}</div>
+    <h4>${L.chkT}</h4>${ol(L.chk)}<p>${L.imp}</p></details>`;
+}
+
 function renderManager() {
   const r = mgr.restaurant;
   const roleSel = (m) => `<select data-f="role"><option value="waiter">${t('roleWaiter')}</option>
     <option value="manager" ${m.role === 'manager' ? 'selected' : ''}>${t('roleManager')}</option></select>`;
   const tablesOf = (m) => (Array.isArray(m.tables) ? m.tables.join(', ') : m.tables || '');
-  $('tStaff').innerHTML = viewBar('staff') + (views.staff === 'table'
+  $('tStaff').innerHTML = installGuide(r.staffCode || localStorage.code) + viewBar('staff') + (views.staff === 'table'
     ? `<div class="xlwrap"><table class="xl"><thead><tr><th>${t('nameF')}</th><th>${t('role')}</th><th>PIN</th><th>${t('tables')}</th><th>${t('testMark')}</th><th></th></tr></thead>
         <tbody data-list="staff">${r.staff.map((m, i) => `<tr data-i="${i}">
           <td><input data-f="name" value="${esc(m.name || '')}"></td><td>${roleSel(m)}</td>

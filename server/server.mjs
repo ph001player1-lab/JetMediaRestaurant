@@ -49,8 +49,12 @@ const STATIC = {
   '/vendor/qrcode.js': 'vendor/qrcode.js',
   '/vendor/stats.js': 'vendor/stats.js',
   '/vendor/arrows.js': 'vendor/arrows.js',
+  // слайды инструкции установки приложения (ЛК → Персонал)
+  '/staff/install/samsung-1.jpg': 'assets/install/samsung-1.jpg',
+  '/staff/install/samsung-2.jpg': 'assets/install/samsung-2.jpg',
+  '/staff/install/samsung-3.jpg': 'assets/install/samsung-3.jpg',
 };
-const TYPES = { html: 'text/html; charset=utf-8', json: 'application/manifest+json', js: 'text/javascript', svg: 'image/svg+xml', png: 'image/png' };
+const TYPES = { html: 'text/html; charset=utf-8', json: 'application/manifest+json', js: 'text/javascript', svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg' };
 const FILES = Object.fromEntries(Object.values(STATIC).map((f) => [f, fs.readFileSync(new URL(`./${f}`, import.meta.url))]));
 // Версия интерфейса: открытые страницы стола и персонала сами перезагружаются, когда она меняется
 const BUILD = crypto.createHash('sha1').update(Buffer.concat(Object.values(FILES))).digest('hex').slice(0, 10);
@@ -1382,7 +1386,7 @@ function managerGet(b, q) {
   const { r } = managerSession(q.token);
   return {
     restaurant: {
-      id: r.id, name: r.name, langs: r.langs || [], tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
+      id: r.id, name: r.name, staffCode: r.staffCode || '', langs: r.langs || [], tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
       menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [], staffArchive: r.staffArchive || [],
       menuSource: publicSource(r.menuSource), menuIssues: menuIssues(r), timers: timersOf(r),
       display: { ...DISPLAY, ...r.display },
