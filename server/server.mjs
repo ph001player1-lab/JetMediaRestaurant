@@ -1076,6 +1076,28 @@ function staffShift(b) {
   return {};
 }
 
+// Квитанции от телефона: служба уведомлений приняла — ещё не значит, что телефон получил. Обработчик уведомлений
+// на телефоне сам сообщает: «получил» (когда пришло на самом деле) и «показал» / «ошибка показа»
+const pushAcks = new Map(); // id → { s: сессия, at: когда отправили }
+function pushAckId(s) {
+  const id = crypto.randomBytes(9).toString('base64url');
+  pushAcks.set(id, { s, at: Date.now() });
+  if (pushAcks.size > 2000) pushAcks.delete(pushAcks.keys().next().value);
+  return id;
+}
+function staffPushAck(b) {
+  const a = pushAcks.get(String(b.id || ''));
+  if (!a) return {};
+  const pl = a.s.pushLast;
+  if (pl && pl.ack === b.id) {
+    if (b.stage === 'got') pl.gotAt = Date.now();
+    if (b.stage === 'shown') pl.shownAt = Date.now();
+    if (b.stage === 'fail') pl.showErr = String(b.err || 'error').slice(0, 120);
+    save();
+  }
+  return {};
+}
+
 // «Проверить уведомление»: через 10 секунд — тестовое уведомление этому телефону (успеть заблокировать экран)
 function staffPushTest(b) {
   const { s } = session(b.token);
@@ -1083,8 +1105,9 @@ function staffPushTest(b) {
   const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en;
   setTimeout(() => {
     for (const sub of s.subs) {
-      sendPush(sub, { title: 'JET MEDIA', body: `✅ ${L.test || 'Test notification'}`, group: 'test', tag: `test-${Date.now()}` }, db.vapid).then((res) => {
-        s.pushLast = { ...res, kind: 'test' };
+      const ack = pushAckId(s);
+      sendPush(sub, { title: 'JET MEDIA', body: `✅ ${L.test || 'Test notification'}`, group: 'test', tag: `test-${Date.now()}`, ack }, db.vapid).then((res) => {
+        s.pushLast = { ...res, kind: 'test', ack };
         if (!res.ok) { s.subs = s.subs.filter((x) => x !== sub); s.pushLast.dropped = true; }
         save();
       });
@@ -1249,8 +1272,9 @@ function notify(restaurantId, table, kind, extra = '', reminder = false, guest =
     const data = { title: tableLabel(table, L.table), body: (reminder ? `${L.again}: ` : '') + L[kind] + who + extra,
       group: `${kind}-${table}`, tag: `${kind}-${table}-${Date.now()}` };
     for (const sub of s.subs) {
-      sendPush(sub, data, db.vapid).then((res) => {
-        s.pushLast = { ...res, kind, reminder };
+      const ack = pushAckId(s);
+      sendPush(sub, { ...data, ack }, db.vapid).then((res) => {
+        s.pushLast = { ...res, kind, reminder, ack };
         if (!res.ok) { s.subs = s.subs.filter((x) => x !== sub); s.pushLast.dropped = true; save(); }
       });
     }
@@ -2473,6 +2497,7 @@ const PUBLIC = {
   'POST /api/staff/shift': staffShift,
   'POST /api/staff/subscribe': staffSubscribe,
   'POST /api/staff/push-test': staffPushTest,
+  'POST /api/staff/push-ack': staffPushAck,
   'POST /api/staff/logout': staffLogout,
   'GET /api/staff/menu': staffMenu,
   'POST /api/guest/impression': guestImpression,
