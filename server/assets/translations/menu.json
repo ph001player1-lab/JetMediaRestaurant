@@ -1,0 +1,1466 @@
+{
+"Oatmeal porridge with milk and butter": {
+"th": "โจ๊กข้าวโอ๊ตใส่นมและเนย",
+"zh": "牛奶黄油燕麦粥"
+},
+"Kids’ menu": {
+"th": "เมนูเด็ก",
+"zh": "儿童菜单"
+},
+"Semolina porridge with milk and butter": {
+"th": "โจ๊กเซโมลินาใส่นมและเนย",
+"zh": "牛奶黄油粗面粉粥"
+},
+"Buckwheat porridge with butter and milk": {
+"th": "โจ๊กบัควีทใส่เนยและนม",
+"zh": "黄油牛奶荞麦粥"
+},
+"Chicken noodle soup (200 ml)": {
+"th": "ซุปไก่เส้นบะหมี่ (200 มล.)",
+"zh": "鸡肉面条汤（200 毫升）"
+},
+"Broth with meatballs (200 ml)": {
+"th": "ซุปใสลูกชิ้น (200 มล.)",
+"zh": "肉丸清汤（200 毫升）"
+},
+"Borscht with pork (200 ml)": {
+"th": "บอร์ชท์หมู (200 มล.)",
+"zh": "猪肉罗宋汤（200 毫升）"
+},
+"Boiled sausages": {
+"th": "ไส้กรอกต้ม",
+"zh": "水煮香肠"
+},
+"Navy-style pasta with chicken": {
+"th": "พาสต้าสไตล์ทหารเรือกับไก่",
+"zh": "海军风味鸡肉意面"
+},
+"Homemade cutlet with mashed potatoes": {
+"th": "คัทเล็ตโฮมเมดกับมันบด",
+"zh": "自制肉饼配土豆泥"
+},
+"Steamed chicken cutlet with mashed potatoes": {
+"th": "คัทเล็ตไก่นึ่งกับมันบด",
+"zh": "清蒸鸡肉饼配土豆泥"
+},
+"Pork and beef dumplings": {
+"th": "เกี๊ยวหมูและเนื้อ",
+"zh": "猪牛肉饺子"
+},
+"Cooking method": {
+"th": "วิธีปรุง",
+"zh": "烹饪方式"
+},
+"Boiled, with broth": {
+"th": "ต้ม มีน้ำซุป",
+"zh": "水煮，带汤"
+},
+"Boiled, without broth": {
+"th": "ต้ม ไม่มีน้ำซุป",
+"zh": "水煮，不带汤"
+},
+"Fried": {
+"th": "ทอด",
+"zh": "煎"
+},
+"Homemade chicken dumplings": {
+"th": "เกี๊ยวไก่โฮมเมด",
+"zh": "自制鸡肉饺子"
+},
+"Seafood dumplings": {
+"th": "เกี๊ยวซีฟู้ด",
+"zh": "海鲜饺子"
+},
+"Homemade spinach dumplings": {
+"th": "เกี๊ยวผักโขมโฮมเมด",
+"zh": "自制菠菜饺子"
+},
+"Dumplings with potatoes": {
+"th": "วาเรนิกิไส้มันฝรั่ง",
+"zh": "土豆馅饺子"
+},
+"Dumplings with strawberries": {
+"th": "วาเรนิกิไส้สตรอว์เบอร์รี",
+"zh": "草莓馅饺子"
+},
+"Dumplings with cottage cheese": {
+"th": "วาเรนิกิไส้คอทเทจชีส",
+"zh": "奶渣馅饺子"
+},
+"Chicken nuggets": {
+"th": "นักเก็ตไก่",
+"zh": "鸡块"
+},
+"“Octopus” spaghetti with sausages": {
+"th": "สปาเกตตี “ปลาหมึก” กับไส้กรอก",
+"zh": "“章鱼”香肠意面"
+},
+"French fries": {
+"th": "เฟรนช์ฟรายส์",
+"zh": "炸薯条"
+},
+"Mashed potatoes": {
+"th": "มันบด",
+"zh": "土豆泥"
+},
+"Steamed rice": {
+"th": "ข้าวสวย",
+"zh": "白米饭"
+},
+"Spaghetti with butter": {
+"th": "สปาเกตตีเนย",
+"zh": "黄油意面"
+},
+"Cottage cheese pancakes": {
+"th": "แพนเค้กคอทเทจชีส (ซีร์นิกิ)",
+"zh": "奶渣煎饼"
+},
+"Russian pancakes (2 pcs)": {
+"th": "แพนเค้กรัสเซีย (2 ชิ้น)",
+"zh": "俄式薄饼（2 张）"
+},
+"Lamb rib": {
+"th": "ซี่โครงแกะ",
+"zh": "羊排"
+},
+"BBQ & Grill": {
+"th": "บาร์บีคิวและย่าง",
+"zh": "烧烤"
+},
+"Grilled pork skewers": {
+"th": "หมูเสียบไม้ย่าง",
+"zh": "烤猪肉串"
+},
+"Charcoal-grilled pork ribs": {
+"th": "ซี่โครงหมูย่างถ่าน",
+"zh": "炭烤猪肋排"
+},
+"Grilled chicken wings": {
+"th": "ปีกไก่ย่าง",
+"zh": "烤鸡翅"
+},
+"Lamb lula kebab": {
+"th": "ลูลาเคบับแกะ",
+"zh": "羊肉卢拉烤串"
+},
+"Chicken lula kebab": {
+"th": "ลูลาเคบับไก่",
+"zh": "鸡肉卢拉烤串"
+},
+"Grilled shrimp skewers": {
+"th": "กุ้งเสียบไม้ย่าง",
+"zh": "烤虾串"
+},
+"Grilled scallop skewers": {
+"th": "หอยเชลล์เสียบไม้ย่าง",
+"zh": "烤扇贝串"
+},
+"Grilled squid skewers": {
+"th": "ปลาหมึกเสียบไม้ย่าง",
+"zh": "烤鱿鱼串"
+},
+"Whole charcoal-grilled fish (700 g)": {
+"th": "ปลาย่างถ่านทั้งตัว (700 ก.)",
+"zh": "炭烤整鱼（700 克）"
+},
+"Crocodile ribs": {
+"th": "ซี่โครงจระเข้",
+"zh": "鳄鱼排"
+},
+"Charcoal-grilled frog legs": {
+"th": "ขากบย่างถ่าน",
+"zh": "炭烤田鸡腿"
+},
+"Grilled scallop in the shell": {
+"th": "หอยเชลล์ย่างทั้งเปลือก",
+"zh": "带壳烤扇贝"
+},
+"Club sandwich": {
+"th": "คลับแซนด์วิช",
+"zh": "总汇三明治"
+},
+"Snacks": {
+"th": "ของว่าง",
+"zh": "小吃"
+},
+"Great American Burger": {
+"th": "เบอร์เกอร์อเมริกันจัมโบ้",
+"zh": "美式大汉堡"
+},
+"Pancake with salmon and cream cheese": {
+"th": "แพนเค้กแซลมอนและครีมชีส",
+"zh": "三文鱼奶油奶酪薄饼"
+},
+"Lightly salted salmon with potatoes": {
+"th": "แซลมอนดองเกลืออ่อนกับมันฝรั่ง",
+"zh": "轻盐腌三文鱼配土豆"
+},
+"Assorted pickles": {
+"th": "ผักดองรวม",
+"zh": "什锦腌菜"
+},
+"Homemade salted pork fat with mustard": {
+"th": "มันหมูเค็มโฮมเมดกับมัสตาร์ด",
+"zh": "自制咸猪油配芥末"
+},
+"Chicken and cheese quesadilla": {
+"th": "เคซาดิยาไก่และชีส",
+"zh": "鸡肉奶酪墨西哥薄饼"
+},
+"Potato pancakes with lightly salted salmon": {
+"th": "แพนเค้กมันฝรั่งกับแซลมอนดองเกลืออ่อน",
+"zh": "土豆饼配轻盐腌三文鱼"
+},
+"Potato pancakes": {
+"th": "แพนเค้กมันฝรั่ง",
+"zh": "土豆饼"
+},
+"Cheese sticks": {
+"th": "ชีสสติ๊ก",
+"zh": "芝士条"
+},
+"Khychin with potatoes and cheese": {
+"th": "คีชินไส้มันฝรั่งและชีส",
+"zh": "土豆奶酪馅饼"
+},
+"Garlic rye croutons with sauce": {
+"th": "ขนมปังไรย์กระเทียมกรอบกับซอส",
+"zh": "蒜香黑麦面包丁配酱"
+},
+"Aspic with mustard": {
+"th": "เยลลี่เนื้อ (โฮโลเด็ตส์) กับมัสตาร์ด",
+"zh": "肉冻配芥末"
+},
+"Fried potatoes with mushrooms": {
+"th": "มันฝรั่งผัดเห็ด",
+"zh": "蘑菇炒土豆"
+},
+"Olivier salad with chicken": {
+"th": "สลัดโอลิวิเยร์ไก่",
+"zh": "鸡肉奥利维耶沙拉"
+},
+"Salads": {
+"th": "สลัด",
+"zh": "沙拉"
+},
+"Tsar’s Olivier salad with seafood": {
+"th": "สลัดโอลิวิเยร์ซาร์ซีฟู้ด",
+"zh": "沙皇海鲜奥利维耶沙拉"
+},
+"Caesar with chicken and bacon": {
+"th": "ซีซาร์ไก่และเบคอน",
+"zh": "鸡肉培根凯撒沙拉"
+},
+"Caesar salad with shrimp": {
+"th": "สลัดซีซาร์กุ้ง",
+"zh": "鲜虾凯撒沙拉"
+},
+"Greek salad": {
+"th": "สลัดกรีก",
+"zh": "希腊沙拉"
+},
+"Beef tongue salad": {
+"th": "สลัดลิ้นวัว",
+"zh": "牛舌沙拉"
+},
+"Tomato and cucumber salad": {
+"th": "สลัดมะเขือเทศและแตงกวา",
+"zh": "番茄黄瓜沙拉"
+},
+"Wakame salad": {
+"th": "สลัดสาหร่ายวากาเมะ",
+"zh": "裙带菜沙拉"
+},
+"Salmon salad": {
+"th": "สลัดแซลมอน",
+"zh": "三文鱼沙拉"
+},
+"Spring salad with crab sticks": {
+"th": "สลัดสปริงปูอัด",
+"zh": "蟹棒春季沙拉"
+},
+"Eggplant salad": {
+"th": "สลัดมะเขือยาว",
+"zh": "茄子沙拉"
+},
+"Veranda shrimp salad": {
+"th": "สลัดกุ้งเวรันดา",
+"zh": "Veranda 鲜虾沙拉"
+},
+"Shrimp and avocado salad": {
+"th": "สลัดกุ้งและอะโวคาโด",
+"zh": "鲜虾牛油果沙拉"
+},
+"Boyar-style borscht with pork": {
+"th": "บอร์ชท์หมูสไตล์โบยาร์",
+"zh": "贵族风味猪肉罗宋汤"
+},
+"Homemade soups": {
+"th": "ซุปโฮมเมด",
+"zh": "家常汤"
+},
+"King borscht with pork": {
+"th": "บอร์ชท์หมูคิง",
+"zh": "国王猪肉罗宋汤"
+},
+"Fisherman’s fish soup": {
+"th": "ซุปปลาสไตล์ชาวประมง",
+"zh": "渔夫鱼汤"
+},
+"Rassolnik soup": {
+"th": "ซุปราสโซลนิก",
+"zh": "腌黄瓜汤"
+},
+"Chicken noodle soup (350 ml)": {
+"th": "ซุปไก่เส้นบะหมี่ (350 มล.)",
+"zh": "鸡肉面条汤（350 毫升）"
+},
+"Chicken okroshka with tan": {
+"th": "อโครชกาไก่กับตาน",
+"zh": "鸡肉冷汤（酸奶饮）"
+},
+"Chicken okroshka with kvass": {
+"th": "อโครชกาไก่กับควาส",
+"zh": "鸡肉冷汤（格瓦斯）"
+},
+"Tom Yum okroshka with seafood": {
+"th": "อโครชกาต้มยำซีฟู้ด",
+"zh": "冬阴功海鲜冷汤"
+},
+"Pea soup": {
+"th": "ซุปถั่ว",
+"zh": "豌豆汤"
+},
+"Kharcho soup with beef": {
+"th": "ซุปคาร์โชเนื้อ",
+"zh": "牛肉哈尔乔汤"
+},
+"Crocodile meat cutlet": {
+"th": "คัทเล็ตเนื้อจระเข้",
+"zh": "鳄鱼肉饼"
+},
+"Meat & poultry": {
+"th": "เนื้อสัตว์และสัตว์ปีก",
+"zh": "肉类与禽类"
+},
+"Lamb shank with mashed potatoes": {
+"th": "ขาแกะกับมันบด",
+"zh": "羊腿配土豆泥"
+},
+"Pork Chop with baked potatoes": {
+"th": "พอร์คช็อปกับมันฝรั่งอบ",
+"zh": "猪排配烤土豆"
+},
+"Beef Stroganoff in mushroom sauce with mashed potatoes": {
+"th": "เนื้อสโตรกานอฟซอสเห็ดกับมันบด",
+"zh": "蘑菇酱俄式炖牛肉配土豆泥"
+},
+"Baked chicken with vegetables": {
+"th": "ไก่อบกับผัก",
+"zh": "烤鸡配蔬菜"
+},
+"Stuffed cabbage": {
+"th": "กะหล่ำปลีม้วนสอดไส้",
+"zh": "白菜卷"
+},
+"Roast duck with apples & mashed potatoes": {
+"th": "เป็ดอบแอปเปิลกับมันบด",
+"zh": "苹果烤鸭配土豆泥"
+},
+"Homemade Bavarian sausages with potatoes and pickles": {
+"th": "ไส้กรอกบาวาเรียนโฮมเมดกับมันฝรั่งและผักดอง",
+"zh": "自制巴伐利亚香肠配土豆和腌菜"
+},
+"Boyar-style chicken with mashed potatoes": {
+"th": "ไก่สไตล์โบยาร์กับมันบด",
+"zh": "贵族风味鸡肉配土豆泥"
+},
+"Chicken Kyiv with mashed potatoes": {
+"th": "ไก่เคียฟกับมันบด",
+"zh": "基辅鸡排配土豆泥"
+},
+"Pasta carbonara": {
+"th": "พาสต้าคาร์โบนารา",
+"zh": "卡邦尼意面"
+},
+"Chicken steak": {
+"th": "สเต๊กไก่",
+"zh": "鸡排"
+},
+"Pork Shank": {
+"th": "ขาหมูอบ",
+"zh": "猪肘"
+},
+"Buckwheat porridge with pork and mushrooms": {
+"th": "โจ๊กบัควีทกับหมูและเห็ด",
+"zh": "猪肉蘑菇荞麦粥"
+},
+"Beef tongue with mashed potatoes": {
+"th": "ลิ้นวัวกับมันบด",
+"zh": "牛舌配土豆泥"
+},
+"Chicken liver in cream sauce with mashed potatoes": {
+"th": "ตับไก่ซอสครีมกับมันบด",
+"zh": "奶油酱鸡肝配土豆泥"
+},
+"Chicken hearts in creamy cheese sauce": {
+"th": "หัวใจไก่ซอสครีมชีส",
+"zh": "奶油芝士酱鸡心"
+},
+"Far Eastern dumplings with seafood": {
+"th": "เกี๊ยวซีฟู้ดสไตล์ตะวันออกไกล",
+"zh": "远东海鲜饺子"
+},
+"Dumplings, vareniki & khinkali": {
+"th": "เกี๊ยว วาเรนิกิ และคินคาลี",
+"zh": "饺子、瓦雷尼基与格鲁吉亚包子"
+},
+"Spinach dumplings (200 g)": {
+"th": "เกี๊ยวผักโขม (200 ก.)",
+"zh": "菠菜饺子（200 克）"
+},
+"Dumplings with pork and beef (200 g)": {
+"th": "เกี๊ยวหมูและเนื้อ (200 ก.)",
+"zh": "猪牛肉饺子（200 克）"
+},
+"Homemade chicken dumplings (200 g)": {
+"th": "เกี๊ยวไก่โฮมเมด (200 ก.)",
+"zh": "自制鸡肉饺子（200 克）"
+},
+"Dumplings with potatoes (200 g)": {
+"th": "วาเรนิกิไส้มันฝรั่ง (200 ก.)",
+"zh": "土豆馅饺子（200 克）"
+},
+"Dumplings with strawberries (200 g)": {
+"th": "วาเรนิกิไส้สตรอว์เบอร์รี (200 ก.)",
+"zh": "草莓馅饺子（200 克）"
+},
+"Dumplings with cottage cheese (200 g)": {
+"th": "วาเรนิกิไส้คอทเทจชีส (200 ก.)",
+"zh": "奶渣馅饺子（200 克）"
+},
+"Mini chebureki with pork (6 pcs)": {
+"th": "มินิเชบูเรกิไส้หมู (6 ชิ้น)",
+"zh": "迷你猪肉炸馅饼（6 个）"
+},
+"Khinkali with veal (3 pcs, no sauce)": {
+"th": "คินคาลีเนื้อลูกวัว (3 ชิ้น ไม่มีซอส)",
+"zh": "小牛肉格鲁吉亚包子（3 个，不含酱）"
+},
+"Khinkali with pork (3 pcs)": {
+"th": "คินคาลีหมู (3 ชิ้น)",
+"zh": "猪肉格鲁吉亚包子（3 个）"
+},
+"Khinkali with lamb (3 pcs, no sauce)": {
+"th": "คินคาลีแกะ (3 ชิ้น ไม่มีซอส)",
+"zh": "羊肉格鲁吉亚包子（3 个，不含酱）"
+},
+"Seafood julienne in a coconut": {
+"th": "จูเลียนซีฟู้ดในลูกมะพร้าว",
+"zh": "椰子盅焗海鲜"
+},
+"Seafood": {
+"th": "อาหารทะเล",
+"zh": "海鲜"
+},
+"Fried sea fish in cream sauce": {
+"th": "ปลาทะเลทอดซอสครีม",
+"zh": "奶油酱煎海鱼"
+},
+"Grilled tilapia fillet": {
+"th": "ปลานิลแล่ย่าง",
+"zh": "烤罗非鱼柳"
+},
+"Tuna and avocado tartare": {
+"th": "ทาร์ทาร์ทูน่าและอะโวคาโด",
+"zh": "金枪鱼牛油果塔塔"
+},
+"Seafood cutlet": {
+"th": "คัทเล็ตซีฟู้ด",
+"zh": "海鲜饼"
+},
+"Tempura shrimp": {
+"th": "กุ้งเทมปุระ",
+"zh": "天妇罗虾"
+},
+"Tempura squid rings": {
+"th": "ปลาหมึกวงเทมปุระ",
+"zh": "天妇罗鱿鱼圈"
+},
+"Eastern fried fish": {
+"th": "ปลาทอดสไตล์ตะวันออก",
+"zh": "东方风味炸鱼"
+},
+"New Zealand mussels with mushrooms and cheese": {
+"th": "หอยแมลงภู่นิวซีแลนด์อบเห็ดและชีส",
+"zh": "蘑菇芝士焗新西兰青口"
+},
+"Baked scallops with cheese": {
+"th": "หอยเชลล์อบชีส",
+"zh": "芝士焗扇贝"
+},
+"Grilled salmon with vegetables": {
+"th": "แซลมอนย่างกับผัก",
+"zh": "烤三文鱼配蔬菜"
+},
+"Tuna steak with squid ink pasta": {
+"th": "สเต๊กทูน่ากับพาสต้าหมึกดำ",
+"zh": "金枪鱼排配墨鱼汁意面"
+},
+"Shrimp in tamarind sauce": {
+"th": "กุ้งซอสมะขาม",
+"zh": "罗望子酱虾"
+},
+"Baked salmon head": {
+"th": "หัวแซลมอนอบ",
+"zh": "烤三文鱼头"
+},
+"Fried capelin": {
+"th": "ปลาไข่ทอด",
+"zh": "炸多春鱼"
+},
+"Squid ink Tom Yum pasta with shrimp": {
+"th": "พาสต้าหมึกดำต้มยำกุ้ง",
+"zh": "冬阴功墨鱼汁鲜虾意面"
+},
+"Philadelphia roll with salmon": {
+"th": "ฟิลาเดลเฟียโรลแซลมอน",
+"zh": "三文鱼费城卷"
+},
+"Rolls": {
+"th": "โรล",
+"zh": "寿司卷"
+},
+"Baked Philadelphia roll with salmon": {
+"th": "ฟิลาเดลเฟียโรลแซลมอนอบ",
+"zh": "焗三文鱼费城卷"
+},
+"California roll with shrimp": {
+"th": "แคลิฟอร์เนียโรลกุ้ง",
+"zh": "鲜虾加州卷"
+},
+"Baked roll with crab and cheese": {
+"th": "โรลอบปูและชีส",
+"zh": "焗蟹肉芝士卷"
+},
+"Fried kani roll": {
+"th": "โรลปูอัดทอด",
+"zh": "炸蟹棒卷"
+},
+"Fried roll with salmon and cheese": {
+"th": "โรลทอดแซลมอนและชีส",
+"zh": "炸三文鱼芝士卷"
+},
+"Patai roll with eel & salmon": {
+"th": "พาไทโรลปลาไหลและแซลมอน",
+"zh": "鳗鱼三文鱼帕泰卷"
+},
+"Baked roll with eel, cucumber and cheese": {
+"th": "โรลอบปลาไหล แตงกวา และชีส",
+"zh": "焗鳗鱼黄瓜芝士卷"
+},
+"Unagi uramaki with eel": {
+"th": "อุนางิอุรามากิปลาไหล",
+"zh": "鳗鱼里卷"
+},
+"California roll with surimi crab": {
+"th": "แคลิฟอร์เนียโรลปูอัด",
+"zh": "蟹棒加州卷"
+},
+"Baked mussel roll": {
+"th": "โรลหอยแมลงภู่อบ",
+"zh": "焗青口卷"
+},
+"Yin-Yang roll with salmon and eel": {
+"th": "หยินหยางโรลแซลมอนและปลาไหล",
+"zh": "三文鱼鳗鱼阴阳卷"
+},
+"Salmon roll": {
+"th": "โรลแซลมอน",
+"zh": "三文鱼卷"
+},
+"Cucumber roll": {
+"th": "โรลแตงกวา",
+"zh": "黄瓜卷"
+},
+"Cheese and cucumber roll": {
+"th": "โรลชีสและแตงกวา",
+"zh": "芝士黄瓜卷"
+},
+"Eel roll": {
+"th": "โรลปลาไหล",
+"zh": "鳗鱼卷"
+},
+"Side dishes": {
+"th": "เครื่องเคียง",
+"zh": "配菜"
+},
+"Baked potatoes": {
+"th": "มันฝรั่งอบ",
+"zh": "烤土豆"
+},
+"Buckwheat": {
+"th": "บัควีท",
+"zh": "荞麦"
+},
+"Vegetable side dish": {
+"th": "ผักเครื่องเคียง",
+"zh": "蔬菜配菜"
+},
+"Garlic croutons": {
+"th": "ขนมปังกระเทียมกรอบ",
+"zh": "蒜香面包丁"
+},
+"Garlic croutons with cheese": {
+"th": "ขนมปังกระเทียมกรอบกับชีส",
+"zh": "芝士蒜香面包丁"
+},
+"Multigrain bread (1 slice)": {
+"th": "ขนมปังธัญพืช (1 แผ่น)",
+"zh": "杂粮面包（1 片）"
+},
+"Borodinsky bread (1 slice)": {
+"th": "ขนมปังโบโรดินสกี (1 แผ่น)",
+"zh": "博罗金斯基黑面包（1 片）"
+},
+"Sour cream": {
+"th": "ซาวร์ครีม",
+"zh": "酸奶油"
+},
+"Sauces": {
+"th": "ซอส",
+"zh": "酱料"
+},
+"Mayonnaise": {
+"th": "มายองเนส",
+"zh": "蛋黄酱"
+},
+"Mustard": {
+"th": "มัสตาร์ด",
+"zh": "芥末"
+},
+"Tartar sauce": {
+"th": "ซอสทาร์ทาร์",
+"zh": "塔塔酱"
+},
+"BBQ sauce": {
+"th": "ซอสบาร์บีคิว",
+"zh": "烧烤酱"
+},
+"Seafood sauce": {
+"th": "น้ำจิ้มซีฟู้ด",
+"zh": "海鲜酱"
+},
+"Vinegar": {
+"th": "น้ำส้มสายชู",
+"zh": "醋"
+},
+"Adjika": {
+"th": "ซอสอัดจิกา",
+"zh": "阿吉卡辣酱"
+},
+"Mango cake": {
+"th": "เค้กมะม่วง",
+"zh": "芒果蛋糕"
+},
+"Desserts": {
+"th": "ของหวาน",
+"zh": "甜点"
+},
+"New York Cheesecake": {
+"th": "ชีสเค้กนิวยอร์ก",
+"zh": "纽约芝士蛋糕"
+},
+"Fried banana": {
+"th": "กล้วยทอด",
+"zh": "炸香蕉"
+},
+"Chocolate fondant with ice cream": {
+"th": "ช็อกโกแลตฟองดองต์กับไอศกรีม",
+"zh": "熔岩巧克力蛋糕配冰淇淋"
+},
+"Mascarpone pancake": {
+"th": "แพนเค้กมาสคาร์โปเน",
+"zh": "马斯卡彭薄饼"
+},
+"Fried ice cream with blueberry sauce": {
+"th": "ไอศกรีมทอดซอสบลูเบอร์รี",
+"zh": "蓝莓酱炸冰淇淋"
+},
+"Mango sticky rice": {
+"th": "ข้าวเหนียวมะม่วง",
+"zh": "芒果糯米饭"
+},
+"Fruit platter": {
+"th": "ผลไม้รวม",
+"zh": "水果拼盘"
+},
+"Russian pancakes": {
+"th": "แพนเค้กรัสเซีย",
+"zh": "俄式薄饼"
+},
+"Ice cream": {
+"th": "ไอศกรีม",
+"zh": "冰淇淋"
+},
+"Glass noodle and seafood salad": {
+"th": "ยำวุ้นเส้นทะเล",
+"zh": "海鲜粉丝沙拉"
+},
+"Thai salads": {
+"th": "ยำและสลัดไทย",
+"zh": "泰式沙拉"
+},
+"Tuna and lemongrass salad": {
+"th": "ยำทูน่าตะไคร้",
+"zh": "香茅金枪鱼沙拉"
+},
+"Papaya salad": {
+"th": "ส้มตำ",
+"zh": "青木瓜沙拉"
+},
+"Shrimp salad": {
+"th": "ยำกุ้ง",
+"zh": "鲜虾沙拉"
+},
+"Seafood salad": {
+"th": "ยำทะเล",
+"zh": "海鲜沙拉"
+},
+"Baegu leaves with shrimp sauce": {
+"th": "ผักเหลียงผัดกะปิกุ้ง",
+"zh": "虾酱炒百果叶"
+},
+"Beef and mango salad": {
+"th": "ยำเนื้อมะม่วง",
+"zh": "牛肉芒果沙拉"
+},
+"Fried rice with chicken or pork": {
+"th": "ข้าวผัดไก่หรือหมู",
+"zh": "鸡肉或猪肉炒饭"
+},
+"Thai rice & noodles": {
+"th": "ข้าวและเส้นแบบไทย",
+"zh": "泰式米饭与面"
+},
+"Filling": {
+"th": "ไส้ / เนื้อสัตว์",
+"zh": "配料"
+},
+"With chicken": {
+"th": "ไก่",
+"zh": "鸡肉"
+},
+"With pork": {
+"th": "หมู",
+"zh": "猪肉"
+},
+"Fried rice with filling of your choice": {
+"th": "ข้าวผัด เลือกเนื้อสัตว์ได้",
+"zh": "自选配料炒饭"
+},
+"With shrimp": {
+"th": "กุ้ง",
+"zh": "虾"
+},
+"With squid": {
+"th": "ปลาหมึก",
+"zh": "鱿鱼"
+},
+"With seafood": {
+"th": "ทะเลรวม",
+"zh": "海鲜"
+},
+"With veal": {
+"th": "เนื้อลูกวัว",
+"zh": "小牛肉"
+},
+"Fried noodles with chicken or pork": {
+"th": "ผัดเส้นไก่หรือหมู",
+"zh": "鸡肉或猪肉炒面"
+},
+"Fried noodles with filling of your choice": {
+"th": "ผัดเส้น เลือกเนื้อสัตว์ได้",
+"zh": "自选配料炒面"
+},
+"Glass noodles with chicken or pork": {
+"th": "ผัดวุ้นเส้นไก่หรือหมู",
+"zh": "鸡肉或猪肉炒粉丝"
+},
+"Glass noodles with filling of your choice": {
+"th": "ผัดวุ้นเส้น เลือกเนื้อสัตว์ได้",
+"zh": "自选配料炒粉丝"
+},
+"Pad Thai with chicken or pork": {
+"th": "ผัดไทยไก่หรือหมู",
+"zh": "鸡肉或猪肉泰式炒河粉"
+},
+"Pad Thai with filling of your choice": {
+"th": "ผัดไทย เลือกเนื้อสัตว์ได้",
+"zh": "自选配料泰式炒河粉"
+},
+"Pineapple fried rice": {
+"th": "ข้าวผัดสับปะรด",
+"zh": "菠萝炒饭"
+},
+"Tom Yum soup with coconut milk": {
+"th": "ต้มยำน้ำข้น (ใส่กะทิ)",
+"zh": "椰奶冬阴功汤"
+},
+"Thai soups": {
+"th": "ซุปไทย",
+"zh": "泰式汤"
+},
+"Tom Kha Soup": {
+"th": "ต้มข่า",
+"zh": "椰奶南姜汤"
+},
+"Tom Yum soup with chicken": {
+"th": "ต้มยำไก่",
+"zh": "鸡肉冬阴功汤"
+},
+"Coconut milk": {
+"th": "กะทิ",
+"zh": "椰奶"
+},
+"Without coconut milk": {
+"th": "ไม่ใส่กะทิ",
+"zh": "不加椰奶"
+},
+"With coconut milk": {
+"th": "ใส่กะทิ",
+"zh": "加椰奶"
+},
+"Massaman Soup": {
+"th": "แกงมัสมั่น",
+"zh": "马沙文咖喱汤"
+},
+"Duck in Yellow Curry": {
+"th": "แกงกะหรี่เป็ด",
+"zh": "黄咖喱鸭"
+},
+"Tom Yam with dumplings": {
+"th": "ต้มยำเกี๊ยว",
+"zh": "冬阴功饺子"
+},
+"Fried veal in sweet-and-sour sauce": {
+"th": "เนื้อลูกวัวผัดเปรี้ยวหวาน",
+"zh": "糖醋小牛肉"
+},
+"Thai dishes": {
+"th": "อาหารไทย",
+"zh": "泰式菜肴"
+},
+"Fried veal with garlic and pepper": {
+"th": "เนื้อลูกวัวผัดกระเทียมพริกไทย",
+"zh": "蒜香黑椒炒小牛肉"
+},
+"Fried pork in sweet-and-sour sauce": {
+"th": "หมูผัดเปรี้ยวหวาน",
+"zh": "糖醋猪肉"
+},
+"Fried Pork with garlic and pepper": {
+"th": "หมูผัดกระเทียมพริกไทย",
+"zh": "蒜香黑椒炒猪肉"
+},
+"Fried pork in oyster sauce": {
+"th": "หมูผัดน้ำมันหอย",
+"zh": "蚝油炒猪肉"
+},
+"Fried squid with vegetables": {
+"th": "ปลาหมึกผัดผัก",
+"zh": "蔬菜炒鱿鱼"
+},
+"Fried shrimp with garlic and pepper": {
+"th": "กุ้งผัดกระเทียมพริกไทย",
+"zh": "蒜香黑椒炒虾"
+},
+"Fried shrimp in sweet-and-sour sauce": {
+"th": "กุ้งผัดเปรี้ยวหวาน",
+"zh": "糖醋虾"
+},
+"Fried pork": {
+"th": "หมูทอด",
+"zh": "炸猪肉"
+},
+"Crispy fried anchovies with nuts": {
+"th": "ปลาข้าวสารทอดกรอบกับถั่ว",
+"zh": "坚果香脆炸小鱼"
+},
+"Thai spinach": {
+"th": "ผักบุ้งไฟแดง",
+"zh": "清炒空心菜"
+},
+"Thai spinach with seafood": {
+"th": "ผักบุ้งผัดทะเล",
+"zh": "海鲜炒空心菜"
+},
+"Shrimp spring rolls": {
+"th": "ปอเปี๊ยะกุ้ง",
+"zh": "鲜虾春卷"
+},
+"Vegetable spring rolls": {
+"th": "ปอเปี๊ยะผัก",
+"zh": "蔬菜春卷"
+},
+"Giant squid in oyster sauce": {
+"th": "ปลาหมึกยักษ์ผัดน้ำมันหอย",
+"zh": "蚝油炒大鱿鱼"
+},
+"Giant squid with garlic and pepper": {
+"th": "ปลาหมึกยักษ์ผัดกระเทียมพริกไทย",
+"zh": "蒜香黑椒炒大鱿鱼"
+},
+"Chicken with cashew nuts": {
+"th": "ไก่ผัดเม็ดมะม่วงหิมพานต์",
+"zh": "腰果鸡丁"
+},
+"Coconut shake": {
+"th": "มะพร้าวปั่น",
+"zh": "椰子奶昔"
+},
+"Non-alcoholic cocktails": {
+"th": "ค็อกเทลไม่มีแอลกอฮอล์",
+"zh": "无酒精鸡尾酒"
+},
+"Pineapple shake": {
+"th": "สับปะรดปั่น",
+"zh": "菠萝奶昔"
+},
+"Orange shake": {
+"th": "ส้มปั่น",
+"zh": "橙子奶昔"
+},
+"Flamingo shake": {
+"th": "ฟลามิงโกปั่น",
+"zh": "火烈鸟奶昔"
+},
+"Watermelon shake": {
+"th": "แตงโมปั่น",
+"zh": "西瓜奶昔"
+},
+"Mango shake": {
+"th": "มะม่วงปั่น",
+"zh": "芒果奶昔"
+},
+"Mango and passion fruit shake": {
+"th": "มะม่วงเสาวรสปั่น",
+"zh": "芒果百香果奶昔"
+},
+"Blueberry shake": {
+"th": "บลูเบอร์รีปั่น",
+"zh": "蓝莓奶昔"
+},
+"Orange and banana shake": {
+"th": "ส้มกล้วยปั่น",
+"zh": "橙子香蕉奶昔"
+},
+"Vanilla and mango shake": {
+"th": "วานิลลามะม่วงปั่น",
+"zh": "香草芒果奶昔"
+},
+"Mint shake": {
+"th": "มินต์ปั่น",
+"zh": "薄荷奶昔"
+},
+"Lemon shake": {
+"th": "มะนาวปั่น",
+"zh": "柠檬奶昔"
+},
+"Strawberry milkshake": {
+"th": "มิลค์เชคสตรอว์เบอร์รี",
+"zh": "草莓奶昔"
+},
+"Chocolate milkshake": {
+"th": "มิลค์เชคช็อกโกแลต",
+"zh": "巧克力奶昔"
+},
+"Banana milkshake": {
+"th": "มิลค์เชคกล้วย",
+"zh": "香蕉奶昔"
+},
+"Berry Mix–Rosemary Lemonade": {
+"th": "เลมอนเนดเบอร์รีรวมโรสแมรี",
+"zh": "迷迭香混合莓果柠檬水"
+},
+"Non-alcoholic drinks": {
+"th": "เครื่องดื่มไม่มีแอลกอฮอล์",
+"zh": "无酒精饮料"
+},
+"Mango–Passion Fruit Lemonade": {
+"th": "เลมอนเนดมะม่วงเสาวรส",
+"zh": "芒果百香果柠檬水"
+},
+"Strawberry Mojito Lemonade": {
+"th": "เลมอนเนดโมฮิโตสตรอว์เบอร์รี",
+"zh": "草莓莫吉托柠檬水"
+},
+"Cucumber Mojito Lemonade": {
+"th": "เลมอนเนดโมฮิโตแตงกวา",
+"zh": "黄瓜莫吉托柠檬水"
+},
+"Lemon–Lime Lemonade": {
+"th": "เลมอนเนดเลมอนมะนาว",
+"zh": "柠檬青柠柠檬水"
+},
+"Original Lemonade": {
+"th": "เลมอนเนดออริจินัล",
+"zh": "经典柠檬水"
+},
+"Kvas": {
+"th": "ควาส",
+"zh": "格瓦斯"
+},
+"Mors": {
+"th": "มอร์ส (น้ำเบอร์รี)",
+"zh": "莓果饮"
+},
+"Still water": {
+"th": "น้ำเปล่า",
+"zh": "矿泉水"
+},
+"Sparkling water": {
+"th": "น้ำแร่อัดแก๊ส",
+"zh": "气泡水"
+},
+"Coca-Cola": {
+"th": "โคคา-โคล่า",
+"zh": "可口可乐"
+},
+"Sprite": {
+"th": "สไปรท์",
+"zh": "雪碧"
+},
+"Fanta": {
+"th": "แฟนต้า",
+"zh": "芬达"
+},
+"Lemon tonic water": {
+"th": "โทนิกมะนาว",
+"zh": "柠檬汤力水"
+},
+"Tonic water": {
+"th": "โทนิก",
+"zh": "汤力水"
+},
+"Americano": {
+"th": "อเมริกาโน",
+"zh": "美式咖啡"
+},
+"Cappuccino": {
+"th": "คาปูชิโน",
+"zh": "卡布奇诺"
+},
+"Latte": {
+"th": "ลาเต้",
+"zh": "拿铁"
+},
+"Temperature": {
+"th": "ร้อน / เย็น",
+"zh": "温度"
+},
+"Hot": {
+"th": "ร้อน",
+"zh": "热"
+},
+"Cold": {
+"th": "เย็น",
+"zh": "冰"
+},
+"Black tea": {
+"th": "ชาดำ",
+"zh": "红茶"
+},
+"Green tea": {
+"th": "ชาเขียว",
+"zh": "绿茶"
+},
+"Iced tea": {
+"th": "ชาเย็น",
+"zh": "冰茶"
+},
+"Passion fruit tea": {
+"th": "ชาเสาวรส",
+"zh": "百香果茶"
+},
+"Tea menu": {
+"th": "เมนูชา",
+"zh": "茶单"
+},
+"Rosemary and strawberry tea": {
+"th": "ชาโรสแมรีสตรอว์เบอร์รี",
+"zh": "迷迭香草莓茶"
+},
+"Fruit tea": {
+"th": "ชาผลไม้",
+"zh": "水果茶"
+},
+"Monsoon Premium Tea — Herbal Detox": {
+"th": "ชามรสุมพรีเมียม — สมุนไพรดีท็อกซ์",
+"zh": "Monsoon 优选茶 — 草本排毒"
+},
+"Monsoon Premium Tea — Tropical Sunset": {
+"th": "ชามรสุมพรีเมียม — ทรอปิคอลซันเซ็ต",
+"zh": "Monsoon 优选茶 — 热带日落"
+},
+"Monsoon Premium Tea — Melon Green": {
+"th": "ชามรสุมพรีเมียม — ชาเขียวเมลอน",
+"zh": "Monsoon 优选茶 — 蜜瓜绿茶"
+},
+"Monsoon Premium Tea — Monsoon Blend Black": {
+"th": "ชามรสุมพรีเมียม — ชาดำมรสุมเบลนด์",
+"zh": "Monsoon 优选茶 — 季风拼配红茶"
+},
+"Monsoon Premium Tea — Apple Pie Oolong": {
+"th": "ชามรสุมพรีเมียม — อู่หลงแอปเปิลพาย",
+"zh": "Monsoon 优选茶 — 苹果派乌龙"
+},
+"Monsoon Premium Tea — Sweet Memory Black": {
+"th": "ชามรสุมพรีเมียม — ชาดำสวีทเมมโมรี",
+"zh": "Monsoon 优选茶 — 甜蜜回忆红茶"
+},
+"Monsoon Premium Tea — Rainbow Blend": {
+"th": "ชามรสุมพรีเมียม — เรนโบว์เบลนด์",
+"zh": "Monsoon 优选茶 — 彩虹拼配"
+},
+"Monsoon Premium Tea — Lychee Oolong": {
+"th": "ชามรสุมพรีเมียม — อู่หลงลิ้นจี่",
+"zh": "Monsoon 优选茶 — 荔枝乌龙"
+},
+"Monsoon Premium Tea — Premium Green Tea": {
+"th": "ชามรสุมพรีเมียม — ชาเขียวพรีเมียม",
+"zh": "Monsoon 优选茶 — 优选绿茶"
+},
+"Fresh pineapple juice": {
+"th": "น้ำสับปะรดคั้นสด",
+"zh": "鲜榨菠萝汁"
+},
+"Fresh juices": {
+"th": "น้ำผลไม้คั้นสด",
+"zh": "鲜榨果汁"
+},
+"Fresh watermelon juice": {
+"th": "น้ำแตงโมคั้นสด",
+"zh": "鲜榨西瓜汁"
+},
+"Fresh apple juice": {
+"th": "น้ำแอปเปิลคั้นสด",
+"zh": "鲜榨苹果汁"
+},
+"Fresh mango juice": {
+"th": "น้ำมะม่วงคั้นสด",
+"zh": "鲜榨芒果汁"
+},
+"Fresh carrot juice": {
+"th": "น้ำแครอทคั้นสด",
+"zh": "鲜榨胡萝卜汁"
+},
+"Fresh coconut": {
+"th": "มะพร้าวสด",
+"zh": "新鲜椰子"
+},
+"Orange Juice": {
+"th": "น้ำส้ม",
+"zh": "橙汁"
+},
+"Juices": {
+"th": "น้ำผลไม้",
+"zh": "果汁"
+},
+"Apple Juice": {
+"th": "น้ำแอปเปิล",
+"zh": "苹果汁"
+},
+"Pineapple Juice": {
+"th": "น้ำสับปะรด",
+"zh": "菠萝汁"
+},
+"Tomato Juice": {
+"th": "น้ำมะเขือเทศ",
+"zh": "番茄汁"
+},
+"Pina Colada": {
+"th": "พีน่าโคลาดา",
+"zh": "椰林飘香"
+},
+"Cocktails": {
+"th": "ค็อกเทล",
+"zh": "鸡尾酒"
+},
+"Pink Lady": {
+"th": "พิงค์เลดี้",
+"zh": "红粉佳人"
+},
+"Strawberry Daiquiri": {
+"th": "สตรอว์เบอร์รีไดคิรี",
+"zh": "草莓代基里"
+},
+"Basil gin": {
+"th": "จินโหระพา",
+"zh": "罗勒金酒"
+},
+"Tropical Passion": {
+"th": "ทรอปิคอลแพชชั่น",
+"zh": "热带激情"
+},
+"Basil Kiss": {
+"th": "เบซิลคิส",
+"zh": "罗勒之吻"
+},
+"Sun Sunych": {
+"th": "ซันซูนิช",
+"zh": "Sun Sunych"
+},
+"Light Cosmopolitan": {
+"th": "คอสโมโพลิแทนไลท์",
+"zh": "清爽大都会"
+},
+"Tequila Sunrise": {
+"th": "เตกีลาซันไรส์",
+"zh": "龙舌兰日出"
+},
+"Aperol Spritz": {
+"th": "อาเปอรอลสปริตซ์",
+"zh": "阿佩罗橙光"
+},
+"Mango Bellini": {
+"th": "มะม่วงเบลลินี",
+"zh": "芒果贝利尼"
+},
+"Limoncello Spritz": {
+"th": "ลิมอนเชลโลสปริตซ์",
+"zh": "柠檬甜酒气泡"
+},
+"Blue Margarita": {
+"th": "บลูมาร์การิตา",
+"zh": "蓝色玛格丽特"
+},
+"Mojito": {
+"th": "โมฮิโต",
+"zh": "莫吉托"
+},
+"Caipirinha": {
+"th": "ไคพิรินญา",
+"zh": "卡皮里尼亚"
+},
+"Cuba Libre": {
+"th": "คิวบาลิเบร",
+"zh": "自由古巴"
+},
+"Singapore Sling": {
+"th": "สิงคโปร์สลิง",
+"zh": "新加坡司令"
+},
+"Mai Tai": {
+"th": "ไหมไท",
+"zh": "迈泰"
+},
+"Rosemary gin": {
+"th": "จินโรสแมรี",
+"zh": "迷迭香金酒"
+},
+"Singha (320 ml)": {
+"th": "สิงห์ (320 มล.)",
+"zh": "胜狮啤酒（320 毫升）"
+},
+"Bottled beer": {
+"th": "เบียร์ขวด",
+"zh": "瓶装啤酒"
+},
+"Tiger (320 ml)": {
+"th": "ไทเกอร์ (320 มล.)",
+"zh": "虎牌啤酒（320 毫升）"
+},
+"Heineken (320 ml)": {
+"th": "ไฮเนเก้น (320 มล.)",
+"zh": "喜力啤酒（320 毫升）"
+},
+"Chang (320 ml)": {
+"th": "ช้าง (320 มล.)",
+"zh": "象牌啤酒（320 毫升）"
+},
+"Leo (320 ml)": {
+"th": "ลีโอ (320 มล.)",
+"zh": "豹牌啤酒（320 毫升）"
+},
+"San Miguel Light (320 ml)": {
+"th": "ซานมิเกลไลท์ (320 มล.)",
+"zh": "生力淡啤（320 毫升）"
+},
+"Corona (320 ml)": {
+"th": "โคโรน่า (320 มล.)",
+"zh": "科罗娜啤酒（320 毫升）"
+},
+"Lager Classic": {
+"th": "ลาเกอร์คลาสสิก",
+"zh": "经典拉格"
+},
+"Draft beer": {
+"th": "เบียร์สด",
+"zh": "生啤"
+},
+"330 ml": {
+"th": "330 มล.",
+"zh": "330 毫升"
+},
+"500 ml": {
+"th": "500 มล.",
+"zh": "500 毫升"
+},
+"1 L": {
+"th": "1 ลิตร",
+"zh": "1 升"
+},
+"3 L": {
+"th": "3 ลิตร",
+"zh": "3 升"
+},
+"Golden Wheat": {
+"th": "โกลเดนวีท",
+"zh": "金色小麦"
+},
+"IPA (Indian Pale Ale)": {
+"th": "ไอพีเอ (อินเดียเพลเอล)",
+"zh": "IPA（印度淡色艾尔）"
+},
+"Cherry Ruby": {
+"th": "เชอร์รีรูบี",
+"zh": "樱桃红宝石"
+},
+"Chang Draft": {
+"th": "ช้างดราฟท์",
+"zh": "象牌生啤"
+},
+"Wine Selection": {
+"th": "ไวน์ให้เลือก",
+"zh": "精选葡萄酒"
+},
+"Wine": {
+"th": "ไวน์",
+"zh": "葡萄酒"
+},
+"Mont Clair dry white wine (150 ml)": {
+"th": "ไวน์ขาว Mont Clair แบบดราย (150 มล.)",
+"zh": "Mont Clair 干白葡萄酒（150 毫升）"
+},
+"Mont Clair dry red wine (150 ml)": {
+"th": "ไวน์แดง Mont Clair แบบดราย (150 มล.)",
+"zh": "Mont Clair 干红葡萄酒（150 毫升）"
+},
+"Czar’s Original Vodka": {
+"th": "วอดก้า Czar’s Original",
+"zh": "Czar’s Original 伏特加"
+},
+"Spirits": {
+"th": "สุราและเหล้า",
+"zh": "烈酒"
+},
+"100 ml": {
+"th": "100 มล.",
+"zh": "100 毫升"
+},
+"700 ml": {
+"th": "700 มล.",
+"zh": "700 毫升"
+},
+"300 ml": {
+"th": "300 มล.",
+"zh": "300 毫升"
+},
+"Kulov Vodka": {
+"th": "วอดก้า Kulov",
+"zh": "Kulov 伏特加"
+},
+"Stolichnaya Vodka": {
+"th": "วอดก้า Stolichnaya",
+"zh": "苏联红伏特加"
+},
+"Ron Zacapa 23 Rum": {
+"th": "รัม Ron Zacapa 23",
+"zh": "萨凯帕 23 朗姆酒"
+},
+"Bacardi Rum": {
+"th": "รัม Bacardi",
+"zh": "百加得朗姆酒"
+},
+"Sang Som Rum": {
+"th": "รัมแสงโสม",
+"zh": "Sang Som 朗姆酒"
+},
+"Jack Daniel’s Bourbon": {
+"th": "เบอร์เบิน Jack Daniel’s",
+"zh": "杰克丹尼威士忌"
+},
+"Macallan 12 Whisky": {
+"th": "วิสกี้ Macallan 12",
+"zh": "麦卡伦 12 年威士忌"
+},
+"Lagavulin 8 Whisky": {
+"th": "วิสกี้ Lagavulin 8",
+"zh": "乐加维林 8 年威士忌"
+},
+"Talisker 10 Whisky": {
+"th": "วิสกี้ Talisker 10",
+"zh": "泰斯卡 10 年威士忌"
+},
+"Black Label Whisky": {
+"th": "วิสกี้ Black Label",
+"zh": "黑方威士忌"
+},
+"Chivas Regal Whisky": {
+"th": "วิสกี้ Chivas Regal",
+"zh": "芝华士威士忌"
+},
+"Smirnoff Vodka": {
+"th": "วอดก้า Smirnoff",
+"zh": "皇冠伏特加"
+},
+"Absolut Vodka": {
+"th": "วอดก้า Absolut",
+"zh": "绝对伏特加"
+},
+"Gilbey’s Gin": {
+"th": "จิน Gilbey’s",
+"zh": "Gilbey’s 金酒"
+},
+"Martini": {
+"th": "มาร์ตินี่",
+"zh": "马天尼"
+},
+"Jameson Whisky": {
+"th": "วิสกี้ Jameson",
+"zh": "尊美醇威士忌"
+},
+"Regency Brandy": {
+"th": "บรั่นดีรีเจนซี่",
+"zh": "丽晶白兰地"
+},
+"Sierra Tequila": {
+"th": "เตกีลา Sierra",
+"zh": "Sierra 龙舌兰"
+},
+"Patron Reposado Tequila": {
+"th": "เตกีลา Patron Reposado",
+"zh": "培恩微陈龙舌兰"
+},
+"Cointreau Liqueur": {
+"th": "ลิเคียวร์ Cointreau",
+"zh": "君度橙酒"
+},
+"Baileys Liqueur": {
+"th": "ลิเคียวร์ Baileys",
+"zh": "百利甜酒"
+},
+"Malibu Liqueur": {
+"th": "ลิเคียวร์ Malibu",
+"zh": "马利宝椰子酒"
+},
+"Remy Martin VSOP Cognac": {
+"th": "คอนยัค Remy Martin VSOP",
+"zh": "人头马 VSOP 干邑"
+},
+"Hennessy VS Cognac": {
+"th": "คอนยัค Hennessy VS",
+"zh": "轩尼诗 VS 干邑"
+}
+}

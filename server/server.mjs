@@ -1481,6 +1481,26 @@ const nonEmpty = (o = {}) => Object.fromEntries(Object.entries(o).filter(([, v])
 // Какой источник дал блюдо (тип, адрес, касса): блюда, оставшиеся от прежнего источника, при синхронизации убираются
 const srcKey = (s = {}) => `${s.type}|${s.url || ''}|${s.type === 'pos' ? s.vendor || '' : ''}`;
 
+// Переводы меню на языки, которых нет в источнике (у сайта Veranda — только RU и EN): словарь «английский текст →
+// тайский / китайский» в assets/translations/menu.json. Подставляем только пустое — перевод источника и правки не трогаем
+const MENU_TR = (() => { try { return JSON.parse(fs.readFileSync(new URL('./assets/translations/menu.json', import.meta.url), 'utf8')); } catch { return {}; } })();
+function fillTr(obj) {
+  const t = obj && MENU_TR[String(obj.en || '').trim()];
+  if (!t) return 0;
+  let n = 0;
+  for (const l of ['th', 'zh']) if (t[l] && !String(obj[l] || '').trim()) { obj[l] = t[l]; n++; }
+  return n;
+}
+function translateMenu(r) {
+  let n = 0;
+  for (const i of r.menu || []) {
+    for (const k of ['name', 'cat']) if (i[k] && typeof i[k] === 'object') n += fillTr(i[k]);
+    for (const o of i.options || []) if (o.label) n += fillTr(o.label);
+    for (const g of i.groups || []) { n += fillTr(g.name); for (const o of g.opts || []) n += fillTr(o.name); }
+  }
+  return n;
+}
+
 function mergeMenu(r, items) {
   const old = new Map((r.menu || []).filter((i) => i.extId).map((i) => [i.extId, i]));
   const seen = new Set();
@@ -1565,6 +1585,7 @@ async function syncOnce(r, force) {
     const hash = items.hash || crypto.createHash('sha1').update(JSON.stringify(items)).digest('hex');
     if (hash !== src.lastHash || force) {
       mergeMenu(r, items);
+      translateMenu(r);
       syncPromoItems(r);
       src.lastChange = Date.now();
     }
@@ -2491,6 +2512,13 @@ function sendPhotosZip(res) {
 }
 // Ссылка только на чтение на тот же ZIP — на 48 часов (передать без пароля к админке)
 db.exportLinks ??= {};
+
+// При запуске: недостающие переводы меню из словаря (новые строки словаря — сразу после обновления)
+{
+  let n = 0;
+  for (const r of Object.values(db.restaurants)) n += translateMenu(r);
+  if (n) { console.log(`Переводы меню: добавлено ${n}`); save(); }
+}
 
 // Однократно: у рекламы была одна картинка — теперь это русская, остальные языки загружают отдельно
 if (!db.migrations.adLangs) {
