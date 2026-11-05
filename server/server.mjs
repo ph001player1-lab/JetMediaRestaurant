@@ -1256,7 +1256,7 @@ setInterval(() => {
 // Принятый вызов, который так и не завершили, снимается через 8 часов. Список забытых за сегодня и вчера —
 // внизу у официантов и менеджера, с подсказкой, что делать, чтобы не забывалось
 // Сроки сбросов — настройка ресторана (ЛК → «Устройства»): корзина и язык планшета, забытые вызовы и заказы
-const TIMERS = { cartMin: 10, langMin: 120, callMin: 60, orderHours: 8 };
+const TIMERS = { cartMin: 15, langMin: 120, callMin: 15, orderHours: 8 };
 const TIMER_RANGE = { cartMin: [1, 120], langMin: [10, 720], callMin: [10, 600], orderHours: [1, 48] };
 const timersOf = (r) => ({ ...TIMERS, ...(r?.timers || {}) });
 const cleanTimers = (b) => Object.fromEntries(Object.entries(TIMERS).map(([k, def]) => [k, Math.min(TIMER_RANGE[k][1], Math.max(TIMER_RANGE[k][0], Math.round(Number(b?.[k])) || def))]));
@@ -1276,7 +1276,7 @@ function sweepForgotten() {
     if (o.closed || now - lastAct(o) < orderForgetMs(db.restaurants[o.restaurantId])) continue;
     const last = lastAct(o);
     Object.assign(o, { closed: now, autoClosed: 'forgotten' });
-    db.forgotten.unshift({ id: o.id, kind: 'order', r: o.restaurantId, table: o.table, at: o.at, last, when: now, removed: true,
+    db.forgotten.unshift({ id: o.id, kind: 'order', r: o.restaurantId, table: o.table, at: o.at, last, when: now, removed: true, afterH: timersOf(db.restaurants[o.restaurantId]).orderHours,
       status: o.status, total: o.total, by: o.ackBy || o.by || '' });
     logEvent(o.restaurantId, 'forgotten', { kind: 'order', table: o.table });
     changed = true;
@@ -1290,7 +1290,7 @@ function sweepForgotten() {
       let f = c.forgot && db.forgotten.find((x) => x.id === c.id);
       if (!c.forgot) {
         c.forgot = now;
-        f = { id: c.id, kind: 'call', type: c.type, r: c.restaurantId, table: c.table, at: c.at, when: now, removed: false };
+        f = { id: c.id, kind: 'call', type: c.type, r: c.restaurantId, table: c.table, at: c.at, when: now, removed: false, after: timersOf(r).callMin };
         db.forgotten.unshift(f);
         logEvent(c.restaurantId, 'forgotten', { kind: 'call', table: c.table });
         changed = true;
@@ -1303,7 +1303,7 @@ function sweepForgotten() {
       }
     } else if (c.status !== 'new' && now - lastAct(c) >= orderForgetMs(r)) {
       Object.assign(c, { status: 'done', doneAt: now, closed: now, autoClosed: 'forgotten' });
-      db.forgotten.unshift({ id: c.id, kind: 'call', type: c.type, r: c.restaurantId, table: c.table, at: c.at, when: now, removed: true, acked: c.by || '' });
+      db.forgotten.unshift({ id: c.id, kind: 'call', type: c.type, r: c.restaurantId, table: c.table, at: c.at, when: now, removed: true, acked: c.by || '', afterH: timersOf(r).orderHours });
       changed = true;
     }
   }
@@ -1317,7 +1317,8 @@ setInterval(sweepForgotten, 60_000).unref();
 function forgottenFor(r, member) {
   const today = thDay(), yesterday = thDay(Date.now() - 864e5);
   const mine = (tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb);
-  const list = db.forgotten.filter((f) => f.r === r.id && mine(f.table));
+  const tm = timersOf(r); // у записей до этой версии срока нет — берём нынешний срок ресторана
+  const list = db.forgotten.filter((f) => f.r === r.id && mine(f.table)).map((f) => ({ after: tm.callMin, afterH: tm.orderHours, ...f }));
   return { today: list.filter((f) => thDay(f.when) === today), yesterday: list.filter((f) => thDay(f.when) === yesterday) };
 }
 
