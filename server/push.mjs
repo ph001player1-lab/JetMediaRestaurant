@@ -42,7 +42,6 @@ export function encrypt(sub, payload) {
   return Buffer.concat([header, asPublic, body]);
 }
 
-// false — подписка больше не действует, её нужно удалить
 export async function sendPush(sub, data, vapid, subject = 'mailto:contact@jetmedia.dev') {
   try {
     const res = await fetch(sub.endpoint, {
@@ -56,8 +55,9 @@ export async function sendPush(sub, data, vapid, subject = 'mailto:contact@jetme
       },
       body: encrypt(sub, JSON.stringify(data)),
     });
-    return res.status !== 404 && res.status !== 410;
-  } catch {
-    return true;
+    // ok: false — подписка больше не действует; status — ответ службы уведомлений (FCM и др.) для диагностики
+    return { ok: res.status !== 404 && res.status !== 410, at: Date.now(), status: res.status, host: new URL(sub.endpoint).host };
+  } catch (e) {
+    return { ok: true, at: Date.now(), status: 0, error: String(e.message || e).slice(0, 120) };
   }
 }

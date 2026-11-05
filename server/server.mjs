@@ -941,9 +941,9 @@ function buildItems(r, list) {
 // ---------- Персонал: вход по коду ресторана + личному PIN, уведомления через Web Push
 
 const PUSH_TEXT = {
-  en: { table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready', wholeTable: 'whole table' },
-  th: { table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ', wholeTable: 'ทั้งโต๊ะ' },
-  ru: { table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов', wholeTable: 'весь стол' },
+  en: { table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready', wholeTable: 'whole table', test: 'Test: notifications work' },
+  th: { table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ', wholeTable: 'ทั้งโต๊ะ', test: 'ทดสอบ: การแจ้งเตือนใช้งานได้' },
+  ru: { table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов', wholeTable: 'весь стол', test: 'Проверка: уведомления приходят' },
 };
 
 function session(token) {
@@ -970,7 +970,7 @@ function staffState(b, q) {
   return {
     restaurant: { name: r.name, pos: r.menuSource?.type === 'pos', tables: r.tables || [] },
     build: BUILD, instance: INSTANCE, version: VERSION,
-    me: { name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0 },
+    me: { name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0, pushLast: s.pushLast || null },
     // «Столы» официанта: его столы из ЛК менеджера, а если не назначены — все столы ресторана
     myTables: (r.tables || []).filter((tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb)),
     vapidKey: db.vapid.publicKey,
@@ -1073,6 +1073,23 @@ function staffShift(b) {
   if (s.onShift !== !!b.on) logEvent(r.id, 'shift', { by: member.id, bn: member.name, on: !!b.on });
   s.onShift = !!b.on;
   save();
+  return {};
+}
+
+// «Проверить уведомление»: через 10 секунд — тестовое уведомление этому телефону (успеть заблокировать экран)
+function staffPushTest(b) {
+  const { s } = session(b.token);
+  if (!s.subs.length) throw fail(400, 'no subscription');
+  const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en;
+  setTimeout(() => {
+    for (const sub of s.subs) {
+      sendPush(sub, { title: 'JET MEDIA', body: `✅ ${L.test || 'Test notification'}`, group: 'test', tag: `test-${Date.now()}` }, db.vapid).then((res) => {
+        s.pushLast = { ...res, kind: 'test' };
+        if (!res.ok) { s.subs = s.subs.filter((x) => x !== sub); s.pushLast.dropped = true; }
+        save();
+      });
+    }
+  }, 10_000);
   return {};
 }
 
@@ -1232,8 +1249,9 @@ function notify(restaurantId, table, kind, extra = '', reminder = false, guest =
     const data = { title: tableLabel(table, L.table), body: (reminder ? `${L.again}: ` : '') + L[kind] + who + extra,
       group: `${kind}-${table}`, tag: `${kind}-${table}-${Date.now()}` };
     for (const sub of s.subs) {
-      sendPush(sub, data, db.vapid).then((ok) => {
-        if (!ok) { s.subs = s.subs.filter((x) => x !== sub); save(); }
+      sendPush(sub, data, db.vapid).then((res) => {
+        s.pushLast = { ...res, kind, reminder };
+        if (!res.ok) { s.subs = s.subs.filter((x) => x !== sub); s.pushLast.dropped = true; save(); }
       });
     }
   }
@@ -2454,6 +2472,7 @@ const PUBLIC = {
   'POST /api/staff/login': staffLogin,
   'POST /api/staff/shift': staffShift,
   'POST /api/staff/subscribe': staffSubscribe,
+  'POST /api/staff/push-test': staffPushTest,
   'POST /api/staff/logout': staffLogout,
   'GET /api/staff/menu': staffMenu,
   'POST /api/guest/impression': guestImpression,
