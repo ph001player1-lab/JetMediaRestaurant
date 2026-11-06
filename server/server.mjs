@@ -1569,7 +1569,7 @@ function staffState(b, q) {
     build: BUILD, instance: INSTANCE, version: VERSION,
     me: {
       name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0, pushLast: pushLastOf(s),
-      pushLog: (s.pushLog || []).map(({ ack, host, ...x }) => ({ ...x, ...pushRefState(x) })).reverse(), pushTestAt: s.pushTestAt || 0,
+      pushLog: (s.pushLog || []).map(({ ack, ...x }) => ({ ...x, ...pushRefState(x) })).reverse(), pushTestAt: s.pushTestAt || 0,
     },
     // «Столы» официанта: его столы из ЛК менеджера, а если не назначены — все столы ресторана
     myTables: (r.tables || []).filter((tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb)),
