@@ -513,6 +513,7 @@ function diagDevices(b, q, req) {
       return {
         id: d.id, name: deviceName(d), restaurant: db.restaurants[d.restaurantId]?.name || '', table: d.table || '', role: d.role || '',
         online: now - (d.lastSeen || 0) < ONLINE_MS, lastSeen: d.lastSeen || 0, firstSeen: d.firstSeen || 0, pageSeen: d.pageSeen || 0,
+        pinFromAdmin: db.servicePin ? pin === db.servicePin.hash.slice(0, 8) : null, // PIN сервисного меню — из админки (сам PIN не показываем)
         offlineAlert: d.offlineAlert || 0, quiet: d.quiet || 0, offAt: d.offAt || 0, offReason: d.offReason || '', onAt: d.onAt || 0, bootAt: d.bootAt || 0,
         ip: d.ip || '', telemetry, outages: d.outages || [], netlog: d.netlog || [], events: d.events || [], scan: d.scan || null, upd: d.upd || null,
       };
@@ -887,10 +888,12 @@ function cleanHours(b) {
   const from = parseHm(b?.from), to = parseHm(b?.to);
   return { mode, ...(from !== null && to !== null ? { from, to } : {}) };
 }
-// Загрузчик (provision) при подготовке планшета берёт сети «для всех планшетов» — по ключу регистрации устройств
+// Загрузчик (provision) при подготовке планшета берёт сети «для всех планшетов» и отпечаток PIN сервисного меню
+// (сам PIN нигде не хранится) — по ключу регистрации устройств. Тогда заводской PIN не действует ни минуты
 function fleetWifiForProvision(b, q) {
   if (!DEVICE_KEY || q.key !== DEVICE_KEY) throw fail(403, 'bad device key');
-  return { nets: db.fleetWifi.map(({ ssid, pass, pass2 }) => ({ ssid, pass, pass2, level: 'fleet' })), primary: db.fleetWifi.find((n) => n.primary)?.ssid || '' };
+  return { nets: db.fleetWifi.map(({ ssid, pass, pass2 }) => ({ ssid, pass, pass2, level: 'fleet' })), primary: db.fleetWifi.find((n) => n.primary)?.ssid || '',
+    ...(db.servicePin ? { pin: { salt: db.servicePin.salt, hash: db.servicePin.hash } } : {}) };
 }
 // Сколько планшетов ресторана уже получили свои сети из админки
 function wifiStatus(r) {

@@ -154,7 +154,9 @@ function Provision($s) {
 
   # Конфиг агенту: JSON в base64, чтобы не мучиться с кавычками в командной строке
   $cfg = @{ server = $ServerUrl; enroll = $EnrollCode; url = $StartUrl; pin = $Pin; serial = $s; provisionedAt = (Get-Date -Format s) }
-  if ($Fleet -and $Fleet.nets) { $cfg.wifi = $Fleet }   # агент сохранит эти сети сразу, до первой связи с сервером
+  if ($Fleet -and $Fleet.nets) { $cfg.wifi = @{ nets = $Fleet.nets; primary = $Fleet.primary } }   # агент сохранит эти сети сразу, до первой связи с сервером
+  # PIN сервисного меню из админки (только отпечаток): заводской 1234 не действует ни минуты
+  if ($Fleet -and $Fleet.pin -and $Fleet.pin.hash) { $cfg.pinSalt = $Fleet.pin.salt; $cfg.pinHash = $Fleet.pin.hash }
   $json = $cfg | ConvertTo-Json -Compress -Depth 6
   $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json))
   Sh $s "am start -n $Pkg/.MainActivity --es config $b64" | Out-Null
@@ -166,7 +168,7 @@ function Provision($s) {
   Write-Log $i "ok"
 }
 
-Say "JET MEDIA — подготовка планшетов. Версия скрипта: 07.11.2026-1" Cyan
+Say "JET MEDIA — подготовка планшетов. Версия скрипта: 07.11.2026-2" Cyan
 & $Adb start-server | Out-Null
 # Ключ регистрации: спрашиваем один раз и запоминаем рядом со скриптом.
 # Можно пропустить — тогда планшет появится в портале в «Новых устройствах» и его нужно добавить вручную.
@@ -184,6 +186,7 @@ if ($EnrollCode -and -not $CheckOnly) {
     $Fleet = Invoke-RestMethod -Uri "$ServerUrl/api/device/fleet-wifi?key=$([uri]::EscapeDataString($EnrollCode))" -TimeoutSec 15 -UseBasicParsing
     if ($Fleet.nets) { Say "Сети для всех планшетов из админки: $(($Fleet.nets | ForEach-Object { $_.ssid }) -join ', ')" Green }
     else { Say "В админке нет сетей «для всех планшетов» (Устройства → Wi-Fi для всех планшетов)." Yellow }
+    if ($Fleet.pin) { Say "PIN сервисного меню возьмётся из админки." Green } else { Say "PIN сервисного меню в админке не задан — будет $Pin." Yellow }
   } catch { Say "Не удалось взять сети из админки: $($_.Exception.Message)" Yellow }
 }
 # Wi-Fi для подключения сейчас: задан в параметрах, иначе спрашиваем; Enter — основная (или первая) сеть из админки
