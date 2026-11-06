@@ -1412,6 +1412,7 @@ const PUSH_TEXT = {
   en: { table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready', wholeTable: 'whole table', test: 'Test: notifications work' },
   th: { table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ', wholeTable: 'ทั้งโต๊ะ', test: 'ทดสอบ: การแจ้งเตือนใช้งานได้' },
   ru: { table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов', wholeTable: 'весь стол', test: 'Проверка: уведомления приходят' },
+  my: { table: 'စားပွဲ', waiter: 'စားပွဲထိုး ခေါ်နေသည်', bill: 'ဘေလ် တောင်းနေသည်', order: 'အော်ဒါ အသစ်', again: 'သတိပေးချက်', guest: 'ဧည့်သည်', ready: 'အော်ဒါ အဆင်သင့် ဖြစ်ပြီ', wholeTable: 'စားပွဲတစ်ခုလုံး', test: 'စမ်းသပ်: အသိပေးချက်များ အလုပ်လုပ်သည်' },
 };
 
 function session(token) {
