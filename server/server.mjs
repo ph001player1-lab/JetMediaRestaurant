@@ -1537,10 +1537,10 @@ function buildItems(r, list) {
 // ---------- Персонал: вход по коду ресторана + личному PIN, уведомления через Web Push
 
 const PUSH_TEXT = {
-  en: { table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready', wholeTable: 'whole table', test: 'Test: notifications work' },
-  th: { table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ', wholeTable: 'ทั้งโต๊ะ', test: 'ทดสอบ: การแจ้งเตือนใช้งานได้' },
-  ru: { table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов', wholeTable: 'весь стол', test: 'Проверка: уведомления приходят' },
-  my: { table: 'စားပွဲ', waiter: 'စားပွဲထိုး ခေါ်နေသည်', bill: 'ဘေလ် တောင်းနေသည်', order: 'အော်ဒါ အသစ်', again: 'သတိပေးချက်', guest: 'ဧည့်သည်', ready: 'အော်ဒါ အဆင်သင့် ဖြစ်ပြီ', wholeTable: 'စားပွဲတစ်ခုလုံး', test: 'စမ်းသပ်: အသိပေးချက်များ အလုပ်လုပ်သည်' },
+  en: { check: '✅ You are on shift — notifications work', lost: 'not delivered to {n}', table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready', wholeTable: 'whole table', test: 'Test: notifications work' },
+  th: { check: '✅ คุณเข้ากะแล้ว — การแจ้งเตือนใช้งานได้', lost: 'ส่งไม่ถึง {n}', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ', wholeTable: 'ทั้งโต๊ะ', test: 'ทดสอบ: การแจ้งเตือนใช้งานได้' },
+  ru: { check: '✅ Вы на смене — уведомления работают', lost: 'не дошло до {n}', table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов', wholeTable: 'весь стол', test: 'Проверка: уведомления приходят' },
+  my: { check: '✅ သင် တာဝန်ချိန်ရောက်ပြီ — အသိပေးချက်များ အလုပ်လုပ်သည်', lost: '{n} ထံ မရောက်ပါ', table: 'စားပွဲ', waiter: 'စားပွဲထိုး ခေါ်နေသည်', bill: 'ဘေလ် တောင်းနေသည်', order: 'အော်ဒါ အသစ်', again: 'သတိပေးချက်', guest: 'ဧည့်သည်', ready: 'အော်ဒါ အဆင်သင့် ဖြစ်ပြီ', wholeTable: 'စားပွဲတစ်ခုလုံး', test: 'စမ်းသပ်: အသိပေးချက်များ အလုပ်လုပ်သည်' },
 };
 
 function session(token) {
@@ -1556,21 +1556,25 @@ function staffLogin(b) {
   const member = r && (r.staff || []).find((m) => m.pin === String(b.pin || '').trim());
   if (!member) throw fail(403, 'wrong code or pin');
   const token = crypto.randomBytes(18).toString('base64url');
-  db.sessions[token] = { restaurantId: r.id, staffId: member.id, at: Date.now(), onShift: true, subs: [], lang: b.lang || 'en' };
+  db.sessions[token] = { restaurantId: r.id, staffId: member.id, at: Date.now(), onShift: true, shiftAt: Date.now(), subs: [], lang: b.lang || 'en' };
   logEvent(r.id, 'shift', { by: member.id, bn: member.name, on: true });
+  shiftCheck(db.sessions[token], 8000); // приложение успеет оформить подписку
   save();
   return { token };
 }
 
 function staffState(b, q) {
   const { s, r, member } = session(q.token);
+  s.seenAt = Date.now(); // приложение открыто — для автоконца смены без часов работы
   return {
     restaurant: { name: r.name, pos: r.menuSource?.type === 'pos', tables: r.tables || [] },
     build: BUILD, instance: INSTANCE, version: VERSION,
     me: {
       name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0, pushLast: pushLastOf(s),
       pushLog: (s.pushLog || []).map(({ ack, ...x }) => ({ ...x, ...pushRefState(x) })).reverse(), pushTestAt: s.pushTestAt || 0,
+      deaf: s.onShift ? deafOf(s) : null,
     },
+    team: teamOf(r),
     // «Столы» официанта: его столы из ЛК менеджера, а если не назначены — все столы ресторана
     myTables: (r.tables || []).filter((tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb)),
     vapidKey: db.vapid.publicKey,
@@ -1756,6 +1760,8 @@ function staffMenu(b, q) {
 function staffShift(b) {
   const { s, r, member } = session(b.token);
   if (s.onShift !== !!b.on) logEvent(r.id, 'shift', { by: member.id, bn: member.name, on: !!b.on });
+  if (!s.onShift && b.on) { s.shiftAt = Date.now(); shiftCheck(s, 4000); } // приложение сразу обновит подписку — проверяем после
+  if (!b.on) { delete s.deaf; delete s.check; }
   s.onShift = !!b.on;
   save();
   return {};
@@ -1786,6 +1792,10 @@ function staffPushAck(b) {
   const a = pushAcks.get(String(b.id || ''));
   if (!a) return {};
   const pl = (a.s.pushLog || []).find((x) => x.ack === b.id);
+  if (pl && b.stage === 'got') {
+    if (a.s.check?.ack === b.id) delete a.s.check; // проверка при начале смены дошла
+    if (a.s.deaf) deafClear(a.s);
+  }
   if (pl) {
     if (b.stage === 'got') pl.gotAt = Date.now();
     if (b.stage === 'shown') pl.shownAt = Date.now();
@@ -1821,6 +1831,8 @@ function staffSubscribe(b, q, req) {
   // Вход — это один браузер на одном телефоне: у него одна подписка. Новая (например, свежая перед проверкой)
   // заменяет прежнюю — иначе уведомления уходили бы и на старую (ответ 410 «подписки нет») и дублировались в журнале
   s.subs = [b.sub];
+  // уведомления не доходили (подписка умерла, не было подписки) — новая подписка: сразу проверяем, дошло ли
+  if (s.onShift && s.deaf && !s.check?.wait) shiftCheck(s, 1000);
   if (PUSH_TEXT[b.lang]) s.lang = b.lang;
   save();
   return {};
@@ -1837,7 +1849,8 @@ function staffLogout(b) {
 const NEXT = { call: { ack: 'ack', done: 'done' }, order: { confirm: 'confirmed', reject: 'rejected' } };
 
 function staffAction(b) {
-  const { r, member } = session(b.token);
+  const { s: ses, r, member } = session(b.token);
+  ses.actAt = Date.now();
   const who = { by: member.id, bn: member.name };
   const ackOrder = (x) => {
     if (x.ackAt) return;
@@ -2008,6 +2021,126 @@ function staffAction(b) {
   return {};
 }
 
+// ---------- Смена и «не приходят сообщения»
+// Проверка при начале смены (вход, «На смене», новая подписка): уведомление «✅ Вы на смене — уведомления работают».
+// Телефон не подтвердил его за 30 секунд — «не приходят сообщения» (официанту — красная плашка, менеджерам — строка,
+// JET MEDIA — Telegram)
+function shiftCheck(s, delay) {
+  s.check = { wait: Date.now() + delay };
+  setTimeout(() => {
+    if (!s.onShift || !Object.values(db.sessions).includes(s)) return; // вышли из приложения или сняли смену
+    if (!s.subs.length) { delete s.check; deafSet(s, 'nosub'); return; }
+    const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en;
+    for (const sub of s.subs) {
+      const ack = pushAckId(s);
+      s.check = { at: Date.now(), ack };
+      sendPush(sub, { title: 'JET MEDIA', body: L.check, group: 'check', tag: `check-${Date.now()}`, ack }, db.vapid)
+        .then((res) => { pushRecord(s, sub, res, { kind: 'check', ack }); if (!res.ok) { delete s.check; deafSet(s, 'gone'); } });
+    }
+  }, delay);
+}
+const DEAF_WHY = {
+  gone: 'подписка на уведомления больше не действует — браузер её отменил (очищены данные, запрещены уведомления или удалено приложение с экрана).\nЧто сделать: открыть приложение официанта — подписка восстановится сама.',
+  nosub: 'на телефоне не включены уведомления.\nЧто сделать: открыть приложение официанта и нажать «Включить уведомления».',
+  check: 'телефон не подтвердил проверочное уведомление при начале смены — спит (энергосбережение), нет интернета или Chrome прячет уведомления как спам.\nЧто сделать: в приложении официанта — подсказка вверху, внизу — «Проверить уведомление».',
+  noack: '3 уведомления подряд телефон не подтвердил за 2 минуты — спит (энергосбережение) или выключен.\nЧто сделать: в приложении официанта внизу — «Проверить через 6 мин», настройки батареи по подсказке.',
+};
+const memberOf = (s) => (db.restaurants[s.restaurantId]?.staff || []).find((m) => m.id === s.staffId);
+const deafOf = (s) => (s.deaf ? s.deaf.why : s.onShift && !s.subs.length ? 'nosub' : null);
+function deafSet(s, why) {
+  if (!s.onShift || s.deaf?.why === why) return;
+  s.deaf = { why, at: Date.now() };
+  const r = db.restaurants[s.restaurantId], m = memberOf(s);
+  // в Telegram — в часы работы и не чаще раза за смену на человека
+  if (r && m && isWorking(r) && s.deafTg !== s.shiftAt) {
+    s.deafTg = s.shiftAt;
+    s.deaf.tg = 1;
+    tgAlert(`🔕 ${r.name}: ${m.role === 'manager' ? 'менеджеру' : 'официанту'} ${m.name} не приходят сообщения.\nПричина: ${DEAF_WHY[why] || why}`);
+  }
+  save();
+}
+function deafClear(s) {
+  const r = db.restaurants[s.restaurantId], m = memberOf(s);
+  if (s.deaf?.tg && r && m) tgAlert(`🔔 ${r.name}: ${m.name} снова получает сообщения`);
+  delete s.deaf;
+  save();
+}
+// Кто на смене: по сотруднику (у него может быть несколько телефонов) — роль, столы, с какого времени, доходят ли уведомления
+function teamOf(r) {
+  const by = new Map();
+  for (const s of Object.values(db.sessions)) {
+    if (s.restaurantId !== r.id || !s.onShift) continue;
+    const m = (r.staff || []).find((x) => x.id === s.staffId);
+    if (!m) continue;
+    const x = by.get(m.id) || { name: m.name, role: m.role, tables: m.tables || [], since: Infinity, ok: false, deaf: null };
+    x.since = Math.min(x.since, s.shiftAt || s.at || Date.now());
+    const d = deafOf(s);
+    if (d) x.deaf ||= d; else x.ok = true;
+    by.set(m.id, x);
+  }
+  return [...by.values()].map((x) => ({ ...x, deaf: x.ok ? null : x.deaf })).sort((a, b) => a.since - b.since);
+}
+const teamLine = (t) => (t.length ? t.map((x) => `${x.name} (${x.role === 'manager' ? 'менеджер' : x.tables.length ? `столы ${x.tables.join(', ')}` : 'все столы'})`
+  + (x.deaf ? ' 🔕 не приходят сообщения' : ' 🔔')).join(', ') : 'пока никого');
+// Последний момент «закрытие + 1 час» по часам работы (0 — часов нет)
+function lastCut(r, now) {
+  const h = hoursOf(r);
+  if (!h) return 0;
+  const back = (((bkkMin(now) - ((h.to + 60) % 1440)) % 1440) + 1440) % 1440;
+  return now - back * 60e3;
+}
+// Раз в минуту: конец смены сам, «3 уведомления подряд не подтверждены», проверка без ответа, «ресторан проснулся»
+const SHIFT_IDLE_MS = 14 * 3600e3, WAKE_DELAY_MS = Number(process.env.WAKE_DELAY_MS) || 20 * 60e3, wakeState = {};
+setInterval(() => {
+  const now = Date.now(), guests = {};
+  // последний вызов или заказ гостей по ресторану: гости ещё есть — смену не закрываем, даже если часы работы прошли
+  for (const x of [...db.calls.slice(-500), ...db.orders.slice(-500)]) guests[x.restaurantId] = Math.max(guests[x.restaurantId] || 0, x.at || 0);
+  for (const s of Object.values(db.sessions)) {
+    const r = db.restaurants[s.restaurantId];
+    if (!r || !s.onShift) continue;
+    // смена закрывается через час после закрытия (час без действий в приложении и без гостей); без часов работы — после 14 ч
+    const cut = lastCut(r, now), idle = now - Math.max(s.actAt || 0, s.shiftAt || 0, cut ? guests[r.id] || 0 : s.seenAt || 0);
+    if (cut ? (s.shiftAt || 0) < cut && idle > 3600e3 : idle > SHIFT_IDLE_MS) {
+      s.onShift = false;
+      delete s.deaf; delete s.check;
+      logEvent(r.id, 'shift', { by: s.staffId, bn: memberOf(s)?.name, on: false, auto: 1 });
+      save();
+      continue;
+    }
+    if (s.check?.ack && now - s.check.at > 30_000) { delete s.check; deafSet(s, 'check'); }
+    // три последних уведомления этой смены не подтверждены телефоном за 2 минуты
+    const last3 = (s.pushLog || []).filter((x) => x.at >= (s.shiftAt || 0) && x.status >= 200 && x.status < 300 && now - x.at > 120e3).slice(-3);
+    if (last3.length === 3 && last3.every((x) => !x.gotAt || x.gotAt - x.at > 120e3) && !s.deaf) deafSet(s, 'noack');
+  }
+  // «☀️ Ресторан проснулся»: первый планшет на связи после ночи (все выключены 4+ часа) — через 20 минут в Telegram,
+  // кто на смене. Через 30 минут после открытия нет ни одного официанта — предупреждение. Только при часах работы
+  for (const r of Object.values(db.restaurants)) {
+    const h = hoursOf(r);
+    if (!h) continue;
+    const devs = Object.values(db.devices).filter((d) => d.restaurantId === r.id);
+    const on = devs.filter((d) => now - (d.lastSeen || 0) < ONLINE_MS && !d.offAt);
+    const w = (wakeState[r.id] ||= {});
+    if (!on.length && devs.length) w.dark = Math.max(...devs.map((d) => d.lastSeen || 0));
+    else if (on.length && w.dark) { if (now - w.dark >= 4 * 3600e3) w.wakeAt = now; delete w.dark; }
+    if (w.wakeAt && now - w.wakeAt >= WAKE_DELAY_MS) {
+      delete w.wakeAt;
+      const team = teamOf(r);
+      tgAlert(`☀️ ${r.name} проснулся: планшетов на связи ${on.length} из ${devs.length}.\n${team.length ? `На смене ${team.length}: ${teamLine(team)}.` : 'На смене пока никого.'}`);
+    }
+    // открытие + 30 минут: нет официантов на смене
+    const sinceOpen = (((bkkMin(now) - h.from) % 1440) + 1440) % 1440, day = thDay(now);
+    if (sinceOpen >= 30 && sinceOpen < 40 && w.noWaiters !== day && on.length) { // планшеты включены — ресторан работает
+      const team = teamOf(r);
+      if (!team.some((x) => x.role === 'waiter')) {
+        w.noWaiters = day;
+        tgAlert(`⚠ ${r.name}: открыт 30 минут, а на смене нет ни одного официанта — вызовы идут ${team.length ? 'только менеджерам' : 'никому'}.`);
+      }
+    }
+  }
+}, 60_000).unref();
+// Старые сессии «на смене» до этой версии: начало смены — сейчас (иначе автоконец закрыл бы их сразу)
+for (const s of Object.values(db.sessions)) if (s.onShift && !s.shiftAt) s.shiftAt = Date.now();
+
 // Пуш всем сотрудникам ресторана, которые на смене и включили уведомления
 // Официантам этого стола (без назначенных столов — всех столов); менеджерам — напоминания
 // и вызовы, которые некому отправить
@@ -2018,7 +2151,8 @@ function notify(restaurantId, table, kind, extra = '', reminder = false, guest =
   const active = Object.values(db.sessions).filter((s) => s.restaurantId === restaurantId && s.onShift && s.subs.length && member(s));
   const waiters = active.filter((s) => member(s).role === 'waiter' && (!member(s).tables?.length || servesTable(member(s).tables, table)));
   const managers = active.filter((s) => member(s).role === 'manager');
-  for (const s of new Set([...waiters, ...(reminder || !waiters.length ? managers : [])])) {
+  const sent = new Set([...waiters, ...(reminder || !waiters.length ? managers : [])]);
+  for (const s of sent) {
     const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en;
     const who = guest === 'table' ? ` · ${L.wholeTable}` : guest ? ` · ${guest.name || `${L.guest} ${guest.n}`}` : '';
     // каждое напоминание — новое уведомление (у обновлённого старого Android часто не включает звук);
@@ -2027,7 +2161,20 @@ function notify(restaurantId, table, kind, extra = '', reminder = false, guest =
       group: `${kind}-${table}`, tag: `${kind}-${table}-${Date.now()}` };
     for (const sub of s.subs) {
       const ack = pushAckId(s);
-      sendPush(sub, { ...data, ack }, db.vapid).then((res) => pushRecord(s, sub, res, { kind, table, ack, ...(reminder ? { reminder } : {}), ...(ref ? { ref } : {}) }));
+      sendPush(sub, { ...data, ack }, db.vapid).then((res) => {
+        pushRecord(s, sub, res, { kind, table, ack, ...(reminder ? { reminder } : {}), ...(ref ? { ref } : {}) });
+        if (res.ok) return;
+        // подписки больше нет: этот вызов — сразу менеджерам на смене (кто его ещё не получил); телефон — «не приходят сообщения»
+        deafSet(s, 'gone');
+        for (const mgr of managers.filter((x) => !sent.has(x) && x !== s)) {
+          const ML = PUSH_TEXT[mgr.lang] || PUSH_TEXT.en;
+          for (const msub of mgr.subs) {
+            const mack = pushAckId(mgr);
+            sendPush(msub, { ...data, body: `${data.body} · ⚠ ${ML.lost.replace('{n}', member(s)?.name || '')}`, ack: mack }, db.vapid)
+              .then((r2) => pushRecord(mgr, msub, r2, { kind, table, ack: mack, resent: member(s)?.name || '', ...(ref ? { ref } : {}) }));
+          }
+        }
+      });
     }
   }
 }
