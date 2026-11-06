@@ -1558,6 +1558,7 @@ function staffLogin(b) {
   const token = crypto.randomBytes(18).toString('base64url');
   db.sessions[token] = { restaurantId: r.id, staffId: member.id, at: Date.now(), onShift: true, shiftAt: Date.now(), subs: [], lang: b.lang || 'en' };
   logEvent(r.id, 'shift', { by: member.id, bn: member.name, on: true });
+  setShift(r.id, member.id, true, db.sessions[token]);
   shiftCheck(db.sessions[token], 8000); // приложение успеет оформить подписку
   save();
   return { token };
@@ -1611,7 +1612,9 @@ function missingChoice(r, list) {
 const itemsSig = (items) => items.map((i) => `${i.id}|${i.opt || ''}|${(i.mods || []).join(',')}|${i.qty}`).sort().join(';');
 
 function staffOrder(b) {
-  const { r, member } = session(b.token);
+  const { s: ses, r, member } = session(b.token);
+  if (!ses.onShift) throw fail(403, OFF_SHIFT);
+  ses.actAt = Date.now();
   const table = String(b.table || '');
   if (!(r.tables || []).includes(table)) throw fail(400, 'unknown table');
   // повтор того же запроса (плохой Wi-Fi, многократное нажатие) — тот же заказ, второй не создаём
@@ -1757,12 +1760,24 @@ function staffMenu(b, q) {
   return (r.menu || []).filter(onMenu).map(({ id, sku, name, price, options, groups }) => ({ id, sku, name, price, options, groups }));
 }
 
+// Смена — у человека, а не у входа: «На смене» / «Не на смене» переключает все его входы (старый вход на другом
+// телефоне или после повторного входа иначе держал бы его «на смене» с «не приходят сообщения»)
+const sessionsOf = (rid, staffId) => Object.values(db.sessions).filter((x) => x.restaurantId === rid && x.staffId === staffId);
+function setShift(rid, staffId, on, except) {
+  for (const x of sessionsOf(rid, staffId)) {
+    if (x === except) continue;
+    if (!x.onShift && on) x.shiftAt = Date.now();
+    if (!on) { delete x.deaf; delete x.check; }
+    x.onShift = on;
+  }
+}
 function staffShift(b) {
   const { s, r, member } = session(b.token);
   if (s.onShift !== !!b.on) logEvent(r.id, 'shift', { by: member.id, bn: member.name, on: !!b.on });
   if (!s.onShift && b.on) { s.shiftAt = Date.now(); shiftCheck(s, 4000); } // приложение сразу обновит подписку — проверяем после
   if (!b.on) { delete s.deaf; delete s.check; }
   s.onShift = !!b.on;
+  setShift(r.id, member.id, !!b.on, s);
   save();
   return {};
 }
@@ -1848,8 +1863,10 @@ function staffLogout(b) {
 
 const NEXT = { call: { ack: 'ack', done: 'done' }, order: { confirm: 'confirmed', reject: 'rejected' } };
 
+const OFF_SHIFT = 'Вы не на смене — нажмите «На смене», чтобы работать с вызовами и заказами';
 function staffAction(b) {
   const { s: ses, r, member } = session(b.token);
+  if (!ses.onShift) throw fail(403, OFF_SHIFT); // не на смене — только смотреть
   ses.actAt = Date.now();
   const who = { by: member.id, bn: member.name };
   const ackOrder = (x) => {
@@ -2070,6 +2087,8 @@ function teamOf(r) {
   const by = new Map();
   for (const s of Object.values(db.sessions)) {
     if (s.restaurantId !== r.id || !s.onShift) continue;
+    // старый вход без подписки, который сутки не открывали, — не телефон на смене, а забытый вход
+    if (!s.subs.length && Date.now() - (s.seenAt || 0) > 864e5) continue;
     const m = (r.staff || []).find((x) => x.id === s.staffId);
     if (!m) continue;
     const x = by.get(m.id) || { name: m.name, role: m.role, tables: m.tables || [], since: Infinity, ok: false, deaf: null };
