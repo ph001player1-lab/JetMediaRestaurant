@@ -30,7 +30,7 @@ const KEEP_MS = 7 * 24 * 3600_000;
 // Напоминания, пока никто не нажал «Иду» / «Подтвердить»: первые 5 — каждые 45 секунд, дальше — каждые 2 минуты,
 // пока вызов не приняли или не сняли как забытый; заказ — не дольше 30 минут
 const REMIND_MS = 45_000, REMIND_SLOW_MS = 120_000, FAST_REMINDERS = 5, ORDER_REMIND_MAX_MS = 30 * 60_000;
-const COMMANDS = ['url', 'reload', 'reboot', 'update', 'say'];
+const COMMANDS = ['url', 'reload', 'reboot', 'update', 'say', 'scan'];
 const STATIC = {
   '/': 'portal.html',
   '/guest/': 'guest.html',
@@ -443,16 +443,18 @@ function diagDevices(b, q, req) {
       return {
         id: d.id, name: deviceName(d), restaurant: db.restaurants[d.restaurantId]?.name || '', table: d.table || '', role: d.role || '',
         online: now - (d.lastSeen || 0) < ONLINE_MS, lastSeen: d.lastSeen || 0, firstSeen: d.firstSeen || 0, pageSeen: d.pageSeen || 0,
-        offlineAlert: d.offlineAlert || 0, ip: d.ip || '', telemetry, outages: d.outages || [], netlog: d.netlog || [], events: d.events || [],
+        offlineAlert: d.offlineAlert || 0, quiet: d.quiet || 0, offAt: d.offAt || 0, offReason: d.offReason || '', onAt: d.onAt || 0, bootAt: d.bootAt || 0,
+        ip: d.ip || '', telemetry, outages: d.outages || [], netlog: d.netlog || [], events: d.events || [], scan: d.scan || null,
       };
     }),
+    restaurants: Object.values(db.restaurants).map((r) => ({ id: r.id, name: r.name, hours: r.hours || null, used: hoursOf(r), detected: detected(r.id) })),
   };
 }
 // События устройств из журнала: пропадания (больше порога), обрывы глазами планшета, сбои — за days дней (до 31)
 function diagEvents(b, q, req) {
   diagAuth(req);
   const days = Math.min(31, Math.max(1, Number(q.days) || 7)), to = Date.now();
-  const kinds = new Set(['dev_offline', 'dev_outage', 'dev_crash']);
+  const kinds = new Set(['dev_offline', 'dev_outage', 'dev_crash', 'dev_off', 'dev_on']);
   return events.read(to - days * 864e5, to, null).filter((e) => kinds.has(e.k))
     .map((e) => ({ ...e, restaurant: db.restaurants[e.r]?.name || '', device: db.devices[e.dev] ? deviceName(db.devices[e.dev]) : e.dev }));
 }
@@ -556,8 +558,25 @@ function devicePoll(b, q, req) {
   // обрыв глазами планшета (агент 0.1.14+): приходит с первым удачным опросом после двух и более неудачных
   const outage = b.outage && typeof b.outage === 'object' ? outageRecord(d, b.outage) : null;
   if (d.offlineAlert) {
-    tgAlert(`🟢 ${deviceName(d)}: снова на связи (не было ${fmtDur(Date.now() - d.lastSeen)})${outage ? `\n${outage.why}` : ''}`);
+    // тихо пропал (выключили кнопкой, вне часов работы) — тихо и вернулся; пропал вместе со всем рестораном — одним сообщением
+    if (d.group && !d.quiet) (recovered[d.restaurantId] ??= { at: Date.now(), list: [] }).list.push(Date.now() - d.lastSeen);
+    else if (!d.quiet) tgAlert(`🟢 ${deviceName(d)}: снова на связи (не было ${fmtDur(Date.now() - d.lastSeen)})${outage ? `\n${outage.why}` : ''}`);
     d.offlineAlert = 0;
+    d.quiet = 0;
+    d.group = 0;
+  }
+  // включили после выключения кнопкой (агент 0.1.15+)
+  if (d.offAt) {
+    d.onAt = Date.now();
+    if (d.restaurantId) logEvent(d.restaurantId, 'dev_on', { dev: d.id, offMs: Date.now() - d.offAt });
+    d.offAt = 0;
+  }
+  const up = Number(b.telemetry?.uptime);
+  if (up > 0) d.bootAt = Date.now() - up;
+  // «Сети рядом» по кнопке в портале
+  if (b.scan && typeof b.scan === 'object' && Array.isArray(b.scan.list)) {
+    d.scan = { at: Date.now(), list: b.scan.list.slice(0, 40).map((n) => ({
+      ssid: cut(n.ssid, 64), level: Number(n.level) || null, freq: Number(n.freq) || null, open: !!n.open, saved: !!n.saved, current: !!n.current })) };
   }
   // Сбои, после которых агент перезапустился сам: падение, зависание, нехватка памяти
   for (const e of (Array.isArray(b.events) ? b.events : []).slice(0, 5)) {
@@ -609,7 +628,7 @@ function outageRecord(d, o) {
   const w = o.wifi && typeof o.wifi === 'object' ? o.wifi : {};
   const wifi = {
     on: w.on !== false, connected: !!w.connected, ssid: cut(w.ssid, 64), bssid: cut(w.bssid, 17),
-    rssi: Number(w.rssi) || null, freq: Number(w.freq) || null, link: Number(w.link) || null, ip: w.ip !== false, internet: w.internet !== false,
+    rssi: Number(w.rssi) || null, freq: Number(w.freq) || null, link: Number(w.link) || null, ip: w.connected ? w.ip !== false : null, internet: w.internet !== false,
   };
   const steps = cut(o.steps, 400);
   const fix = steps ? steps.split('; ').pop().replace(/ на .*$/, '') : '';
@@ -634,7 +653,8 @@ setInterval(() => {
   const rows = [];
   let quiet = 0;
   for (const d of Object.values(db.devices)) {
-    const list = (d.outages || []).filter((x) => x.end >= from && x.end < to);
+    const r = db.restaurants[d.restaurantId];
+    const list = (d.outages || []).filter((x) => x.end >= from && x.end < to && (!r || isWorking(r, x.start, 0)));
     if (!list.length) { quiet++; continue; }
     const total = list.reduce((a, x) => a + x.dur, 0), max = Math.max(...list.map((x) => x.dur));
     const rs = list.map((x) => x.wifi?.rssi).filter((v) => v < 0);
@@ -647,6 +667,136 @@ setInterval(() => {
   tgAlert(`📶 Связь за ${date}:\n${rows.slice(0, 40).map((r) => r.text).join('\n')}${rows.length > 40 ? `\n…и ещё ${rows.length - 40}` : ''}`
     + (quiet ? `\nОстальные устройства (${quiet}) — без обрывов.` : ''));
 }, 60_000).unref();
+
+// Планшет выключают кнопкой (агент 0.1.15+ успевает сообщить): не обрыв — без тревоги. Сел аккумулятор в часы работы — пишем
+function deviceBye(b) {
+  const d = db.devices[b.id];
+  if (!d) throw fail(404, 'unknown device');
+  if (DEVICE_KEY && b.key !== DEVICE_KEY) throw fail(403, 'bad device key');
+  const battery = b.reason === 'battery';
+  d.offAt = Date.now();
+  d.offReason = battery ? 'battery' : 'shutdown';
+  if (d.restaurantId) logEvent(d.restaurantId, 'dev_off', { dev: d.id, why: d.offReason });
+  const r = db.restaurants[d.restaurantId];
+  if (battery && (!r || isWorking(r))) tgAlert(`🪫 ${deviceName(d)}: выключился — сел аккумулятор (${Number(b.battery) || 0}%). Поставьте на зарядку`);
+  save();
+  return {};
+}
+
+// ---------- Часы работы ресторана. Каждую минуту считаем, сколько планшетов ресторана включено (по 5-минутным
+// отрезкам, 21 день). Часы — когда включена хотя бы половина обычного числа планшетов: медиана за последние 7 рабочих
+// суток (нужно не меньше 3). Праздники и несезон подхватываются сами. Можно задать вручную или «нет часов» (демо)
+const SLOT_MIN = 5, SLOTS = 1440 / SLOT_MIN;
+db.presence ??= {};
+const bkkMin = (ts) => { const x = new Date(ts + 7 * 3600_000); return x.getUTCHours() * 60 + x.getUTCMinutes(); };
+const hhmm = (m) => { const x = ((Math.round(m) % 1440) + 1440) % 1440; return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`; };
+const devOn = (d, now) => now - (d.lastSeen || 0) < ONLINE_MS && !(d.offAt && d.offAt >= d.lastSeen);
+setInterval(() => {
+  const now = Date.now(), key = thDay(now), slot = Math.floor(bkkMin(now) / SLOT_MIN), old = thDay(now - 21 * 864e5);
+  const on = {};
+  for (const d of Object.values(db.devices)) if (d.restaurantId && devOn(d, now)) on[d.restaurantId] = (on[d.restaurantId] || 0) + 1;
+  for (const rid of Object.keys(db.restaurants)) {
+    const p = (db.presence[rid] ??= {});
+    const arr = (p[key] ??= new Array(SLOTS).fill(-1)); // -1 — нет данных (сервер не работал)
+    arr[slot] = Math.max(arr[slot], on[rid] || 0);
+    for (const k of Object.keys(p)) if (k < old) delete p[k];
+  }
+  hoursCache.clear();
+  save();
+}, 60_000).unref();
+
+const hoursCache = new Map();
+const median = (a) => { const x = [...a].sort((p, q) => p - q); return x[Math.floor((x.length - 1) / 2)]; };
+function detectHours(rid, now = Date.now()) {
+  const p = db.presence[rid] || {}, keys = Object.keys(p).sort();
+  if (!keys.length) return { days: [], n: 0 };
+  // все отрезки подряд, от первого дня с данными до сегодня
+  const series = [], dayKeys = [];
+  for (let t = Date.parse(`${keys[0]}T12:00:00+07:00`); thDay(t) <= thDay(now); t += 864e5) {
+    dayKeys.push(thDay(t));
+    series.push(...(p[thDay(t)] || new Array(SLOTS).fill(-1)));
+  }
+  // граница «рабочих суток» — середина самого тихого 2-часового окна (в среднем по дням)
+  const sum = new Array(SLOTS).fill(0), cnt = new Array(SLOTS).fill(0);
+  series.forEach((v, i) => { if (v >= 0) { sum[i % SLOTS] += v; cnt[i % SLOTS]++; } });
+  const W = 24;
+  let quiet = 0, quietV = Infinity;
+  for (let i = 0; i < SLOTS; i++) {
+    let s2 = 0, c2 = 0;
+    for (let j = 0; j < W; j++) { const k = (i + j) % SLOTS; if (cnt[k]) { s2 += sum[k] / cnt[k]; c2++; } }
+    if (c2 && s2 / c2 < quietV) { quietV = s2 / c2; quiet = i; }
+  }
+  const bound = (quiet + W / 2) % SLOTS;
+  const nowIdx = (dayKeys.length - 1) * SLOTS + Math.floor(bkkMin(now) / SLOT_MIN);
+  const segs = [];
+  for (let st = bound; st + SLOTS - 1 <= nowIdx && st + SLOTS <= series.length; st += SLOTS) {
+    const seg = series.slice(st, st + SLOTS);
+    if (seg.filter((v) => v >= 0).length < SLOTS * 0.6) continue; // мало данных за эти сутки
+    segs.push({ day: dayKeys[Math.floor(st / SLOTS)], seg, max: Math.max(...seg) });
+  }
+  const recent = segs.slice(-7);
+  const typical = recent.length ? median(recent.map((x) => x.max)) : 0;
+  const thr = Math.max(1, Math.ceil(typical * 0.5));
+  const bm = bound * SLOT_MIN, days = [];
+  for (const x of recent) {
+    if (x.max < thr) { days.push({ day: x.day, closed: true, max: x.max }); continue; } // выходной, праздник
+    const o = x.seg.findIndex((v) => v >= thr), c = SLOTS - 1 - [...x.seg].reverse().findIndex((v) => v >= thr);
+    days.push({ day: x.day, openOff: o * SLOT_MIN, closeOff: (c + 1) * SLOT_MIN, max: x.max });
+  }
+  const work = days.filter((x) => !x.closed);
+  const res = { days: days.map((x) => (x.closed ? { day: x.day, closed: true }
+    : { day: x.day, open: hhmm(bm + x.openOff), close: hhmm(bm + x.closeOff), max: x.max })), n: work.length, typical };
+  if (work.length >= 3) {
+    res.from = (bm + median(work.map((x) => x.openOff))) % 1440;
+    res.to = (bm + median(work.map((x) => x.closeOff))) % 1440;
+    res.open = hhmm(res.from);
+    res.close = hhmm(res.to);
+  }
+  return res;
+}
+const detected = (rid) => {
+  if (!hoursCache.has(rid)) hoursCache.set(rid, detectHours(rid));
+  return hoursCache.get(rid);
+};
+// Какие часы действуют: по планшетам (когда данных хватает), иначе заданные вручную; у демо — нет часов
+function hoursOf(r) {
+  const h = r?.hours || {};
+  if (!r || h.mode === 'none') return null;
+  if (h.mode !== 'manual') {
+    const d = detected(r.id);
+    if (d.open) return { from: d.from, to: d.to, src: 'auto' };
+  }
+  return Number.isFinite(h.from) && Number.isFinite(h.to) ? { from: h.from, to: h.to, src: 'manual' } : null;
+}
+// Время ts — в часы работы (с запасом margin минут до и после)? Часов нет — считаем, что работает всегда
+function isWorking(r, ts = Date.now(), margin = 30) {
+  const h = hoursOf(r);
+  if (!h) return true;
+  const len = ((h.to - h.from + 1440) % 1440) || 1440;
+  const rel = (((bkkMin(ts) - (h.from - margin)) % 1440) + 1440) % 1440;
+  return rel <= len + 2 * margin;
+}
+const parseHm = (v) => {
+  const m = String(v ?? '').trim().match(/^(\d{1,2})[:.](\d{2})$/);
+  if (!m || +m[1] > 24 || +m[2] > 59 || (+m[1] === 24 && +m[2] > 0)) return null;
+  return (+m[1] * 60 + +m[2]) % 1440;
+};
+function cleanHours(b) {
+  const mode = ['auto', 'manual', 'none'].includes(b?.mode) ? b.mode : 'auto';
+  const from = parseHm(b?.from), to = parseHm(b?.to);
+  return { mode, ...(from !== null && to !== null ? { from, to } : {}) };
+}
+const hoursText = (h) => (h ? `${hhmm(h.from)}–${h.to === 0 ? '24:00' : hhmm(h.to)}` : '');
+
+// Ресторан, где пропали почти все планшеты разом, — одно сообщение о восстановлении (через 1,5 минуты, когда вернутся все)
+const recovered = {};
+setInterval(() => {
+  for (const [rid, x] of Object.entries(recovered)) {
+    if (Date.now() - x.at < 90_000) continue;
+    delete recovered[rid];
+    tgAlert(`🟢 ${db.restaurants[rid]?.name || 'Ресторан'}: снова на связи планшетов — ${x.list.length} (не было ${fmtDur(median(x.list))})`);
+  }
+}, 30_000).unref();
 
 // Сторож агента не смог поднять приложение — сообщает отдельно (не чаще раза в 10 минут)
 function deviceAlert(b) {
@@ -710,16 +860,36 @@ setInterval(() => {
   const now = Date.now();
   const lost = Object.values(db.devices).filter((d) => d.lastSeen && !d.offlineAlert && now - d.lastSeen > OFFLINE_ALERT_MS);
   if (!lost.length) return;
+  const loud = [];
   for (const d of lost) {
     d.offlineAlert = now;
-    if (d.restaurantId) logEvent(d.restaurantId, 'dev_offline', { dev: d.id });
+    // выключили кнопкой (агент сообщил) или пропал вне часов работы ресторана — без Telegram
+    const r = db.restaurants[d.restaurantId];
+    d.quiet = (d.offAt && d.offAt >= d.lastSeen - 1000) || (r && !isWorking(r, d.lastSeen)) ? 1 : 0;
+    if (d.restaurantId) logEvent(d.restaurantId, 'dev_offline', { dev: d.id, ...(d.quiet ? { quiet: d.offAt ? 'off' : 'hours' } : {}) });
+    if (!d.quiet) loud.push(d);
   }
   save();
-  tgAlert('🔴 Нет связи с устройствами:\n' + lost.map((d) => {
+  if (!loud.length) return;
+  const line = (d) => {
     const t = d.telemetry || {};
     const low = t.battery <= 5 && !t.charging ? ', вероятно, сел аккумулятор' : '';
     return `• ${deviceName(d)} — с ${clock(d.lastSeen)} (${fmtDur(now - d.lastSeen)}), заряд ${t.battery ?? '?'}%${low}`;
-  }).join('\n'));
+  };
+  // пропали все или почти все планшеты ресторана (3 и больше) — одно сообщение про ресторан
+  const groups = [], single = [];
+  for (const rid of new Set(loud.map((d) => d.restaurantId || ''))) {
+    const list = loud.filter((d) => (d.restaurantId || '') === rid);
+    const active = rid ? Object.values(db.devices).filter((x) => x.restaurantId === rid && now - (x.lastSeen || 0) < 12 * 3600_000) : [];
+    const down = active.filter((x) => now - x.lastSeen > OFFLINE_ALERT_MS && !x.quiet);
+    if (rid && list.length >= 3 && down.length >= Math.ceil(active.length * 0.8)) {
+      for (const d of list) d.group = now;
+      groups.push(`🔴 ${db.restaurants[rid].name}: без связи ${down.length} из ${active.length} планшетов с ${clock(Math.min(...list.map((d) => d.lastSeen)))}`
+        + ' — похоже, пропал интернет или электричество, или планшеты выключили не кнопкой');
+    } else single.push(...list);
+  }
+  if (groups.length) tgAlert(groups.join('\n'));
+  if (single.length) tgAlert('🔴 Нет связи с устройствами:\n' + single.map(line).join('\n'));
 }, 60_000);
 
 const tgPublic = () => ({ bot: db.telegram.bot, connected: !!db.telegram.token, chats: db.telegram.chats });
@@ -2378,8 +2548,12 @@ function admin(method, p, b, me, q) {
   }
   if (p === '/api/devices/_wifi') {
     if (scope) throw fail(403, 'Нет доступа');
-    if (method === 'POST') { db.allowOpenWifi = !!b.allowOpen; save(); }
-    return { allowOpen: !!db.allowOpenWifi };
+    if (method === 'POST') {
+      if (INSTANCE === 'test') throw fail(400, 'Меняется в рабочей админке (app.jetmedia.dev) — планшеты связаны с рабочей');
+      db.allowOpenWifi = !!b.allowOpen;
+      save();
+    }
+    return { allowOpen: !!db.allowOpenWifi, instance: INSTANCE };
   }
   if (method === 'GET' && p === '/api/devices') {
     const list = () => {
@@ -2392,7 +2566,8 @@ function admin(method, p, b, me, q) {
   if (method === 'GET' && p === '/api/restaurants') {
     const list = Object.values(db.restaurants).filter((r) => !scope || scope.has(r.id));
     if (me.role === 'viewer') return list.map((r) => ({ id: r.id, name: r.name }));
-    return list.map((r) => ({ ...r, menuSource: publicSource(r.menuSource), tagRules: r.tagRules || DEFAULT_RULES, customTags: r.customTags || [], menuIssues: menuIssues(r) }));
+    return list.map((r) => ({ ...r, menuSource: publicSource(r.menuSource), tagRules: r.tagRules || DEFAULT_RULES, customTags: r.customTags || [], menuIssues: menuIssues(r),
+      hoursInfo: { detected: detected(r.id), used: hoursOf(r), usedText: hoursText(hoursOf(r)) } }));
   }
   if (method === 'POST' && p === '/api/restaurants') {
     if (scope && !scope.has(b.id)) throw fail(403, 'Нет доступа к этому ресторану');
@@ -2418,7 +2593,10 @@ function admin(method, p, b, me, q) {
       menuSource: b.menuSource ? cleanSource(b.menuSource, prev.menuSource) : prev.menuSource,
       customTags: Array.isArray(b.customTags) ? cleanCustomTags(b.customTags) : prev.customTags,
       syncKey: prev.syncKey || crypto.randomBytes(12).toString('hex'),
+      // часы работы: по планшетам / вручную / нет (демо) — для тревог о связи и сводки
+      hours: b.hours !== undefined ? cleanHours(b.hours) : prev.hours,
     };
+    hoursCache.delete(id);
     // меню — по источнику до этого сохранения: если ресторан уже синхронизировался, присланное меню не заменяет синхронизированное
     if (Array.isArray(b.tagRules)) db.restaurants[id].tagRules = cleanRules(b.tagRules, db.restaurants[id]);
     if (Array.isArray(b.menu)) setMenu(db.restaurants[id], b.menu, !!prev.menuSource && prev.menuSource.type !== 'manual');
@@ -2629,6 +2807,7 @@ function admin(method, p, b, me, q) {
 const PUBLIC = {
   'POST /api/device/poll': devicePoll,
   'POST /api/device/alert': deviceAlert,
+  'POST /api/device/bye': deviceBye,
   'GET /api/guest/state': guestState,
   'POST /api/guest/call': guestCall,
   'POST /api/guest/cancel': guestCancel,
@@ -2693,6 +2872,14 @@ for (const r of Object.values(db.restaurants)) {
 
 // Однократно: всё, что было до этого обновления (пилотные тесты), и все нынешние сотрудники — тестовые
 db.migrations ??= {};
+if (!db.migrations.hours) {
+  for (const r of Object.values(db.restaurants)) {
+    if (r.hours) continue;
+    if (/demo|демо/i.test(r.name)) r.hours = { mode: 'none' };
+    else if (/чехов|chek/i.test(r.name)) r.hours = { mode: 'auto', from: 600, to: 0 };
+  }
+  db.migrations.hours = Date.now();
+}
 // Все фото акций и рекламы одним ZIP: «Ресторан/Акции/01 Название_RU.jpg», «Реклама/Рекламодатель — название/RU.jpg»,
 // плюс постеры Чехова на других языках, которые сделал Claude (assets/chekhoff/gen) — «Чехов/Новые языки (Claude)/…»
 const safeName = (x) => String(x || '').replace(/[\\/:*?"<>|\n\r]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 70) || 'без названия';

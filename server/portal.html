@@ -206,6 +206,17 @@
     <details style="flex-basis:100%"><summary>Схема острова — нажмите на район, чтобы выбрать его</summary><div id="rMap"></div></details>
     <label>Тариф <select id="rTariff"><option value="standard">Standard — с рекламой сети</option><option value="premium">Premium — без внешней рекламы</option></select></label>
     <label>Реклама после каждых N слайдов ресторана <input id="rAdEvery" type="number" min="1" max="10" style="width:70px"> <small class="hint">1 — каждый второй слайд</small></label>
+    <div style="flex-basis:100%;border-top:1px solid #eee;padding-top:6px">
+      <b>Часы работы</b> <small class="hint">— вне часов работы пропавшие планшеты не тревожат Telegram и не попадают в сводку обрывов</small>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:4px">
+        <label>Как определять <select id="rHoursMode"><option value="auto">По планшетам (автоматически)</option><option value="manual">Только вручную</option>
+          <option value="none">Нет часов работы (демо, реклама)</option></select></label>
+        <label>Вручную с <input id="rHoursFrom" placeholder="10:00" style="width:70px"></label>
+        <label>до <input id="rHoursTo" placeholder="24:00" style="width:70px"></label>
+        <small class="hint" style="flex-basis:100%">В режиме «по планшетам» ручные часы действуют, пока планшеты не накопят 3 рабочих дня; дальше часы обновляются сами (праздники, несезон).</small>
+      </div>
+      <div id="rHoursInfo" class="hint" style="margin-top:4px"></div>
+    </div>
     <details style="flex-basis:100%"><summary>Типы рекламы, которые в этом ресторане не показывать <span id="rCatsN" class="hint"></span></summary><div id="rCats" class="hint" style="columns:3 220px"></div></details>
     <details style="flex-basis:100%"><summary>Реклама, которую в этом ресторане не показывать</summary><div id="rBlocked" class="hint"></div></details>
     <label>Язык редактирования
@@ -469,7 +480,9 @@ function renderDevices() {
     if (sort === 'place' && p.rest !== group) {
       group = p.rest;
       const same = rows.filter((x) => x.p.rest === p.rest);
-      head = `<tr class="grp"><td colspan="8"><b>${esc(p.rest || 'Не привязаны')}</b> · устройств: ${same.length} · онлайн: ${same.filter((x) => x.d.online).length}</td></tr>`;
+      const rh = rests.find((r) => r.name === p.rest)?.hoursInfo;
+      head = `<tr class="grp"><td colspan="8"><b>${esc(p.rest || 'Не привязаны')}</b> · устройств: ${same.length} · онлайн: ${same.filter((x) => x.d.online).length}`
+        + `${rh?.used ? ` · часы работы ${esc(rh.usedText)} (${rh.used.src === 'auto' ? 'по планшетам' : 'вручную'})` : ''}</td></tr>`;
     }
     return head + deviceRow(d, i);
   }).join('') || '<tr><td colspan="8" class="hint">Ничего не найдено</td></tr>';
@@ -481,6 +494,14 @@ document.addEventListener('toggle', (e) => {
   const k = e.target.dataset?.k;
   if (k) e.target.open ? openLogs.add(k) : openLogs.delete(k);
 }, true);
+// «Сети рядом»: что видит планшет (по кнопке; агент 0.1.15+)
+function scanBox(d) {
+  const sc = d.scan;
+  if (!sc?.list?.length) return '';
+  const q = (l) => (l >= -60 ? 'хороший' : l >= -70 ? 'средний' : l >= -80 ? 'слабый' : 'очень слабый');
+  return `<details class="dlog" data-k="scan-${esc(d.id)}" ${openLogs.has('scan-' + d.id) ? 'open' : ''}><summary>📡 Сети рядом: ${sc.list.length} · ${new Date(sc.at).toLocaleString()}</summary>
+    ${sc.list.map((n) => `<div>${n.current ? '✅ ' : ''}${esc(n.ssid)} · ${n.level} dBm (${q(n.level)}) · ${n.freq < 3000 ? '2.4' : '5'} ГГц · ${n.open ? '<b>открытая</b>' : 'с паролем'}${n.saved ? ' · сохранена' : ''}</div>`).join('')}</details>`;
+}
 // Обрывы связи (агент 0.1.14+): за сутки — сколько и сколько всего; по нажатию — каждый с причиной
 function outagesBox(d) {
   const list = d.outages || [];
@@ -495,9 +516,10 @@ function deviceRow(d, i) {
     const t = d.telemetry || {};
     return `<tr>
       <td>${esc(t.model)}<br><small>${esc(d.id)}</small></td>
-      <td class="${d.online ? 'online' : 'offline'}">${d.online ? 'онлайн' : 'офлайн'}${d.pending ? ` · в очереди: ${d.pending}` : ''}
+      <td class="${d.online ? 'online' : 'offline'}">${d.online ? 'онлайн' : d.offAt && d.offAt >= d.lastSeen ? `⏻ выключен ${d.offReason === 'battery' ? '— сел аккумулятор' : 'кнопкой'}` : 'офлайн'}${d.pending ? ` · в очереди: ${d.pending}` : ''}
         ${t.wifi ? `<br><small>Wi-Fi: ${esc(t.wifi)} · ${esc(t.rssi)} dBm${t.freq ? ` · ${t.freq < 3000 ? '2.4' : '5'} ГГц` : ''}</small>` : ''}
         ${outagesBox(d)}
+        ${scanBox(d)}
         ${d.netlog?.length ? `<details class="dlog" data-k="net-${esc(d.id)}" ${openLogs.has('net-' + d.id) ? 'open' : ''}><summary>📶 Журнал сети: ${new Date(d.netlog[0].at).toLocaleString()} · ${esc(d.netlog[0].why.slice(0, 40))}…</summary>
           ${d.netlog.map((n) => `<div>${new Date(n.at).toLocaleString()} — ${esc(n.from || '?')} → ${esc(n.to || '?')}: ${esc(n.why)}</div>`).join('')}</details>` : ''}
         ${d.events?.length ? `<br><small class="offline" title="${esc(d.events.map((e) => new Date(e.at).toLocaleString() + ' — ' + e.text).join('\n'))}">сбой ${new Date(d.events[0].at).toLocaleString()}: ${esc(d.events[0].text.slice(0, 60))}</small>` : ''}</td>
@@ -511,6 +533,7 @@ function deviceRow(d, i) {
         <button onclick="send(${i}, 'reload')">Обновить страницу</button>
         <button onclick="send(${i}, 'reboot')">Перезагрузить</button>
         <button onclick="send(${i}, 'update')">Обновить агент</button>
+        <button onclick="send(${i}, 'scan')" title="Планшет покажет, какие Wi-Fi видит и с каким сигналом (агент 0.1.15+)">Сети рядом</button>
         <button onclick="removeDevice(${i})">Удалить</button>
       </td></tr>`;
 }
@@ -578,6 +601,8 @@ async function loadWifiOpt() {
   const r = await api('/api/devices/_wifi').catch(() => null);
   if (!r || r.error) { $('wifiOpenBox').hidden = true; return; }
   $('wifiOpen').checked = r.allowOpen;
+  $('wifiOpen').disabled = r.instance === 'test';
+  if (r.instance === 'test') $('wifiOpenBox').title = 'Меняется в рабочей админке (app.jetmedia.dev) — планшеты связаны с рабочей';
 }
 $('wifiOpen').onchange = async (e) => {
   const on = e.target.checked;
@@ -622,6 +647,19 @@ function issuesInfo(mi) {
     <small>${mi.synced ? 'Исправляется в источнике меню — после синхронизации ошибка уйдёт сама.' : 'Исправляется в меню ниже.'} Менеджер видит этот список в ЛК → «Меню».</small></details>`;
 }
 
+// Часы работы: что действует сейчас, что видно по планшетам (медиана за последние дни) и по дням
+const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const ddmm = (d) => d.slice(8, 10) + '.' + d.slice(5, 7);
+function hoursInfoHtml(r) {
+  const hi = r.hoursInfo || {}, d = hi.detected || {}, mode = (r.hours || {}).mode || 'auto';
+  const used = hi.used ? `Сейчас действуют: <b>${esc(hi.usedText)}</b> (${hi.used.src === 'auto' ? 'по планшетам' : 'заданы вручную'})`
+    : mode === 'none' ? 'Часов работы нет — тревоги о связи в любое время' : 'Часы пока не известны — тревоги о связи в любое время';
+  const det = d.open ? `По планшетам: <b>${d.open}–${d.close === '00:00' ? '24:00' : d.close}</b> — когда включена хотя бы половина планшетов (обычно включено ${d.typical}), медиана за ${d.n} дн.`
+    : `По планшетам: данных пока мало — нужно 3 рабочих дня, есть ${d.n || 0}`;
+  const days = (d.days || []).map((x) => (x.closed ? `${ddmm(x.day)} — не работал` : `${ddmm(x.day)} ${x.open}–${x.close === '00:00' ? '24:00' : x.close}`)).join(' · ');
+  return `${used}<br>${mode === 'none' ? '' : det}${days && mode !== 'none' ? `<br><small>По дням: ${days}</small>` : ''}`;
+}
+
 async function edit(id) {
   cur = structuredClone(rests.find((r) => r.id === id) || blank());
   cur.staff ??= [];
@@ -630,6 +668,11 @@ async function edit(id) {
   $('rTables').value = cur.tables.join(', ');
   $('rTariff').value = cur.tariff || 'standard';
   $('rAdEvery').value = cur.display?.adEvery || 2;
+  const hrs = cur.hours || {};
+  $('rHoursMode').value = hrs.mode || 'auto';
+  $('rHoursFrom').value = Number.isFinite(hrs.from) ? hm(hrs.from) : '';
+  $('rHoursTo').value = Number.isFinite(hrs.to) ? (hrs.to === 0 ? '24:00' : hm(hrs.to)) : '';
+  $('rHoursInfo').innerHTML = hoursInfoHtml(cur);
   if (!ads.length) ads = await api('/api/ads').catch(() => []);
   if (!adCats.length) adCats = await api('/api/ad-cats').catch(() => []);
   cur.blockedAds ||= [];
@@ -878,6 +921,8 @@ async function saveRestaurant(notice) {
   cur.tables = parseTables($('rTables').value);
   cur.tariff = $('rTariff').value;
   cur.adEvery = Number($('rAdEvery').value) || 2;
+  cur.hours = { mode: $('rHoursMode').value, from: $('rHoursFrom').value.trim(), to: $('rHoursTo').value.trim() };
+  if (cur.hours.mode === 'manual' && (!cur.hours.from || !cur.hours.to)) return alert('Часы работы «только вручную»: укажите время «с» и «до», например 10:00 и 24:00');
   if (GEO) { cur.district = $('rDistrict').value; cur.address = $('rAddress').value.trim(); }
   // список уже показан для этого ресторана — берём отметки из него
   if ($('rBlocked').dataset.rid === (cur.id || '')) cur.blockedAds = [...document.querySelectorAll('#rBlocked [data-blk]:checked')].map((x) => x.dataset.blk);
