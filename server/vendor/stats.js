@@ -8,7 +8,7 @@
       summary: 'Сводка', orders: 'Заказы', revenue: 'Выручка через планшет', avg: 'Средний чек', calls: 'Вызовы официанта', bills: 'Просили счёт',
       opens: 'Столы открывались', conversion: 'С заказом', reaction: 'Скорость персонала', callMed: 'Реакция на вызов (обычно)',
       callP90: 'Реакция на вызов (худшие 10%)', orderMed: 'Подтверждение заказа (обычно)', orderP90: 'Подтверждение заказа (худшие 10%)',
-      reminders: 'Понадобилось напоминание', kitchenMed: 'От заказа до кухни (обычно)', readyMed: 'Кухня готовит (обычно)', servedMed: 'От подтверждения до «Подано» (обычно)', servedP90: 'Подача: 9 из 10 быстрее', servedNoKitchen: 'Подано без отметки кухни', phoneOrders: 'Заказов с телефонов', unanswered: 'Вызовы без реакции', staff: 'Официанты и менеджеры', name: 'Имя',
+      reminders: 'Понадобилось напоминание', kitchenMed: 'От заказа до кухни (обычно)', readyMed: 'Кухня готовит (обычно)', servedMed: 'От подтверждения до «Подано» (обычно)', servedP90: 'Подача: 9 из 10 быстрее', servedNoKitchen: 'Подано без отметки кухни', redoN: 'Переделано (вернули блюдо)', cancelledN: 'Отменено заказов', vlogHint: 'Нажмите ▸ у визита — заказы и всё, что с ними делали.', guestW: 'Гость', phoneW: 'с телефона', tabletW: 'с планшета', noKitchenW: 'без отметки кухни', lg: { order: 'заказ', order_void: 'заказ (потом отменён)', order_ack: 'принял заказ', order_edit: 'изменил', order_kitchen: 'отдал на кухню', order_ready: 'кухня: готово', order_served: '🍽 подано', order_redo: '🔁 переделать', order_cancel: '✕ отменил заказ', order_reject: 'отклонил заказ', order_remove: 'удалил (дубль)', paid: 'оплачено', close: 'стол закрыт' }, phoneOrders: 'Заказов с телефонов', unanswered: 'Вызовы без реакции', staff: 'Официанты и менеджеры', name: 'Имя',
       callsAcked: 'Вызовов принято', react: 'Реакция', ordersAcked: 'Заказов принял или открыл', sum: 'Сумма', paid: 'Счетов закрыл',
       shiftH: 'Часов на смене (кнопка)', activeH: 'Часов работы (1-е–посл. действие)', days: 'Дней', tables: 'Столы', table: 'Стол',
       dishes: 'Блюда', topQty: 'Чаще всего заказывают', topRev: 'Больше всего выручки', qty: 'Порций', dish: 'Блюдо',
@@ -31,7 +31,7 @@
       summary: 'Summary', orders: 'Orders', revenue: 'Revenue via tablets', avg: 'Average check', calls: 'Waiter calls', bills: 'Bill requests',
       opens: 'Tables opened', conversion: 'With an order', reaction: 'Staff speed', callMed: 'Call response (typical)',
       callP90: 'Call response (worst 10%)', orderMed: 'Order confirmation (typical)', orderP90: 'Order confirmation (worst 10%)',
-      reminders: 'Reminders needed', kitchenMed: 'Order to kitchen (typical)', readyMed: 'Kitchen cooking time (typical)', servedMed: 'Confirmation to “Served” (typical)', servedP90: 'Serving: 9 of 10 faster', servedNoKitchen: 'Served without kitchen mark', phoneOrders: 'Orders from phones', unanswered: 'Calls without response', staff: 'Waiters and managers', name: 'Name',
+      reminders: 'Reminders needed', kitchenMed: 'Order to kitchen (typical)', readyMed: 'Kitchen cooking time (typical)', servedMed: 'Confirmation to “Served” (typical)', servedP90: 'Serving: 9 of 10 faster', servedNoKitchen: 'Served without kitchen mark', redoN: 'Remade (dish sent back)', cancelledN: 'Orders cancelled', vlogHint: 'Tap ▸ next to a visit to see its orders and everything done with them.', guestW: 'Guest', phoneW: 'from phone', tabletW: 'from tablet', noKitchenW: 'no kitchen mark', lg: { order: 'order', order_void: 'order (cancelled later)', order_ack: 'accepted the order', order_edit: 'changed', order_kitchen: 'passed to the kitchen', order_ready: 'kitchen: ready', order_served: '🍽 served', order_redo: '🔁 remake', order_cancel: '✕ cancelled the order', order_reject: 'rejected the order', order_remove: 'deleted (duplicate)', paid: 'paid', close: 'table closed' }, phoneOrders: 'Orders from phones', unanswered: 'Calls without response', staff: 'Waiters and managers', name: 'Name',
       callsAcked: 'Calls taken', react: 'Response', ordersAcked: 'Orders taken or opened', sum: 'Amount', paid: 'Bills closed',
       shiftH: 'Hours on shift (button)', activeH: 'Hours worked (first–last action)', days: 'Days', tables: 'Tables', table: 'Table',
       dishes: 'Dishes', topQty: 'Ordered most often', topRev: 'Most revenue', qty: 'Portions', dish: 'Dish',
@@ -54,7 +54,7 @@
       summary: 'สรุป', orders: 'ออร์เดอร์', revenue: 'ยอดขายผ่านแท็บเล็ต', avg: 'ยอดเฉลี่ยต่อบิล', calls: 'เรียกพนักงาน', bills: 'ขอเช็คบิล',
       opens: 'โต๊ะที่เปิด', conversion: 'มีการสั่ง', reaction: 'ความเร็วพนักงาน', callMed: 'ตอบรับการเรียก (ปกติ)',
       callP90: 'ตอบรับการเรียก (ช้าสุด 10%)', orderMed: 'ยืนยันออร์เดอร์ (ปกติ)', orderP90: 'ยืนยันออร์เดอร์ (ช้าสุด 10%)',
-      reminders: 'ต้องเตือนซ้ำ', kitchenMed: 'จากสั่งถึงครัว (ปกติ)', readyMed: 'ครัวทำอาหาร (ปกติ)', servedMed: 'จากยืนยันถึงเสิร์ฟ (ปกติ)', servedP90: 'เสิร์ฟ: 9 ใน 10 เร็วกว่า', servedNoKitchen: 'เสิร์ฟโดยครัวไม่ได้กด', phoneOrders: 'สั่งจากมือถือ', unanswered: 'การเรียกที่ไม่มีคนรับ', staff: 'พนักงานและผู้จัดการ', name: 'ชื่อ',
+      reminders: 'ต้องเตือนซ้ำ', kitchenMed: 'จากสั่งถึงครัว (ปกติ)', readyMed: 'ครัวทำอาหาร (ปกติ)', servedMed: 'จากยืนยันถึงเสิร์ฟ (ปกติ)', servedP90: 'เสิร์ฟ: 9 ใน 10 เร็วกว่า', servedNoKitchen: 'เสิร์ฟโดยครัวไม่ได้กด', redoN: 'ทำใหม่ (ลูกค้าส่งคืน)', cancelledN: 'ออร์เดอร์ที่ยกเลิก', vlogHint: 'แตะ ▸ ที่การใช้โต๊ะ เพื่อดูออร์เดอร์และทุกการกระทำ', guestW: 'แขก', phoneW: 'จากมือถือ', tabletW: 'จากแท็บเล็ต', noKitchenW: 'ครัวไม่ได้กด', lg: { order: 'ออร์เดอร์', order_void: 'ออร์เดอร์ (ยกเลิกภายหลัง)', order_ack: 'รับออร์เดอร์', order_edit: 'แก้ไข', order_kitchen: 'ส่งเข้าครัว', order_ready: 'ครัว: พร้อม', order_served: '🍽 เสิร์ฟแล้ว', order_redo: '🔁 ทำใหม่', order_cancel: '✕ ยกเลิกออร์เดอร์', order_reject: 'ปฏิเสธออร์เดอร์', order_remove: 'ลบ (ซ้ำ)', paid: 'ชำระแล้ว', close: 'ปิดโต๊ะ' }, phoneOrders: 'สั่งจากมือถือ', unanswered: 'การเรียกที่ไม่มีคนรับ', staff: 'พนักงานและผู้จัดการ', name: 'ชื่อ',
       callsAcked: 'รับการเรียก', react: 'เวลาตอบรับ', ordersAcked: 'รับหรือเปิดออร์เดอร์', sum: 'ยอดรวม', paid: 'ปิดบิล',
       shiftH: 'ชั่วโมงเข้ากะ (ปุ่ม)', activeH: 'ชั่วโมงทำงาน (แรก–สุดท้าย)', days: 'วัน', tables: 'โต๊ะ', table: 'โต๊ะ',
       dishes: 'เมนู', topQty: 'สั่งบ่อยที่สุด', topRev: 'ยอดขายสูงสุด', qty: 'จำนวน', dish: 'เมนู',
@@ -126,7 +126,8 @@
         <h3>${t.reaction}</h3><div class="js-cards">${card(t.callMed, dur(re.callMed))}${card(t.callP90, dur(re.callP90))}
         ${card(t.orderMed, dur(re.orderMed))}${card(t.orderP90, dur(re.orderP90))}${re.kitchenMed != null ? card(t.kitchenMed, dur(re.kitchenMed)) : ''}
         ${re.readyMed != null ? card(t.readyMed, dur(re.readyMed)) : ''}${re.servedMed != null ? card(t.servedMed, dur(re.servedMed)) + card(t.servedP90, dur(re.servedP90)) : ''}
-        ${re.servedNoKitchen ? card(t.servedNoKitchen, re.servedNoKitchen) : ''}${card(t.reminders, re.reminders)}${card(t.unanswered, re.unanswered)}</div>`;
+        ${re.servedNoKitchen ? card(t.servedNoKitchen, re.servedNoKitchen) : ''}${re.redo ? card(t.redoN, re.redo) : ''}
+        ${re.cancelled ? card(t.cancelledN, `${re.cancelled} · ${money(re.cancelledSum)}`) : ''}${card(t.reminders, re.reminders)}${card(t.unanswered, re.unanswered)}</div>`;
     }
     function timeHtml(d) {
       const langs = Object.entries(d.langs || {}).sort((a, b) => b[1] - a[1]);
@@ -148,11 +149,24 @@
       visits = d.visits || [];
       if (!visits.length) return '';
       const when = (v) => new Date(v.from + TZ).toISOString().slice(5, 16).replace('T', ' ') + '–' + new Date(v.to + TZ).toISOString().slice(11, 16);
-      return `<details class="js-ex"><summary>${t.visits} (${visits.length})</summary><p class="js-hint">${t.visitsHint}</p>
+      return `<details class="js-ex"><summary>${t.visits} (${visits.length})</summary><p class="js-hint">${t.visitsHint} ${t.vlogHint}</p>
         <div class="js-wrap"><table class="js-tbl"><thead><tr><th>${t.when}</th><th>${t.table}</th><th>${t.orders}</th><th>${t.sum}</th><th>${t.staff}</th><th>${t.test}</th></tr></thead>
-        <tbody>${visits.map((v, i) => `<tr class="${v.why ? 'js-test' : ''}"><td>${when(v)}</td><td>${esc(v.table)}</td><td>${v.orders}</td><td>${money(v.total)}</td>
+        <tbody>${visits.map((v, i) => `<tr class="${v.why ? 'js-test' : ''}"><td>${(v.log || []).length ? `<button class="js-vbtn" data-vlog="${i}">▸</button> ` : ''}${when(v)}</td><td>${esc(v.table)}</td><td>${v.orders}</td><td>${money(v.total)}</td>
           <td>${esc(v.staff.join(', '))}</td><td>${v.why === 'before' ? t.whyBefore : v.why === 'staff' ? t.whyStaff
             : opt.markVisit ? `<input type="checkbox" data-visit="${i}" ${v.why === 'mark' ? 'checked' : ''}>` : v.why ? '✓' : ''}</td></tr>`).join('')}</tbody></table></div></details>`;
+    }
+    // Журнал визита: «14:05 · #a1b2 · Boss: изменил: +1 × Салат, −2 × Хлеб · ฿1,250»
+    function visitLogHtml(v) {
+      const hm = (ts) => new Date(ts + TZ).toISOString().slice(11, 16);
+      // названия блюд хранятся на всех языках меню — показываем на языке экрана
+      const nm = (n) => (typeof n === 'string' ? n : (n && (n[opt.lang] || n.en || n.ru || Object.values(n)[0])) || '');
+      const ls = (list, sign = '') => (list || []).map(([n, q, ml]) => `${sign}${q} × ${esc(nm(n))}${ml ? ` (${esc(nm(ml))})` : ''}`).join(', ');
+      return `<ul class="js-vlog">${v.log.map((e) => {
+        const who = e.bn ? esc(e.bn) : e.k === 'order' || e.k === 'order_void' ? `${t.guestW} ${e.g || 1}, ${e.src === 'phone' ? t.phoneW : t.tabletW}` : '';
+        const what = e.k === 'order_edit' ? [ls(e.add, '+'), ls(e.del, '−')].filter(Boolean).join(', ') : ls(e.items);
+        return `<li${e.k === 'order_cancel' || e.k === 'order_void' || e.k === 'order_redo' ? ' class="js-warn"' : ''}>${hm(e.t)}${e.id ? ` · #${esc(e.id)}` : ''} · ${who ? `${who}: ` : ''}${t.lg[e.k] || e.k}`
+          + `${what ? `: ${what}` : ''}${e.total != null ? ` · ${money(e.total)}` : ''}${e.noKitchen ? ` (${t.noKitchenW})` : ''}${e.note ? ` — «${esc(e.note)}»` : ''}</li>`;
+      }).join('')}</ul>`;
     }
     function restaurantHtml(d) {
       return visitsHtml(d) + summaryHtml(d.summary, d.prev, d.reaction) + excludedHtml(d)
@@ -205,6 +219,13 @@
       const b = e.target.closest('button');
       if (!b) return;
       if (b.dataset.csv) return csv(b.dataset.csv);
+      if (b.dataset.vlog !== undefined) {
+        const tr = b.closest('tr'), next = tr.nextElementSibling;
+        if (next?.classList.contains('js-vrow')) { next.remove(); b.textContent = '▸'; return; }
+        tr.insertAdjacentHTML('afterend', `<tr class="js-vrow"><td colspan="6">${visitLogHtml(visits[Number(b.dataset.vlog)])}</td></tr>`);
+        b.textContent = '▾';
+        return;
+      }
       if (b.dataset.recalc) return load();
       if (b.dataset.pre) {
         st.preset = b.dataset.pre;
@@ -241,6 +262,8 @@
 .js-tbl th{font-size:12px;color:#8a7f76;white-space:normal}.js-charts{display:flex;flex-wrap:wrap;gap:12px}.js-chart{background:#fff;border-radius:12px;padding:10px;flex:1 1 320px}
 .js-chart h4{margin:0 0 8px;font-size:13px}.js-bars{display:flex;align-items:flex-end;gap:2px;height:120px}.js-bars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
 .js-test td{color:#b0a69c}.js-ex{background:#fff;border-radius:12px;padding:8px 12px;margin:0 0 10px}.js-ex summary{cursor:pointer;font-weight:600}.js-ex label{display:inline-block;margin:4px 14px 4px 0;white-space:nowrap}
+.js-vbtn{padding:0 6px!important;margin:0!important;border:1px solid #ddd;border-radius:6px;background:#fff;color:#222;cursor:pointer;font-size:12px}
+.js-vlog{margin:2px 0 6px;padding-left:18px;font-size:13px;line-height:1.5}.js-vlog .js-warn{color:#c62828}.js-vrow td{background:#faf7f4}
 .js-bars i{display:block;width:100%;background:#c8553d;border-radius:3px 3px 0 0;min-height:1px}.js-bars span{font-size:9px;color:#8a7f76;margin-top:2px}.js-body h3{margin:18px 0 6px}`;
   const s = document.createElement('style');
   s.textContent = css;

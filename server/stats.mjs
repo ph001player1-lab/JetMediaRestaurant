@@ -81,13 +81,32 @@ function summary(ev) {
   };
 }
 
+// Заказ в статистике — каким он стал в итоге: правки официанта меняют сумму и блюда; отменённый или отклонённый
+// заказ не считается (в журнале визитов остаётся как «order_void»). Исходный вид — в _items/_total для журнала
+function finalOrders(ev) {
+  const last = {}, voided = new Set();
+  for (const e of ev) {
+    if (e.k === 'order_edit' && e.id && e.items) last[e.id] = e;
+    else if ((e.k === 'order_cancel' || e.k === 'order_reject') && e.id) voided.add(e.id);
+  }
+  return ev.map((e) => {
+    if (e.k !== 'order' || (!voided.has(e.id) && !last[e.id])) return e;
+    const x = { ...e, _items: e.items, _total: e.total };
+    if (voided.has(e.id)) x.k = 'order_void';
+    else Object.assign(x, { total: last[e.id].total ?? e.total, items: last[e.id].items });
+    return x;
+  });
+}
+// Первое событие каждого заказа: время «готово»/«подано» считаем по первой подаче (дозаказ и «переделать» — отдельно)
+const firstById = (list) => [...list.reduce((m, e) => (m.has(e.id) ? m : m.set(e.id, e)), new Map()).values()];
+
 function reaction(ev) {
   const callMs = ev.filter((e) => e.k === 'call_ack').map((e) => e.ms);
   const orderMs = ev.filter((e) => e.k === 'order_ack').map((e) => e.ms);
   const kitchenMs = ev.filter((e) => e.k === 'order_kitchen').map((e) => e.ms);
-  const readyMs = ev.filter((e) => e.k === 'order_ready').map((e) => e.ms);
-  // от подтверждения до «Подано»; заказ, который дозаказали и подали снова, считаем один раз — по последней подаче
-  const served = [...new Map(ev.filter((e) => e.k === 'order_served').map((e) => [e.id, e])).values()];
+  const readyMs = firstById(ev.filter((e) => e.k === 'order_ready')).map((e) => e.ms);
+  // от подтверждения до «Подано» — по первой подаче заказа
+  const served = firstById(ev.filter((e) => e.k === 'order_served'));
   const servedMs = served.map((e) => e.ms);
   // отменённый гостем вызов — не «без ответа»
   const acked = new Set(ev.filter((e) => e.k === 'call_ack' || e.k === 'call_cancel').map((e) => e.id));
@@ -95,13 +114,16 @@ function reaction(ev) {
     callMed: median(callMs), callP90: p90(callMs), orderMed: median(orderMs), orderP90: p90(orderMs),
     kitchenMed: median(kitchenMs), readyMed: median(readyMs), servedMed: median(servedMs), servedP90: p90(servedMs),
     servedNoKitchen: served.filter((e) => e.noKitchen).length,
+    redo: ev.filter((e) => e.k === 'order_redo').length,
+    cancelled: ev.filter((e) => e.k === 'order_cancel').length,
+    cancelledSum: ev.filter((e) => e.k === 'order_cancel').reduce((s, e) => s + (e.total || 0), 0),
     reminders: ev.filter((e) => e.k === 'remind').length,
     unanswered: ev.filter((e) => e.k === 'call' && !acked.has(e.id)).length,
   };
 }
 
 // Персонал: реакция, заказы, счета; часы — по кнопке «На смене» и по первому и последнему действию за день
-const ACTIONS = ['order', 'call_ack', 'call_done', 'order_ack', 'order_edit', 'order_reject', 'order_kitchen', 'order_served', 'paid', 'close'];
+const ACTIONS = ['order', 'call_ack', 'call_done', 'order_ack', 'order_edit', 'order_reject', 'order_kitchen', 'order_served', 'order_redo', 'order_cancel', 'paid', 'close'];
 function staffStats(ev, staffNames, to) {
   const st = {};
   const get = (id, name) => (st[id] ??= { id, name: staffNames[id] || name || '—', calls: 0, callMs: [], orders: 0, ordersSum: 0, paid: 0, paidSum: 0, shiftMs: 0, act: {} });
@@ -151,9 +173,32 @@ function tableStats(ev) {
   })).sort((a, b) => String(a.table).localeCompare(String(b.table), 'ru', { numeric: true }));
 }
 
-function dishStats(ev, r) {
+const dishName = (r, all = false) => {
   const menu = new Map((r?.menu || []).map((i) => [i.id, i]));
-  const name = (id) => { const m = menu.get(id); return m ? m.name.ru || m.name.en || Object.values(m.name)[0] : id; };
+  return (id) => { const m = menu.get(id); return !m ? id : all ? m.name : m.name.ru || m.name.en || Object.values(m.name)[0]; };
+};
+// Журнал визита: заказы и всё, что с ними делали (кто, когда, что добавили/убрали, переделка, отмена с причиной)
+const LOG_KINDS = new Set(['order', 'order_void', 'order_ack', 'order_edit', 'order_kitchen', 'order_ready', 'order_served', 'order_redo',
+  'order_cancel', 'order_reject', 'order_remove', 'paid', 'close']);
+function visitLog(events, name) {
+  const lines = (list) => (list || []).map(([id, qty]) => [name(id), qty]);
+  return events.filter((e) => LOG_KINDS.has(e.k)).slice(0, 120).map((e) => {
+    const x = { t: e.t, k: e.k };
+    if (e.id) x.id = String(e.id).slice(-4);
+    if (e.bn) x.bn = e.bn;
+    if (e.k === 'order' || e.k === 'order_void') Object.assign(x, { items: lines(e._items || e.items), total: e._total ?? e.total, src: e.src || (e.phone ? 'phone' : 'tablet'), g: e.guest });
+    if (e.k === 'order_redo') x.items = e.items;
+    if (e.add?.length) x.add = e.add;
+    if (e.del?.length) x.del = e.del;
+    if (e.note) x.note = e.note;
+    if (e.k === 'order_edit' || e.k === 'order_cancel' || e.k === 'paid') x.total = e.total;
+    if (e.noKitchen) x.noKitchen = 1;
+    return x;
+  });
+}
+
+function dishStats(ev, r) {
+  const menu = new Map((r?.menu || []).map((i) => [i.id, i])), name = dishName(r);
   const d = {};
   let dayDish = 0, promo = 0;
   for (const e of ev) {
@@ -271,9 +316,10 @@ const realDays = (days, c) => (c?.before ? days.filter((d) => d > thDay(c.before
 export function restaurantReport({ log, db, r, from, to, staffNames, tests }) {
   const rids = new Set([r.id]);
   const ctxs = { [r.id]: testCtx(r) };
-  const raw = log.read(from, to, rids);
+  const raw = finalOrders(log.read(from, to, rids));
   const ev = tests ? raw : realOnly(raw, ctxs);
-  const prev = tests ? log.read(from - (to - from), from, rids) : realOnly(log.read(from - (to - from), from, rids), ctxs);
+  const prevRaw = finalOrders(log.read(from - (to - from), from, rids));
+  const prev = tests ? prevRaw : realOnly(prevRaw, ctxs);
   const days = tests ? daysIn(from, to) : realDays(daysIn(from, to), ctxs[r.id]);
   const all = visitsOf(raw, ctxs).filter((v) => v.ids.length);
   const testVisits = all.filter((v) => v.why);
@@ -281,7 +327,7 @@ export function restaurantReport({ log, db, r, from, to, staffNames, tests }) {
     from, to, tests: !!tests, summary: summary(ev), prev: summary(prev), reaction: reaction(ev),
     excluded: { visits: testVisits.length, orders: testVisits.reduce((s, v) => s + v.orders, 0), total: testVisits.reduce((s, v) => s + v.total, 0) },
     // журнал визитов: последние 300, у каждого — тестовый ли и почему
-    visits: all.reverse().slice(0, 300).map(({ events, staff, r: rid, ...v }) => ({ ...v, staff: [...staff] })),
+    visits: all.reverse().slice(0, 300).map(({ events, staff, r: rid, ...v }) => ({ ...v, staff: [...staff], log: visitLog(events, dishName(r, true)) })),
     staff: staffStats(ev, staffNames, to), tables: tableStats(ev), dishes: dishStats(ev, r),
     promos: promoStats(ev, r, db.stats, days), avatar: avatarStats(ev, db.stats, rids, () => days), ...timeStats(ev),
   };
@@ -292,8 +338,9 @@ export function networkReport({ log, db, rids, from, to, tests }) {
   const days = daysIn(from, to);
   const rests = [...rids].map((id) => db.restaurants[id]).filter(Boolean);
   const ctxs = Object.fromEntries(rests.map((r) => [r.id, testCtx(r)]));
-  const ev = tests ? log.read(from, to, rids) : realOnly(log.read(from, to, rids), ctxs);
-  const prev = tests ? log.read(from - (to - from), from, rids) : realOnly(log.read(from - (to - from), from, rids), ctxs);
+  const raw = finalOrders(log.read(from, to, rids)), prevRaw = finalOrders(log.read(from - (to - from), from, rids));
+  const ev = tests ? raw : realOnly(raw, ctxs);
+  const prev = tests ? prevRaw : realOnly(prevRaw, ctxs);
   const network = rests.map((r) => {
     const mine = ev.filter((e) => e.r === r.id);
     const devices = Object.values(db.devices).filter((d) => d.restaurantId === r.id).length;

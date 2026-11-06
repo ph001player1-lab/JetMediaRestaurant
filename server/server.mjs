@@ -1462,6 +1462,7 @@ function guestOrder(b) {
     id: uid(), restaurantId: t.r.id, table: t.table, items,
     total: items.reduce((s, i) => s + i.price * i.qty, 0), status: 'pending', at: Date.now(), notifiedAt: Date.now(),
     guest: t.n, guestName: t.name, src: t.phone ? 'phone' : 'tablet', ...(rid ? { rid } : {}),
+    hist: [{ t: Date.now(), k: 'new', by: t.name || '', src: t.phone ? 'phone' : 'tablet', g: t.n }],
   };
   db.orders.push(o);
   logEvent(t.r.id, 'order', { id: o.id, table: t.table, dev: t.dev || undefined, total: o.total, items: items.map((i) => [i.id, i.qty, i.price]), lang: b.lang, guest: t.n, phone: t.phone ? 1 : undefined });
@@ -1595,6 +1596,7 @@ function staffOrder(b) {
     id: uid(), restaurantId: r.id, table, items, total: items.reduce((s, i) => s + i.price * i.qty, 0),
     status: 'confirmed', at: now, confirmedAt: now, ackAt: now, ackBy: member.name, by: member.name, src: 'staff',
     guest, guestName: guestNames(r, table)[guest] || '', ...(rid ? { rid } : {}),
+    hist: [{ t: now, k: 'new', by: member.name, src: 'staff' }],
   };
   o.kitchenItems = kitchenSnap(o);
   db.orders.push(o);
@@ -1614,6 +1616,27 @@ function kitchenSnap(o) {
   }
   return out;
 }
+
+// ---------- История заказа: кто что сделал и когда. Видна официантам в карточке заказа, кухне — правки и «переделать»,
+// менеджеру — в журнале визитов статистики (там же после закрытия стола)
+// [[название, сколько, выбранное гостем], …] из снимка блюд заказа (kitchenSnap); названия — на всех языках меню,
+// экран показывает на своём
+const snapLines = (r, snap) => Object.values(snap).filter((v) => v.qty > 0).map((v) => (v.ml ? [v.name, v.qty, v.ml] : [v.name, v.qty]));
+// Что изменилось между двумя снимками: добавлено и убрано
+function snapDiff(r, a, b) {
+  const add = {}, del = {};
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    const d = (b[k]?.qty || 0) - (a[k]?.qty || 0), v = { ...(b[k] || a[k]), qty: Math.abs(d) };
+    if (d > 0) add[k] = v;
+    else if (d < 0) del[k] = v;
+  }
+  return { add: snapLines(r, add), del: snapLines(r, del) };
+}
+function hist(x, k, by, extra = {}) {
+  (x.hist ||= []).push({ t: Date.now(), k, by: by || '', ...extra });
+  if (x.hist.length > 60) x.hist.splice(0, x.hist.length - 60);
+}
+const noteOf = (b) => String(b.note || '').trim().slice(0, 200);
 
 // ---------- Экран кухни: подтверждённые заказы по ссылке из ЛК менеджера (без входа); повар отмечает «Готово»,
 // официанты стола получают уведомление «Заказ готов»
@@ -1645,31 +1668,44 @@ function kitchenState(b, q) {
     delete kitchenAlerted[r.id];
   }
   kitchenSeen[r.id] = now;
-  const gone = (o) => o.removedAt && o.kitchenItems && !o.readyAt && now - o.removedAt < 30 * 60e3; // удалён — повар должен увидеть
+  // удалён как дубль или отменён — повар должен увидеть, пока не нажмёт «Понятно»
+  const voidAt = (o) => o.removedAt || o.cancelledAt;
+  const gone = (o) => voidAt(o) && o.kitchenItems && !o.readyAt && now - voidAt(o) < 30 * 60e3;
   const list = db.orders.filter((o) => o.restaurantId === r.id && ((o.status === 'confirmed' && !o.test
     && now - (o.confirmedAt || o.at) < 12 * 3600e3 && (!o.readyAt || now - o.readyAt < 15 * 60e3)) || gone(o)));
   return {
     restaurant: { name: r.name, langs: r.langs }, build: BUILD,
     orders: list.map((o) => {
       // блюда, разделённые между гостями, — одной строкой; was — сколько было, когда заказ ушёл на кухню
-      const cur = o.removedAt ? {} : kitchenSnap(o), was = o.kitchenItems || kitchenSnap(o);
+      // отменён/удалён — зачёркнуто всё, что кухня видела, включая добавленное после отправки
+      const cur = voidAt(o) ? {} : kitchenSnap(o), was = voidAt(o) ? { ...kitchenSnap(o), ...o.kitchenItems } : o.kitchenItems || kitchenSnap(o);
+      // «Переделать»: на карточке — только то, что вернули, плюс правки официанта после этого
+      const redo = o.redo && o.redo.at === o.cookFrom && !voidAt(o) ? o.redo : null;
+      const line = (k, src) => ({ name: src.name, ml: src.ml, tags: tags.get(k.split('|')[0]) || [] });
       const keys = [...new Set([...Object.keys(was), ...Object.keys(cur)])];
-      const items = keys.map((k) => ({ name: (cur[k] || was[k]).name, ml: (cur[k] || was[k]).ml, qty: cur[k]?.qty || 0, was: was[k]?.qty || 0, tags: tags.get(k.split('|')[0]) || [] }));
+      let items = keys.map((k) => ({ ...line(k, cur[k] || was[k]), qty: cur[k]?.qty || 0, was: was[k]?.qty || 0 }));
+      const changed = items.some((i) => i.qty !== i.was);
+      if (redo) items = [...Object.entries(redo.items).map(([k, v]) => ({ ...line(k, v), qty: v.qty, was: v.qty, redo: true })), ...items.filter((i) => i.qty !== i.was)];
       return {
         id: o.id, table: o.table, at: o.cookFrom || o.confirmedAt || o.at, readyAt: o.readyAt || 0, editedAt: o.editedAt || 0, readyBy: o.readyBy || '',
-        changed: items.some((i) => i.qty !== i.was), items, removed: !!o.removedAt,
+        editedBy: o.editedBy || '', changed, items, removed: !!o.removedAt,
+        cancelled: o.cancelledAt ? { by: o.cancelledBy || '', note: o.cancelNote || '' } : null,
+        redo: redo ? { by: redo.by, note: redo.note || '' } : null,
       };
     }),
   };
 }
 function kitchenReady(b) {
   const r = kitchenRest(b.k);
-  const o = db.orders.find((x) => x.id === b.id && x.restaurantId === r.id && (x.status === 'confirmed' || x.removedAt));
+  const o = db.orders.find((x) => x.id === b.id && x.restaurantId === r.id && (x.status === 'confirmed' || x.removedAt || x.cancelledAt));
   if (!o) throw fail(400, 'bad order');
-  if (o.removedAt) { o.readyAt = Date.now(); save(); return {}; } // повар увидел «удалён» — убираем карточку
-  if (b.undo) { delete o.readyAt; delete o.readyBy; }
-  else if (!o.readyAt) {
+  if (o.removedAt || o.cancelledAt) { o.readyAt = Date.now(); save(); return {}; } // повар увидел «удалён/отменён» — убираем карточку
+  if (b.undo) {
+    if (o.readyAt) hist(o, 'undo', '');
+    delete o.readyAt; delete o.readyBy;
+  } else if (!o.readyAt) {
     o.readyAt = Date.now();
+    hist(o, 'ready', '');
     o.kitchenItems = kitchenSnap(o); // кухня приготовила это — следующие правки покажутся как новые
     logEvent(r.id, 'order_ready', { id: o.id, table: o.table, ms: o.readyAt - (o.confirmedAt || o.at) });
     notify(r.id, o.table, 'ready');
@@ -1820,6 +1856,7 @@ function staffAction(b) {
     if (!x) throw fail(400, 'bad action');
     if (!x.kitchenAt) {
       Object.assign(x, { kitchenAt: Date.now(), kitchenBy: member.name });
+      hist(x, 'kitchen', member.name);
       logEvent(r.id, 'order_kitchen', { ...who, id: x.id, table: x.table, ms: x.kitchenAt - x.at });
     }
   } else if (b.kind === 'order' && (b.action === 'test' || b.action === 'untest')) {
@@ -1835,6 +1872,7 @@ function staffAction(b) {
     const now = Date.now(), kitchenReady = !!x.readyAt;
     if (!x.readyAt) Object.assign(x, { readyAt: now, readyBy: member.name, kitchenItems: kitchenSnap(x) });
     Object.assign(x, { servedAt: now, servedBy: member.name });
+    hist(x, 'served', member.name, kitchenReady ? {} : { noKitchen: 1 });
     logEvent(r.id, 'order_served', { ...who, id: x.id, table: x.table, ms: now - (x.cookFrom || x.confirmedAt || x.at), ...(kitchenReady ? {} : { noKitchen: 1 }) });
   } else if (b.kind === 'order' && b.action === 'remove') {
     // «Удалить (дубль)» — только менеджер: заказ пропадает из счёта и статистики, кухня видит «убрано»
@@ -1842,9 +1880,36 @@ function staffAction(b) {
     const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && y.status !== 'rejected' && !y.paidAt);
     if (!x) throw fail(400, 'bad action');
     Object.assign(x, { status: 'rejected', rejectedAt: Date.now(), removedAt: Date.now(), removedBy: member.name, by: member.name });
+    hist(x, 'remove', member.name);
     r.removedIds = [...(r.removedIds || []), x.id].slice(-5000);
     logEvent(r.id, 'order_remove', { ...who, id: x.id, table: x.table, total: x.total });
     audit(`${member.name} (менеджер)`, `Заказ удалён как дубль: ${tableLabel(x.table)}, ฿${x.total}`, r.id);
+  } else if (b.kind === 'order' && b.action === 'redo') {
+    // «🔁 Переделать»: блюдо вернули (остыло, не то, не понравилось) — кухня готовит выбранное заново; в счёт не добавляется
+    const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && y.status === 'confirmed' && !y.closed && y.readyAt);
+    if (!x) throw fail(400, 'bad action');
+    const cur = kitchenSnap(x), pick = {};
+    for (const [k, q] of Object.entries(b.items || {})) {
+      const n = Math.min(cur[k]?.qty || 0, Math.max(0, Math.round(Number(q)) || 0));
+      if (n) pick[k] = { ...cur[k], qty: n };
+    }
+    if (!Object.keys(pick).length) throw fail(400, 'Отметьте, что переделать');
+    const now = Date.now(), note = noteOf(b);
+    for (const k of ['readyAt', 'readyBy', 'servedAt', 'servedBy']) delete x[k];
+    Object.assign(x, { cookFrom: now, kitchenItems: cur, redo: { at: now, by: member.name, items: pick, note } });
+    hist(x, 'redo', member.name, { items: snapLines(r, pick), note });
+    logEvent(r.id, 'order_redo', { ...who, id: x.id, table: x.table, items: snapLines(r, pick), note });
+  } else if (b.kind === 'order' && b.action === 'cancel') {
+    // «✕ Отменить заказ»: гость передумал, ошиблись столом… До «Подано» — любой сотрудник, после — только менеджер.
+    // Заказ уходит из счёта и выручки, кухня видит «отменён», в истории — кто и почему
+    const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && y.status === 'confirmed' && !y.closed);
+    if (!x) throw fail(400, 'bad action');
+    if (x.paidAt || x.items.some((i) => i.paidAt)) throw fail(400, 'Заказ уже оплачен — отменить нельзя');
+    if (x.servedAt && member.role !== 'manager') throw fail(403, 'Заказ уже подан — отменить может только менеджер');
+    const now = Date.now(), note = noteOf(b);
+    Object.assign(x, { status: 'rejected', rejectedAt: now, cancelledAt: now, cancelledBy: member.name, cancelNote: note, by: member.name });
+    hist(x, 'cancel', member.name, { note });
+    logEvent(r.id, 'order_cancel', { ...who, id: x.id, table: x.table, total: x.total, note });
   } else if (b.kind === 'order' && b.action === 'paid') {
     // Оплачен один счёт стола; стол остаётся открытым, пока его не закроют
     const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && !y.closed && y.status !== 'rejected');
@@ -1861,14 +1926,17 @@ function staffAction(b) {
       if (miss) throw fail(400, `Не выбран обязательный вариант: ${miss}`);
       const items = buildItems(r, b.items);
       if (!items.length) throw fail(400, 'empty order');
+      const before = kitchenSnap(x);
       Object.assign(x, { items, total: items.reduce((s, i) => s + i.price * i.qty, 0), editedAt: Date.now(), editedBy: member.name });
+      const diff = snapDiff(r, before, kitchenSnap(x));
+      if (diff.add.length || diff.del.length) hist(x, 'edit', member.name, diff);
       // к уже готовому заказу добавили блюда — кухне снова есть что готовить
       const was = x.kitchenItems || {}, cur = kitchenSnap(x);
       if (x.readyAt && Object.keys(cur).some((k) => cur[k].qty > (was[k]?.qty || 0))) {
         for (const k of ['readyAt', 'readyBy', 'servedAt', 'servedBy']) delete x[k]; // снова готовить и снова подать
         x.cookFrom = Date.now();
       }
-      logEvent(r.id, 'order_edit', { ...who, id: x.id, table: x.table, total: x.total });
+      logEvent(r.id, 'order_edit', { ...who, id: x.id, table: x.table, total: x.total, items: items.map((i) => [i.id, i.qty, i.price]), ...diff });
     }
   } else {
     const x = (b.kind === 'call' ? db.calls : db.orders).find((y) => y.id === b.id && y.restaurantId === r.id);
@@ -1882,6 +1950,7 @@ function staffAction(b) {
     if (b.kind === 'order') {
       ackOrder(x);
       if (status === 'rejected') logEvent(r.id, 'order_reject', { ...who, id: x.id, table: x.table });
+      if (x.status !== status) hist(x, status === 'confirmed' ? 'confirm' : 'reject', member.name);
     }
     Object.assign(x, { status, by: member.name, [`${status}At`]: Date.now() });
     if (status === 'confirmed') x.kitchenItems = kitchenSnap(x);
