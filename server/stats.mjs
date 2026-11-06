@@ -86,18 +86,22 @@ function reaction(ev) {
   const orderMs = ev.filter((e) => e.k === 'order_ack').map((e) => e.ms);
   const kitchenMs = ev.filter((e) => e.k === 'order_kitchen').map((e) => e.ms);
   const readyMs = ev.filter((e) => e.k === 'order_ready').map((e) => e.ms);
+  // от подтверждения до «Подано»; заказ, который дозаказали и подали снова, считаем один раз — по последней подаче
+  const served = [...new Map(ev.filter((e) => e.k === 'order_served').map((e) => [e.id, e])).values()];
+  const servedMs = served.map((e) => e.ms);
   // отменённый гостем вызов — не «без ответа»
   const acked = new Set(ev.filter((e) => e.k === 'call_ack' || e.k === 'call_cancel').map((e) => e.id));
   return {
     callMed: median(callMs), callP90: p90(callMs), orderMed: median(orderMs), orderP90: p90(orderMs),
-    kitchenMed: median(kitchenMs), readyMed: median(readyMs),
+    kitchenMed: median(kitchenMs), readyMed: median(readyMs), servedMed: median(servedMs), servedP90: p90(servedMs),
+    servedNoKitchen: served.filter((e) => e.noKitchen).length,
     reminders: ev.filter((e) => e.k === 'remind').length,
     unanswered: ev.filter((e) => e.k === 'call' && !acked.has(e.id)).length,
   };
 }
 
 // Персонал: реакция, заказы, счета; часы — по кнопке «На смене» и по первому и последнему действию за день
-const ACTIONS = ['order', 'call_ack', 'call_done', 'order_ack', 'order_edit', 'order_reject', 'order_kitchen', 'paid', 'close'];
+const ACTIONS = ['order', 'call_ack', 'call_done', 'order_ack', 'order_edit', 'order_reject', 'order_kitchen', 'order_served', 'paid', 'close'];
 function staffStats(ev, staffNames, to) {
   const st = {};
   const get = (id, name) => (st[id] ??= { id, name: staffNames[id] || name || '—', calls: 0, callMs: [], orders: 0, ordersSum: 0, paid: 0, paidSum: 0, shiftMs: 0, act: {} });

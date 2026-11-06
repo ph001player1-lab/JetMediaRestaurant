@@ -1543,6 +1543,7 @@ function staffState(b, q) {
     calls: db.calls.filter((c) => c.restaurantId === r.id && !c.closed && c.status !== 'done'),
     forgotten: forgottenFor(r, member),
     flow: pick(flowOf(r), ['phones', 'kitchenBtn', 'kitchenScreen']), customTags: r.customTags || [],
+    kitchenDown: flowOf(r).kitchenScreen ? kitchenDown[r.id] || 0 : 0, // экран кухни не на связи с этого времени
     // телефоны гостей по столам (официант может отключить чужой) и имена гостей для подписей
     phones: Object.fromEntries((r.tables || []).map((tb) => [tb, Object.values(tableKey(r, tb)?.s.guests || {})
       .filter((g) => !g.off).map((g) => ({ n: g.n, name: g.name }))]).filter(([, l]) => l.length)),
@@ -1621,8 +1622,29 @@ function kitchenRest(k) {
   if (!r) throw fail(403, 'bad kitchen link');
   return r;
 }
+// Экран кухни на связи? Он спрашивает заказы каждые 5 секунд. Молчит больше 2 минут (а «Экран кухни» включён) —
+// официантам плашка, в Telegram (в часы работы) — «экран кухни не на связи»; вернулся — «снова на связи»
+const kitchenSeen = {}, kitchenDown = {}, kitchenAlerted = {};
+setInterval(() => {
+  const now = Date.now();
+  for (const r of Object.values(db.restaurants)) {
+    const seen = kitchenSeen[r.id];
+    if (!seen || !flowOf(r).kitchenScreen || now - seen < 120_000) continue;
+    kitchenDown[r.id] ||= seen;
+    if (!kitchenAlerted[r.id] && isWorking(r)) {
+      kitchenAlerted[r.id] = true;
+      tgAlert(`🔴 ${r.name}: экран кухни не на связи с ${clock(seen)} — официанты передают заказы на кухню сами и отмечают «🍽 Подано»`);
+    }
+  }
+}, 30_000).unref();
 function kitchenState(b, q) {
   const r = kitchenRest(q.k), now = Date.now(), tags = new Map((r.menu || []).map((m) => [m.id, m.tags || []]));
+  if (kitchenDown[r.id]) {
+    if (kitchenAlerted[r.id]) tgAlert(`🟢 ${r.name}: экран кухни снова на связи (не было ${fmtDur(now - kitchenDown[r.id])})`);
+    delete kitchenDown[r.id];
+    delete kitchenAlerted[r.id];
+  }
+  kitchenSeen[r.id] = now;
   const gone = (o) => o.removedAt && o.kitchenItems && !o.readyAt && now - o.removedAt < 30 * 60e3; // удалён — повар должен увидеть
   const list = db.orders.filter((o) => o.restaurantId === r.id && ((o.status === 'confirmed' && !o.test
     && now - (o.confirmedAt || o.at) < 12 * 3600e3 && (!o.readyAt || now - o.readyAt < 15 * 60e3)) || gone(o)));
@@ -1634,7 +1656,7 @@ function kitchenState(b, q) {
       const keys = [...new Set([...Object.keys(was), ...Object.keys(cur)])];
       const items = keys.map((k) => ({ name: (cur[k] || was[k]).name, ml: (cur[k] || was[k]).ml, qty: cur[k]?.qty || 0, was: was[k]?.qty || 0, tags: tags.get(k.split('|')[0]) || [] }));
       return {
-        id: o.id, table: o.table, at: o.cookFrom || o.confirmedAt || o.at, readyAt: o.readyAt || 0, editedAt: o.editedAt || 0,
+        id: o.id, table: o.table, at: o.cookFrom || o.confirmedAt || o.at, readyAt: o.readyAt || 0, editedAt: o.editedAt || 0, readyBy: o.readyBy || '',
         changed: items.some((i) => i.qty !== i.was), items, removed: !!o.removedAt,
       };
     }),
@@ -1645,7 +1667,7 @@ function kitchenReady(b) {
   const o = db.orders.find((x) => x.id === b.id && x.restaurantId === r.id && (x.status === 'confirmed' || x.removedAt));
   if (!o) throw fail(400, 'bad order');
   if (o.removedAt) { o.readyAt = Date.now(); save(); return {}; } // повар увидел «удалён» — убираем карточку
-  if (b.undo) delete o.readyAt;
+  if (b.undo) { delete o.readyAt; delete o.readyBy; }
   else if (!o.readyAt) {
     o.readyAt = Date.now();
     o.kitchenItems = kitchenSnap(o); // кухня приготовила это — следующие правки покажутся как новые
@@ -1806,6 +1828,14 @@ function staffAction(b) {
     if (!db.orders.some((y) => y.id === b.id && y.restaurantId === r.id)) throw fail(400, 'bad action');
     markTest(r, [b.id], b.action === 'test');
     audit(`${member.name} (менеджер)`, `Заказ ${b.action === 'test' ? 'помечен тестовым' : 'снова учитывается'}`, r.id);
+  } else if (b.kind === 'order' && b.action === 'served') {
+    // «🍽 Подано»: официант принёс заказ. Кухня «Готово» не отмечала (экран не работает, кухня на бумаге) — отмечаем и её
+    const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && y.status === 'confirmed' && !y.servedAt);
+    if (!x) throw fail(400, 'bad action');
+    const now = Date.now(), kitchenReady = !!x.readyAt;
+    if (!x.readyAt) Object.assign(x, { readyAt: now, readyBy: member.name, kitchenItems: kitchenSnap(x) });
+    Object.assign(x, { servedAt: now, servedBy: member.name });
+    logEvent(r.id, 'order_served', { ...who, id: x.id, table: x.table, ms: now - (x.cookFrom || x.confirmedAt || x.at), ...(kitchenReady ? {} : { noKitchen: 1 }) });
   } else if (b.kind === 'order' && b.action === 'remove') {
     // «Удалить (дубль)» — только менеджер: заказ пропадает из счёта и статистики, кухня видит «убрано»
     if (member.role !== 'manager') throw fail(403, 'managers only');
@@ -1835,7 +1865,7 @@ function staffAction(b) {
       // к уже готовому заказу добавили блюда — кухне снова есть что готовить
       const was = x.kitchenItems || {}, cur = kitchenSnap(x);
       if (x.readyAt && Object.keys(cur).some((k) => cur[k].qty > (was[k]?.qty || 0))) {
-        delete x.readyAt;
+        for (const k of ['readyAt', 'readyBy', 'servedAt', 'servedBy']) delete x[k]; // снова готовить и снова подать
         x.cookFrom = Date.now();
       }
       logEvent(r.id, 'order_edit', { ...who, id: x.id, table: x.table, total: x.total });

@@ -8,7 +8,7 @@
       summary: 'Сводка', orders: 'Заказы', revenue: 'Выручка через планшет', avg: 'Средний чек', calls: 'Вызовы официанта', bills: 'Просили счёт',
       opens: 'Столы открывались', conversion: 'С заказом', reaction: 'Скорость персонала', callMed: 'Реакция на вызов (обычно)',
       callP90: 'Реакция на вызов (худшие 10%)', orderMed: 'Подтверждение заказа (обычно)', orderP90: 'Подтверждение заказа (худшие 10%)',
-      reminders: 'Понадобилось напоминание', kitchenMed: 'От заказа до кухни (обычно)', readyMed: 'Кухня готовит (обычно)', phoneOrders: 'Заказов с телефонов', unanswered: 'Вызовы без реакции', staff: 'Официанты и менеджеры', name: 'Имя',
+      reminders: 'Понадобилось напоминание', kitchenMed: 'От заказа до кухни (обычно)', readyMed: 'Кухня готовит (обычно)', servedMed: 'От подтверждения до «Подано» (обычно)', servedP90: 'Подача: 9 из 10 быстрее', servedNoKitchen: 'Подано без отметки кухни', phoneOrders: 'Заказов с телефонов', unanswered: 'Вызовы без реакции', staff: 'Официанты и менеджеры', name: 'Имя',
       callsAcked: 'Вызовов принято', react: 'Реакция', ordersAcked: 'Заказов принял или открыл', sum: 'Сумма', paid: 'Счетов закрыл',
       shiftH: 'Часов на смене (кнопка)', activeH: 'Часов работы (1-е–посл. действие)', days: 'Дней', tables: 'Столы', table: 'Стол',
       dishes: 'Блюда', topQty: 'Чаще всего заказывают', topRev: 'Больше всего выручки', qty: 'Порций', dish: 'Блюдо',
@@ -31,7 +31,7 @@
       summary: 'Summary', orders: 'Orders', revenue: 'Revenue via tablets', avg: 'Average check', calls: 'Waiter calls', bills: 'Bill requests',
       opens: 'Tables opened', conversion: 'With an order', reaction: 'Staff speed', callMed: 'Call response (typical)',
       callP90: 'Call response (worst 10%)', orderMed: 'Order confirmation (typical)', orderP90: 'Order confirmation (worst 10%)',
-      reminders: 'Reminders needed', kitchenMed: 'Order to kitchen (typical)', readyMed: 'Kitchen cooking time (typical)', phoneOrders: 'Orders from phones', unanswered: 'Calls without response', staff: 'Waiters and managers', name: 'Name',
+      reminders: 'Reminders needed', kitchenMed: 'Order to kitchen (typical)', readyMed: 'Kitchen cooking time (typical)', servedMed: 'Confirmation to “Served” (typical)', servedP90: 'Serving: 9 of 10 faster', servedNoKitchen: 'Served without kitchen mark', phoneOrders: 'Orders from phones', unanswered: 'Calls without response', staff: 'Waiters and managers', name: 'Name',
       callsAcked: 'Calls taken', react: 'Response', ordersAcked: 'Orders taken or opened', sum: 'Amount', paid: 'Bills closed',
       shiftH: 'Hours on shift (button)', activeH: 'Hours worked (first–last action)', days: 'Days', tables: 'Tables', table: 'Table',
       dishes: 'Dishes', topQty: 'Ordered most often', topRev: 'Most revenue', qty: 'Portions', dish: 'Dish',
@@ -54,7 +54,7 @@
       summary: 'สรุป', orders: 'ออร์เดอร์', revenue: 'ยอดขายผ่านแท็บเล็ต', avg: 'ยอดเฉลี่ยต่อบิล', calls: 'เรียกพนักงาน', bills: 'ขอเช็คบิล',
       opens: 'โต๊ะที่เปิด', conversion: 'มีการสั่ง', reaction: 'ความเร็วพนักงาน', callMed: 'ตอบรับการเรียก (ปกติ)',
       callP90: 'ตอบรับการเรียก (ช้าสุด 10%)', orderMed: 'ยืนยันออร์เดอร์ (ปกติ)', orderP90: 'ยืนยันออร์เดอร์ (ช้าสุด 10%)',
-      reminders: 'ต้องเตือนซ้ำ', kitchenMed: 'จากสั่งถึงครัว (ปกติ)', readyMed: 'ครัวทำอาหาร (ปกติ)', phoneOrders: 'สั่งจากมือถือ', unanswered: 'การเรียกที่ไม่มีคนรับ', staff: 'พนักงานและผู้จัดการ', name: 'ชื่อ',
+      reminders: 'ต้องเตือนซ้ำ', kitchenMed: 'จากสั่งถึงครัว (ปกติ)', readyMed: 'ครัวทำอาหาร (ปกติ)', servedMed: 'จากยืนยันถึงเสิร์ฟ (ปกติ)', servedP90: 'เสิร์ฟ: 9 ใน 10 เร็วกว่า', servedNoKitchen: 'เสิร์ฟโดยครัวไม่ได้กด', phoneOrders: 'สั่งจากมือถือ', unanswered: 'การเรียกที่ไม่มีคนรับ', staff: 'พนักงานและผู้จัดการ', name: 'ชื่อ',
       callsAcked: 'รับการเรียก', react: 'เวลาตอบรับ', ordersAcked: 'รับหรือเปิดออร์เดอร์', sum: 'ยอดรวม', paid: 'ปิดบิล',
       shiftH: 'ชั่วโมงเข้ากะ (ปุ่ม)', activeH: 'ชั่วโมงทำงาน (แรก–สุดท้าย)', days: 'วัน', tables: 'โต๊ะ', table: 'โต๊ะ',
       dishes: 'เมนู', topQty: 'สั่งบ่อยที่สุด', topRev: 'ยอดขายสูงสุด', qty: 'จำนวน', dish: 'เมนู',
@@ -125,7 +125,8 @@
         <p class="js-hint">${t.hint} ${p ? `▲▼ — ${t.prev}` : ''}</p>
         <h3>${t.reaction}</h3><div class="js-cards">${card(t.callMed, dur(re.callMed))}${card(t.callP90, dur(re.callP90))}
         ${card(t.orderMed, dur(re.orderMed))}${card(t.orderP90, dur(re.orderP90))}${re.kitchenMed != null ? card(t.kitchenMed, dur(re.kitchenMed)) : ''}
-        ${re.readyMed != null ? card(t.readyMed, dur(re.readyMed)) : ''}${card(t.reminders, re.reminders)}${card(t.unanswered, re.unanswered)}</div>`;
+        ${re.readyMed != null ? card(t.readyMed, dur(re.readyMed)) : ''}${re.servedMed != null ? card(t.servedMed, dur(re.servedMed)) + card(t.servedP90, dur(re.servedP90)) : ''}
+        ${re.servedNoKitchen ? card(t.servedNoKitchen, re.servedNoKitchen) : ''}${card(t.reminders, re.reminders)}${card(t.unanswered, re.unanswered)}</div>`;
     }
     function timeHtml(d) {
       const langs = Object.entries(d.langs || {}).sort((a, b) => b[1] - a[1]);
