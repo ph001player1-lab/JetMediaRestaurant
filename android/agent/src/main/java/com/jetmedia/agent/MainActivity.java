@@ -55,15 +55,23 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.MessageDigest;
+import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.NoRouteToHostException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import javax.net.ssl.SSLException;
 
 /**
  * Киоск: блокирует планшет (если агент — владелец устройства) и показывает веб-страницу.
@@ -84,7 +92,7 @@ public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Runnable retryLoad = this::load;
-    private long lastServerOk = System.currentTimeMillis(), lastWifiTry, lastPreferCheck;
+    private long lastServerOk = System.currentTimeMillis();
     private boolean showingOffline, resumed, ttsReady;
     private TextToSpeech tts;
     private DevicePolicyManager dpm;
@@ -109,6 +117,7 @@ public class MainActivity extends Activity {
         prefs = getSharedPreferences("jet", MODE_PRIVATE);
         readConfig(getIntent());
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        keepWifiAwake();
 
         web = new WebView(this);
         WebSettings s = web.getSettings();
@@ -221,6 +230,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (tts != null) tts.shutdown();
+        if (wifiLock != null) wifiLock.release();
+        if (wifiLockFast != null) wifiLockFast.release();
         super.onDestroy();
     }
 
@@ -376,12 +387,15 @@ public class MainActivity extends Activity {
     }
 
     private void pollServer() {
-        checkWifi();
+        boolean ok = false, reached = false;
+        String err = "";
         try {
             JSONObject t = new JSONObject();
             WifiInfo wifiInfo = wifi().getConnectionInfo();
             if (wifiInfo != null && wifiInfo.getNetworkId() != -1) {
-                t.put("wifi", wifiInfo.getSSID().replace("\"", "")).put("rssi", wifiInfo.getRssi());
+                t.put("wifi", wifiInfo.getSSID().replace("\"", "")).put("rssi", wifiInfo.getRssi())
+                        .put("bssid", String.valueOf(wifiInfo.getBSSID())).put("freq", wifiInfo.getFrequency())
+                        .put("link", wifiInfo.getLinkSpeed());
             }
             Intent battery = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
             if (battery != null) {
@@ -405,6 +419,8 @@ public class MainActivity extends Activity {
             String netlog = prefs.getString("netlog", "[]");
             JSONObject body = new JSONObject().put("id", deviceId()).put("key", prefs.getString("enroll", ""))
                     .put("telemetry", t).put("events", new JSONArray(events)).put("netlog", new JSONArray(netlog));
+            // обрыв, который сейчас заканчивается (2+ неудачных опроса подряд): причина, сеть, сигнал, что делали
+            if (outageStart != 0 && outageFails >= 2) body.put("outage", outageJson());
 
             HttpURLConnection c = (HttpURLConnection) new URL(server() + "/api/device/poll").openConnection();
             c.setConnectTimeout(10000);
@@ -412,8 +428,11 @@ public class MainActivity extends Activity {
             c.setDoOutput(true);
             c.setRequestProperty("Content-Type", "application/json");
             c.getOutputStream().write(body.toString().getBytes(StandardCharsets.UTF_8));
+            int code = c.getResponseCode();
+            reached = true; // сервер ответил — сеть в порядке, даже если ответ — ошибка
+            if (code != 200) throw new java.io.IOException("HTTP " + code);
             JSONObject resp = new JSONObject(read(c.getInputStream()));
-            lastServerOk = System.currentTimeMillis(); // сервер ответил — связь есть, что бы ни думал Android
+            ok = true; // сервер ответил — связь есть, что бы ни думал Android
             if (netlog.equals(prefs.getString("netlog", "[]"))) prefs.edit().remove("netlog").apply();
             // разрешены ли чужие открытые сети как запасные (включается в админке, по умолчанию — нет)
             prefs.edit().putBoolean("allowOpen", resp.optBoolean("allowOpenWifi", false)).apply();
@@ -428,108 +447,318 @@ public class MainActivity extends Activity {
                 JSONObject cmd = commands.getJSONObject(i);
                 runOnUiThread(() -> execute(cmd));
             }
-        } catch (Exception ignored) {
-            // нет сети или сервера — попробуем в следующий раз
+        } catch (Exception e) {
+            err = reached ? "сервер ответил ошибкой (" + e.getMessage() + ")" : describe(e);
         }
+        network(ok, reached, err);
     }
 
     private WifiManager wifi() {
         return (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
     }
 
-    // Связь пропала = наш сервер не отвечает 3 минуты подряд (отметка Android «нет интернета» не в счёт: у раздачи
-    // с телефона она снимается на короткие провалы). Тогда — другая СОХРАНЁННАЯ сеть; чужая открытая — только если
-    // разрешено в админке. Сеть, на которой стоит планшет, не удаляем и не отключаем; каждую смену пишем в журнал.
-    private static final long OFFLINE_MS = 3 * 60_000;
+    // ---------- Связь: восстановление по шагам
+    // Связь пропала = наш сервер не отвечает (отметка Android «нет интернета» не в счёт). Тогда по шагам:
+    //   45 с — переподключиться к той же сети; 1,5 мин — выключить и включить Wi-Fi (роутер заново выдаст адрес —
+    //   помогает, когда адреса заняты гостями); 3 мин — другая сеть рядом: сохранённая, а чужая открытая — только если
+    //   разрешено в админке. Запасную сеть сначала проверяем: наш сервер должен ответить за 40 с, иначе уходим и час
+    //   её не пробуем (у сетей кафе и отелей бывает страница входа без интернета). Других сетей нет — повторяем
+    //   переподключение и выкл/вкл Wi-Fi каждые 3 минуты.
+    // На проверенной запасной сети стоим минимум 25 минут (без «пинг-понга»), потом пробуем основную: не ответила
+    // за минуту — назад на запасную. Сеть, добавленную людьми, не удаляем никогда; каждое действие — в журнал.
+    private static final long STEP1_MS = 45_000, STEP2_MS = 90_000, STEP3_MS = 180_000, STEP_GAP_MS = 40_000;
+    private static final long TRIAL_MS = 40_000, MAIN_TRIAL_MS = 60_000, BACKUP_STAY_MS = 25 * 60_000, BAN_MS = 60 * 60_000;
+    private WifiManager.WifiLock wifiLock, wifiLockFast;
+    private int step, outageFails, trialId = -1, backupId = -1, mainTrialBack = -1;
+    private long lastStepAt, outageStart, trialUntil, backupSince, mainTrialUntil;
+    private boolean trialOurs;
+    private String outageErr = "", outageLastErr = "", outageSteps = "", trialSsid = "";
+    private JSONObject outageWifi;
+    private final Map<String, Long> banned = new HashMap<>();
 
-    private void checkWifi() {
+    private static final class Candidate {
+        int id, level;
+        final String ssid;
+        final boolean ours;
+        Candidate(int id, String ssid, int level, boolean ours) { this.id = id; this.ssid = ssid; this.level = level; this.ours = ours; }
+    }
+
+    // Wi-Fi не засыпает, пока киоск на экране: энергосбережение Wi-Fi на дешёвых планшетах рвёт связь
+    private void keepWifiAwake() {
         try {
-            preferSavedWifi();
-            long now = System.currentTimeMillis();
-            if (now - lastServerOk < OFFLINE_MS || now - lastWifiTry < OFFLINE_MS || !isOwner()) return;
-            lastWifiTry = now; // следующая попытка — не раньше чем через 3 минуты
-
-            WifiManager wifi = wifi();
-            if (!wifi.isWifiEnabled()) {
-                wifi.setWifiEnabled(true);
-                netLog("", "", "Wi-Fi был выключен — включил");
-                return;
+            WifiManager wm = wifi();
+            wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "jet:kiosk");
+            wifiLock.setReferenceCounted(false);
+            wifiLock.acquire();
+            if (Build.VERSION.SDK_INT >= 29) {
+                wifiLockFast = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "jet:kiosk-fast");
+                wifiLockFast.setReferenceCounted(false);
+                wifiLockFast.acquire();
             }
-            wifi.startScan();
-            String current = wifi.getConnectionInfo().getSSID();
-            List<WifiConfiguration> saved = wifi.getConfiguredNetworks();
-            ScanResult bestSaved = null, bestOpen = null;
-            int savedId = -1;
-            for (ScanResult s : wifi.getScanResults()) {
-                if (s.SSID == null || s.SSID.isEmpty()) continue;
-                String quoted = "\"" + s.SSID + "\"";
-                if (quoted.equals(current)) continue; // текущая сеть без связи с сервером — ищем другую
-                for (WifiConfiguration c : saved) {
-                    if (quoted.equals(c.SSID) && (bestSaved == null || s.level > bestSaved.level)) {
-                        bestSaved = s;
-                        savedId = c.networkId;
-                    }
-                }
-                boolean open = !s.capabilities.matches(".*(WEP|PSK|EAP|SAE|OWE).*");
-                if (open && (bestOpen == null || s.level > bestOpen.level)) bestOpen = s;
-            }
-            String from = current == null ? "" : current.replace("\"", "");
-            String why = "нет связи с сервером " + (now - lastServerOk) / 60_000 + " мин";
-            if (bestSaved != null) {
-                wifi.enableNetwork(savedId, false); // false — остальные сети не отключаем, Android может вернуться сам
-                netLog(from, bestSaved.SSID, why + " → сохранённая сеть");
-            } else if (bestOpen != null && prefs.getBoolean("allowOpen", false)) {
-                WifiConfiguration c = new WifiConfiguration();
-                c.SSID = "\"" + bestOpen.SSID + "\"";
-                c.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
-                int id = wifi.addNetwork(c);
-                if (id != -1) {
-                    wifi.enableNetwork(id, false);
-                    prefs.edit().putString("addedOpen", prefs.getString("addedOpen", "") + "," + id).apply();
-                    netLog(from, bestOpen.SSID, why + " → открытая сеть (разрешено в админке)");
-                }
-            } else {
-                netLog(from, from, why + " → другой сохранённой сети рядом нет, переподключаюсь к этой");
-            }
-            wifi.reconnect();
         } catch (Exception ignored) {
-            // нет прав или Wi-Fi выключен политикой — попробуем позже
+            // нет разрешения — работаем как раньше
         }
     }
 
-    // Стоим на запасной открытой сети, которую добавил сам агент, а рядом снова видна сохранённая сеть с паролем —
-    // возвращаемся на неё и удаляем только свои запасные сети (сети, добавленные людьми, не трогаем никогда)
-    private void preferSavedWifi() {
-        long now = System.currentTimeMillis();
-        if (now - lastPreferCheck < 60000 || !isOwner()) return;
-        lastPreferCheck = now;
+    private static String describe(Exception e) {
+        if (e instanceof UnknownHostException) return "не находится адрес сервера (DNS)";
+        if (e instanceof SocketTimeoutException) return "сервер не ответил за 10 с";
+        if (e instanceof ConnectException || e instanceof NoRouteToHostException) return "нет пути до сервера";
+        if (e instanceof SSLException) return "соединение подменено (страница входа сети?)";
+        return e.getClass().getSimpleName();
+    }
+
+    private String curSsid() {
+        try {
+            WifiInfo i = wifi().getConnectionInfo();
+            if (i == null || i.getNetworkId() == -1) return "";
+            return i.getSSID().replace("\"", "");
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private int curId() {
+        try {
+            WifiInfo i = wifi().getConnectionInfo();
+            return i == null ? -1 : i.getNetworkId();
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    // Состояние Wi-Fi в момент обрыва — по нему видно причину: нет сети, нет адреса, слабый сигнал, другая точка доступа
+    private JSONObject wifiState() {
+        JSONObject w = new JSONObject();
+        try {
+            WifiManager wm = wifi();
+            w.put("on", wm.isWifiEnabled());
+            WifiInfo i = wm.getConnectionInfo();
+            boolean conn = i != null && i.getNetworkId() != -1;
+            w.put("connected", conn);
+            if (conn) {
+                w.put("ssid", i.getSSID().replace("\"", "")).put("bssid", String.valueOf(i.getBSSID()))
+                        .put("rssi", i.getRssi()).put("freq", i.getFrequency()).put("link", i.getLinkSpeed())
+                        .put("ip", i.getIpAddress() != 0);
+            }
+            ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+            NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
+            w.put("internet", nc != null && nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED));
+        } catch (Exception ignored) { }
+        return w;
+    }
+
+    private JSONObject outageJson() throws Exception {
+        return new JSONObject().put("start", outageStart).put("dur", System.currentTimeMillis() - outageStart)
+                .put("fails", outageFails).put("err", outageErr).put("lastErr", outageLastErr)
+                .put("wifi", outageWifi == null ? new JSONObject() : outageWifi).put("steps", outageSteps);
+    }
+
+    private boolean isOurs(int id) {
+        return id != -1 && ("," + prefs.getString("addedOpen", "") + ",").contains("," + id + ",");
+    }
+
+    // Убрать запасные открытые сети, которые добавил сам агент (кроме той, на которой стоим)
+    private void dropBackups() {
         String added = prefs.getString("addedOpen", "");
         if (added.isEmpty()) return;
-        WifiManager wifi = wifi();
-        WifiInfo info = wifi.getConnectionInfo();
-        if (info == null || info.getNetworkId() == -1 || !("," + added + ",").contains("," + info.getNetworkId() + ",")) return;
-        wifi.startScan();
-        List<WifiConfiguration> saved = wifi.getConfiguredNetworks();
-        ScanResult best = null;
-        int bestId = -1;
-        for (ScanResult s : wifi.getScanResults()) {
-            if (s.level < -85) continue; // слишком слабый сигнал — не меняем шило на мыло
-            for (WifiConfiguration c : saved) {
-                if (!isOpen(c) && ("\"" + s.SSID + "\"").equals(c.SSID) && (best == null || s.level > best.level)) {
-                    best = s;
-                    bestId = c.networkId;
-                }
-            }
-        }
-        if (best == null) return;
-        String from = info.getSSID().replace("\"", "");
-        wifi.enableNetwork(bestId, false);
-        wifi.reconnect();
+        WifiManager wm = wifi();
+        int cur = curId();
+        String keep = "";
         for (String id : added.split(",")) {
-            if (!id.isEmpty() && Integer.parseInt(id) != bestId) wifi.removeNetwork(Integer.parseInt(id));
+            if (id.isEmpty()) continue;
+            int n = Integer.parseInt(id);
+            if (n == cur) keep += "," + n;
+            else wm.removeNetwork(n);
         }
-        prefs.edit().remove("addedOpen").apply();
-        netLog(from, best.SSID, "вернулся с запасной открытой сети на сохранённую");
+        prefs.edit().putString("addedOpen", keep).apply();
+    }
+
+    private void enableAll() {
+        WifiManager wm = wifi();
+        List<WifiConfiguration> saved = wm.getConfiguredNetworks();
+        if (saved != null) for (WifiConfiguration w : saved) wm.enableNetwork(w.networkId, false);
+    }
+
+    private void network(boolean ok, boolean reached, String err) {
+        try {
+            long now = System.currentTimeMillis();
+            WifiManager wm = wifi();
+            if (isOwner() && !wm.isWifiEnabled()) {
+                wm.setWifiEnabled(true);
+                netLog("", "", "Wi-Fi был выключен — включил");
+            }
+            int cur = curId();
+            if (ok) {
+                lastServerOk = now;
+                outageStart = 0;
+                outageFails = 0;
+                outageSteps = "";
+                step = 0;
+                if (trialId != -1) {
+                    if (cur == trialId) {
+                        netLog(curSsid(), curSsid(), "запасная сеть: сервер отвечает — остаюсь на ней");
+                        if (trialOurs) { backupId = trialId; backupSince = now; }
+                    }
+                    trialId = -1;
+                }
+                if (mainTrialBack != -1) {
+                    mainTrialBack = -1;
+                    backupId = -1;
+                    dropBackups();
+                    netLog(curSsid(), curSsid(), "основная сеть снова работает — вернулся, запасные убрал");
+                } else if (backupId == -1 && isOurs(cur)) {
+                    backupId = cur; // агент перезапустился, стоя на запасной сети
+                    backupSince = now;
+                } else if (backupId != -1 && cur != -1 && cur != backupId) {
+                    backupId = -1; // Android сам перешёл на другую сеть, и она работает
+                    dropBackups();
+                } else if (backupId != -1 && cur == backupId && now - backupSince >= BACKUP_STAY_MS && isOwner()) {
+                    Candidate main = pick(false, true);
+                    if (main == null) {
+                        backupSince = now; // основной сети рядом не видно — ещё 25 минут на запасной
+                    } else {
+                        mainTrialBack = cur;
+                        mainTrialUntil = now + MAIN_TRIAL_MS;
+                        netLog(curSsid(), main.ssid, "25 мин на запасной сети — пробую вернуться на основную");
+                        wm.enableNetwork(main.id, true);
+                    }
+                }
+                return;
+            }
+
+            if (outageStart == 0) {
+                outageStart = now;
+                outageErr = err;
+                outageWifi = wifiState();
+            }
+            outageFails++;
+            outageLastErr = err;
+            if (!isOwner()) return;
+            if (trialId != -1) {
+                if (now < trialUntil) return; // сеть подключается и получает адрес — ждём
+                banned.put(trialSsid, now + BAN_MS);
+                if (trialOurs) {
+                    wm.removeNetwork(trialId);
+                    String keep = ("," + prefs.getString("addedOpen", "") + ",").replace("," + trialId + ",", ",");
+                    prefs.edit().putString("addedOpen", keep.replaceAll("^,+|,+$", "")).apply();
+                }
+                netLog(trialSsid, "", "запасная сеть: сервер не ответил за 40 с — ушёл, час её не пробую");
+                trialId = -1;
+                enableAll();
+                wm.reconnect();
+                lastStepAt = now;
+                return;
+            }
+            if (mainTrialBack != -1) {
+                if (now < mainTrialUntil) return;
+                netLog(curSsid(), "", "основная сеть всё ещё не работает — вернулся на запасную");
+                wm.enableNetwork(mainTrialBack, true);
+                backupId = mainTrialBack;
+                backupSince = now;
+                mainTrialBack = -1;
+                lastStepAt = now;
+                return;
+            }
+            if (reached) return; // сервер ответил ошибкой — Wi-Fi тут ни при чём
+            long down = now - lastServerOk;
+            if (now - lastStepAt < STEP_GAP_MS) return;
+            String did;
+            if (step == 0 && down >= STEP1_MS) did = reconnect(down);
+            else if (step == 1 && down >= STEP2_MS) did = toggle(down);
+            else if (step >= 2 && down >= STEP3_MS * (step - 1)) {
+                did = tryBackup(now);
+                if (did == null) did = step % 2 == 0 ? reconnect(down) : toggle(down);
+            } else return;
+            step++;
+            lastStepAt = System.currentTimeMillis();
+            outageSteps += (outageSteps.isEmpty() ? "" : "; ") + did + " на " + fmtDown(down);
+        } catch (Exception ignored) {
+            // нет прав или Wi-Fi выключен политикой — попробуем на следующем опросе
+        }
+    }
+
+    private static String fmtDown(long ms) {
+        long s = ms / 1000;
+        return s < 60 ? s + " с" : (s / 60) + " мин" + (s % 60 >= 30 ? " 30 с" : "");
+    }
+
+    // Переподключиться к той же сети (просто reconnect() у подключённого Wi-Fi ничего не делает)
+    private String reconnect(long down) {
+        WifiManager wm = wifi();
+        String ssid = curSsid();
+        wm.disconnect();
+        SystemClock.sleep(1000);
+        wm.reconnect();
+        netLog(ssid, ssid, "нет связи с сервером " + fmtDown(down) + " — переподключился к сети");
+        return "переподключение";
+    }
+
+    // Выключить и включить Wi-Fi: заново подключиться и получить адрес у роутера
+    private String toggle(long down) {
+        WifiManager wm = wifi();
+        String ssid = curSsid();
+        boolean off = wm.setWifiEnabled(false);
+        SystemClock.sleep(3000);
+        boolean on = wm.setWifiEnabled(true);
+        for (int i = 0; i < 3 && !wm.isWifiEnabled(); i++) {
+            SystemClock.sleep(1000);
+            on = wm.setWifiEnabled(true);
+        }
+        netLog(ssid, ssid, "нет связи с сервером " + fmtDown(down) + " — выключил и включил Wi-Fi" + (off && on ? "" : " (Android не дал)"));
+        return "Wi-Fi выкл/вкл";
+    }
+
+    // Другая сеть рядом: сохранённая, или чужая открытая (если разрешено в админке). Подключаемся на проверку
+    private String tryBackup(long now) {
+        Candidate c = pick(prefs.getBoolean("allowOpen", false), false);
+        if (c == null) return null;
+        WifiManager wm = wifi();
+        String from = curSsid();
+        boolean open = c.id == -1;
+        if (open) {
+            WifiConfiguration conf = new WifiConfiguration();
+            conf.SSID = "\"" + c.ssid + "\"";
+            conf.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+            c.id = wm.addNetwork(conf);
+            if (c.id == -1) return null;
+            String added = prefs.getString("addedOpen", "");
+            prefs.edit().putString("addedOpen", (added.isEmpty() ? "" : added + ",") + c.id).apply();
+        }
+        wm.enableNetwork(c.id, true);
+        trialId = c.id;
+        trialSsid = c.ssid;
+        trialOurs = open || c.ours;
+        trialUntil = now + TRIAL_MS;
+        netLog(from, c.ssid, "нет связи с сервером " + fmtDown(now - lastServerOk) + " → "
+                + (trialOurs ? "открытая сеть (разрешено в админке)" : "сохранённая сеть") + ", проверяю, отвечает ли сервер");
+        return "запасная сеть «" + c.ssid + "»";
+    }
+
+    // Лучшая сеть рядом (кроме текущей и тех, что не прошли проверку за последний час). mainOnly — только
+    // сохранённые людьми (основные), иначе сначала сохранённые, потом открытые; среди равных — по силе сигнала
+    private Candidate pick(boolean allowOpen, boolean mainOnly) {
+        WifiManager wm = wifi();
+        wm.startScan();
+        String current = String.valueOf(wm.getConnectionInfo().getSSID());
+        List<WifiConfiguration> saved = wm.getConfiguredNetworks();
+        long now = System.currentTimeMillis();
+        Candidate best = null;
+        for (ScanResult s : wm.getScanResults()) {
+            if (s.SSID == null || s.SSID.isEmpty() || s.level < -85) continue; // слишком слабый сигнал — не меняем шило на мыло
+            String q = "\"" + s.SSID + "\"";
+            Long ban = banned.get(s.SSID);
+            if (q.equals(current) || (ban != null && ban > now)) continue;
+            Candidate c = null;
+            if (saved != null) for (WifiConfiguration w : saved) {
+                if (q.equals(w.SSID)) { c = new Candidate(w.networkId, s.SSID, s.level, isOurs(w.networkId)); break; }
+            }
+            if (c == null && allowOpen && !mainOnly && !s.capabilities.matches(".*(WEP|PSK|EAP|SAE|OWE).*")) c = new Candidate(-1, s.SSID, s.level, true);
+            if (c == null || (mainOnly && c.ours)) continue;
+            boolean better = best == null || (best.ours && !c.ours) || (best.ours == c.ours && c.level > best.level);
+            if (better) best = c;
+        }
+        return best;
     }
 
     // Журнал смен сети: уходит на сервер с ближайшим опросом, портал показывает его у устройства
@@ -544,11 +773,6 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) {
             // журнал не важнее связи
         }
-    }
-
-    private static boolean isOpen(WifiConfiguration c) {
-        boolean noKeyMgmt = c.allowedKeyManagement.isEmpty() || c.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE);
-        return noKeyMgmt && (c.wepKeys == null || c.wepKeys[0] == null);
     }
 
     private void execute(JSONObject cmd) {

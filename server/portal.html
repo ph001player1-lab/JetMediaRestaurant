@@ -144,6 +144,7 @@
   .tg { display: inline-block; border: 1px solid #ddd; border-radius: 10px; padding: 1px 7px; margin: 1px; font-size: 12px; cursor: pointer; color: #777; }
   .tg.on { background: #e2f4e4; border-color: #2e7d32; color: #2e7d32; }
   .ctrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.dlog { font-size: 12px; margin-top: 4px; max-width: 420px; } .dlog summary { cursor: pointer; } .dlog div { padding: 4px 0; border-top: 1px solid #eee; }
 </style>
 </head>
 <body>
@@ -467,13 +468,31 @@ function renderDevices() {
   }).join('') || '<tr><td colspan="8" class="hint">Ничего не найдено</td></tr>';
 }
 
+// Список устройств перерисовывается каждые 5 секунд — раскрытые журналы остаются раскрытыми
+const openLogs = new Set();
+document.addEventListener('toggle', (e) => {
+  const k = e.target.dataset?.k;
+  if (k) e.target.open ? openLogs.add(k) : openLogs.delete(k);
+}, true);
+// Обрывы связи (агент 0.1.14+): за сутки — сколько и сколько всего; по нажатию — каждый с причиной
+function outagesBox(d) {
+  const list = d.outages || [];
+  if (!list.length) return '';
+  const day = list.filter((o) => Date.now() - o.end < 864e5);
+  const sec = (ms) => (ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} с` : `${Math.round(ms / 60_000)} мин`);
+  return `<details class="dlog" data-k="out-${esc(d.id)}" ${openLogs.has('out-' + d.id) ? 'open' : ''}><summary class="${day.length ? 'offline' : ''}">⚠️ Обрывы за сутки: ${day.length}${day.length ? `, всего ${sec(day.reduce((a, o) => a + o.dur, 0))}` : ''}</summary>
+    ${list.map((o) => `<div><b>${new Date(o.start).toLocaleString()} · ${sec(o.dur)}</b><br>${esc(o.why).replace(/\n/g, '<br>')}</div>`).join('')}</details>`;
+}
+
 function deviceRow(d, i) {
     const t = d.telemetry || {};
     return `<tr>
       <td>${esc(t.model)}<br><small>${esc(d.id)}</small></td>
       <td class="${d.online ? 'online' : 'offline'}">${d.online ? 'онлайн' : 'офлайн'}${d.pending ? ` · в очереди: ${d.pending}` : ''}
-        ${t.wifi ? `<br><small>Wi-Fi: ${esc(t.wifi)} · ${esc(t.rssi)} dBm</small>` : ''}
-        ${d.netlog?.length ? `<br><small class="hint" title="${esc(d.netlog.map((n) => `${new Date(n.at).toLocaleString()} — ${n.from || '?'} → ${n.to || '?'}: ${n.why}`).join('\n'))}">📶 ${new Date(d.netlog[0].at).toLocaleString()}: ${esc(d.netlog[0].from || '?')} → ${esc(d.netlog[0].to || '?')} · ${esc(d.netlog[0].why.slice(0, 50))} (наведите — весь журнал)</small>` : ''}
+        ${t.wifi ? `<br><small>Wi-Fi: ${esc(t.wifi)} · ${esc(t.rssi)} dBm${t.freq ? ` · ${t.freq < 3000 ? '2.4' : '5'} ГГц` : ''}</small>` : ''}
+        ${outagesBox(d)}
+        ${d.netlog?.length ? `<details class="dlog" data-k="net-${esc(d.id)}" ${openLogs.has('net-' + d.id) ? 'open' : ''}><summary>📶 Журнал сети: ${new Date(d.netlog[0].at).toLocaleString()} · ${esc(d.netlog[0].why.slice(0, 40))}…</summary>
+          ${d.netlog.map((n) => `<div>${new Date(n.at).toLocaleString()} — ${esc(n.from || '?')} → ${esc(n.to || '?')}: ${esc(n.why)}</div>`).join('')}</details>` : ''}
         ${d.events?.length ? `<br><small class="offline" title="${esc(d.events.map((e) => new Date(e.at).toLocaleString() + ' — ' + e.text).join('\n'))}">сбой ${new Date(d.events[0].at).toLocaleString()}: ${esc(d.events[0].text.slice(0, 60))}</small>` : ''}</td>
       <td>${t.battery ?? '—'}%${t.charging ? ' ⚡' : ''}</td>
       <td>${esc(t.version)}</td>

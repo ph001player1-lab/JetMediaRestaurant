@@ -25,7 +25,7 @@ const PASS = process.env.ADMIN_PASSWORD || 'admin';
 const DEVICE_KEY = process.env.DEVICE_KEY || '';
 const PUBLIC_URL = process.env.PUBLIC_URL || 'https://app.jetmedia.dev';
 const ONLINE_MS = 45_000;
-const OFFLINE_ALERT_MS = 3 * 60_000; // столько минут без связи — пишем администратору в Telegram
+const OFFLINE_ALERT_MS = 5 * 60_000; // столько минут без связи — пишем администратору в Telegram (короткие обрывы — в сводке за день)
 const KEEP_MS = 7 * 24 * 3600_000;
 // Напоминания, пока никто не нажал «Иду» / «Подтвердить»: первые 5 — каждые 45 секунд, дальше — каждые 2 минуты,
 // пока вызов не приняли или не сняли как забытый; заказ — не дольше 30 минут
@@ -488,8 +488,10 @@ function devicePoll(b, q, req) {
   }
   const d = (db.devices[b.id] ??= { id: b.id, firstSeen: Date.now(), queue: [] });
   if (d.restaurantId) { bump(`up|${d.restaurantId}|${day()}`); bump(`dup|${d.id}|${day()}`); }
+  // обрыв глазами планшета (агент 0.1.14+): приходит с первым удачным опросом после двух и более неудачных
+  const outage = b.outage && typeof b.outage === 'object' ? outageRecord(d, b.outage) : null;
   if (d.offlineAlert) {
-    tgAlert(`🟢 ${deviceName(d)}: снова на связи (не было ${fmtDur(Date.now() - d.lastSeen)})`);
+    tgAlert(`🟢 ${deviceName(d)}: снова на связи (не было ${fmtDur(Date.now() - d.lastSeen)})${outage ? `\n${outage.why}` : ''}`);
     d.offlineAlert = 0;
   }
   // Сбои, после которых агент перезапустился сам: падение, зависание, нехватка памяти
@@ -517,6 +519,69 @@ function devicePoll(b, q, req) {
   if (db.servicePin) out.pin = { salt: db.servicePin.salt, hash: db.servicePin.hash };
   return out;
 }
+
+// ---------- Обрывы связи: запись от агента, понятное объяснение причины
+const fmtSec = (ms) => (ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} с` : fmtDur(ms));
+const cut = (v, n = 160) => String(v ?? '').slice(0, n);
+function wifiText(w) {
+  if (!w || typeof w !== 'object' || !Object.keys(w).length) return '';
+  if (w.on === false) return 'Wi-Fi был выключен';
+  if (!w.connected) return 'Wi-Fi не подключён ни к одной сети';
+  const rssi = Number(w.rssi);
+  const q = rssi >= -60 ? 'хороший' : rssi >= -70 ? 'средний' : rssi >= -80 ? 'слабый' : 'очень слабый';
+  const parts = [`«${cut(w.ssid, 64)}»`];
+  if (w.ip === false) parts.push('роутер не выдал адрес');
+  if (Number.isFinite(rssi) && rssi < 0) parts.push(`сигнал ${rssi} dBm (${q})`);
+  if (Number(w.freq) > 0) parts.push(Number(w.freq) < 3000 ? '2.4 ГГц' : '5 ГГц');
+  if (w.bssid && !/^0{2}(:0{2}){5}$|null/.test(w.bssid)) parts.push(`точка …${cut(w.bssid, 17).slice(-5)}`);
+  if (w.internet === false) parts.push('Android: интернета нет');
+  return 'Wi-Fi: ' + parts.join(', ');
+}
+function outageRecord(d, o) {
+  const now = Date.now();
+  const dur = Math.min(7 * 864e5, Math.max(0, Number(o.dur) || 0));
+  const key = Number(o.start) || now - dur;
+  const w = o.wifi && typeof o.wifi === 'object' ? o.wifi : {};
+  const wifi = {
+    on: w.on !== false, connected: !!w.connected, ssid: cut(w.ssid, 64), bssid: cut(w.bssid, 17),
+    rssi: Number(w.rssi) || null, freq: Number(w.freq) || null, link: Number(w.link) || null, ip: w.ip !== false, internet: w.internet !== false,
+  };
+  const steps = cut(o.steps, 400);
+  const fix = steps ? steps.split('; ').pop().replace(/ на .*$/, '') : '';
+  const why = [`Причина: ${cut(o.err) || 'неизвестна'}`, wifiText(wifi),
+    steps ? `Что делал планшет: ${steps}. Помогло: ${fix}` : 'Связь вернулась сама'].filter(Boolean).join('\n');
+  const rec = { key, start: now - dur, end: now, dur, fails: Math.min(9999, Number(o.fails) || 0), err: cut(o.err), lastErr: cut(o.lastErr), wifi, steps, why };
+  const list = (d.outages || []).filter((x) => x.key !== key);
+  d.outages = [rec, ...list].slice(0, 100);
+  if (d.restaurantId) logEvent(d.restaurantId, 'dev_outage', { dev: d.id, dur });
+  return rec;
+}
+
+// Раз в день, в 9 утра по Пхукету: сводка обрывов за вчера по каждому устройству (короткие в Telegram не пишем)
+setInterval(() => {
+  const bkk = new Date(Date.now() + 7 * 3600_000);
+  if (bkk.getUTCHours() !== 9) return;
+  const today = bkk.toISOString().slice(0, 10);
+  if (db.netSummaryDay === today) return;
+  db.netSummaryDay = today;
+  save();
+  const to = Date.parse(`${today}T00:00:00+07:00`), from = to - 864e5;
+  const rows = [];
+  let quiet = 0;
+  for (const d of Object.values(db.devices)) {
+    const list = (d.outages || []).filter((x) => x.end >= from && x.end < to);
+    if (!list.length) { quiet++; continue; }
+    const total = list.reduce((a, x) => a + x.dur, 0), max = Math.max(...list.map((x) => x.dur));
+    const rs = list.map((x) => x.wifi?.rssi).filter((v) => v < 0);
+    const rssi = rs.length ? Math.round(rs.reduce((a, v) => a + v, 0) / rs.length) : null;
+    rows.push({ total, text: `• ${deviceName(d)} — обрывов: ${list.length}, всего ${fmtSec(total)}, самый долгий ${fmtSec(max)}${rssi ? `, сигнал около ${rssi} dBm` : ''}` });
+  }
+  if (!rows.length) return;
+  rows.sort((a, b) => b.total - a.total);
+  const date = new Date(from + 7 * 3600_000).toISOString().slice(5, 10).split('-').reverse().join('.');
+  tgAlert(`📶 Связь за ${date}:\n${rows.slice(0, 40).map((r) => r.text).join('\n')}${rows.length > 40 ? `\n…и ещё ${rows.length - 40}` : ''}`
+    + (quiet ? `\nОстальные устройства (${quiet}) — без обрывов.` : ''));
+}, 60_000).unref();
 
 // Сторож агента не смог поднять приложение — сообщает отдельно (не чаще раза в 10 минут)
 function deviceAlert(b) {
@@ -843,16 +908,30 @@ function phoneState(q) {
   };
 }
 
+// Номер запроса с планшета (rid): после обрыва планшет отправляет заказ или вызов повторно — второй раз не создаём
+const ridOf = (b) => (typeof b.rid === 'string' ? b.rid.slice(0, 40) : '');
+function byRid(list, rid, restaurantId) {
+  if (!rid) return null;
+  for (let i = list.length - 1, n = 0; i >= 0 && n < 3000; i--, n++) {
+    const x = list[i];
+    if (x.rid === rid && x.restaurantId === restaurantId) return x;
+    if (Date.now() - x.at > 2 * 3600_000) break;
+  }
+  return null;
+}
+
 function guestCall(b) {
   const t = guestOf(b);
   if (!t) throw fail(400, 'device is not assigned');
   if (!['waiter', 'bill'].includes(b.type)) throw fail(400, 'bad call type');
+  const rid = ridOf(b), dup = byRid(db.calls, rid, t.r.id);
+  if (dup) return dup;
   // Счёт: «мой» (scope — номер гостя) или всего стола (0). Повторное нажатие не создаёт второй вызов
   const scope = b.type === 'bill' && b.scope === 'me' ? t.n : 0;
   let c = openAt(db.calls, t.r, t.table).find((x) => x.type === b.type && x.status !== 'done' && (x.scope || 0) === scope);
   if (!c) {
     if (tableIsFree(t.r, t.table)) logEvent(t.r.id, 'open', { table: t.table });
-    c = { id: uid(), restaurantId: t.r.id, table: t.table, type: b.type, status: 'new', at: Date.now(), guest: t.n, guestName: t.name, scope };
+    c = { id: uid(), restaurantId: t.r.id, table: t.table, type: b.type, status: 'new', at: Date.now(), guest: t.n, guestName: t.name, scope, ...(rid ? { rid } : {}) };
     db.calls.push(c);
     logEvent(t.r.id, 'call', { id: c.id, table: t.table, dev: t.dev || undefined, type: b.type, lang: b.lang, guest: t.n, phone: t.phone ? 1 : undefined });
   }
@@ -893,6 +972,8 @@ function guestCancel(b) {
 function guestOrder(b) {
   const t = guestOf(b);
   if (!t) throw fail(400, 'device is not assigned');
+  const rid = ridOf(b), dup = byRid(db.orders, rid, t.r.id);
+  if (dup) return dup;
   // каждая строка — гостя, который заказал (официант потом может перенести её на другого гостя)
   const items = buildItems(t.r, b.items).map((i) => ({ ...i, g: t.n }));
   if (!items.length) throw fail(400, 'empty order');
@@ -900,7 +981,7 @@ function guestOrder(b) {
   const o = {
     id: uid(), restaurantId: t.r.id, table: t.table, items,
     total: items.reduce((s, i) => s + i.price * i.qty, 0), status: 'pending', at: Date.now(), notifiedAt: Date.now(),
-    guest: t.n, guestName: t.name, src: t.phone ? 'phone' : 'tablet',
+    guest: t.n, guestName: t.name, src: t.phone ? 'phone' : 'tablet', ...(rid ? { rid } : {}),
   };
   db.orders.push(o);
   logEvent(t.r.id, 'order', { id: o.id, table: t.table, dev: t.dev || undefined, total: o.total, items: items.map((i) => [i.id, i.qty, i.price]), lang: b.lang, guest: t.n, phone: t.phone ? 1 : undefined });
@@ -2239,7 +2320,7 @@ function admin(method, p, b, me, q) {
     const list = () => {
       const now = Date.now();
       return Object.values(db.devices).filter((d) => !scope || scope.has(d.restaurantId)).map(({ queue, ...d }) =>
-        ({ ...d, online: now - d.lastSeen < ONLINE_MS, pending: (queue || []).length }));
+        ({ ...d, online: now - d.lastSeen < ONLINE_MS, pending: (queue || []).length, outages: (d.outages || []).slice(0, 30) }));
     };
     return INSTANCE === 'test' ? pullAllDevices().then(list) : list();
   }
