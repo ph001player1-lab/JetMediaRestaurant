@@ -145,6 +145,9 @@
   .tg.on { background: #e2f4e4; border-color: #2e7d32; color: #2e7d32; }
   .ctrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
 .dlog { font-size: 12px; margin-top: 4px; max-width: 420px; } .dlog summary { cursor: pointer; } .dlog div { padding: 4px 0; border-top: 1px solid #eee; }
+.permgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 12px; margin-top: 6px; }
+.permgrid label { display: flex; flex-direction: column; font-size: 13px; }
+.robanner { background: #fff4d6; border: 1px solid #e6c46a; border-radius: 8px; padding: 8px 12px; margin: 8px 0; }
 </style>
 </head>
 <body>
@@ -342,14 +345,16 @@
     <input type="hidden" id="admId">
     <label>Почта<input id="admEmail" type="email" style="width:220px"></label>
     <label>Имя<input id="admName" style="width:160px"></label>
-    <label>Роль<select id="admRole"><option value="admin">Админ</option><option value="viewer">Только статистика</option><option value="super">Суперадмин</option></select></label>
+    <label>Роль<select id="admRole" onchange="admRoleChanged()"><option value="admin">Админ</option><option value="super">Суперадмин</option></select></label>
     <label>Пароль<input id="admPass" type="text" placeholder="новый — не короче 8 символов" style="width:220px" autocomplete="off"></label>
     <label style="flex-direction:row;align-items:center"><input type="checkbox" id="admOff"> отключён</label>
-    <label style="flex-direction:row;align-items:center" title="Раздел «Клиенты»: договоры, тарифы, платежи. Для роли «Админ»; суперадмин видит всегда"><input type="checkbox" id="admCrm"> доступ к CRM</label>
-    <div style="width:100%"><small class="hint">Рестораны (ничего не отмечено — все):</small> <span id="admRests"></span></div>
+    <div id="admPermsBox" style="width:100%"><small class="hint">Доступ к разделам:</small>
+      <span style="margin-left:8px"><button type="button" onclick="admPreset('edit')">Всё — редактирование</button><button type="button" onclick="admPreset('read')">Всё — чтение</button><button type="button" onclick="admPreset('none')">Ничего</button></span>
+      <div id="admPerms" class="permgrid"></div></div>
+    <div style="width:100%" id="admRestsBox"><small class="hint">Рестораны (ничего не отмечено — все; если отмечены — доступны только «Устройства», «Рестораны», «Статистика» и «Клиенты» этих ресторанов):</small> <span id="admRests"></span></div>
     <button onclick="saveAdmin()">Сохранить</button><button onclick="editAdmin()">Очистить форму</button>
   </div>
-  <div class="wrap"><table><thead><tr><th>Почта</th><th>Имя</th><th>Роль</th><th>Рестораны</th><th>Последний вход</th><th></th></tr></thead><tbody id="admList"></tbody></table></div>
+  <div class="wrap"><table><thead><tr><th>Почта</th><th>Имя</th><th>Роль и доступ (👁 — только чтение)</th><th>Рестораны</th><th>Последний вход</th><th></th></tr></thead><tbody id="admList"></tbody></table></div>
 </section>
 
 <section id="auditTab" hidden>
@@ -394,7 +399,14 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+// Доступы текущего админа по разделам (из /api/me): в разделе «только чтение» изменения не отправляются
+var ACCESS = null, SECS = [];
+const TAB_OF = { devices: 'devices', rest: 'rest', ads: 'adsTab', chars: 'charTab', stats: 'statsTab', audit: 'auditTab', crm: 'crmTab', server: 'srvTab', join: 'joinTab' };
 const api = async (path, method = 'GET', body) => {
+  if (method !== 'GET' && ACCESS && ACCESS.role !== 'super') {
+    const sec = SECS.find((x) => x.rx.test(path.split('?')[0]));
+    if (sec && ACCESS.access[sec.k] === 'read') { alert(`Только просмотр раздела «${sec.n}» — изменения недоступны`); throw new Error('read-only'); }
+  }
   const r = await fetch(path, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) });
   if (r.status === 401) location.href = '/login';
   return r.json();
@@ -655,8 +667,8 @@ async function loadRests(selectId) {
   rests = await api('/api/restaurants');
   fillRestFilter();
   $('restSel').innerHTML = rests.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')
-    + (scoped() ? '' : '<option value="">+ Новый ресторан</option>');
-  edit(selectId ?? cur?.id ?? rests[0]?.id ?? '');
+    + (scoped() || ACCESS?.access?.rest !== 'edit' ? '' : '<option value="">+ Новый ресторан</option>');
+  if (ACCESS?.access?.rest !== 'none') edit(selectId ?? cur?.id ?? rests[0]?.id ?? ''); // без доступа к «Ресторанам» карточку не заполняем
 }
 
 // Ошибки меню (то же, что менеджер видит в ЛК → «Меню» → «Ошибки меню»)
@@ -1789,7 +1801,7 @@ function openStats() {
   JetStats.mount($('statsBox'), {
     lang: 'ru', admin: true, load: (from, to, r, tests) => api(`/api/stats?from=${from}&to=${to}&r=${encodeURIComponent(r || '')}&tests=${tests ? 1 : 0}`),
     // Пометка визита «тест» — когда выбран ресторан; у «Только статистика» права менять нет
-    markVisit: me.role === 'viewer' ? null : (ids, test, r) => api(`/api/restaurants/${encodeURIComponent(r)}/test-visit`, 'POST', { ids, test }),
+    markVisit: ACCESS?.access?.rest !== 'edit' ? null : (ids, test, r) => api(`/api/restaurants/${encodeURIComponent(r)}/test-visit`, 'POST', { ids, test }),
   });
 }
 
@@ -1797,7 +1809,24 @@ function openStats() {
 
 let me = null, admins = [];
 const scoped = () => me && me.role !== 'super' && (me.restaurants || []).length > 0;
-const ROLE_NAMES = { super: 'Суперадмин', admin: 'Админ', viewer: 'Только статистика' };
+const ROLE_NAMES = { super: 'Суперадмин', admin: 'Админ' };
+const PERM_RU = { none: 'нет', read: 'чтение', edit: 'редактирование' };
+// Таблица доступов: раздел — нет / чтение / редактирование (там, где нечего менять, — нет / просмотр)
+function permSelects(perms) {
+  $('admPerms').innerHTML = SECS.map((x) => `<label>${esc(x.n)}<select data-perm="${x.k}">
+    <option value="none">нет</option><option value="read">${x.viewOnly ? 'просмотр' : 'чтение'}</option>${x.viewOnly ? '' : '<option value="edit">редактирование</option>'}</select></label>`).join('');
+  for (const el of $('admPerms').querySelectorAll('[data-perm]')) el.value = perms?.[el.dataset.perm] || 'none';
+}
+function admPreset(v) {
+  for (const el of $('admPerms').querySelectorAll('[data-perm]')) el.value = v === 'edit' && SECS.find((x) => x.k === el.dataset.perm)?.viewOnly ? 'read' : v;
+}
+function admRoleChanged() {
+  const sup = $('admRole').value === 'super';
+  $('admPermsBox').hidden = sup;
+  $('admRestsBox').hidden = sup;
+}
+const permSummary = (a) => (a.role === 'super' ? 'все разделы' : SECS.filter((x) => (a.perms || {})[x.k] && a.perms[x.k] !== 'none')
+  .map((x) => `${x.n}${a.perms[x.k] === 'read' && !x.viewOnly ? ' 👁' : ''}`).join(', ') || 'нет доступа');
 
 async function changePass() {
   const old = prompt('Текущий пароль');
@@ -1865,7 +1894,7 @@ async function loadAdmins() {
   if (!rests.length) rests = await api('/api/restaurants');
   admins = await api('/api/admins');
   $('admList').innerHTML = admins.map((a, i) => `<tr class="${a.disabled ? 'hint' : ''}"><td>${esc(a.email)}</td><td>${esc(a.name || '')}</td>
-    <td>${ROLE_NAMES[a.role]}${a.role === 'admin' && a.crm ? ' · CRM' : ''}${a.disabled ? ' · отключён' : ''}</td>
+    <td>${ROLE_NAMES[a.role] || a.role}${a.disabled ? ' · отключён' : ''}<br><small class="hint">${esc(permSummary(a))}</small></td>
     <td>${(a.restaurants || []).length ? esc(a.restaurants.map((id) => rests.find((r) => r.id === id)?.name || id).join(', ')) : 'все'}</td>
     <td>${a.lastLogin ? new Date(a.lastLogin).toLocaleString() : '—'}</td>
     <td><button onclick="editAdmin(${i})">Изменить</button><button onclick="delAdmin(${i})">✕</button></td></tr>`).join('');
@@ -1879,13 +1908,15 @@ function editAdmin(i) {
   $('admRole').value = a.role;
   $('admPass').value = '';
   $('admOff').checked = !!a.disabled;
-  $('admCrm').checked = !!a.crm;
+  permSelects(a.perms);
+  admRoleChanged();
   $('admRests').innerHTML = rests.map((r) => `<label style="display:inline-block;margin-right:10px"><input type="checkbox" value="${esc(r.id)}" ${(a.restaurants || []).includes(r.id) ? 'checked' : ''}> ${esc(r.name)}</label>`).join('');
 }
 async function saveAdmin() {
   const r = await api('/api/admins', 'POST', {
     id: $('admId').value || undefined, email: $('admEmail').value, name: $('admName').value, role: $('admRole').value,
-    password: $('admPass').value || undefined, disabled: $('admOff').checked, crm: $('admCrm').checked,
+    password: $('admPass').value || undefined, disabled: $('admOff').checked,
+    perms: Object.fromEntries([...$('admPerms').querySelectorAll('[data-perm]')].map((el) => [el.dataset.perm, el.value])),
     restaurants: [...$('admRests').querySelectorAll('input:checked')].map((x) => x.value),
   });
   if (r.error) return alert(r.error);
@@ -1909,21 +1940,36 @@ async function loadAudit() {
     <td>${esc(e.action)}</td><td>${esc(e.rest || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="hint">Записей нет</td></tr>';
 }
 
-// Вкладки по роли: «Только статистика» — одна статистика; админ своих ресторанов — устройства, рестораны и статистика
+// Вкладки по доступам: раздел без доступа скрыт, «только чтение» — с пометкой 👁 и плашкой; «Администраторы» — суперадмину
+function markReadOnly(sec) {
+  const el = $(TAB_OF[sec.k]);
+  if (!el || sec.viewOnly || el.querySelector('.robanner')) return;
+  el.insertAdjacentHTML('afterbegin', '<p class="robanner">👁 Только просмотр — изменения в этом разделе недоступны (доступ назначает суперадмин)</p>');
+}
 (async () => {
   me = await api('/api/me');
-  $('meInfo').textContent = `${me.email} · ${ROLE_NAMES[me.role]}${scoped() ? ' (свои рестораны)' : ''}`;
-  const show = me.role === 'viewer' ? ['statsTab'] : scoped() ? ['devices', 'rest', 'statsTab', ...(me.crm ? ['crmTab'] : [])]
-    : me.role === 'admin' ? ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'auditTab', ...(me.crm ? ['crmTab'] : []), 'srvTab', 'joinTab'] : null;
-  if (show) document.querySelectorAll('nav button[data-tab]').forEach((b) => { b.hidden = !show.includes(b.dataset.tab); });
-  else $('adminsTab').hidden = true;
-  if (me.role === 'viewer') return document.querySelector('nav button[data-tab="statsTab"]').click();
-  if (scoped()) $('tgBox').hidden = true; else tg('/api/telegram');
-  for (const k of ['fStatus', 'fSort']) if (localStorage[k]) $(k).value = localStorage[k];
+  ACCESS = me;
+  SECS = (me.sections || []).map((x) => ({ ...x, rx: new RegExp(x.re) }));
+  const acc = me.access || {}, sup = me.role === 'super';
+  $('meInfo').textContent = `${me.email} · ${ROLE_NAMES[me.role] || me.role}${scoped() ? ' (свои рестораны)' : ''}`;
+  document.querySelectorAll('nav button[data-tab]').forEach((b) => {
+    const sec = SECS.find((x) => TAB_OF[x.k] === b.dataset.tab);
+    b.hidden = b.dataset.tab === 'adminsTab' ? !sup : !sec || acc[sec.k] === 'none';
+    if (sec && !sup && acc[sec.k] === 'read' && !sec.viewOnly) { b.insertAdjacentText('beforeend', ' 👁'); markReadOnly(sec); }
+  });
+  const first = [...document.querySelectorAll('nav button[data-tab]')].find((b) => !b.hidden);
+  if (!first) {
+    $('devices').innerHTML = '<p class="robanner">Нет доступа ни к одному разделу — попросите суперадмина назначить доступ.</p>';
+    return;
+  }
+  if (acc.devices !== 'none') {
+    if (scoped()) $('tgBox').hidden = true; else tg('/api/telegram');
+    for (const k of ['fStatus', 'fSort']) if (localStorage[k]) $(k).value = localStorage[k];
+  }
   await loadRests();
-  loadDevices();
-  if (!scoped()) { loadJoin(); setInterval(loadJoin, 60000); }
-  setInterval(loadDevices, 5000);
+  if (acc.devices !== 'none') { loadDevices(); setInterval(loadDevices, 5000); }
+  if (acc.join !== 'none') { loadJoin(); setInterval(loadJoin, 60000); }
+  first.click();
 })();
 </script>
 </body>

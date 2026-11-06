@@ -267,9 +267,9 @@ const bump = (key, n = 1) => { db.stats[key] = (db.stats[key] || 0) + n; };
 const fail = (status, message) => Object.assign(new Error(message), { status });
 // ---------- Администраторы портала: вход по почте и паролю, роли, журнал изменений
 //   super  — всё, включая список админов;  admin — всё, кроме админов (или только свои рестораны, если список задан);
-//   viewer — только статистика (всех ресторанов или своих)
+//   доступ админа к каждому разделу — нет / чтение / редактирование (ADMIN_SECTIONS)
 const SUPER_EMAIL = (process.env.SUPERADMIN_EMAIL || 'ph001player1@gmail.com').toLowerCase();
-const ROLES = ['super', 'admin', 'viewer'];
+const ROLES = ['super', 'admin'];
 const hashPass = (pass, salt = crypto.randomBytes(16).toString('hex')) => ({ salt, hash: crypto.scryptSync(String(pass), salt, 32).toString('hex') });
 const passOk = (a, pass) => !!a?.hash && crypto.timingSafeEqual(Buffer.from(a.hash, 'hex'), crypto.scryptSync(String(pass ?? ''), a.salt, 32));
 const ADMIN_SESSION_MS = 30 * 864e5;
@@ -286,13 +286,64 @@ function currentAdmin(req) {
 }
 const publicAdmin = ({ hash, salt, ...a }) => a;
 const scopeOf = (a) => (a.role !== 'super' && a.restaurants?.length ? new Set(a.restaurants) : null);
+// Разделы админки. Суперадмин назначает каждому админу доступ к каждому разделу: нет / чтение / редактирование.
+// «Администраторы» — только суперадмин. Админу отдельных ресторанов доступны только устройства, рестораны,
+// статистика и клиенты (и только своих ресторанов)
+const ADMIN_SECTIONS = [
+  ['devices', 'Устройства', /^\/api\/(devices|pending|telegram)(\/|$)/],
+  ['rest', 'Рестораны и меню', /^\/api\/(restaurants|geo\/resolve)(\/|$)/],
+  ['ads', 'Реклама', /^\/api\/(ads|ad-cats|leads|uploads|export)(\/|$)/],
+  ['chars', 'ИИ-персонажи', /^\/api\/(characters|voices|eleven)(\/|$)/],
+  ['stats', 'Статистика', /^\/api\/stats$/],
+  ['audit', 'Журнал', /^\/api\/audit$/],
+  ['crm', 'Клиенты', /^\/api\/crm(\/|$)/],
+  ['server', 'Сервер', /^\/api\/server$/],
+  ['join', 'Заявки на подключение', /^\/api\/join-requests(\/|$)/],
+];
+const SECTION_NAME = Object.fromEntries(ADMIN_SECTIONS.map(([k, n]) => [k, n]));
+const VIEW_ONLY = new Set(['stats', 'audit', 'server']); // там нечего менять — доступ «есть / нет»
+const SCOPED_OK = new Set(['devices', 'rest', 'stats', 'crm']);
+const PERM_NAME = { none: 'нет', read: 'чтение', edit: 'редактирование' };
+function permOf(a, sec) {
+  if (!a) return 'none';
+  if (a.role === 'super') return 'edit';
+  if (scopeOf(a) && !SCOPED_OK.has(sec)) return 'none';
+  return ['read', 'edit'].includes(a.perms?.[sec]) ? a.perms[sec] : 'none';
+}
+const sectionOf = (p) => ADMIN_SECTIONS.find(([, , re]) => re.test(p))?.[0] || null;
+const anyAccess = (a) => ADMIN_SECTIONS.some(([k]) => permOf(a, k) !== 'none');
+const canEdit = (a, ...secs) => secs.some((k) => permOf(a, k) === 'edit');
+function cleanPerms(b) {
+  return Object.fromEntries(ADMIN_SECTIONS.map(([k]) => [k, ['read', 'edit'].includes(b?.[k]) ? (VIEW_ONLY.has(k) ? 'read' : b[k]) : 'none']));
+}
 function allowed(a, method, p) {
   if (p.startsWith('/api/me')) return true;
   if (a.role === 'super') return true;
   if (p.startsWith('/api/admins')) return false;
-  if (a.role === 'viewer') return method === 'GET' && (p === '/api/stats' || p === '/api/restaurants');
-  if (!scopeOf(a)) return true;
-  return /^\/api\/(devices|restaurants|stats|crm)(\/|$)/.test(p);
+  // общие справочники — кратко, всем, у кого есть хоть какой-то доступ: список ресторанов и схема острова
+  if (method === 'GET' && (p === '/api/restaurants' || p === '/api/geo')) return anyAccess(a);
+  if (p === '/api/export/link') return permOf(a, 'ads') !== 'none'; // ссылка на ZIP фото — это просмотр
+  const sec = sectionOf(p);
+  const pm = sec ? permOf(a, sec) : 'none';
+  return pm === 'edit' || (pm === 'read' && method === 'GET');
+}
+function denyText(a, method, p) {
+  const sec = sectionOf(p);
+  if (sec && permOf(a, sec) === 'read' && method !== 'GET') return `Только просмотр раздела «${SECTION_NAME[sec]}» — изменения недоступны`;
+  return sec ? `Нет доступа к разделу «${SECTION_NAME[sec]}»` : 'Нет доступа';
+}
+// Однократно: прежние роли → доступы по разделам (админ — всё на редактирование, CRM — если была галочка; «только статистика» — статистика)
+db.migrations ??= {};
+if (!db.migrations.perms) {
+  for (const a of db.admins || []) {
+    if (a.role === 'super' || a.perms) continue;
+    const all = Object.fromEntries(ADMIN_SECTIONS.map(([k]) => [k, a.role === 'admin' ? (VIEW_ONLY.has(k) ? 'read' : 'edit') : 'none']));
+    if (a.role === 'admin' && !a.crm) all.crm = 'none';
+    if (a.role === 'viewer') all.stats = 'read';
+    Object.assign(a, { role: 'admin', perms: all });
+    delete a.crm;
+  }
+  db.migrations.perms = Date.now();
 }
 
 // Журнал изменений: кто, когда, что (админы портала и менеджеры ресторанов)
@@ -485,6 +536,7 @@ function adminsApi(method, p, b, me) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw fail(400, 'Неверная почта');
   if (db.admins.some((a) => a.email === email && a.id !== b.id)) throw fail(400, 'Такая почта уже есть');
   const role = ROLES.includes(b.role) ? b.role : 'admin';
+  const perms = cleanPerms(b.perms);
   const pass = String(b.password || '');
   if (pass && pass.length < 8) throw fail(400, 'Пароль — не короче 8 символов');
   let a = db.admins.find((x) => x.id === b.id);
@@ -496,12 +548,14 @@ function adminsApi(method, p, b, me) {
   if (a.role === 'super' && (role !== 'super' || b.disabled) && !supers(a.id)) throw fail(400, 'Нужен хотя бы один суперадмин');
   const was = a.email ? `${a.email} (${a.role}${a.disabled ? ', отключён' : ''})` : '';
   Object.assign(a, {
-    email, name: String(b.name || '').slice(0, 60), role, disabled: !!b.disabled, crm: role === 'admin' && !!b.crm,
+    email, name: String(b.name || '').slice(0, 60), role, disabled: !!b.disabled, perms: role === 'super' ? undefined : perms,
     restaurants: role === 'super' ? [] : (Array.isArray(b.restaurants) ? b.restaurants : []).filter((id) => db.restaurants[id]),
   }, pass ? hashPass(pass) : {});
   if (a.disabled || pass) for (const [k, s] of Object.entries(db.adminSessions)) if (s.adminId === a.id && a.id !== me.id) delete db.adminSessions[k];
   save();
-  audit(me.email, `${was ? 'Админ изменён' : 'Админ добавлен'}: ${email} — ${{ super: 'суперадмин', admin: 'админ', viewer: 'просмотр статистики' }[role]}`
+  delete a.crm;
+  const access = role === 'super' ? '' : ` (${ADMIN_SECTIONS.filter(([k]) => perms[k] !== 'none').map(([k, n]) => `${n} — ${PERM_NAME[perms[k]]}`).join(', ') || 'без доступа к разделам'})`;
+  audit(me.email, `${was ? 'Админ изменён' : 'Админ добавлен'}: ${email} — ${{ super: 'суперадмин', admin: 'админ' }[role]}${access}`
     + `${a.restaurants.length ? `, рестораны: ${a.restaurants.map((id) => db.restaurants[id].name).join(', ')}` : ''}${a.disabled ? ', отключён' : ''}${pass ? ', пароль задан' : ''}`);
   return publicAdmin(a);
 }
@@ -2120,7 +2174,7 @@ db.clients ??= [];
 db.pricing ??= { low: { software: 1600, device: 240 }, high: { software: 3900, device: 590 }, premium: 2, setupFee: 5000 };
 const CRM_STATUS = ['lead', 'test', 'active', 'paused', 'gone'];
 const PERIODS = { month: 1, quarter: 3, year: 12 };
-const crmAccess = (me) => me.role === 'super' || (me.role === 'admin' && !!me.crm);
+const crmAccess = (me) => permOf(me, 'crm') !== 'none';
 const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 const todayBkk = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
 const dayNum = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 864e5;
@@ -2225,7 +2279,7 @@ function crmApi(method, p, b, me) {
 const CRM_DIR = path.join(DATA_DIR, 'crm');
 const CRM_TYPES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 async function crmUpload(req, me) {
-  if (!me || !crmAccess(me)) throw fail(403, 'Нет доступа к CRM');
+  if (!me || !canEdit(me, 'crm')) throw fail(403, 'Нет права менять раздел «Клиенты»');
   const ext = CRM_TYPES[String(req.headers['content-type'] || '').split(';')[0]];
   if (!ext) throw fail(400, 'Только PDF, JPG, PNG или WEBP');
   const chunks = [];
@@ -2601,7 +2655,10 @@ const period = (q) => {
 
 function admin(method, p, b, me, q) {
   const scope = scopeOf(me);
-  if (method === 'GET' && p === '/api/me') return publicAdmin(me);
+  if (method === 'GET' && p === '/api/me') {
+    return { ...publicAdmin(me), access: Object.fromEntries(ADMIN_SECTIONS.map(([k]) => [k, permOf(me, k)])),
+      sections: ADMIN_SECTIONS.map(([k, n, re]) => ({ k, n, re: re.source, viewOnly: VIEW_ONLY.has(k) })) };
+  }
   if (method === 'POST' && p === '/api/me/password') {
     if (!passOk(me, b.old)) throw fail(400, 'Текущий пароль неверный');
     if (String(b.password || '').length < 8) throw fail(400, 'Новый пароль — не короче 8 символов');
@@ -2659,7 +2716,11 @@ function admin(method, p, b, me, q) {
   }
   if (method === 'GET' && p === '/api/restaurants') {
     const list = Object.values(db.restaurants).filter((r) => !scope || scope.has(r.id));
-    if (me.role === 'viewer') return list.map((r) => ({ id: r.id, name: r.name }));
+    // без доступа к «Ресторанам» — только то, что нужно другим разделам (без меню, персонала, PIN, паролей Wi-Fi)
+    if (permOf(me, 'rest') === 'none') {
+      return list.map((r) => ({ ...pick(r, ['id', 'name', 'district', 'address', 'geo', 'langs', 'tariff', 'tables', 'blockedAds', 'blockedCats']),
+        hoursInfo: { used: hoursOf(r), usedText: hoursText(hoursOf(r)) } }));
+    }
     return list.map((r) => ({ ...r, menuSource: publicSource(r.menuSource), tagRules: r.tagRules || DEFAULT_RULES, customTags: r.customTags || [], menuIssues: menuIssues(r),
       hoursInfo: { detected: detected(r.id), used: hoursOf(r), usedText: hoursText(hoursOf(r)) },
       wifiStatus: wifiStatus(r) }));
@@ -3260,7 +3321,7 @@ const server = http.createServer(async (req, res) => {
     // Все фото акций и рекламы одним ZIP: из админки или по временной ссылке только на чтение
     if (req.method === 'GET' && url.pathname === '/api/export/photos.zip') {
       const me = currentAdmin(req);
-      if (!me || me.role === 'viewer' || scopeOf(me)) return send(res, 403, { error: 'Нет доступа' });
+      if (permOf(me, 'ads') === 'none') return send(res, 403, { error: 'Нет доступа к разделу «Реклама»' });
       return sendPhotosZip(res);
     }
     const ex = req.method === 'GET' && url.pathname.match(/^\/export\/([A-Za-z0-9_-]{20,64})\/photos\.zip$/);
@@ -3282,7 +3343,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/upload') {
       const token = req.headers['x-staff-token'];
       const me = currentAdmin(req);
-      if (!me || me.role === 'viewer') managerSession(token);
+      if (!me || !canEdit(me, 'rest', 'ads', 'chars')) managerSession(token);
       return send(res, 200, await upload(req));
     }
 
@@ -3319,7 +3380,7 @@ const server = http.createServer(async (req, res) => {
 
     const me = currentAdmin(req);
     if (!me) return send(res, 401, { error: 'not signed in' });
-    if (!allowed(me, req.method, url.pathname)) return send(res, 403, { error: 'Нет доступа' });
+    if (!allowed(me, req.method, url.pathname)) return send(res, 403, { error: denyText(me, req.method, url.pathname) });
     const out = await admin(req.method, url.pathname, body, me, Object.fromEntries(url.searchParams));
     if (out !== undefined && req.method !== 'GET' && !url.pathname.startsWith('/api/admins') && !url.pathname.startsWith('/api/me')) {
       const a = auditText(req.method, url.pathname, body);
