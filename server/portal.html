@@ -307,6 +307,13 @@
       <button onclick="savePin()">Сменить PIN</button></div>
     <small class="hint">4–8 цифр. Планшеты получат новый PIN, когда выйдут на связь (обычно за 15 секунд), и будут помнить его без интернета. Сам PIN нигде не хранится — только его отпечаток.</small>
   </div>
+  <div class="form" id="diagBox" style="display:block">
+    <b>🔑 Ключ диагностики для Claude</b> <small class="hint">— только чтение: устройства, связь, обрывы, сбои, нагрузка сервера.
+      Без гостей, заказов, персонала и паролей. Создавайте в рабочей админке (app.jetmedia.dev).</small>
+    <div id="diagList" class="hint" style="margin:6px 0"></div>
+    <button onclick="newDiagKey()">Создать ключ на 30 дней</button>
+    <div id="diagNew"></div>
+  </div>
   <p class="hint">Суперадмин — всё, включая этот список. Админ — всё, кроме списка админов; если отмечены рестораны — только эти рестораны и их планшеты
     (без рекламы, персонажей и общих настроек). «Только статистика» — просмотр статистики всех ресторанов или отмеченных. Пароль передайте человеку сами.</p>
   <div class="form" id="admForm">
@@ -1749,8 +1756,36 @@ async function savePin() {
   alert('PIN сменён. Планшеты получат его, когда выйдут на связь. Запишите PIN в надёжное место.');
 }
 
+// Ключ диагностики: сам ключ показываем один раз, на сервере — только отпечаток
+async function loadDiag() {
+  const list = await api('/api/admins/diag-keys');
+  if (!Array.isArray(list)) return;
+  $('diagList').innerHTML = list.length ? list.map((k) => `${esc(k.name)} · создан ${new Date(k.at).toLocaleDateString('ru-RU')} (${esc(k.by)})
+    · действует до ${new Date(k.expiresAt).toLocaleDateString('ru-RU')} · ${k.usedAt ? `последний запрос ${new Date(k.usedAt).toLocaleString()}` : 'ещё не использовался'}
+    <button onclick="delDiag('${esc(k.id)}')">Отозвать</button>`).join('<br>') : 'Ключей нет.';
+}
+async function newDiagKey() {
+  if (!confirm('Создать ключ диагностики (только чтение) на 30 дней?')) return;
+  const k = await api('/api/admins/diag-keys', 'POST', { name: 'Claude' });
+  if (k.error) return alert(k.error);
+  $('diagNew').innerHTML = `<p><b>Ключ — показан один раз:</b><br><code id="diagTok" style="word-break:break-all;user-select:all">${esc(k.token)}</code><br>
+    <button onclick="copyDiag()">Скопировать</button></p>
+    <p class="hint">Вставьте ключ в защищённую форму, которую покажет Claude. В чат ключ не отправляйте.</p>`;
+  loadDiag();
+}
+function copyDiag() {
+  navigator.clipboard.writeText($('diagTok').textContent).then(() => alert('Скопировано'), () => alert('Выделите ключ и скопируйте вручную'));
+}
+async function delDiag(id) {
+  if (!confirm('Отозвать ключ? Claude сразу потеряет доступ.')) return;
+  await api('/api/admins/diag-keys/' + id, 'DELETE');
+  $('diagNew').innerHTML = '';
+  loadDiag();
+}
+
 async function loadAdmins() {
   loadPin();
+  loadDiag();
   if (!rests.length) rests = await api('/api/restaurants');
   admins = await api('/api/admins');
   $('admList').innerHTML = admins.map((a, i) => `<tr class="${a.disabled ? 'hint' : ''}"><td>${esc(a.email)}</td><td>${esc(a.name || '')}</td>

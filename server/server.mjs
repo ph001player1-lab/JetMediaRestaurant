@@ -398,8 +398,73 @@ function servicePinApi(method, b, me) {
   return pinStatus();
 }
 
+// ---------- Ключ диагностики (только чтение): суперадмин создаёт в «Администраторах» и вводит в защищённую форму
+// Claude (не в чат). По ключу видно только устройства, связь, сбои и нагрузку сервера — без гостей, заказов,
+// персонала и паролей. Хранится только отпечаток ключа; срок — 30 дней, отозвать можно в любой момент
+db.diagKeys ??= [];
+const DIAG_DAYS = 30;
+const sha256 = (v) => crypto.createHash('sha256').update(v).digest('hex');
+const publicDiagKey = ({ hash, ...k }) => k;
+function diagKeysApi(method, p, b, me) {
+  if (method === 'POST' && p === '/api/admins/diag-keys') {
+    const token = `jmd_${crypto.randomBytes(24).toString('base64url')}`;
+    const k = { id: uid(), name: String(b.name || 'Claude').slice(0, 60), hash: sha256(token), at: Date.now(), by: me.email,
+      expiresAt: Date.now() + DIAG_DAYS * 864e5, usedAt: 0 };
+    db.diagKeys.push(k);
+    save();
+    audit(me.email, `Ключ диагностики «${k.name}» создан`);
+    return { ...publicDiagKey(k), token }; // сам ключ показываем один раз
+  }
+  const m = p.match(/^\/api\/admins\/diag-keys\/(\w+)$/);
+  if (method === 'DELETE' && m) {
+    const k = db.diagKeys.find((x) => x.id === m[1]);
+    db.diagKeys = db.diagKeys.filter((x) => x.id !== m[1]);
+    save();
+    if (k) audit(me.email, `Ключ диагностики «${k.name}» отозван`);
+  }
+  db.diagKeys = db.diagKeys.filter((x) => x.expiresAt > Date.now());
+  return db.diagKeys.map(publicDiagKey);
+}
+function diagAuth(req) {
+  const m = String(req.headers.authorization || '').match(/^Bearer\s+(jmd_[\w-]{20,})$/);
+  const k = m && db.diagKeys.find((x) => x.hash === sha256(m[1]) && x.expiresAt > Date.now());
+  if (!k) throw fail(401, 'diagnostic key required');
+  if (Date.now() - (k.usedAt || 0) > 60_000) { k.usedAt = Date.now(); save(); }
+  return k;
+}
+// Устройства: где стоят, на связи ли, телеметрия, обрывы, журнал сети, сбои приложения
+function diagDevices(b, q, req) {
+  diagAuth(req);
+  const now = Date.now();
+  return {
+    at: now, instance: INSTANCE, allowOpenWifi: !!db.allowOpenWifi, offlineAlertMin: OFFLINE_ALERT_MS / 60_000,
+    devices: Object.values(db.devices).map((d) => {
+      const { voices, pin, ...telemetry } = d.telemetry || {};
+      return {
+        id: d.id, name: deviceName(d), restaurant: db.restaurants[d.restaurantId]?.name || '', table: d.table || '', role: d.role || '',
+        online: now - (d.lastSeen || 0) < ONLINE_MS, lastSeen: d.lastSeen || 0, firstSeen: d.firstSeen || 0, pageSeen: d.pageSeen || 0,
+        offlineAlert: d.offlineAlert || 0, ip: d.ip || '', telemetry, outages: d.outages || [], netlog: d.netlog || [], events: d.events || [],
+      };
+    }),
+  };
+}
+// События устройств из журнала: пропадания (больше порога), обрывы глазами планшета, сбои — за days дней (до 31)
+function diagEvents(b, q, req) {
+  diagAuth(req);
+  const days = Math.min(31, Math.max(1, Number(q.days) || 7)), to = Date.now();
+  const kinds = new Set(['dev_offline', 'dev_outage', 'dev_crash']);
+  return events.read(to - days * 864e5, to, null).filter((e) => kinds.has(e.k))
+    .map((e) => ({ ...e, restaurant: db.restaurants[e.r]?.name || '', device: db.devices[e.dev] ? deviceName(db.devices[e.dev]) : e.dev }));
+}
+// Нагрузка сервера: процессор, память, диск, отклик, запросы в минуту
+function diagServer(b, q, req) {
+  diagAuth(req);
+  return { instance: INSTANCE, version: VERSION, self: selfStats(DATA_DIR), host: hostStats(DATA_DIR) };
+}
+
 function adminsApi(method, p, b, me) {
   if (p === '/api/admins/service-pin') return servicePinApi(method, b, me);
+  if (p.startsWith('/api/admins/diag-keys')) return diagKeysApi(method, p, b, me);
   if (method === 'GET') return db.admins.map(publicAdmin);
   const supers = (except) => db.admins.filter((a) => a.role === 'super' && !a.disabled && a.id !== except).length;
   const m = p.match(/^\/api\/admins\/([^/]+)$/);
@@ -2572,6 +2637,9 @@ const PUBLIC = {
   'GET /api/internal/device': internalDevice,
   'GET /api/internal/devices': internalDevices,
   'GET /api/internal/server': internalServer,
+  'GET /api/diag/devices': diagDevices,
+  'GET /api/diag/events': diagEvents,
+  'GET /api/diag/server': diagServer,
   'GET /api/kitchen/state': kitchenState,
   'POST /api/kitchen/ready': kitchenReady,
   'POST /api/guest/order': guestOrder,
