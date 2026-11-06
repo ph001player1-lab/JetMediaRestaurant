@@ -148,10 +148,11 @@
 .permgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 12px; margin-top: 6px; }
 .permgrid label { display: flex; flex-direction: column; font-size: 13px; }
 .robanner { background: #fff4d6; border: 1px solid #e6c46a; border-radius: 8px; padding: 8px 12px; margin: 8px 0; }
+.soon { color: #e65100; font-weight: 600; }
 </style>
 </head>
 <body>
-<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button><button data-tab="adsTab">Реклама</button><button data-tab="charTab">ИИ-персонажи</button><button data-tab="statsTab">Статистика</button><button data-tab="adminsTab">Администраторы</button><button data-tab="auditTab">Журнал</button><button data-tab="crmTab">Клиенты</button><button data-tab="srvTab">Сервер</button><button data-tab="joinTab">Заявки на подключение <span id="joinBadge" class="badge" hidden></span></button>
+<nav><button data-tab="devices" class="on">Устройства</button><button data-tab="rest">Рестораны и меню</button><button data-tab="adsTab">Реклама</button><button data-tab="charTab">ИИ-персонажи</button><button data-tab="statsTab">Статистика</button><button data-tab="adminsTab">Администраторы</button><button data-tab="auditTab">Журнал</button><button data-tab="crmTab">Клиенты</button><button data-tab="expTab">Расходы</button><button data-tab="tgTab">Telegram</button><button data-tab="srvTab">Сервер</button><button data-tab="joinTab">Заявки на подключение <span id="joinBadge" class="badge" hidden></span></button>
   <span style="margin-left:auto"><small id="meInfo" class="hint"></small> <button onclick="changePass()">Сменить пароль</button><button onclick="logout()">Выйти</button></span></nav>
 
 <section id="devices">
@@ -182,17 +183,6 @@
     <thead><tr><th>Устройство</th><th>Статус</th><th>Заряд</th><th>Агент</th><th>Версия</th><th>Ресторан · стол</th><th>На связи</th><th></th></tr></thead>
     <tbody id="list"></tbody>
   </table></div>
-  <div class="form" style="display:block" id="tgBox">
-    <b>Оповещения в Telegram</b> <span id="tgState" class="hint"></span>
-    <p class="hint" style="margin:6px 0">Бот пишет, если планшет пропал со связи больше чем на 3 минуты, вернулся, или приложение упало и перезапустилось.<br>
-      1) В Telegram откройте @BotFather → /newbot → придумайте имя → скопируйте токен. 2) Вставьте токен сюда и сохраните.
-      3) Откройте своего бота и нажмите «Start» (или добавьте бота в группу). 4) Нажмите «Найти чаты», затем «Тест».</p>
-    <input id="tgToken" type="password" placeholder="Токен бота" style="width:320px" autocomplete="off">
-    <button onclick="tg('/api/telegram', { token: $('tgToken').value })">Сохранить токен</button>
-    <button onclick="tg('/api/telegram/find')">Найти чаты</button>
-    <button onclick="tg('/api/telegram/test')">Тест</button>
-    <div id="tgChats" style="margin-top:6px"></div>
-  </div>
 </section>
 
 <section id="rest" hidden>
@@ -378,6 +368,27 @@
   <div id="cliBody" style="padding:12px 16px;overflow:auto"></div>
   <div class="mfoot"><button id="cliDel" style="margin-right:auto">Удалить клиента</button><button data-cclose="1">Отмена</button><button id="cliSave"><b>Сохранить</b></button></div></div></div>
 
+<section id="expTab" hidden>
+  <div class="filters"><select id="expState" onchange="renderExp()"><option value="">Действующие</option><option value="all">Все, включая архив</option></select>
+    <button onclick="openExp()">+ Платёж</button> <span id="expSum" class="hint"></span></div>
+  <div class="wrap"><table><thead><tr><th>Платёж</th><th>Сумма</th><th>Период</th><th>Следующая оплата</th><th>Как платим</th><th></th></tr></thead><tbody id="expList"></tbody></table></div>
+  <div class="form" style="display:block"><b>Курс к бату</b> <span id="expFx" class="hint"></span>
+    <div style="margin-top:6px">Свой курс (необязательно): USD <input id="fxUSD" style="width:80px" placeholder="авто"> EUR <input id="fxEUR" style="width:80px" placeholder="авто">
+      <button onclick="saveFx()">Сохранить курс</button></div>
+    <small class="hint">Пусто — текущий курс (обновляется сам дважды в день). У отдельного платежа можно задать свой курс в его карточке. При «Оплачено» запоминается курс на момент оплаты.</small></div>
+  <p class="hint">Напоминания в Telegram (вкладка «Telegram» → у бота отметить «Напоминания по расходам»): за 7, 3 и 1 день, в день оплаты и каждый день просрочки; у годовых — ещё за 30 дней; по понедельникам — сводка на неделю. Автосписание: «спишется с карты — проверьте баланс».</p>
+</section>
+<div id="expModal" class="modal" hidden><div class="mbox"><div class="mhead"><b>Платёж</b><button onclick="$('expModal').hidden = true">✕</button></div>
+  <div id="expBody" style="padding:12px 16px;overflow:auto"></div>
+  <div class="mfoot"><button id="expDel" style="margin-right:auto" onclick="delExp()">Удалить</button><button onclick="$('expModal').hidden = true">Отмена</button><button onclick="saveExp()"><b>Сохранить</b></button></div></div></div>
+
+<section id="tgTab" hidden>
+  <p class="hint">Боты Telegram и что на какой приходит. Новый бот: в Telegram откройте @BotFather → /newbot → скопируйте токен → «+ Бот» и вставьте токен →
+    откройте бота и нажмите «Start» (или добавьте его в группу) → «Найти чаты» → «Тест». Токен вписывается только здесь, никому его не пересылайте.</p>
+  <div id="tgBots"></div>
+  <p><button onclick="addTgBot()">+ Бот</button></p>
+</section>
+
 <section id="srvTab" hidden><div id="srvPanel"><p class="hint">Загрузка приборов…</p></div></section>
 
 <section id="joinTab" hidden>
@@ -401,7 +412,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 // Доступы текущего админа по разделам (из /api/me): в разделе «только чтение» изменения не отправляются
 var ACCESS = null, SECS = [];
-const TAB_OF = { devices: 'devices', rest: 'rest', ads: 'adsTab', chars: 'charTab', stats: 'statsTab', audit: 'auditTab', crm: 'crmTab', server: 'srvTab', join: 'joinTab' };
+const TAB_OF = { devices: 'devices', rest: 'rest', ads: 'adsTab', chars: 'charTab', stats: 'statsTab', audit: 'auditTab', crm: 'crmTab', expenses: 'expTab', telegram: 'tgTab', server: 'srvTab', join: 'joinTab' };
 const api = async (path, method = 'GET', body) => {
   if (method !== 'GET' && ACCESS && ACCESS.role !== 'super') {
     const sec = SECS.find((x) => x.rx.test(path.split('?')[0]));
@@ -417,8 +428,10 @@ let devices = [], rests = [], cur = null;
 
 document.querySelectorAll('nav button[data-tab]').forEach((b) => (b.onclick = () => {
   document.querySelectorAll('nav button[data-tab]').forEach((x) => x.classList.toggle('on', x === b));
-  for (const id of ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'adminsTab', 'auditTab', 'joinTab', 'srvTab', 'crmTab']) $(id).hidden = id !== b.dataset.tab;
+  for (const id of ['devices', 'rest', 'adsTab', 'charTab', 'statsTab', 'adminsTab', 'auditTab', 'joinTab', 'srvTab', 'crmTab', 'expTab', 'tgTab']) $(id).hidden = id !== b.dataset.tab;
   if (b.dataset.tab === 'crmTab') loadCrm();
+  if (b.dataset.tab === 'expTab') loadExp();
+  if (b.dataset.tab === 'tgTab') loadTg();
   // приборы сервера обновляются, только пока раздел открыт
   clearInterval(srvTimer);
   if (b.dataset.tab === 'srvTab') { loadServer(); srvTimer = setInterval(loadServer, 5000); }
@@ -1781,16 +1794,130 @@ async function elSave() {
 
 // ---------- Telegram
 
-async function tg(path, body) {
-  if (body && 'token' in body && !body.token && !confirm('Токен пустой — отключить оповещения?')) return;
-  const out = await api(path, body || path !== '/api/telegram' ? 'POST' : 'GET', body);
+// ---------- Telegram: несколько ботов, у каждого — что на него приходит
+let tgData = null;
+async function loadTg(data) {
+  tgData = data || await api('/api/telegram');
+  if (tgData.error) return;
+  $('tgBots').innerHTML = tgData.bots.map((x) => `<div class="form" style="display:block" data-bot="${esc(x.id)}">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
+        <label>Название <input data-bf="name" value="${esc(x.name || '')}" style="width:180px"></label>
+        <label>Новый токен <input data-bf="token" type="password" autocomplete="off" placeholder="${x.connected ? 'не менять' : 'токен от @BotFather'}" style="width:260px"></label>
+        <span class="hint">${x.connected ? `бот @${esc(x.bot)}` : 'не подключён'}</span></div>
+      <div style="margin:6px 0"><b>Что приходит:</b> ${tgData.kinds.map((k) => `<label style="display:inline-block;margin-right:12px"><input type="checkbox" style="width:auto" data-bk="${k.k}" ${x.kinds.includes(k.k) ? 'checked' : ''}> ${esc(k.n)}</label>`).join('')}</div>
+      <div>${x.chats.length ? 'Получатели: ' + x.chats.map((c) => `${esc(c.name)} <button onclick="tgBot('${esc(x.id)}', 'remove', { chat: ${Number(c.id)} })">×</button>`).join(' ')
+        : (x.connected ? '<small class="hint">Получателей нет: напишите боту /start и нажмите «Найти чаты».</small>' : '')}</div>
+      <div style="margin-top:6px"><button onclick="saveTgBot('${esc(x.id)}')"><b>Сохранить</b></button> <button onclick="tgBot('${esc(x.id)}', 'find')">Найти чаты</button>
+        <button onclick="tgBot('${esc(x.id)}', 'test')">Тест</button> <button onclick="delTgBot('${esc(x.id)}')" style="margin-left:12px">Удалить бота</button></div></div>`).join('')
+    || '<p class="hint">Ботов нет — нажмите «+ Бот».</p>';
+  // что никуда не приходит — предупреждение
+  const lost = tgData.kinds.filter((k) => !tgData.bots.some((x) => x.kinds.includes(k.k) && x.chats.length));
+  if (lost.length) $('tgBots').insertAdjacentHTML('afterbegin', `<p class="robanner">Никуда не приходит: ${lost.map((k) => esc(k.n)).join(', ')} — отметьте у какого-нибудь бота (и добавьте получателей).</p>`);
+}
+async function saveTgBot(id) {
+  const el = document.querySelector(`[data-bot="${CSS.escape(id)}"]`);
+  const out = await api('/api/telegram/bots', 'POST', { id: id || undefined, name: el.querySelector('[data-bf="name"]').value, token: el.querySelector('[data-bf="token"]').value,
+    kinds: [...el.querySelectorAll('[data-bk]:checked')].map((x) => x.dataset.bk) });
   if (out.error) return alert(out.error);
-  if (path === '/api/telegram/test') alert('Отправлено — проверьте Telegram');
-  $('tgToken').value = '';
-  $('tgState').textContent = out.connected ? `— бот @${out.bot}` : '— не настроено';
-  $('tgChats').innerHTML = out.chats.length
-    ? 'Получатели: ' + out.chats.map((c) => `${esc(c.name)} <button onclick="tg('/api/telegram/remove', { id: ${Number(c.id)} })">×</button>`).join(' ')
-    : (out.connected ? '<small>Получателей нет: напишите боту /start и нажмите «Найти чаты».</small>' : '');
+  loadTg(out);
+}
+async function tgBot(id, what, body) {
+  const out = await api(`/api/telegram/bots/${encodeURIComponent(id)}/${what}`, 'POST', body || {});
+  if (out.error) return alert(out.error);
+  if (what === 'test') alert('Отправлено — проверьте Telegram');
+  loadTg(out);
+}
+async function delTgBot(id) {
+  if (!confirm('Удалить бота из админки? Сообщения на него приходить перестанут.')) return;
+  loadTg(await api(`/api/telegram/bots/${encodeURIComponent(id)}`, 'DELETE'));
+}
+async function addTgBot() {
+  const token = prompt('Токен нового бота (от @BotFather):');
+  if (!token) return;
+  const name = prompt('Название (например «Заявки по рекламе»):', '') || '';
+  const out = await api('/api/telegram/bots', 'POST', { token: token.trim(), name, kinds: [] });
+  if (out.error) return alert(out.error);
+  loadTg(out);
+  alert('Бот подключён. Отметьте, что на него приходит, нажмите «Сохранить», затем откройте бота в Telegram, нажмите «Start» и здесь — «Найти чаты».');
+}
+
+// ---------- Расходы: наши платежи с напоминаниями
+let exp = null, expCur = null;
+const fmtD = (s) => (s ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : '—');
+async function loadExp(data) {
+  exp = data || await api('/api/expenses');
+  if (exp.error) return;
+  $('fxUSD').value = exp.fxCustom.USD || '';
+  $('fxEUR').value = exp.fxCustom.EUR || '';
+  $('expFx').textContent = `— сейчас: USD ${exp.fxCustom.USD || exp.fx.USD || '?'} ฿, EUR ${exp.fxCustom.EUR || exp.fx.EUR || '?'} ฿`
+    + (exp.fx.at ? ` (текущий курс от ${new Date(exp.fx.at).toLocaleDateString('ru-RU')}${exp.fxCustom.USD || exp.fxCustom.EUR ? '; где задан свой — свой' : ''})` : ' (текущий курс ещё не получен)');
+  renderExp();
+}
+function renderExp() {
+  const all = $('expState').value === 'all', list = exp.list.filter((e) => all || e.active)
+    .sort((a, b) => (a.days ?? 9999) - (b.days ?? 9999));
+  const act = exp.list.filter((e) => e.active);
+  $('expSum').innerHTML = `В месяц ≈ <b>${Math.round(exp.monthThb).toLocaleString('ru-RU')} ฿</b> · просрочено: <b style="color:${act.some((e) => e.days < 0) ? '#c62828' : 'inherit'}">${act.filter((e) => e.days < 0).length}</b>
+    · платежей в ближайшие 7 дней: <b>${act.filter((e) => e.days !== null && e.days >= 0 && e.days <= 7).length}</b>`;
+  const chip = (e) => (!e.nextDue ? '<span class="hint">дата не задана</span>' : `${fmtD(e.nextDue)}<br><small class="${e.days < 0 ? 'offline' : e.days <= 7 ? 'soon' : 'hint'}">${e.days < 0 ? `просрочено ${-e.days} дн.` : e.days === 0 ? 'сегодня' : `через ${e.days} дн.`}</small>`);
+  $('expList').innerHTML = list.map((e) => `<tr class="${e.active ? '' : 'hint'}">
+    <td><b>${esc(e.name)}</b><br><small class="hint">${esc(exp.cats[e.cat])}${e.link ? ` · <a href="${esc(e.link)}" target="_blank" rel="noopener">кабинет оплаты</a>` : ''}</small>${e.note ? `<br><small>${esc(e.note)}</small>` : ''}</td>
+    <td>${e.amount ? `${e.amount.toLocaleString('ru-RU')} ${exp.curs[e.cur]}` : '<span class="hint">не задана</span>'}${e.cur !== 'THB' && e.amount ? `<br><small class="hint">≈ ${e.thb.toLocaleString('ru-RU')} ฿${e.rate ? ' (свой курс)' : ''}</small>` : ''}</td>
+    <td>${esc(exp.periods[e.period])}${e.monthThb && e.period !== 'month' ? `<br><small class="hint">≈ ${e.monthThb.toLocaleString('ru-RU')} ฿/мес</small>` : ''}</td>
+    <td>${e.active ? chip(e) : 'в архиве'}</td>
+    <td>${e.auto ? `автосписание${e.card4 ? ` •••• ${esc(e.card4)}` : ''}` : 'вручную'}</td>
+    <td><button onclick="openExp('${esc(e.id)}')">Изменить</button>${e.active && e.nextDue ? ` <button onclick="expPaid('${esc(e.id)}')">✓ Оплачено</button>` : ''}
+      ${e.history.length ? ` <button title="Отменить последнюю отметку «Оплачено»" onclick="expUnpay('${esc(e.id)}')">↶</button>` : ''}</td></tr>`).join('')
+    || '<tr><td colspan="6" class="hint">Платежей нет — нажмите «+ Платёж»</td></tr>';
+}
+function openExp(id) {
+  expCur = structuredClone(exp.list.find((e) => e.id === id) || { name: '', cat: 'other', amount: 0, cur: 'USD', period: 'month', nextDue: '', auto: false, active: true, history: [] });
+  const e = expCur, opt = (o, v) => Object.entries(o).map(([k, n]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${esc(n)}</option>`).join('');
+  $('expBody').innerHTML = `<div class="form" style="display:flex;flex-wrap:wrap;gap:10px;align-items:end">
+    <label style="flex:1;min-width:220px">Название <input id="eName" value="${esc(e.name)}"></label>
+    <label>Категория <select id="eCat">${opt(exp.cats, e.cat)}</select></label>
+    <label>Сумма <input id="eAmount" type="number" step="0.01" min="0" value="${e.amount || ''}" style="width:110px"></label>
+    <label>Валюта <select id="eCur">${opt(Object.fromEntries(Object.keys(exp.curs).map((c) => [c, c])), e.cur)}</select></label>
+    <label>Период <select id="ePeriod">${opt(exp.periods, e.period)}</select></label>
+    <label>Следующая оплата <input id="eDue" type="date" value="${esc(e.nextDue || '')}"></label>
+    <label style="flex-direction:row;align-items:center"><input id="eAuto" type="checkbox" style="width:auto" ${e.auto ? 'checked' : ''}> автосписание с карты</label>
+    <label>Карта, последние 4 цифры <input id="eCard" value="${esc(e.card4 || '')}" maxlength="4" style="width:70px" inputmode="numeric"></label>
+    <label>Свой курс к ฿ <input id="eRate" type="number" step="0.01" min="0" value="${e.rate || ''}" placeholder="авто" style="width:90px"></label>
+    <label style="flex-basis:100%">Ссылка на кабинет оплаты <input id="eLink" value="${esc(e.link || '')}" placeholder="https://…"></label>
+    <label style="flex-basis:100%">Заметка <input id="eNote" value="${esc(e.note || '')}"></label>
+    <label style="flex-direction:row;align-items:center"><input id="eActive" type="checkbox" style="width:auto" ${e.active ? 'checked' : ''}> действует (снять — в архив, без напоминаний)</label></div>
+    ${e.history.length ? `<b>История оплат</b><table><tr><th>Когда</th><th>За дату</th><th>Сумма</th><th>Курс</th><th>≈ ฿</th><th>Кто</th></tr>${e.history.slice().reverse().map((h) => `<tr>
+      <td>${new Date(h.at).toLocaleDateString('ru-RU')}</td><td>${fmtD(h.due)}</td><td>${h.amount} ${exp.curs[h.cur] || h.cur}</td><td>${h.cur === 'THB' ? '—' : h.rate}</td><td>${(h.thb || 0).toLocaleString('ru-RU')}</td><td>${esc(h.by || '')}</td></tr>`).join('')}</table>` : ''}`;
+  $('expDel').hidden = !e.id;
+  $('expModal').hidden = false;
+}
+async function saveExp() {
+  const out = await api('/api/expenses', 'POST', { id: expCur.id, name: $('eName').value, cat: $('eCat').value, amount: $('eAmount').value, cur: $('eCur').value,
+    period: $('ePeriod').value, nextDue: $('eDue').value, auto: $('eAuto').checked, card4: $('eCard').value, rate: $('eRate').value,
+    link: $('eLink').value, note: $('eNote').value, active: $('eActive').checked });
+  if (out.error) return alert(out.error);
+  $('expModal').hidden = true;
+  loadExp();
+}
+async function delExp() {
+  if (!confirm(`Удалить «${expCur.name}» вместе с историей оплат?`)) return;
+  await api(`/api/expenses/${encodeURIComponent(expCur.id)}`, 'DELETE');
+  $('expModal').hidden = true;
+  loadExp();
+}
+async function expPaid(id) {
+  const e = exp.list.find((x) => x.id === id);
+  if (!confirm(`Отметить оплату «${e.name}» за ${fmtD(e.nextDue)}? Дата сдвинется на следующий период.`)) return;
+  await api(`/api/expenses/${encodeURIComponent(id)}/paid`, 'POST', {});
+  loadExp();
+}
+async function expUnpay(id) {
+  if (!confirm('Отменить последнюю отметку «Оплачено»?')) return;
+  await api(`/api/expenses/${encodeURIComponent(id)}/unpay`, 'POST', {});
+  loadExp();
+}
+async function saveFx() {
+  loadExp(await api('/api/expenses/fx', 'POST', { USD: $('fxUSD').value, EUR: $('fxEUR').value }));
 }
 // ---------- Статистика
 
@@ -1963,7 +2090,6 @@ function markReadOnly(sec) {
     return;
   }
   if (acc.devices !== 'none') {
-    if (scoped()) $('tgBox').hidden = true; else tg('/api/telegram');
     for (const k of ['fStatus', 'fSort']) if (localStorage[k]) $(k).value = localStorage[k];
   }
   await loadRests();

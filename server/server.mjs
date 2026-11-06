@@ -152,7 +152,7 @@ async function serverPanel() {
   }
   const me = instanceStats();
   return {
-    at: Date.now(), here: INSTANCE, host: hostStats(DATA_DIR), telegram: !!(db.telegram?.token && db.telegram.chats?.length), pinAt: db.servicePin?.at || 0,
+    at: Date.now(), here: INSTANCE, host: hostStats(DATA_DIR), telegram: db.tgBots.some((x) => x.token && x.chats?.length), pinAt: db.servicePin?.at || 0,
     prod: INSTANCE === 'prod' ? me : peer, test: INSTANCE === 'test' ? me : peer,
   };
 }
@@ -290,13 +290,15 @@ const scopeOf = (a) => (a.role !== 'super' && a.restaurants?.length ? new Set(a.
 // «Администраторы» — только суперадмин. Админу отдельных ресторанов доступны только устройства, рестораны,
 // статистика и клиенты (и только своих ресторанов)
 const ADMIN_SECTIONS = [
-  ['devices', 'Устройства', /^\/api\/(devices|pending|telegram)(\/|$)/],
+  ['devices', 'Устройства', /^\/api\/(devices|pending)(\/|$)/],
   ['rest', 'Рестораны и меню', /^\/api\/(restaurants|geo\/resolve)(\/|$)/],
   ['ads', 'Реклама', /^\/api\/(ads|ad-cats|leads|uploads|export)(\/|$)/],
   ['chars', 'ИИ-персонажи', /^\/api\/(characters|voices|eleven)(\/|$)/],
   ['stats', 'Статистика', /^\/api\/stats$/],
   ['audit', 'Журнал', /^\/api\/audit$/],
   ['crm', 'Клиенты', /^\/api\/crm(\/|$)/],
+  ['expenses', 'Расходы', /^\/api\/expenses(\/|$)/],
+  ['telegram', 'Telegram', /^\/api\/telegram(\/|$)/],
   ['server', 'Сервер', /^\/api\/server$/],
   ['join', 'Заявки на подключение', /^\/api\/join-requests(\/|$)/],
 ];
@@ -344,6 +346,11 @@ if (!db.migrations.perms) {
     delete a.crm;
   }
   db.migrations.perms = Date.now();
+}
+// Однократно: Telegram был частью «Устройств» — такой же доступ; «Расходы» — пока ни у кого из админов
+if (!db.migrations.perms2) {
+  for (const a of db.admins || []) if (a.perms) { a.perms.telegram ??= a.perms.devices || 'none'; a.perms.expenses ??= 'none'; }
+  db.migrations.perms2 = Date.now();
 }
 
 // Журнал изменений: кто, когда, что (админы портала и менеджеры ресторанов)
@@ -418,7 +425,17 @@ function auditText(method, p, b) {
   if (p === '/api/eleven') return [b.key ? 'ElevenLabs: ключ изменён' : 'ElevenLabs: настройки изменены'];
   if (p === '/api/eleven/preview') return null;
   if (p === '/api/geo/resolve') return null;
-  if (p.startsWith('/api/telegram')) return [`Telegram: ${{ '/api/telegram': 'бот изменён', '/api/telegram/find': 'поиск чатов', '/api/telegram/test': 'тест', '/api/telegram/remove': 'получатель удалён' }[p] || p}`];
+  if (p.startsWith('/api/telegram')) {
+    const bt = db.tgBots.find((x) => p.includes(`/${x.id}`)) || db.tgBots.find((x) => x.id === b.id);
+    const what = method === 'DELETE' ? 'удалён' : p.endsWith('/find') ? 'поиск чатов' : p.endsWith('/test') ? 'тест' : p.endsWith('/remove') ? 'получатель удалён'
+      : `сохранён (приходит: ${(b.kinds || []).map((k) => TG_KIND_NAME[k]).filter(Boolean).join(', ') || 'ничего'})`;
+    return [`Telegram: бот «${b.name || bt?.name || bt?.bot || ''}» — ${what}`];
+  }
+  if (p.startsWith('/api/expenses')) {
+    const e = db.expenses.find((x) => p.includes(`/${x.id}`));
+    if (p === '/api/expenses/fx') return [`Расходы: свой курс — ${Object.entries(b || {}).map(([c, v]) => `${c} ${v || 'авто'}`).join(', ')}`];
+    return [`Расходы: ${e?.name || b.name || ''} — ${method === 'DELETE' ? 'удалён' : p.endsWith('/paid') ? 'оплачено' : p.endsWith('/unpay') ? 'оплата отменена' : 'сохранён'}`];
+  }
   return [`${method} ${p}`];
 }
 
@@ -961,7 +978,24 @@ function deviceAlert(b) {
 
 // ---------- Оповещения в Telegram
 
-const tgAlert = (text) => tgSend(db.telegram, text);
+// ---------- Telegram: несколько ботов (вкладка «Telegram»), у каждого — что на него приходит
+const TG_KINDS = [
+  ['devices', 'Сбои и связь планшетов'],
+  ['leads', 'Заявки по рекламе'],
+  ['join', 'Заявки «подключить ресторан»'],
+  ['crm', 'Напоминания по клиентам'],
+  ['expenses', 'Напоминания по расходам'],
+];
+const TG_KIND_NAME = Object.fromEntries(TG_KINDS);
+// прежний единственный бот становится «Основным», на него по-прежнему приходит всё
+db.tgBots ??= db.telegram?.token
+  ? [{ id: 'main', name: 'Основной', token: db.telegram.token, bot: db.telegram.bot || '', chats: db.telegram.chats || [], kinds: TG_KINDS.map(([k]) => k) }] : [];
+const tgBotsFor = (kind) => db.tgBots.filter((x) => x.token && x.chats?.length && (x.kinds || []).includes(kind));
+const tgHas = (kind) => INSTANCE !== 'test' && tgBotsFor(kind).length > 0;
+async function tgTo(kind, text) {
+  for (const bt of tgBotsFor(kind)) await tgSend(bt, text);
+}
+const tgAlert = (text) => tgTo('devices', text);
 const clock = (ts) => new Date(ts).toLocaleString('ru-RU', { timeZone: 'Asia/Bangkok', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 function deviceName(d) {
@@ -1040,19 +1074,29 @@ setInterval(() => {
   if (single.length) tgAlert('🔴 Нет связи с устройствами:\n' + single.map(line).join('\n'));
 }, 60_000);
 
-const tgPublic = () => ({ bot: db.telegram.bot, connected: !!db.telegram.token, chats: db.telegram.chats });
+const tgPublic = () => ({ kinds: TG_KINDS.map(([k, n]) => ({ k, n })),
+  bots: db.tgBots.map((x) => ({ id: x.id, name: x.name, bot: x.bot, connected: !!x.token, chats: x.chats || [], kinds: x.kinds || [] })) });
 
 async function telegramAdmin(method, p, b) {
-  const tg = db.telegram;
   if (method === 'GET') return tgPublic();
-  if (p === '/api/telegram') {
+  const kinds = (v) => [...new Set((Array.isArray(v) ? v : []).filter((k) => TG_KIND_NAME[k]))];
+  if (method === 'POST' && p === '/api/telegram/bots') {
+    let bt = db.tgBots.find((x) => x.id === b.id);
     const token = String(b.token || '').trim();
+    if (!bt && !token) throw fail(400, 'Вставьте токен бота от @BotFather');
     const me = token ? await tgApi(token, 'getMe') : null;
-    Object.assign(tg, { token, bot: me ? me.username : '', chats: token === tg.token ? tg.chats : [] });
+    if (!bt) { bt = { id: uid(), chats: [], kinds: [] }; db.tgBots.push(bt); }
+    if (me) { if (token !== bt.token) bt.chats = []; Object.assign(bt, { token, bot: me.username }); }
+    bt.name = String(b.name || bt.name || bt.bot || 'Бот').slice(0, 60);
+    if (b.kinds !== undefined) bt.kinds = kinds(b.kinds);
   }
-  if (p === '/api/telegram/find') await tgFindChats(tg);
-  if (p === '/api/telegram/test') await tgSend(tg, '✅ JET MEDIA: тестовое сообщение. Оповещения об устройствах будут приходить сюда.', true);
-  if (p === '/api/telegram/remove') tg.chats = tg.chats.filter((c) => c.id !== b.id);
+  const m = p.match(/^\/api\/telegram\/bots\/([^/]+)(?:\/(find|test|remove))?$/);
+  const bt = m && db.tgBots.find((x) => x.id === m[1]);
+  if (m && !bt) throw fail(404, 'Бот не найден');
+  if (method === 'DELETE' && m && !m[2]) db.tgBots = db.tgBots.filter((x) => x !== bt);
+  if (m?.[2] === 'find') await tgFindChats(bt);
+  if (m?.[2] === 'test') await tgSend(bt, `✅ JET MEDIA: тестовое сообщение. Сюда приходит: ${(bt.kinds || []).map((k) => TG_KIND_NAME[k]).join(', ') || 'пока ничего — отметьте в админке'}.`, true);
+  if (m?.[2] === 'remove') bt.chats = bt.chats.filter((c) => c.id !== b.chat);
   save();
   return tgPublic();
 }
@@ -2338,7 +2382,7 @@ const baht = (n) => `${Math.round(n || 0).toLocaleString('ru-RU')} ฿`;
 const ruDate = (s) => (isDate(s) ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : '—');
 const PERIOD_RU = { month: 'месяц', quarter: 'квартал', year: 'год' };
 function crmRemind() {
-  if (INSTANCE === 'test' || !db.telegram?.token) return;
+  if (!tgHas('crm')) return;
   const now = new Date(Date.now() + 7 * 3600e3), today = todayBkk();
   if (now.getUTCHours() < 9) return;
   const lines = [];
@@ -2361,10 +2405,129 @@ function crmRemind() {
   }
   if (!lines.length) return;
   save();
-  tgSend(db.telegram, `JET MEDIA · CRM\n\n${lines.join('\n\n')}`);
+  tgTo('crm', `JET MEDIA · CRM\n\n${lines.join('\n\n')}`);
 }
 setTimeout(crmRemind, 60_000).unref();
 setInterval(crmRemind, 30 * 60_000).unref();
+
+// ---------- Расходы: наши платежи (VPS, подписки, домены…) — напоминания в Telegram как у клиентов:
+// за 7, 3 и 1 день, в день оплаты, каждый день просрочки; у годовых — ещё за 30 дней; по понедельникам — сводка.
+// Курс к бату — текущий (обновляется сам) или свой; при «Оплачено» запоминается курс на момент оплаты
+db.expenses ??= [];
+db.fx ??= { USD: 0, EUR: 0, at: 0 };
+db.fxCustom ??= {};
+const EXP_CATS = { server: 'Сервер', ai: 'Подписки и ИИ', domain: 'Домены', comm: 'Связь', other: 'Прочее' };
+const EXP_PERIODS = { month: [1, 'месяц'], quarter: [3, 'квартал'], half: [6, 'полгода'], year: [12, 'год'], once: [0, 'разово'] };
+const CURS = { THB: '฿', USD: '$', EUR: '€' };
+async function fxUpdate(force = false) {
+  if (!force && Date.now() - (db.fx.at || 0) < 12 * 3600e3) return;
+  try {
+    const j = await (await fetch('https://open.er-api.com/v6/latest/USD', { signal: AbortSignal.timeout(10000) })).json();
+    if (j?.rates?.THB && j.rates.EUR) {
+      db.fx = { USD: Math.round(j.rates.THB * 100) / 100, EUR: Math.round((j.rates.THB / j.rates.EUR) * 100) / 100, at: Date.now() };
+      save();
+    }
+  } catch { /* нет связи — курс прежний */ }
+}
+setTimeout(fxUpdate, 20_000).unref();
+setInterval(fxUpdate, 3600e3).unref();
+// курс платежа: свой у платежа → свой общий → текущий
+const rateOf = (e) => (e.cur === 'THB' ? 1 : Number(e.rate) > 0 ? Number(e.rate) : Number(db.fxCustom[e.cur]) > 0 ? Number(db.fxCustom[e.cur]) : db.fx[e.cur] || 0);
+const expMoney = (e) => `${(Number(e.amount) || 0).toLocaleString('ru-RU')} ${CURS[e.cur] || e.cur}${e.cur !== 'THB' && rateOf(e) ? ` ≈ ${baht(e.amount * rateOf(e))}` : ''}`;
+function publicExp(e) {
+  const rate = rateOf(e), n = EXP_PERIODS[e.period]?.[0] || 0;
+  return { ...e, rate: e.rate || 0, rateUsed: rate, thb: Math.round((e.amount || 0) * rate), monthThb: n ? Math.round(((e.amount || 0) * rate) / n) : 0, days: daysTo(e.nextDue) };
+}
+function cleanExp(b, prev = {}) {
+  const amount = Math.max(0, Math.round(Number(b.amount) * 100) / 100 || 0);
+  return {
+    ...prev, id: prev.id || uid(), name: String(b.name || '').trim().slice(0, 80) || 'Без названия',
+    cat: EXP_CATS[b.cat] ? b.cat : 'other', amount, cur: CURS[b.cur] ? b.cur : 'THB', period: EXP_PERIODS[b.period] ? b.period : 'month',
+    nextDue: isDate(b.nextDue) ? b.nextDue : '', auto: !!b.auto, card4: String(b.card4 || '').replace(/\D/g, '').slice(-4),
+    link: /^https?:\/\//.test(String(b.link || '').trim()) ? String(b.link).trim().slice(0, 300) : '',
+    note: String(b.note || '').slice(0, 500), rate: Number(b.rate) > 0 ? Math.round(Number(b.rate) * 100) / 100 : 0,
+    active: b.active !== false, history: prev.history || [],
+  };
+}
+async function expensesApi(method, p, b, me) {
+  if (method === 'GET' && p === '/api/expenses') {
+    if (!db.fx.at) await fxUpdate(true); // курс ещё не получали — сначала узнаём
+    const list = db.expenses.map(publicExp);
+    return { list, cats: EXP_CATS, periods: Object.fromEntries(Object.entries(EXP_PERIODS).map(([k, [, n]]) => [k, n])), curs: CURS,
+      fx: db.fx, fxCustom: db.fxCustom, today: todayBkk(), monthThb: list.filter((e) => e.active).reduce((a, e) => a + e.monthThb, 0) };
+  }
+  if (method === 'POST' && p === '/api/expenses/fx') {
+    for (const c of ['USD', 'EUR']) db.fxCustom[c] = Number(b[c]) > 0 ? Math.round(Number(b[c]) * 100) / 100 : 0;
+    save();
+    return expensesApi('GET', '/api/expenses', {}, me);
+  }
+  if (method === 'POST' && p === '/api/expenses') {
+    const prev = db.expenses.find((x) => x.id === b.id);
+    const e = cleanExp(b, prev);
+    if (prev) Object.assign(prev, e); else db.expenses.push(e);
+    if (!prev || prev.nextDue !== b.nextDue) e.remindDay = '';
+    save();
+    return publicExp(prev || e);
+  }
+  const m = p.match(/^\/api\/expenses\/([^/]+)(\/paid|\/unpay)?$/);
+  const e = m && db.expenses.find((x) => x.id === m[1]);
+  if (!e) throw fail(404, 'Платёж не найден');
+  if (method === 'DELETE' && !m[2]) { db.expenses = db.expenses.filter((x) => x !== e); save(); return {}; }
+  if (method === 'POST' && m[2] === '/paid') {
+    // «Оплачено»: запоминаем сумму и курс на момент оплаты, дата — на следующий период (разовый — в архив)
+    if (!rateOf(e)) await fxUpdate(true); // курс на момент оплаты должен быть известен
+    const rate = rateOf(e);
+    e.history.push({ at: Date.now(), due: e.nextDue, amount: e.amount, cur: e.cur, rate, thb: Math.round(e.amount * rate), by: me.email });
+    const n = EXP_PERIODS[e.period][0];
+    if (n && isDate(e.nextDue)) e.nextDue = addMonths(e.nextDue, n); else e.active = false;
+    e.remindDay = '';
+  }
+  if (method === 'POST' && m[2] === '/unpay') {
+    const last = e.history.pop();
+    if (last) { e.nextDue = last.due; e.active = true; e.remindDay = ''; }
+  }
+  save();
+  return publicExp(e);
+}
+function expRemind() {
+  if (!tgHas('expenses')) return;
+  const now = new Date(Date.now() + 7 * 3600e3), today = todayBkk();
+  if (now.getUTCHours() < 9) return;
+  const lines = [];
+  for (const e of db.expenses) {
+    if (!e.active || !isDate(e.nextDue) || e.remindDay === today) continue;
+    const d = daysTo(e.nextDue), card = e.card4 ? ` с карты •••• ${e.card4}` : '', link = e.link ? `\n${e.link}` : '';
+    if (d < 0) lines.push(e.auto ? `🔴 ${e.name}: дата списания прошла ${-d} дн. назад (${ruDate(e.nextDue)}), ${expMoney(e)}. Если списалось — отметьте «Оплачено» в админке${link}`
+      : `🔴 Просрочена оплата ${-d} дн. — ${e.name}: ${expMoney(e)} (${ruDate(e.nextDue)})${link}`);
+    else if (d === 0) lines.push(e.auto ? `🟠 Сегодня автосписание — ${e.name}: ${expMoney(e)}${card}${link}` : `🟠 Сегодня оплатить — ${e.name}: ${expMoney(e)}${link}`);
+    else if ([1, 3, 7].includes(d) || (d === 30 && e.period === 'year')) {
+      lines.push(e.auto ? `💳 Через ${d} дн. (${ruDate(e.nextDue)}) спишется ${expMoney(e)}${card} — ${e.name}. Проверьте баланс${link}`
+        : `💳 Через ${d} дн. (${ruDate(e.nextDue)}) оплатить ${e.name}: ${expMoney(e)}${link}`);
+    } else continue;
+    e.remindDay = today;
+  }
+  if (now.getUTCDay() === 1 && db.expWeekly !== today) {
+    db.expWeekly = today;
+    const week = db.expenses.filter((e) => e.active && daysTo(e.nextDue) !== null && daysTo(e.nextDue) <= 7)
+      .map((e) => `• ${e.name} — ${ruDate(e.nextDue)}${daysTo(e.nextDue) < 0 ? ' (просрочен)' : ''}${e.auto ? ', автосписание' : ''}, ${expMoney(e)}`);
+    const month = db.expenses.filter((e) => e.active).reduce((a, e) => a + publicExp(e).monthThb, 0);
+    lines.push(`📊 Расходы на неделю: ${week.length ? `\n${week.join('\n')}` : 'платежей на этой неделе нет'}\nВ месяц всего ≈ ${baht(month)}`);
+  }
+  if (!lines.length) return;
+  save();
+  tgTo('expenses', `JET MEDIA · Расходы\n\n${lines.join('\n\n')}`);
+}
+setTimeout(expRemind, 90_000).unref();
+setInterval(expRemind, 30 * 60_000).unref();
+// Однократно: заготовки — суммы и даты вписываются в админке
+if (!db.migrations.expSeed) {
+  if (!db.expenses.length) {
+    for (const [name, cat, period] of [['VPS (сервер)', 'server', 'month'], ['Claude — подписка', 'ai', 'month'], ['ElevenLabs — подписка', 'ai', 'month'], ['Домен jetmedia.dev', 'domain', 'year']]) {
+      db.expenses.push(cleanExp({ name, cat, period, cur: 'USD' }));
+    }
+  }
+  db.migrations.expSeed = Date.now();
+}
 
 // ---------- Администратор
 
@@ -2608,7 +2771,7 @@ async function guestLead(b) {
   logEvent(r.id, 'lead', { dev: d.id, ad: a.id, table: d.table || undefined });
   const text = `📩 Заявка по рекламе «${a.advertiser}${a.title ? ` — ${a.title}` : ''}»\nИмя: ${name || '—'}\nТелефон: ${phone}\n`
     + `Ресторан: ${r.name}${place ? ` · ${place}` : ''}\nВремя: ${clock(lead.at)}`;
-  if (a.leadToMe !== false && db.telegram.token) { await tgSend(db.telegram, text); lead.sent.push('me'); }
+  if (a.leadToMe !== false && tgBotsFor('leads').length) { await tgTo('leads', text); lead.sent.push('me'); }
   if (a.leadTg?.token && a.leadTg.chats?.length) { await tgSend(a.leadTg, text); lead.sent.push('advertiser'); }
   save();
   return {};
@@ -2630,7 +2793,7 @@ async function guestJoinRequest(b) {
   const jr = { id: uid(), at: Date.now(), rid: r?.id || '', dev: d.id, place, name, phone, lang: String(b.lang || '').slice(0, 5), done: false };
   db.joinReqs = [jr, ...db.joinReqs].slice(0, 2000);
   save();
-  await tgSend(db.telegram, `🤝 Заявка на подключение ресторана\nИмя: ${name || '—'}\nТелефон: ${phone}\n`
+  await tgTo('join', `🤝 Заявка на подключение ресторана\nИмя: ${name || '—'}\nТелефон: ${phone}\n`
     + `Откуда: ${r ? r.name : 'планшет'}${place ? ` · ${place}` : ''} (${d.id})\nВремя: ${clock(jr.at)}`);
   return {};
 }
@@ -2709,6 +2872,7 @@ function admin(method, p, b, me, q) {
   }
   if (p.startsWith('/api/admins')) return adminsApi(method, p, b, me);
   if (p.startsWith('/api/crm')) return crmApi(method, p, b, me);
+  if (p.startsWith('/api/expenses')) return expensesApi(method, p, b, me);
   if (method === 'GET' && p === '/api/audit') return readAudit(q, scope);
   // Статистика: сеть (все доступные рестораны) и, если выбран ресторан, его подробный отчёт
   if (method === 'GET' && p === '/api/stats') {
@@ -2721,7 +2885,7 @@ function admin(method, p, b, me, q) {
       restaurant: r ? restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r), tests: q.tests === '1' }) : null,
     };
   }
-  if (p.startsWith('/api/telegram') && (method === 'GET' || method === 'POST')) return telegramAdmin(method, p, b);
+  if (p.startsWith('/api/telegram')) return telegramAdmin(method, p, b);
   if (method === 'GET' && p === '/api/pending') {
     // Ожидающие подтверждения за последние сутки
     return Object.values(db.pending).filter((d) => Date.now() - d.lastSeen < 864e5);
