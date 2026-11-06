@@ -538,6 +538,8 @@ function diagServer(b, q, req) {
 function adminsApi(method, p, b, me) {
   if (p === '/api/admins/service-pin') return servicePinApi(method, b, me);
   if (p.startsWith('/api/admins/diag-keys')) return diagKeysApi(method, p, b, me);
+  // Ключ регистрации планшетов — для загрузчика (provision): только суперадмину
+  if (p === '/api/admins/device-key') return { key: DEVICE_KEY, instance: INSTANCE };
   if (method === 'GET') return db.admins.map(publicAdmin);
   const supers = (except) => db.admins.filter((a) => a.role === 'super' && !a.disabled && a.id !== except).length;
   const m = p.match(/^\/api\/admins\/([^/]+)$/);

@@ -168,15 +168,30 @@ function Provision($s) {
   Write-Log $i "ok"
 }
 
-Say "JET MEDIA — подготовка планшетов. Версия скрипта: 07.11.2026-2" Cyan
+Say "JET MEDIA — подготовка планшетов. Версия скрипта: 07.11.2026-3" Cyan
 & $Adb start-server | Out-Null
 # Ключ регистрации: спрашиваем один раз и запоминаем рядом со скриптом.
 # Можно пропустить — тогда планшет появится в портале в «Новых устройствах» и его нужно добавить вручную.
 $KeyFile = "$PSScriptRoot\device-key.txt"
-if (-not $EnrollCode -and (Test-Path $KeyFile)) { $EnrollCode = (Get-Content $KeyFile -Raw).Trim() }
-if (-not $EnrollCode -and -not $CheckOnly) {
-  $EnrollCode = (Read-Host "Ключ регистрации устройств (показан в конце установки сервера). Enter — пропустить").Trim()
-  if ($EnrollCode) { Set-Content $KeyFile $EnrollCode }
+if (-not $EnrollCode -and (Test-Path $KeyFile)) { $EnrollCode = "$(Get-Content $KeyFile -Raw)".Trim() }   # пустой файл — как нет ключа
+# Ключ проверяем на сервере: он же даёт сети «для всех планшетов» и PIN сервисного меню из админки
+function Test-Key($key) {
+  try { Invoke-RestMethod -Uri "$ServerUrl/api/device/fleet-wifi?key=$([uri]::EscapeDataString($key))" -TimeoutSec 15 -UseBasicParsing | Out-Null; return 'ok' }
+  catch { if ("$($_.Exception.Message)" -match '403') { return 'bad' } else { return 'offline' } }
+}
+if ($EnrollCode -and -not $CheckOnly -and (Test-Key $EnrollCode) -eq 'bad') {
+  Say "Ключ из device-key.txt не подходит к серверу $ServerUrl." Yellow
+  $EnrollCode = ''
+}
+while (-not $EnrollCode -and -not $CheckOnly) {
+  Say "Ключ регистрации планшетов: админка → «Администраторы» → «Ключ регистрации планшетов» → «Скопировать»." Cyan
+  $EnrollCode = (Read-Host "Вставьте ключ. Enter — без ключа (сети и PIN из админки не подтянутся, планшет придётся добавить вручную)").Trim()
+  if (-not $EnrollCode) { Say "Без ключа: сети Wi-Fi и PIN сервисного меню из админки не возьмутся — PIN будет $Pin." Yellow; break }
+  $check = Test-Key $EnrollCode
+  if ($check -eq 'bad') { Say "Ключ не подходит — проверьте, что скопирован целиком." Red; $EnrollCode = ''; continue }
+  if ($check -eq 'offline') { Say "Сервер $ServerUrl не отвечает — ключ сохраню, проверить не удалось." Yellow }
+  Set-Content $KeyFile $EnrollCode
+  Say "Ключ сохранён в device-key.txt." Green
 }
 # Сети «для всех планшетов» из админки («Устройства» → «Wi-Fi для всех планшетов»): агент сохранит их сам,
 # а первую (основную) скрипт подключит сразу — вводить Wi-Fi руками не нужно

@@ -325,6 +325,13 @@
       <button onclick="savePin()">Сменить PIN</button></div>
     <small class="hint">4–8 цифр. Планшеты получат новый PIN, когда выйдут на связь (обычно за 15 секунд), и будут помнить его без интернета. Сам PIN нигде не хранится — только его отпечаток.</small>
   </div>
+  <div class="form" id="devKeyBox" style="display:block">
+    <b>🔑 Ключ регистрации планшетов</b> <small class="hint">— для загрузчика (provision): по нему новый планшет регистрируется сам и берёт из админки
+      сети Wi-Fi «для всех планшетов» и PIN сервисного меню. Загрузчик спросит его при первом запуске и запомнит в device-key.txt.</small>
+    <div style="margin-top:6px"><code id="devKey" style="user-select:all">••••••••••••</code>
+      <button type="button" onclick="showDevKey()">Показать</button> <button type="button" onclick="copyDevKey()">Скопировать</button>
+      <span id="devKeyNote" class="hint"></span></div>
+  </div>
   <div class="form" id="diagBox" style="display:block">
     <b>🔑 Ключ диагностики для Claude</b> <small class="hint">— только чтение: устройства, связь, обрывы, сбои, нагрузка сервера.
       Без гостей, заказов, персонала и паролей. Создавайте в рабочей админке (app.jetmedia.dev).</small>
@@ -2052,6 +2059,22 @@ async function savePin() {
   $('pinNew').value = $('pinNew2').value = '';
   loadPin();
   alert('PIN сменён. Планшеты получат его, когда выйдут на связь. Запишите PIN в надёжное место.');
+}
+
+// Ключ регистрации планшетов (для загрузчика) — по кнопке
+async function devKey() {
+  const r = await api('/api/admins/device-key');
+  if (r.error) { alert(r.error); return ''; }
+  if (!r.key) { $('devKeyNote').textContent = 'На сервере ключ не задан — планшеты регистрируются без ключа (добавляйте их в «Новых устройствах»).'; return ''; }
+  if (r.instance === 'test') $('devKeyNote').textContent = 'Это тестовая админка: для загрузчика берите ключ в рабочей (app.jetmedia.dev).';
+  return r.key;
+}
+async function showDevKey() { const k = await devKey(); if (k) $('devKey').textContent = k; }
+async function copyDevKey() {
+  const k = await devKey();
+  if (!k) return;
+  $('devKey').textContent = k;
+  navigator.clipboard.writeText(k).then(() => alert('Ключ скопирован — вставьте его в окно загрузчика'), () => alert('Выделите ключ и скопируйте вручную'));
 }
 
 // Ключ диагностики: сам ключ показываем один раз, на сервере — только отпечаток
