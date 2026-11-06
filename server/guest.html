@@ -506,6 +506,7 @@ function load() {
       menuSig = sig;
       MENU = {};
       s.menu.forEach(function (i) { MENU[i.id] = i; });
+      if (first) restoreCart(s);
       renderAll();
     } else renderFooter();
     if (sheetMode === 'cart' && $('cart').className.indexOf('show') >= 0) renderCart();
@@ -779,7 +780,33 @@ function aMenuText() {
   return n ? t('cart') + ' (' + n + ') · ' + money(cartTotal()) : t('menu');
 }
 
+// ---------- Корзина переживает перезапуск страницы (обновление агента, сбой): тот же визит стола и не дольше срока
+// очистки корзины. Агенту сообщаем, что гость занят планшетом, — обновление подождёт
+var CART_KEY = 'jmCart:' + (KEY || D), cartSaved = '';
+function saveCart() {
+  var v = JSON.stringify(cart);
+  if (v === cartSaved) return;
+  cartSaved = v;
+  try { localStorage[CART_KEY] = JSON.stringify({ visit: (state && state.visit) || 0, at: Date.now(), cart: cart }); } catch (e) { /* без хранилища */ }
+  agentActivity();
+}
+function restoreCart(s) {
+  try {
+    var x = JSON.parse(localStorage[CART_KEY] || 'null');
+    if (!x || x.visit !== (s.visit || 0) || Date.now() - x.at > ((s.timers || {}).cartMin || 15) * 60000) return;
+    Object.keys(x.cart || {}).forEach(function (k) { if (MENU[k.split('|')[0]] && x.cart[k] > 0) cart[k] = x.cart[k]; });
+    cartSaved = JSON.stringify(cart);
+  } catch (e) { /* испорченная запись — пустая корзина */ }
+}
+var agentPing = 0;
+function agentActivity() {
+  if (Date.now() - agentPing < 10000 && cartCount()) return;
+  agentPing = Date.now();
+  try { if (window.JetAgent && JetAgent.activity) JetAgent.activity(cartCount()); } catch (e) { /* старый агент */ }
+}
+
 function renderFooter() {
+  saveCart();
   if ($('aMenu')) $('aMenu').textContent = aMenuText();
   if (isEntrance()) {
     $('foot').innerHTML = '<button class="main" id="backBtn">' + t('back') + '</button>' + avatarChatBtn();
@@ -1689,7 +1716,7 @@ document.addEventListener('click', function (e) {
   else if (d.avchat) showAttract('avatar');
 });
 
-document.addEventListener('pointerdown', function () { lastTouch = Date.now(); }, true);
+document.addEventListener('pointerdown', function () { lastTouch = Date.now(); if (Date.now() - agentPing > 10000) agentActivity(); }, true);
 
 // Простой: карусель после заданной паузы (у входа — всегда), автоперелистывание.
 // Неотправленная корзина очищается через N минут без касаний, язык гостя держится, пока стол не закрыли

@@ -11,8 +11,8 @@
   Что делает с каждым планшетом:
     1. проверяет модель, Android, аккаунты, пользователей, текущего владельца устройства;
     2. скачивает свежий агент с GitHub, ставит его и делает его владельцем устройства (Device Owner);
-    3. подключает Wi-Fi (если задан), включает «не гаснуть на зарядке»;
-    4. запускает агент и передаёт ему адрес сервера и код регистрации;
+    3. подключает Wi-Fi (заданный или первую сеть «для всех планшетов» из админки), включает «не гаснуть на зарядке»;
+    4. запускает агент и передаёт ему адрес сервера, код регистрации и сети «для всех планшетов» из админки;
     5. пишет результат в provision-log.csv.
 #>
 param(
@@ -146,13 +146,16 @@ function Provision($s) {
 
   if ($WifiSsid) {
     Say "  Подключаю Wi-Fi $WifiSsid..."
-    $out = Sh $s "cmd wifi connect-network '$WifiSsid' wpa2 '$WifiPass'"
+    $sec = if ($WifiPass) { "wpa2 '$WifiPass'" } else { 'open' }
+    $out = Sh $s "cmd wifi connect-network '$WifiSsid' $sec"
     if ($out -match 'rror|nknown') { Say "  Wi-Fi не подключился: $out (подключите вручную)" Yellow }
   }
   Sh $s 'settings put global stay_on_while_plugged_in 7' | Out-Null
 
   # Конфиг агенту: JSON в base64, чтобы не мучиться с кавычками в командной строке
-  $json = @{ server = $ServerUrl; enroll = $EnrollCode; url = $StartUrl; pin = $Pin; serial = $s; provisionedAt = (Get-Date -Format s) } | ConvertTo-Json -Compress
+  $cfg = @{ server = $ServerUrl; enroll = $EnrollCode; url = $StartUrl; pin = $Pin; serial = $s; provisionedAt = (Get-Date -Format s) }
+  if ($Fleet -and $Fleet.nets) { $cfg.wifi = $Fleet }   # агент сохранит эти сети сразу, до первой связи с сервером
+  $json = $cfg | ConvertTo-Json -Compress -Depth 6
   $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json))
   Sh $s "am start -n $Pkg/.MainActivity --es config $b64" | Out-Null
 
@@ -163,7 +166,7 @@ function Provision($s) {
   Write-Log $i "ok"
 }
 
-Say "JET MEDIA — подготовка планшетов. Версия скрипта: 31.10.2026-2" Cyan
+Say "JET MEDIA — подготовка планшетов. Версия скрипта: 07.11.2026-1" Cyan
 & $Adb start-server | Out-Null
 # Ключ регистрации: спрашиваем один раз и запоминаем рядом со скриптом.
 # Можно пропустить — тогда планшет появится в портале в «Новых устройствах» и его нужно добавить вручную.
@@ -173,10 +176,24 @@ if (-not $EnrollCode -and -not $CheckOnly) {
   $EnrollCode = (Read-Host "Ключ регистрации устройств (показан в конце установки сервера). Enter — пропустить").Trim()
   if ($EnrollCode) { Set-Content $KeyFile $EnrollCode }
 }
-# Wi-Fi ресторана: спрашиваем на каждый запуск (у каждого ресторана своя сеть), не запоминаем
+# Сети «для всех планшетов» из админки («Устройства» → «Wi-Fi для всех планшетов»): агент сохранит их сам,
+# а первую (основную) скрипт подключит сразу — вводить Wi-Fi руками не нужно
+$Fleet = $null
+if ($EnrollCode -and -not $CheckOnly) {
+  try {
+    $Fleet = Invoke-RestMethod -Uri "$ServerUrl/api/device/fleet-wifi?key=$([uri]::EscapeDataString($EnrollCode))" -TimeoutSec 15 -UseBasicParsing
+    if ($Fleet.nets) { Say "Сети для всех планшетов из админки: $(($Fleet.nets | ForEach-Object { $_.ssid }) -join ', ')" Green }
+    else { Say "В админке нет сетей «для всех планшетов» (Устройства → Wi-Fi для всех планшетов)." Yellow }
+  } catch { Say "Не удалось взять сети из админки: $($_.Exception.Message)" Yellow }
+}
+# Wi-Fi для подключения сейчас: задан в параметрах, иначе спрашиваем; Enter — основная (или первая) сеть из админки
 if (-not $WifiSsid -and -not $CheckOnly) {
-  $WifiSsid = (Read-Host "Wi-Fi ресторана: имя сети. Enter — не настраивать").Trim()
-  if ($WifiSsid) { $WifiPass = Read-Host "Пароль Wi-Fi «$WifiSsid»" }
+  $def = $null
+  if ($Fleet -and $Fleet.nets) { $def = @($Fleet.nets | Where-Object { $_.ssid -eq $Fleet.primary })[0]; if (-not $def) { $def = @($Fleet.nets)[0] } }
+  $hint = if ($def) { "Enter — «$($def.ssid)» из админки" } else { 'Enter — не настраивать' }
+  $WifiSsid = (Read-Host "Wi-Fi для подключения сейчас: имя сети. $hint").Trim()
+  if ($WifiSsid) { $WifiPass = Read-Host "Пароль Wi-Fi «$WifiSsid» (Enter — сеть без пароля)" }
+  elseif ($def) { $WifiSsid = $def.ssid; $WifiPass = $def.pass }
 }
 if (-not $CheckOnly) { Get-Agent }
 $done = @{}; $warned = @{}

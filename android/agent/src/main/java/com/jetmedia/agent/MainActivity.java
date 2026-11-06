@@ -306,6 +306,13 @@ public class MainActivity extends Activity {
     }
 
     private class SpeechBridge {
+        // Страница стола: гость трогает экран или в корзине есть блюда — обновление агента подождёт
+        @JavascriptInterface
+        public void activity(int cartItems) {
+            lastGuestActivity = System.currentTimeMillis();
+            guestCart = cartItems;
+        }
+
         @JavascriptInterface
         public void speak(String text, String lang, double pitch, double rate) {
             say(text, lang, "", pitch, rate);
@@ -360,7 +367,14 @@ public class MainActivity extends Activity {
             SharedPreferences.Editor e = prefs.edit();
             for (Iterator<String> it = c.keys(); it.hasNext(); ) {
                 String key = it.next();
+                if (key.equals("wifi")) continue;
                 e.putString(key, c.optString(key));
+            }
+            // сети «для всех планшетов» из админки, которые взял загрузчик: сохраним сразу, без связи с сервером
+            JSONObject w = c.optJSONObject("wifi");
+            if (w != null && w.optJSONArray("nets") != null && w.optJSONArray("nets").length() > 0) {
+                e.putString("wifiCfg", w.toString()).putString("wifiV", "prov").putString("wifiIdxMap", "{}");
+                restCfgNew = true;
             }
             e.apply();
             return true;
@@ -473,7 +487,7 @@ public class MainActivity extends Activity {
                     .put("android", Build.VERSION.RELEASE).put("owner", isOwner())
                     .put("uptime", SystemClock.elapsedRealtime()).put("allowOpen", prefs.getBoolean("allowOpen", false))
                     .put("screen", screenOn()).put("freeMb", freeMb())
-                    .put("wifiV", prefs.getString("wifiV", "")).put("authFail", authFail == null ? JSONObject.NULL : authFail)
+                    .put("wifiV", prefs.getString("wifiV", "")).put("authFail", authFail == null ? JSONObject.NULL : authFail).put("nets", netsTelemetry())
                     .put("backup", backupId != -1 && curId() == backupId
                             ? new JSONObject().put("ssid", curSsid()).put("since", backupSince) : JSONObject.NULL)
                     .put("url", prefs.getString("url", "")).put("voices", voiceList())
@@ -515,7 +529,7 @@ public class MainActivity extends Activity {
             // сеть ресторана из админки (имя, пароль, новый пароль) — приходит, когда изменилась
             JSONObject wcfg = resp.optJSONObject("wifi");
             if (wcfg != null && !wcfg.optString("v").equals(prefs.getString("wifiV", ""))) {
-                prefs.edit().putString("wifiCfg", wcfg.toString()).putString("wifiV", wcfg.optString("v")).putInt("wifiIdx", 0).apply();
+                prefs.edit().putString("wifiCfg", wcfg.toString()).putString("wifiV", wcfg.optString("v")).putString("wifiIdxMap", "{}").apply();
                 restCfgNew = true;
             }
             // разрешены ли чужие открытые сети как запасные (включается в админке, по умолчанию — нет)
@@ -555,9 +569,8 @@ public class MainActivity extends Activity {
     private WifiManager.WifiLock wifiLock, wifiLockFast;
     private int step, outageFails, trialId = -1, backupId = -1, mainTrialBack = -1, trialLevel;
     private boolean everOk; // сервер хоть раз ответил после запуска — до этого сеть просто поднимается после включения
-    private boolean restCfgNew, triedNext;
-    private long lastRestCheck, restFailSince;
-    private JSONObject authFail; // сеть ресторана видна, но не пускает (похоже, сменили пароль)
+    private boolean restCfgNew;
+    private JSONObject authFail; // сеть из админки видна, но не пускает (похоже, сменили пароль)
     private String pickInfo = "";
     private long lastStepAt, outageStart, trialUntil, backupSince, mainTrialUntil;
     private boolean trialOurs;
@@ -677,12 +690,21 @@ public class MainActivity extends Activity {
                 wm.setWifiEnabled(true);
                 netLog("", "", "Wi-Fi был выключен — включил");
             }
+            recordStat(ok, now);
+            if (restCfgNew && isOwner() && screenOn() && trialId == -1 && mainTrialBack == -1) {
+                restCfgNew = false;
+                applyAdminCfg(now, ok);
+            }
+            if (!pendingRemove.isEmpty()) {
+                String cs = curSsid();
+                for (String ssid : new java.util.ArrayList<>(pendingRemove)) if (!ssid.equals(cs)) { forget(ssid); pendingRemove.remove(ssid); }
+            }
             int cur = curId();
-            restWifi(now, ok);
-            cur = curId();
             if (ok) {
+                boolean counted = everOk && outageFails >= 2 && outageWifi != null; // обрыв (не подъём сети после включения)
                 lastServerOk = now;
                 everOk = true;
+                if (counted) recordOutage(outageWifi.optString("ssid"), outageStart); // — на счёт той сети
                 outageStart = 0;
                 outageFails = 0;
                 outageSteps = "";
@@ -695,10 +717,17 @@ public class MainActivity extends Activity {
                     trialId = -1;
                 }
                 if (mainTrialBack != -1) {
+                    boolean on = curSsid().equals(switchTarget);
+                    if (!on && now < mainTrialUntil) return; // Android ещё переключается — ждём до конца минуты
+                    boolean wasBackup = isOurs(mainTrialBack);
                     mainTrialBack = -1;
-                    backupId = -1;
-                    dropBackups();
-                    netLog(curSsid(), curSsid(), "основная сеть снова работает — вернулся, запасные убрал");
+                    if (on) {
+                        if (wasBackup) { backupId = -1; dropBackups(); }
+                        netLog(curSsid(), curSsid(), "«" + switchTarget + "»: сервер отвечает — остаюсь" + (wasBackup ? ", запасные убрал" : ""));
+                    } else {
+                        switchBan.put(switchTarget, now + 20 * 60_000);
+                        netLog(curSsid(), curSsid(), "к «" + switchTarget + "» не подключился — Android вернул на «" + curSsid() + "», 20 мин её не пробую");
+                    }
                 } else if (backupId == -1 && isOurs(cur)) {
                     backupId = cur; // агент перезапустился, стоя на запасной сети
                     backupSince = now;
@@ -710,12 +739,10 @@ public class MainActivity extends Activity {
                     if (main == null) {
                         backupSince = now; // основной сети рядом не видно — ещё 25 минут на запасной
                     } else {
-                        mainTrialBack = cur;
-                        mainTrialUntil = now + MAIN_TRIAL_MS;
-                        netLog(curSsid(), main.ssid, "25 мин на запасной сети — пробую вернуться на основную");
-                        wm.enableNetwork(main.id, true);
+                        switchTo(main.ssid, main.id, now, "25 мин на запасной сети — пробую вернуться на «" + main.ssid + "»");
                     }
                 }
+                steer(now);
                 return;
             }
 
@@ -738,7 +765,26 @@ public class MainActivity extends Activity {
                 String why = trialProblem(err);
                 // страницу входа Android распознаёт сам — тогда не ждём 40 с
                 if (now < trialUntil && !why.startsWith("страница входа")) return; // сеть подключается и получает адрес — ждём
-                banned.put(trialSsid, now + BAN_MS);
+                JSONObject an = adminNet(trialSsid);
+                boolean noJoin = why.startsWith("не подключилась");
+                // сеть из админки не пускает: есть «новый пароль» — пробуем его сразу
+                if (an != null && noJoin && !an.optString("pass2").isEmpty() && idxOf(trialSsid) == 0) {
+                    int id = writeNet(an, 1);
+                    if (id != -1) {
+                        wm.enableNetwork(id, true);
+                        trialId = id;
+                        trialUntil = now + TRIAL_MS;
+                        netLog(trialSsid, trialSsid, "сеть «" + trialSsid + "» не пускает — пробую новый пароль из админки");
+                        return;
+                    }
+                }
+                if (an != null && noJoin && trialLevel >= -75) {
+                    if (idxOf(trialSsid) == 1) writeNet(an, 0); // и новый не подошёл — возвращаем прежний
+                    authBad.put(trialSsid, now);
+                    try { authFail = new JSONObject().put("ssid", trialSsid).put("at", now).put("level", trialLevel); } catch (Exception ignored) { }
+                    netLog(trialSsid, "", "сеть «" + trialSsid + "» видна (сигнал " + trialLevel + " dBm), но не пускает — похоже, сменили пароль");
+                }
+                banned.put(trialSsid, now + (an != null ? 10 * 60_000 : BAN_MS)); // свою сеть пробуем снова через 10 минут
                 if (trialOurs) {
                     wm.removeNetwork(trialId);
                     String keep = ("," + prefs.getString("addedOpen", "") + ",").replace("," + trialId + ",", ",");
@@ -753,10 +799,10 @@ public class MainActivity extends Activity {
             }
             if (mainTrialBack != -1) {
                 if (now < mainTrialUntil) return;
-                netLog(curSsid(), "", "основная сеть всё ещё не работает — вернулся на запасную");
+                netLog(curSsid(), "", "«" + switchTarget + "» не дала связи за минуту — вернулся обратно, 20 мин её не пробую");
+                switchBan.put(switchTarget, now + 20 * 60_000);
                 wm.enableNetwork(mainTrialBack, true);
-                backupId = mainTrialBack;
-                backupSince = now;
+                if (isOurs(mainTrialBack)) { backupId = mainTrialBack; backupSince = now; }
                 mainTrialBack = -1;
                 lastStepAt = now;
                 return;
@@ -838,6 +884,11 @@ public class MainActivity extends Activity {
         return "запасная сеть «" + c.ssid + "»";
     }
 
+    // Порядок при обрыве: основная из админки, другие сохранённые, открытые
+    private int rank(Candidate c) {
+        return c.ours ? 2 : c.ssid.equals(primarySsid()) ? 0 : 1;
+    }
+
     // Лучшая сеть рядом (кроме текущей и тех, что не прошли проверку за последний час). mainOnly — только
     // сохранённые людьми (основные), иначе сначала сохранённые, потом открытые; среди равных — по силе сигнала
     private Candidate pick(boolean allowOpen, boolean mainOnly) {
@@ -861,13 +912,13 @@ public class MainActivity extends Activity {
             if (s.level < -85) continue; // слишком слабый сигнал — не меняем шило на мыло
             if (q.equals(current) || (ban != null && ban > now)) continue;
             Candidate c = null;
-            if (authFail != null && s.SSID.equals(authFail.optString("ssid"))) continue; // пароль не подходит — не тратим время
+            if (authBad.containsKey(s.SSID)) continue; // пароль не подходит — не тратим время
             if (saved != null) for (WifiConfiguration w : saved) {
                 if (q.equals(w.SSID)) { c = new Candidate(w.networkId, s.SSID, s.level, isOurs(w.networkId)); break; }
             }
             if (c == null && allowOpen && !mainOnly && !s.capabilities.matches(".*(WEP|PSK|EAP|SAE|OWE).*")) c = new Candidate(-1, s.SSID, s.level, true);
             if (c == null || (mainOnly && c.ours)) continue;
-            boolean better = best == null || (best.ours && !c.ours) || (best.ours == c.ours && c.level > best.level);
+            boolean better = best == null || rank(c) < rank(best) || (rank(c) == rank(best) && c.level > best.level);
             if (better) best = c;
         }
         pickInfo = "рядом других сетей " + seen + ", открытых " + open
@@ -877,16 +928,47 @@ public class MainActivity extends Activity {
         return best;
     }
 
-    // ---------- Сеть ресторана из админки. Сохраняем её сами (в сервисное меню лезть не нужно). Пароль сменили:
-    // есть второй (новый) пароль из админки — пробуем его; нет — отмечаем «не пускает» (сервер напишет в Telegram),
-    // а связь держим через открытую сеть рядом, пока в админке не впишут новый пароль: он придёт сюда же
-    private JSONObject restCfg() {
+    // ---------- Сети из админки: для всех планшетов, ресторана и этого планшета — сервер присылает итоговый список.
+    // Сохраняем их сами (в сервисное меню лезть не нужно); удалённые в админке — забываем (ту, через которую сейчас
+    // есть связь, — когда перейдём на другую). «Основная» — держимся её, когда она видна. Основной нет — выбираем сами:
+    // переходим на другую сеть из списка, только если она явно лучше по сигналу и стабильности (счёт за сутки).
+    // Пароль сменили: есть «новый пароль» — пробуем его; нет — «не пускает» (сервер напишет в Telegram), а связь держим
+    // через открытую сеть рядом, пока в админке не впишут новый пароль — он придёт через неё
+    private final Map<String, Long> authBad = new HashMap<>(), switchBan = new HashMap<>();
+    private final java.util.Set<String> pendingRemove = new java.util.HashSet<>();
+    private long lastSteer, lastSwitchAt, lastScanAt, lastStatsSave;
+    private String switchTarget = "";
+    private JSONObject stats;
+
+    private JSONObject adminCfg() {
         try {
             String s = prefs.getString("wifiCfg", "");
             return s.isEmpty() ? null : new JSONObject(s);
         } catch (Exception e) {
             return null;
         }
+    }
+
+    // Список сетей; старый формат (одна сеть ssid / pass / pass2) — как список из одной
+    private JSONArray adminNets() {
+        JSONObject c = adminCfg();
+        if (c == null) return new JSONArray();
+        JSONArray nets = c.optJSONArray("nets");
+        if (nets != null) return nets;
+        JSONArray one = new JSONArray();
+        try { if (!c.optString("ssid").isEmpty()) one.put(new JSONObject().put("ssid", c.optString("ssid")).put("pass", c.optString("pass")).put("pass2", c.optString("pass2"))); } catch (Exception ignored) { }
+        return one;
+    }
+
+    private JSONObject adminNet(String ssid) {
+        JSONArray nets = adminNets();
+        for (int i = 0; i < nets.length(); i++) if (ssid.equals(nets.optJSONObject(i).optString("ssid"))) return nets.optJSONObject(i);
+        return null;
+    }
+
+    private String primarySsid() {
+        JSONObject c = adminCfg();
+        return c == null ? "" : c.optString("primary");
     }
 
     private WifiConfiguration findConf(String ssid) {
@@ -905,10 +987,15 @@ public class MainActivity extends Activity {
         }
     }
 
-    // Записать сеть ресторана с паролем номер idx (0 — пароль, 1 — новый пароль). Возвращает id сети или -1
-    private int writeRest(JSONObject cfg, int idx) {
+    // Каким паролем записана сеть: 0 — «пароль», 1 — «новый пароль»
+    private int idxOf(String ssid) {
+        try { return new JSONObject(prefs.getString("wifiIdxMap", "{}")).optInt(ssid, 0); } catch (Exception e) { return 0; }
+    }
+
+    // Записать сеть из админки с паролем номер idx. Возвращает id сети или -1
+    private int writeNet(JSONObject n, int idx) {
         WifiManager wm = wifi();
-        String ssid = cfg.optString("ssid"), pass = cfg.optString(idx == 0 ? "pass" : "pass2");
+        String ssid = n.optString("ssid"), pass = n.optString(idx == 0 ? "pass" : "pass2");
         WifiConfiguration c = findConf(ssid);
         int id;
         if (c == null) {
@@ -926,67 +1013,199 @@ public class MainActivity extends Activity {
             }
         }
         if (id != -1) wm.enableNetwork(id, false);
-        prefs.edit().putInt("wifiIdx", idx).apply();
+        try { prefs.edit().putString("wifiIdxMap", new JSONObject(prefs.getString("wifiIdxMap", "{}")).put(ssid, idx).toString()).apply(); } catch (Exception ignored) { }
         return id;
     }
 
-    private void restWifi(long now, boolean ok) {
-        if (!isOwner() || !screenOn() || trialId != -1 || mainTrialBack != -1) return;
-        JSONObject cfg = restCfg();
-        if (cfg == null || cfg.optString("ssid").isEmpty()) return;
-        String ssid = cfg.optString("ssid"), cur = curSsid();
-        boolean onRest = cur.equals(ssid);
-        if (restCfgNew) { // новые данные из админки
-            restCfgNew = false;
-            triedNext = false;
+    private void forget(String ssid) {
+        WifiConfiguration c = findConf(ssid);
+        if (c != null) wifi().removeNetwork(c.networkId);
+    }
+
+    // Новые данные из админки: сохранить сети, забыть удалённые; стоим на запасной открытой — сразу пробуем сеть из списка
+    private void applyAdminCfg(long now, boolean ok) {
+        JSONArray nets = adminNets();
+        String cur = curSsid();
+        java.util.Set<String> want = new java.util.LinkedHashSet<>();
+        for (int i = 0; i < nets.length(); i++) {
+            JSONObject n = nets.optJSONObject(i);
+            String ssid = n.optString("ssid");
+            if (ssid.isEmpty()) continue;
+            want.add(ssid);
             banned.remove(ssid);
-            boolean hadFail = authFail != null;
-            authFail = null;
-            restFailSince = 0;
-            if (onRest && ok) return; // подключены и связь есть — текущий пароль годится, ничего не трогаем
-            int id = writeRest(cfg, 0);
-            netLog(cur, ssid, id == -1 ? "не удалось сохранить сеть ресторана «" + ssid + "» из админки"
-                    : (hadFail ? "новый пароль сети «" + ssid + "» из админки — подключаюсь" : "сеть ресторана «" + ssid + "» сохранена из админки"));
-            // стоим на запасной открытой сети — сразу пробуем вернуться (минута на проверку, не вышло — назад)
-            if (id != -1 && backupId != -1 && curId() == backupId) {
-                mainTrialBack = backupId;
-                mainTrialUntil = now + MAIN_TRIAL_MS;
-                wifi().enableNetwork(id, true);
+            if (cur.equals(ssid) && ok) continue; // подключены и связь есть — текущий пароль годится, ничего не трогаем
+            writeNet(n, 0);
+        }
+        try {
+            JSONArray had = new JSONArray(prefs.getString("adminSsids", "[]"));
+            for (int i = 0; i < had.length(); i++) {
+                String ssid = had.optString(i);
+                if (want.contains(ssid)) continue;
+                if (ssid.equals(cur) && ok) pendingRemove.add(ssid); else forget(ssid);
             }
-            return;
+        } catch (Exception ignored) { }
+        prefs.edit().putString("adminSsids", new JSONArray(want).toString()).apply();
+        authBad.clear();
+        switchBan.clear();
+        boolean hadFail = authFail != null;
+        authFail = null;
+        String primary = primarySsid();
+        netLog(cur, cur, (hadFail ? "новые данные Wi-Fi из админки (пароль обновлён): " : "сети из админки: ")
+                + (want.isEmpty() ? "нет" : String.join(", ", want)) + (primary.isEmpty() ? ", основной нет — выбираю сам" : ", основная «" + primary + "»"));
+        if (backupId != -1 && curId() == backupId) {
+            Candidate c = pick(false, true);
+            if (c != null) switchTo(c.ssid, c.id, now, "сеть «" + c.ssid + "» из админки рядом — ухожу с запасной открытой");
         }
-        if (onRest) {
-            if (ok) { authFail = null; restFailSince = 0; triedNext = false; }
-            return;
-        }
-        // «не пускает» — только когда планшет вообще не подключён к Wi-Fi, а сеть ресторана рядом видна с хорошим сигналом
-        // (подключён к другой сети или связь есть — значит, дело не в пароле)
-        if (ok || !cur.isEmpty()) { restFailSince = 0; return; }
-        if (now - lastRestCheck < 30_000) return;
-        lastRestCheck = now;
+    }
+
+    // Переход на другую сеть с проверкой: минута, чтобы сервер ответил, иначе назад и 20 минут её не пробуем
+    private void switchTo(String ssid, int id, long now, String why) {
+        mainTrialBack = curId();
+        mainTrialUntil = now + MAIN_TRIAL_MS;
+        lastSwitchAt = now;
+        switchTarget = ssid;
+        netLog(curSsid(), ssid, why);
+        wifi().enableNetwork(id, true);
+    }
+
+    // Раз в минуту, пока связь есть: держимся основной; без основной — переходим, только если другая сеть явно лучше
+    private void steer(long now) {
+        if (!isOwner() || !screenOn() || trialId != -1 || mainTrialBack != -1 || now - lastSteer < 60_000) return;
+        lastSteer = now;
+        JSONArray nets = adminNets();
+        if (nets.length() == 0) return;
+        int curId = curId();
+        if (backupId != -1 && curId == backupId) return; // на запасной открытой — возвратом занимается своя проверка
         WifiManager wm = wifi();
-        if (!wm.isWifiEnabled()) return; // выкл/вкл Wi-Fi — подождём
-        int level = -200;
-        for (ScanResult s : wm.getScanResults()) if (ssid.equals(s.SSID)) level = Math.max(level, s.level);
-        if (level < -75) { restFailSince = 0; return; } // не видно — мы не в ресторане или сеть выключена
-        if (findConf(ssid) == null) { writeRest(cfg, 0); return; }
-        if (restFailSince == 0) { restFailSince = now; return; }
-        if (now - restFailSince < 90_000) return; // Android пробует подключиться; переподключение и выкл/вкл Wi-Fi — тоже
-        // сеть видна полторы минуты, а подключиться не выходит — вероятно, сменили пароль
-        int idx = prefs.getInt("wifiIdx", 0), next = 1 - idx;
-        String other = cfg.optString(next == 0 ? "pass" : "pass2");
-        if (!triedNext && !other.isEmpty() && !other.equals(cfg.optString(idx == 0 ? "pass" : "pass2"))) {
-            triedNext = true;
-            restFailSince = now;
-            int id = writeRest(cfg, next);
-            if (id != -1) wm.enableNetwork(id, true);
-            netLog(cur, ssid, "сеть «" + ssid + "» не пускает — пробую " + (next == 1 ? "новый" : "прежний") + " пароль из админки");
+        if (now - lastScanAt > 120_000) { wm.startScan(); lastScanAt = now; }
+        Map<String, Integer> vis = new HashMap<>();
+        for (ScanResult r : wm.getScanResults()) {
+            if (r.SSID == null || adminNet(r.SSID) == null) continue;
+            Integer was = vis.get(r.SSID);
+            if (was == null || r.level > was) vis.put(r.SSID, r.level);
+        }
+        String cur = curSsid(), primary = primarySsid();
+        if (!primary.isEmpty()) {
+            Integer lv = vis.get(primary);
+            Long ban = switchBan.get(primary);
+            if (cur.equals(primary) || lv == null || lv < -72 || (ban != null && ban > now) || authBad.containsKey(primary) || now - lastSwitchAt < 5 * 60_000) return;
+            WifiConfiguration c = findConf(primary);
+            if (c != null) switchTo(primary, c.networkId, now, "основная сеть «" + primary + "» видна (сигнал " + lv + " dBm) — перехожу на неё");
             return;
         }
-        if (authFail == null) {
-            try { authFail = new JSONObject().put("ssid", ssid).put("at", now).put("level", level); } catch (Exception ignored) { }
-            netLog(cur, cur, "сеть ресторана «" + ssid + "» видна (сигнал " + level + " dBm), но не пускает — похоже, сменили пароль");
+        if (now - lastSwitchAt < 20 * 60_000) return;
+        WifiInfo info = wm.getConnectionInfo();
+        int rssi = info == null ? -100 : info.getRssi();
+        int out30 = outages(cur, now - 30 * 60_000);
+        if (out30 < 2 && rssi >= -75) return; // текущая сеть в порядке
+        String best = null;
+        int bestLv = -200, bestAvail = -1;
+        for (Map.Entry<String, Integer> e : vis.entrySet()) {
+            String ssid = e.getKey();
+            int lv = e.getValue(), av = avail(ssid);
+            Long ban = switchBan.get(ssid);
+            if (ssid.equals(cur) || lv < -70 || (ban != null && ban > now) || authBad.containsKey(ssid)) continue;
+            if (!(lv >= rssi + 10 || lv >= -65) || (av >= 0 && av < 95) || outages(ssid, now - 30 * 60_000) > 0) continue;
+            if (best == null || av > bestAvail || (av == bestAvail && lv > bestLv)) { best = ssid; bestLv = lv; bestAvail = av; }
         }
+        if (best == null) return;
+        WifiConfiguration c = findConf(best);
+        if (c != null) switchTo(best, c.networkId, now, "на «" + cur + "» " + (out30 >= 2 ? out30 + " обрыва за 30 мин" : "слабый сигнал " + rssi + " dBm")
+                + " — пробую «" + best + "» (сигнал " + bestLv + " dBm" + (bestAvail >= 0 ? ", на связи " + bestAvail + " %" : "") + ")");
+    }
+
+    // ---------- Счёт сетей за сутки (по часам): удачные и неудачные опросы при включённом экране, обрывы, сигнал
+    private JSONObject stats() {
+        if (stats == null) {
+            try { stats = new JSONObject(prefs.getString("netStats", "{}")); } catch (Exception e) { stats = new JSONObject(); }
+        }
+        return stats;
+    }
+
+    private JSONObject statOf(String ssid) throws Exception {
+        JSONObject x = stats().optJSONObject(ssid);
+        if (x == null) { x = new JSONObject().put("h", new JSONArray()).put("o", new JSONArray()).put("r", 0); stats().put(ssid, x); }
+        return x;
+    }
+
+    private void recordStat(boolean ok, long now) {
+        try {
+            if (!screenOn()) return;
+            String ssid = curSsid();
+            if (ssid.isEmpty()) return;
+            JSONObject x = statOf(ssid);
+            long hour = now / 3_600_000L;
+            JSONArray h = x.getJSONArray("h"), keep = new JSONArray();
+            JSONArray last = null;
+            for (int i = 0; i < h.length(); i++) {
+                JSONArray b = h.getJSONArray(i);
+                if (b.getLong(0) < hour - 23) continue;
+                keep.put(b);
+                if (b.getLong(0) == hour) last = b;
+            }
+            if (last == null) { last = new JSONArray().put(hour).put(0).put(0); keep.put(last); }
+            last.put(ok ? 1 : 2, last.getInt(ok ? 1 : 2) + 1);
+            x.put("h", keep);
+            WifiInfo info = wifi().getConnectionInfo();
+            if (info != null && info.getRssi() > -127) {
+                double r = x.optDouble("r", 0);
+                x.put("r", r == 0 ? info.getRssi() : r * 0.9 + info.getRssi() * 0.1);
+            }
+            if (now - lastStatsSave > 5 * 60_000) { lastStatsSave = now; prefs.edit().putString("netStats", stats().toString()).apply(); }
+        } catch (Exception ignored) { }
+    }
+
+    private void recordOutage(String ssid, long at) {
+        try {
+            if (ssid == null || ssid.isEmpty()) return;
+            JSONArray o = statOf(ssid).getJSONArray("o"), keep = new JSONArray();
+            for (int i = 0; i < o.length(); i++) if (o.getLong(i) > at - 24 * 3_600_000L) keep.put(o.getLong(i));
+            keep.put(at);
+            statOf(ssid).put("o", keep);
+            prefs.edit().putString("netStats", stats().toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
+    // Доля удачных опросов за сутки, % (-1 — истории нет)
+    private int avail(String ssid) {
+        JSONObject x = stats().optJSONObject(ssid);
+        if (x == null) return -1;
+        long hourNow = System.currentTimeMillis() / 3_600_000L, ok = 0, all = 0;
+        JSONArray h = x.optJSONArray("h");
+        for (int i = 0; h != null && i < h.length(); i++) {
+            JSONArray b = h.optJSONArray(i);
+            if (b == null || b.optLong(0) < hourNow - 23) continue;
+            ok += b.optInt(1);
+            all += b.optInt(1) + b.optInt(2);
+        }
+        return all < 20 ? -1 : (int) (ok * 100 / all);
+    }
+
+    private int outages(String ssid, long since) {
+        JSONObject x = stats().optJSONObject(ssid);
+        JSONArray o = x == null ? null : x.optJSONArray("o");
+        int n = 0;
+        for (int i = 0; o != null && i < o.length(); i++) if (o.optLong(i) > since) n++;
+        return n;
+    }
+
+    // Для админки: как работают сети из списка (и текущая) на этом планшете
+    private JSONArray netsTelemetry() {
+        JSONArray out = new JSONArray();
+        try {
+            java.util.Set<String> names = new java.util.LinkedHashSet<>();
+            JSONArray nets = adminNets();
+            for (int i = 0; i < nets.length(); i++) names.add(nets.optJSONObject(i).optString("ssid"));
+            if (!curSsid().isEmpty()) names.add(curSsid());
+            long day = System.currentTimeMillis() - 24 * 3_600_000L;
+            for (String ssid : names) {
+                JSONObject x = stats().optJSONObject(ssid);
+                int a = avail(ssid);
+                out.put(new JSONObject().put("ssid", ssid).put("avail", a < 0 ? JSONObject.NULL : a).put("out24", outages(ssid, day))
+                        .put("rssi", x == null || x.optDouble("r", 0) == 0 ? JSONObject.NULL : (int) Math.round(x.optDouble("r"))));
+            }
+        } catch (Exception ignored) { }
+        return out;
     }
 
     // Почему запасная сеть не подошла: не подключилась, не дала адрес, страница входа, нет интернета
@@ -1074,7 +1293,7 @@ public class MainActivity extends Activity {
                 if (isOwner()) dpm.reboot(admin);
                 break;
             case "update":
-                io.execute(() -> installUpdate(cmd.optString("url", DEFAULT_APK)));
+                if (!updScheduled) io.execute(() -> installUpdate(cmd.optString("url", DEFAULT_APK)));
                 break;
             case "say": // «Прослушать» в портале: фраза выбранным голосом
                 say(cmd.optString("text"), cmd.optString("lang", "en-US"), cmd.optString("voice"), cmd.optDouble("pitch", 1), cmd.optDouble("rate", 1));
@@ -1085,7 +1304,29 @@ public class MainActivity extends Activity {
     // Тихая установка новой версии агента: владельцу устройства подтверждение не нужно.
     // Скачиваем во временный файл (до 3 попыток), проверяем место и версию внутри файла. Итог — установлено,
     // уже последняя или ошибка с причиной — уходит на сервер: портал показывает, сервер повторяет команду
+    private volatile long lastGuestActivity;
+    private volatile int guestCart;
+    private volatile boolean updScheduled;
+    private long updWaitSince;
+
+    // Гость пользуется планшетом (корзина не пуста или касался экрана последние 2 минуты) — установка перезапустит
+    // приложение и прервёт его. Ждём, но не дольше 30 минут
+    private boolean guestBusy() {
+        return guestCart > 0 || System.currentTimeMillis() - lastGuestActivity < 120_000;
+    }
+
     private void installUpdate(String apkUrl) {
+        long nowMs = System.currentTimeMillis();
+        if (guestBusy()) {
+            if (updWaitSince == 0) updWaitSince = nowMs;
+            if (nowMs - updWaitSince < 30 * 60_000) {
+                updResult(this, "waiting", "жду, пока гость закончит с планшетом (корзина или касания)");
+                updScheduled = true;
+                handler.postDelayed(() -> { updScheduled = false; io.execute(() -> installUpdate(apkUrl)); }, 30_000);
+                return;
+            }
+        }
+        updWaitSince = 0;
         File apk = new File(getCacheDir(), "agent.apk");
         try {
             long free = freeMb();

@@ -149,6 +149,7 @@
 .permgrid label { display: flex; flex-direction: column; font-size: 13px; }
 .robanner { background: #fff4d6; border: 1px solid #e6c46a; border-radius: 8px; padding: 8px 12px; margin: 8px 0; }
 .soon { color: #e65100; font-weight: 600; }
+.netrow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 4px 0; }
 </style>
 </head>
 <body>
@@ -167,6 +168,11 @@
     <label id="wifiOpenBox" style="margin-left:12px" title="Если наш сервер не отвечает 3 минуты, планшет ищет другую сохранённую сеть. С галочкой — может подключиться и к чужой открытой сети рядом (кафе, уличный Wi-Fi). Агент 0.1.13 и новее">
       <input type="checkbox" id="wifiOpen" style="width:auto"> при потере связи разрешить чужие открытые Wi-Fi</label>
   </p>
+  <details class="form" style="display:block" id="fleetBox"><summary><b>📶 Wi-Fi для всех планшетов</b> <span id="fleetInfo" class="hint"></span></summary>
+    <p class="hint" style="margin:6px 0">Сети, которые получат все планшеты сети (например, офис, ваша раздача с телефона). Загрузчик планшетов (provision) тоже берёт их отсюда —
+      новый планшет подключится сам. Сети ресторана задаются в его карточке, сети отдельного планшета — кнопкой «Wi-Fi» у устройства.</p>
+    <div id="fleetNetsBox"></div>
+    <p><button onclick="saveFleet()"><b>Сохранить сети для всех</b></button></p></details>
   <div class="form" style="display:block" id="verBox"></div>
   <div class="filters">
     <select id="fRest" onchange="renderDevices()"></select>
@@ -212,13 +218,10 @@
     </div>
     <div style="flex-basis:100%;border-top:1px solid #eee;padding-top:6px">
       <b>Wi-Fi ресторана</b> <small class="hint">— планшеты ресторана сохранят сеть сами (агент 0.1.17+), в сервисное меню лезть не нужно</small>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:4px">
-        <label>Название сети <input id="rWifiSsid" autocomplete="off" style="width:200px"></label>
-        <label>Пароль <span class="pinw"><input id="rWifiPass" class="masked" autocomplete="off" style="width:180px"><button type="button" class="eye" data-eye="1" title="Показать">👁</button></span></label>
-        <label>Новый пароль <small class="hint">(если ресторан собирается сменить)</small> <span class="pinw"><input id="rWifiPass2" class="masked" autocomplete="off" style="width:180px"><button type="button" class="eye" data-eye="1" title="Показать">👁</button></span></label>
-      </div>
-      <small class="hint">Пароль сменили без предупреждения — планшеты уйдут на открытую сеть рядом (если разрешено в «Устройствах»), в Telegram придёт «🔑 сеть не пускает».
-        Впишите новый пароль сюда — планшеты получат его через открытую сеть и вернутся. Сменят по договорённости — заранее впишите «новый пароль»: планшеты перейдут на него сами.</small>
+      <div id="rNetsBox"></div>
+      <small class="hint">Можно несколько сетей; «основная» — на неё планшеты возвращаются, если она видна; без основной планшет сам выбирает по сигналу и стабильности.
+        Пароль сменили без предупреждения — планшеты уйдут на открытую сеть рядом (если разрешено в «Устройствах»), в Telegram придёт «🔑 сеть не пускает»: впишите новый пароль сюда.
+        Сменят по договорённости — заранее впишите «новый пароль». Свои сети можно задать и отдельному планшету (кнопка «Wi-Fi» у устройства), и всем планшетам сразу («Устройства»).</small>
       <div id="rWifiInfo" class="hint" style="margin-top:4px"></div>
     </div>
     <details style="flex-basis:100%"><summary>Типы рекламы, которые в этом ресторане не показывать <span id="rCatsN" class="hint"></span></summary><div id="rCats" class="hint" style="columns:3 220px"></div></details>
@@ -378,6 +381,9 @@
     <small class="hint">Пусто — текущий курс (обновляется сам дважды в день). У отдельного платежа можно задать свой курс в его карточке. При «Оплачено» запоминается курс на момент оплаты.</small></div>
   <p class="hint">Напоминания в Telegram (вкладка «Telegram» → у бота отметить «Напоминания по расходам»): за 7, 3 и 1 день, в день оплаты и каждый день просрочки; у годовых — ещё за 30 дней; по понедельникам — сводка на неделю. Автосписание: «спишется с карты — проверьте баланс».</p>
 </section>
+<div id="devWifiModal" class="modal" hidden><div class="mbox"><div class="mhead"><b>Wi-Fi устройства</b><button onclick="$('devWifiModal').hidden = true">✕</button></div>
+  <div id="devWifiBody" style="padding:12px 16px;overflow:auto"></div>
+  <div class="mfoot"><button onclick="$('devWifiModal').hidden = true">Закрыть</button><button onclick="saveDevWifi()"><b>Сохранить свои сети</b></button></div></div></div>
 <div id="expModal" class="modal" hidden><div class="mbox"><div class="mhead"><b>Платёж</b><button onclick="$('expModal').hidden = true">✕</button></div>
   <div id="expBody" style="padding:12px 16px;overflow:auto"></div>
   <div class="mfoot"><button id="expDel" style="margin-right:auto" onclick="delExp()">Удалить</button><button onclick="$('expModal').hidden = true">Отмена</button><button onclick="saveExp()"><b>Сохранить</b></button></div></div></div>
@@ -581,6 +587,7 @@ function deviceRow(d, i) {
         <button onclick="send(${i}, 'reload')">Обновить страницу</button>
         <button onclick="send(${i}, 'reboot')">Перезагрузить</button>
         <button onclick="send(${i}, 'update')">Обновить агент</button>
+        <button onclick="openDevWifi(${i})" title="Сети Wi-Fi этого планшета: свои, ресторана, всех планшетов; какая основная; как работают">Wi-Fi</button>
         <button onclick="send(${i}, 'scan')" title="Планшет покажет, какие Wi-Fi видит и с каким сигналом (агент 0.1.15+)">Сети рядом</button>
         <button onclick="removeDevice(${i})">Удалить</button>
       </td></tr>`;
@@ -644,11 +651,72 @@ async function send(i, type) {
   if (cmd) { await command(devices[i].id, cmd); loadDevices(); }
 }
 
+// ---------- Списки сетей Wi-Fi: для всех планшетов, ресторана, отдельного планшета
+function netRow(id, n = {}) {
+  return `<div class="netrow"><input data-n="ssid" placeholder="Название сети" value="${esc(n.ssid || '')}" style="width:190px">
+    <span class="pinw"><input data-n="pass" class="masked" placeholder="пароль (пусто — без пароля)" value="${esc(n.pass || '')}" autocomplete="off" style="width:190px"><button type="button" class="eye" data-eye="1" title="Показать">👁</button></span>
+    <span class="pinw"><input data-n="pass2" class="masked" placeholder="новый пароль (если сменят)" value="${esc(n.pass2 || '')}" autocomplete="off" style="width:190px"><button type="button" class="eye" data-eye="1" title="Показать">👁</button></span>
+    <label style="flex-direction:row;align-items:center"><input type="radio" name="prim-${id}" data-n="primary" style="width:auto" ${n.primary ? 'checked' : ''}> основная</label>
+    <button type="button" title="Удалить сеть" onclick="this.closest('.netrow').remove()">✕</button></div>`;
+}
+function netsHtml(id, list) {
+  return `<div class="nets" id="${id}">${(list || []).map((n) => netRow(id, n)).join('')}</div>
+    <button type="button" onclick="$('${id}').insertAdjacentHTML('beforeend', netRow('${id}'))">+ сеть</button>
+    <button type="button" onclick="$('${id}').querySelectorAll('[data-n=primary]').forEach((x) => { x.checked = false; })">без основной</button>`;
+}
+const readNets = (id) => [...$(id).querySelectorAll('.netrow')].map((r) => ({ ssid: r.querySelector('[data-n=ssid]').value.trim(),
+  pass: r.querySelector('[data-n=pass]').value, pass2: r.querySelector('[data-n=pass2]').value, primary: r.querySelector('[data-n=primary]').checked })).filter((n) => n.ssid);
+const badNets = (list) => list.some((n) => [n.pass, n.pass2].some((p) => p && (p.length < 8 || p.length > 63)));
+async function saveFleet() {
+  const fleet = readNets('fleetNets');
+  if (badNets(fleet)) return alert('Пароль Wi-Fi — от 8 до 63 символов (пусто — сеть без пароля)');
+  const r = await api('/api/devices/_wifi', 'POST', { fleet });
+  if (r.error) return alert(r.error);
+  $('fleetNetsBox').innerHTML = netsHtml('fleetNets', r.fleet || []);
+  $('fleetInfo').textContent = r.fleet?.length ? `— ${r.fleet.map((n) => n.ssid + (n.primary ? ' (основная)' : '')).join(', ')}` : '— не заданы';
+  alert('Сохранено. Планшеты получат сети в течение 15 секунд.');
+}
+// Окно «Wi-Fi» устройства: свои сети, унаследованные, какая основная, как работают сети на этом планшете
+let devWifiId = null;
+async function openDevWifi(i) {
+  devWifiId = devices[i].id;
+  const w = await api(`/api/devices/${encodeURIComponent(devWifiId)}/wifi`);
+  if (w.error) return alert(w.error);
+  renderDevWifi(w, devices[i]);
+  $('devWifiModal').hidden = false;
+}
+function renderDevWifi(w, d) {
+  const lvl = { device: 'этого планшета', restaurant: 'ресторана', fleet: 'всех планшетов' };
+  const st = new Map((w.stats || []).map((x) => [x.ssid, x]));
+  const q = (l) => (l >= -60 ? 'хороший' : l >= -70 ? 'средний' : l >= -80 ? 'слабый' : 'очень слабый');
+  $('devWifiBody').innerHTML = `<p><b>${esc(d.telemetry?.model || '')} ${esc(d.id)}</b>${w.restName ? ` · ${esc(w.restName)}` : ''} · сейчас: <b>${esc(w.current || 'не подключён')}</b>
+      · ${w.got ? '✅ сети получил' : w.nets.length ? '⏳ ещё не получил (агент 0.1.18+)' : 'сетей из админки нет'}</p>
+    <b>Свои сети этого планшета</b> <small class="hint">— главнее сетей ресторана и всех планшетов</small>
+    ${netsHtml('dNets', w.own || [])}
+    <p style="margin-top:12px"><b>Итог — что получает планшет</b> · основная: <b>${esc(w.primary || 'нет — выбирает сам по сигналу и стабильности')}</b></p>
+    <table><tr><th>Сеть</th><th>Откуда</th><th>На связи за сутки</th><th>Обрывов за сутки</th><th>Сигнал</th></tr>
+      ${(w.nets || []).map((n) => { const x = st.get(n.ssid); return `<tr><td>${esc(n.ssid)}${n.ssid === w.primary ? ' ⭐' : ''}${n.ssid === w.current ? ' ✅' : ''}</td><td>${lvl[n.level]}</td>
+        <td>${x?.avail != null ? x.avail + ' %' : '—'}</td><td>${x?.out24 ?? '—'}</td><td>${x?.rssi ? `${x.rssi} dBm (${q(x.rssi)})` : '—'}</td></tr>`; }).join('')
+        || '<tr><td colspan="5" class="hint">Сетей из админки нет</td></tr>'}</table>
+    <small class="hint">Сети ресторана меняются в его карточке, сети всех планшетов — вверху «Устройств». ⭐ — основная, ✅ — к ней подключён сейчас.
+      «На связи» — доля времени, когда сервер отвечал, пока планшет был на этой сети (экран включён).</small>`;
+}
+async function saveDevWifi() {
+  const list = readNets('dNets');
+  if (badNets(list)) return alert('Пароль Wi-Fi — от 8 до 63 символов (пусто — сеть без пароля)');
+  const w = await api(`/api/devices/${encodeURIComponent(devWifiId)}/wifi`, 'POST', { list });
+  if (w.error) return alert(w.error);
+  renderDevWifi(w, devices.find((x) => x.id === devWifiId) || {});
+  alert('Сохранено. Планшет получит сети в течение 15 секунд.');
+}
+
 // Чужие открытые Wi-Fi как запасные при потере связи (по умолчанию — нет)
 async function loadWifiOpt() {
   const r = await api('/api/devices/_wifi').catch(() => null);
   if (!r || r.error) { $('wifiOpenBox').hidden = true; return; }
   $('wifiOpen').checked = r.allowOpen;
+  if (!$('fleetBox').open || !$('fleetNets')) $('fleetNetsBox').innerHTML = netsHtml('fleetNets', r.fleet || []);
+  $('fleetInfo').textContent = r.fleet?.length ? `— ${r.fleet.map((n) => n.ssid + (n.primary ? ' (основная)' : '')).join(', ')}` : '— не заданы';
   $('wifiOpen').disabled = r.instance === 'test';
   if (r.instance === 'test') $('wifiOpenBox').title = 'Меняется в рабочей админке (app.jetmedia.dev) — планшеты связаны с рабочей';
 }
@@ -721,11 +789,9 @@ async function edit(id) {
   $('rHoursFrom').value = Number.isFinite(hrs.from) ? hm(hrs.from) : '';
   $('rHoursTo').value = Number.isFinite(hrs.to) ? (hrs.to === 0 ? '24:00' : hm(hrs.to)) : '';
   $('rHoursInfo').innerHTML = hoursInfoHtml(cur);
-  $('rWifiSsid').value = cur.wifi?.ssid || '';
-  $('rWifiPass').value = cur.wifi?.pass || '';
-  $('rWifiPass2').value = cur.wifi?.pass2 || '';
+  $('rNetsBox').innerHTML = netsHtml('rNets', cur.wifiList || []);
   const ws = cur.wifiStatus;
-  $('rWifiInfo').innerHTML = cur.wifi && ws ? `Получили сеть: <b>${ws.got} из ${ws.total}</b> планшетов${ws.old ? ` · со старым агентом (не получат, пока не обновить): ${ws.old}` : ''}` : '';
+  $('rWifiInfo').innerHTML = ws && ws.total ? `Получили сеть: <b>${ws.got} из ${ws.total}</b> планшетов${ws.old ? ` · со старым агентом (не получат, пока не обновить): ${ws.old}` : ''}` : '';
   if (vers.instance === 'test') $('rWifiInfo').innerHTML += '<br>Это тестовая админка: Wi-Fi ресторана меняется в рабочей (app.jetmedia.dev).';
   if (!ads.length) ads = await api('/api/ads').catch(() => []);
   if (!adCats.length) adCats = await api('/api/ad-cats').catch(() => []);
@@ -976,8 +1042,8 @@ async function saveRestaurant(notice) {
   cur.tariff = $('rTariff').value;
   cur.adEvery = Number($('rAdEvery').value) || 2;
   cur.hours = { mode: $('rHoursMode').value, from: $('rHoursFrom').value.trim(), to: $('rHoursTo').value.trim() };
-  cur.wifi = { ssid: $('rWifiSsid').value.trim(), pass: $('rWifiPass').value, pass2: $('rWifiPass2').value };
-  for (const k of ['pass', 'pass2']) if (cur.wifi[k] && (cur.wifi[k].length < 8 || cur.wifi[k].length > 63)) return alert('Пароль Wi-Fi — от 8 до 63 символов (пусто — сеть без пароля)');
+  cur.wifiList = readNets('rNets');
+  if (badNets(cur.wifiList)) return alert('Пароль Wi-Fi — от 8 до 63 символов (пусто — сеть без пароля)');
   if (cur.hours.mode === 'manual' && (!cur.hours.from || !cur.hours.to)) return alert('Часы работы «только вручную»: укажите время «с» и «до», например 10:00 и 24:00');
   if (GEO) { cur.district = $('rDistrict').value; cur.address = $('rAddress').value.trim(); }
   // список уже показан для этого ресторана — берём отметки из него

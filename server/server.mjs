@@ -394,8 +394,9 @@ function auditText(method, p, b) {
   if ((m = p.match(/^\/api\/restaurants\/([^/]+)\/test-visit$/))) return [`Статистика: визит ${b.test ? 'помечен тестовым' : 'снова учитывается'}`, m[1]];
   if ((m = p.match(/^\/api\/restaurants\/([^/]+)$/))) return [`Ресторан удалён: ${m[1]}`, m[1]];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/command$/))) return [`Команда «${b.type}» устройству ${dev(m[1])}`, db.devices[dev(m[1])]?.restaurantId];
+  if ((m = p.match(/^\/api\/devices\/([^/]+)\/wifi$/))) return [`Wi-Fi устройства ${dev(m[1])}: ${(b.list || []).map((n) => n.ssid + (n.primary ? ' (основная)' : '')).join(', ') || 'своих сетей нет'}`, db.devices[dev(m[1])]?.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/assign$/))) return [`Устройство ${dev(m[1])} → ${db.restaurants[b.restaurantId]?.name || 'не привязано'}${b.table ? ` · ${b.table}` : ''}`, b.restaurantId];
-  if ((m = p.match(/^\/api\/devices\/([^/]+)$/))) return [`Устройство удалено: ${dev(m[1])}`];
+  if ((m = p.match(/^\/api\/devices\/([^/_][^/]*)$/))) return [`Устройство удалено: ${dev(m[1])}`]; // _wifi, _channel — настройки, не устройства
   if (p === '/api/uploads/replace') return ['Картинка пережата и заменена'];
   if (p === '/api/export/link') return ['Создана ссылка на 48 ч: все фото акций и рекламы (ZIP)'];
   if (p === '/api/crm/clients') return [`CRM: клиент сохранён — ${b.name || db.restaurants[b.rid]?.name || ''}`, b.rid || undefined];
@@ -408,6 +409,7 @@ function auditText(method, p, b) {
     const jr = db.joinReqs.find((x) => x.id === m[1]);
     return [`Заявка на подключение ${jr ? `${jr.name || ''} ${jr.phone}` : m[1]}: ${b.done === undefined ? 'удалена' : b.done ? 'обработана' : 'снова новая'}`];
   }
+  if (p === '/api/devices/_wifi' && b.fleet !== undefined) return [`Wi-Fi для всех планшетов: ${(b.fleet || []).map((n) => n.ssid + (n.primary ? ' (основная)' : '')).join(', ') || 'сетей нет'}`];
   if (p === '/api/devices/_wifi') return [`Планшеты: чужие открытые Wi-Fi при потере связи — ${b.allowOpen ? 'разрешены' : 'запрещены'}`];
   if (p === '/api/devices/_channel') return [`${b.channel === 'test' ? 'На тестовую версию' : 'На рабочую версию'}: ${b.restaurantId ? db.restaurants[b.restaurantId]?.name || '' : 'вся сеть'}`, b.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/channel$/))) return [`Устройство ${dev(m[1])} → ${b.channel === 'test' ? 'тестовая' : 'рабочая'} версия`, db.devices[dev(m[1])]?.restaurantId];
@@ -685,8 +687,12 @@ function devicePoll(b, q, req) {
   // allowOpenWifi — можно ли при потере связи подключаться к чужим открытым сетям (по умолчанию нет)
   const out = { commands, allowOpenWifi: !!db.allowOpenWifi };
   // сеть ресторана из админки — только планшетам этого ресторана и только когда изменилась
-  const rw = db.restaurants[d.restaurantId]?.wifi;
-  if (rw?.ssid && d.telemetry.wifiV !== rw.v) out.wifi = { ssid: rw.ssid, pass: rw.pass || '', pass2: rw.pass2 || '', v: rw.v };
+  const wf = wifiFor(d);
+  if ((wf.nets.length || d.telemetry.wifiV) && d.telemetry.wifiV !== wf.v) {
+    const first = wf.nets.find((n) => n.ssid === wf.primary) || wf.nets[0] || {};
+    // ssid / pass / pass2 — для агента 0.1.17 (он знает одну сеть)
+    out.wifi = { v: wf.v, nets: wf.nets, primary: wf.primary, ssid: first.ssid || '', pass: first.pass || '', pass2: first.pass2 || '' };
+  }
   if (db.servicePin) out.pin = { salt: db.servicePin.salt, hash: db.servicePin.hash };
   return out;
 }
@@ -873,10 +879,16 @@ function cleanHours(b) {
   const from = parseHm(b?.from), to = parseHm(b?.to);
   return { mode, ...(from !== null && to !== null ? { from, to } : {}) };
 }
-// Сколько планшетов ресторана уже получили сеть из админки
+// Загрузчик (provision) при подготовке планшета берёт сети «для всех планшетов» — по ключу регистрации устройств
+function fleetWifiForProvision(b, q) {
+  if (!DEVICE_KEY || q.key !== DEVICE_KEY) throw fail(403, 'bad device key');
+  return { nets: db.fleetWifi.map(({ ssid, pass, pass2 }) => ({ ssid, pass, pass2, level: 'fleet' })), primary: db.fleetWifi.find((n) => n.primary)?.ssid || '' };
+}
+// Сколько планшетов ресторана уже получили свои сети из админки
 function wifiStatus(r) {
   const devs = Object.values(db.devices).filter((d) => d.restaurantId === r.id);
-  return { total: devs.length, got: r.wifi ? devs.filter((d) => d.telemetry?.wifiV === r.wifi.v).length : 0,
+  const withNets = devs.filter((d) => wifiFor(d).v);
+  return { total: withNets.length, got: withNets.filter((d) => d.telemetry?.wifiV === wifiFor(d).v).length,
     old: devs.filter((d) => !('wifiV' in (d.telemetry || {}))).length };
 }
 const hoursText = (h) => (h ? `${hhmm(h.from)}–${h.to === 0 ? '24:00' : hhmm(h.to)}` : '');
@@ -893,6 +905,7 @@ setInterval(() => {
     if ((d.telemetry?.version || '') !== u.from) { u.done = now; u.status = 'ok'; u.msg = `установлена ${d.telemetry?.version || ''}`; continue; }
     if (now - (d.lastSeen || 0) > ONLINE_MS || now - u.lastTry < UPD_EVERY) continue;
     if (u.status === 'installing' && now - (u.resAt || 0) < 5 * 60_000) continue; // ещё ставится
+    if (u.status === 'waiting' && now - (u.resAt || 0) < 35 * 60_000) continue; // ждёт, пока гость закончит с планшетом
     if (u.tries >= UPD_TRIES) {
       u.done = now;
       u.status = 'failed';
@@ -906,19 +919,46 @@ setInterval(() => {
   }
 }, 60_000).unref();
 
-// ---------- Wi-Fi ресторана из админки: имя сети, пароль и новый пароль (если ресторан собирается сменить).
-// Пароли уходят только планшетам этого ресторана; в журнал админки — только факт изменения
-function cleanWifi(b) {
-  const ssid = String(b?.ssid || '').trim().slice(0, 32);
-  if (!ssid) return null;
+// ---------- Wi-Fi из админки: списки сетей для всего парка (вкладка «Устройства»), ресторана (его карточка) и отдельного
+// планшета (кнопка «Wi-Fi» у устройства). Планшет получает все три списка; одна и та же сеть — с паролем самого
+// точного уровня. «Основная» — с уровня устройства, иначе ресторана, иначе парка; нет основной — планшет выбирает
+// сам по сигналу и стабильности. «Новый пароль» — если ресторан собирается сменить. Пароли — только своим планшетам
+function cleanNets(list) {
   const pw = (v) => {
     const x = String(v || '');
     if (x && (x.length < 8 || x.length > 63)) throw fail(400, 'Пароль Wi-Fi — от 8 до 63 символов (пусто — сеть без пароля)');
     return x;
   };
-  const pass = pw(b.pass), pass2 = pw(b.pass2);
-  return { ssid, pass, pass2, v: sha256(`${ssid}\n${pass}\n${pass2}`).slice(0, 10) };
+  const out = [], seen = new Set();
+  let primary = false;
+  for (const n of (Array.isArray(list) ? list : []).slice(0, 10)) {
+    const ssid = String(n?.ssid || '').trim().slice(0, 32);
+    if (!ssid || seen.has(ssid)) continue;
+    seen.add(ssid);
+    const isPrimary = !!n.primary && !primary;
+    primary ||= isPrimary;
+    out.push({ ssid, pass: pw(n.pass), pass2: pw(n.pass2), primary: isPrimary });
+  }
+  return out;
 }
+db.fleetWifi ??= [];
+// прежняя одна сеть ресторана → список
+for (const r of Object.values(db.restaurants)) {
+  if (r.wifi && !r.wifiList) r.wifiList = r.wifi.ssid ? [{ ssid: r.wifi.ssid, pass: r.wifi.pass || '', pass2: r.wifi.pass2 || '', primary: false }] : [];
+  delete r.wifi;
+}
+function wifiFor(d) {
+  const r = db.restaurants[d.restaurantId];
+  const nets = [], seen = new Set();
+  let primary = '';
+  for (const [level, list] of [['device', d.wifiList || []], ['restaurant', r?.wifiList || []], ['fleet', db.fleetWifi]]) {
+    if (!primary) primary = list.find((n) => n.primary)?.ssid || '';
+    for (const n of list) if (!seen.has(n.ssid)) { seen.add(n.ssid); nets.push({ ssid: n.ssid, pass: n.pass, pass2: n.pass2, level }); }
+  }
+  return { nets, primary, v: nets.length ? sha256(JSON.stringify([nets, primary])).slice(0, 10) : '' };
+}
+const netsPublic = (list, full) => (list || []).map((n) => (full ? n : { ssid: n.ssid, pass: n.pass ? '••••••••' : '', pass2: n.pass2 ? '••••••••' : '', primary: n.primary }));
+const netsSig = (list) => JSON.stringify(list || []);
 // Сообщения о Wi-Fi копим минуту и шлём одним сообщением на ресторан (одинаковые — не чаще раза в 30 минут)
 const wifiQueue = [], wifiSent = {};
 function wifiNews(d, kind, t) {
@@ -2906,15 +2946,16 @@ function admin(method, p, b, me, q) {
     if (scope) throw fail(403, 'Нет доступа');
     if (method === 'POST') {
       if (INSTANCE === 'test') throw fail(400, 'Меняется в рабочей админке (app.jetmedia.dev) — планшеты связаны с рабочей');
-      db.allowOpenWifi = !!b.allowOpen;
+      if (b.allowOpen !== undefined) db.allowOpenWifi = !!b.allowOpen;
+      if (b.fleet !== undefined) db.fleetWifi = cleanNets(b.fleet);
       save();
     }
-    return { allowOpen: !!db.allowOpenWifi, instance: INSTANCE };
+    return { allowOpen: !!db.allowOpenWifi, instance: INSTANCE, fleet: netsPublic(db.fleetWifi, permOf(me, 'devices') === 'edit') };
   }
   if (method === 'GET' && p === '/api/devices') {
     const list = () => {
       const now = Date.now();
-      return Object.values(db.devices).filter((d) => !scope || scope.has(d.restaurantId)).map(({ queue, ...d }) =>
+      return Object.values(db.devices).filter((d) => !scope || scope.has(d.restaurantId)).map(({ queue, wifiList, ...d }) =>
         ({ ...d, online: now - d.lastSeen < ONLINE_MS, pending: (queue || []).length, outages: (d.outages || []).slice(0, 30) }));
     };
     return INSTANCE === 'test' ? pullAllDevices().then(list) : list();
@@ -2957,9 +2998,10 @@ function admin(method, p, b, me, q) {
       // часы работы: по планшетам / вручную / нет (демо) — для тревог о связи и сводки
       hours: b.hours !== undefined ? cleanHours(b.hours) : prev.hours,
       // Wi-Fi меняется только в рабочей админке: планшеты связаны с рабочей
-      wifi: b.wifi !== undefined && INSTANCE !== 'test' ? cleanWifi(b.wifi) : prev.wifi,
+      wifiList: b.wifiList !== undefined && INSTANCE !== 'test' ? cleanNets(b.wifiList) : prev.wifiList || [],
     };
-    if ((db.restaurants[id].wifi?.v || '') !== (prev.wifi?.v || '')) audit(me.email, `Wi-Fi ресторана «${db.restaurants[id].name}» изменён`, id);
+    delete db.restaurants[id].wifi;
+    if (netsSig(db.restaurants[id].wifiList) !== netsSig(prev.wifiList)) audit(me.email, `Wi-Fi ресторана «${db.restaurants[id].name}» изменён: ${db.restaurants[id].wifiList.map((n) => n.ssid + (n.primary ? ' (основная)' : '')).join(', ') || 'сетей нет'}`, id);
     hoursCache.delete(id);
     // меню — по источнику до этого сохранения: если ресторан уже синхронизировался, присланное меню не заменяет синхронизированное
     if (Array.isArray(b.tagRules)) db.restaurants[id].tagRules = cleanRules(b.tagRules, db.restaurants[id]);
@@ -3134,9 +3176,22 @@ function admin(method, p, b, me, q) {
       return { n };
     });
   }
-  m = p.match(/^\/api\/devices\/([^/]+)(?:\/(command|assign|channel))?$/);
+  m = p.match(/^\/api\/devices\/([^/]+)(?:\/(command|assign|channel|wifi))?$/);
   const d = m && db.devices[decodeURIComponent(m[1])];
   if (!d) return undefined;
+  if (m[2] === 'wifi') {
+    // Сети планшета: свои (с паролями — при праве на редактирование), унаследованные от ресторана и парка, статистика
+    if (method === 'POST') {
+      if (INSTANCE === 'test') throw fail(400, 'Меняется в рабочей админке (app.jetmedia.dev) — планшеты связаны с рабочей');
+      if (scope && !scope.has(d.restaurantId)) throw fail(403, 'Нет доступа');
+      d.wifiList = cleanNets(b.list);
+      save();
+    }
+    const r = db.restaurants[d.restaurantId], wf = wifiFor(d), edit = permOf(me, 'devices') === 'edit';
+    return { own: netsPublic(d.wifiList, edit), restaurant: (r?.wifiList || []).map(({ ssid, primary }) => ({ ssid, primary })),
+      fleet: db.fleetWifi.map(({ ssid, primary }) => ({ ssid, primary })), primary: wf.primary, nets: wf.nets.map(({ ssid, level }) => ({ ssid, level })),
+      got: !!wf.v && d.telemetry?.wifiV === wf.v, current: d.telemetry?.wifi || '', stats: d.telemetry?.nets || [], restName: r?.name || '' };
+  }
   if (scope && (!scope.has(d.restaurantId) || (m[2] === 'assign' && b.restaurantId && !scope.has(b.restaurantId)))) throw fail(403, 'Нет доступа');
   if (method === 'DELETE' && !m[2]) { delete db.devices[d.id]; save(); return {}; }
   if (method === 'POST' && m[2] === 'command') {
@@ -3173,6 +3228,7 @@ const PUBLIC = {
   'POST /api/device/poll': devicePoll,
   'POST /api/device/alert': deviceAlert,
   'POST /api/device/bye': deviceBye,
+  'GET /api/device/fleet-wifi': fleetWifiForProvision,
   'GET /api/guest/state': guestState,
   'POST /api/guest/call': guestCall,
   'POST /api/guest/cancel': guestCancel,
