@@ -1457,19 +1457,45 @@ function staffState(b, q) {
 }
 
 // Заказ на стол от официанта или менеджера: сразу принят (реакции ждать не от кого)
+// Обязательная группа выбора (острота, начинка…), в которой официант ничего не выбрал: «Блюдо — Группа».
+// Строки без списка выбора (старые заказы) не проверяем
+function missingChoice(r, list) {
+  const menu = new Map((r.menu || []).map((i) => [i.id, i]));
+  const nm = (o) => o?.ru || o?.en || Object.values(o || {})[0] || '';
+  for (const x of list || []) {
+    const m = menu.get(x?.id);
+    if (!m || !Array.isArray(x.mods)) continue;
+    const want = new Set(x.mods.map(String));
+    const g = (m.groups || []).find((gr) => gr.req && gr.opts.length && !gr.opts.some((o) => want.has(o.id)));
+    if (g) return `${nm(m.name)} — ${nm(g.name)}`;
+  }
+  return '';
+}
+const itemsSig = (items) => items.map((i) => `${i.id}|${i.opt || ''}|${(i.mods || []).join(',')}|${i.qty}`).sort().join(';');
+
 function staffOrder(b) {
   const { r, member } = session(b.token);
   const table = String(b.table || '');
   if (!(r.tables || []).includes(table)) throw fail(400, 'unknown table');
+  // повтор того же запроса (плохой Wi-Fi, многократное нажатие) — тот же заказ, второй не создаём
+  const rid = ridOf(b), dup = byRid(db.orders, rid, r.id);
+  if (dup) return dup;
+  const miss = missingChoice(r, b.items);
+  if (miss) throw fail(400, `Не выбран обязательный вариант: ${miss}`);
   const guest = Math.min(99, Math.max(1, Math.round(Number(b.guest)) || 1));
   const items = buildItems(r, b.items).map((i) => ({ ...i, g: guest }));
   if (!items.length) throw fail(400, 'empty order');
+  // страховка: такой же заказ того же официанта на тот же стол за последние 15 секунд — это повтор
+  const sig = itemsSig(items);
+  const same = db.orders.slice(-200).find((o) => o.restaurantId === r.id && o.src === 'staff' && o.table === table && o.by === member.name
+    && Date.now() - o.at < 15_000 && o.status !== 'rejected' && itemsSig(o.items) === sig);
+  if (same) return same;
   if (tableIsFree(r, table)) logEvent(r.id, 'open', { table });
   const now = Date.now();
   const o = {
     id: uid(), restaurantId: r.id, table, items, total: items.reduce((s, i) => s + i.price * i.qty, 0),
     status: 'confirmed', at: now, confirmedAt: now, ackAt: now, ackBy: member.name, by: member.name, src: 'staff',
-    guest, guestName: guestNames(r, table)[guest] || '',
+    guest, guestName: guestNames(r, table)[guest] || '', ...(rid ? { rid } : {}),
   };
   o.kitchenItems = kitchenSnap(o);
   db.orders.push(o);
@@ -1499,26 +1525,28 @@ function kitchenRest(k) {
 }
 function kitchenState(b, q) {
   const r = kitchenRest(q.k), now = Date.now(), tags = new Map((r.menu || []).map((m) => [m.id, m.tags || []]));
-  const list = db.orders.filter((o) => o.restaurantId === r.id && o.status === 'confirmed' && !o.test
-    && now - (o.confirmedAt || o.at) < 12 * 3600e3 && (!o.readyAt || now - o.readyAt < 15 * 60e3));
+  const gone = (o) => o.removedAt && o.kitchenItems && !o.readyAt && now - o.removedAt < 30 * 60e3; // удалён — повар должен увидеть
+  const list = db.orders.filter((o) => o.restaurantId === r.id && ((o.status === 'confirmed' && !o.test
+    && now - (o.confirmedAt || o.at) < 12 * 3600e3 && (!o.readyAt || now - o.readyAt < 15 * 60e3)) || gone(o)));
   return {
     restaurant: { name: r.name, langs: r.langs }, build: BUILD,
     orders: list.map((o) => {
       // блюда, разделённые между гостями, — одной строкой; was — сколько было, когда заказ ушёл на кухню
-      const cur = kitchenSnap(o), was = o.kitchenItems || cur;
+      const cur = o.removedAt ? {} : kitchenSnap(o), was = o.kitchenItems || kitchenSnap(o);
       const keys = [...new Set([...Object.keys(was), ...Object.keys(cur)])];
       const items = keys.map((k) => ({ name: (cur[k] || was[k]).name, ml: (cur[k] || was[k]).ml, qty: cur[k]?.qty || 0, was: was[k]?.qty || 0, tags: tags.get(k.split('|')[0]) || [] }));
       return {
         id: o.id, table: o.table, at: o.cookFrom || o.confirmedAt || o.at, readyAt: o.readyAt || 0, editedAt: o.editedAt || 0,
-        changed: items.some((i) => i.qty !== i.was), items,
+        changed: items.some((i) => i.qty !== i.was), items, removed: !!o.removedAt,
       };
     }),
   };
 }
 function kitchenReady(b) {
   const r = kitchenRest(b.k);
-  const o = db.orders.find((x) => x.id === b.id && x.restaurantId === r.id && x.status === 'confirmed');
+  const o = db.orders.find((x) => x.id === b.id && x.restaurantId === r.id && (x.status === 'confirmed' || x.removedAt));
   if (!o) throw fail(400, 'bad order');
+  if (o.removedAt) { o.readyAt = Date.now(); save(); return {}; } // повар увидел «удалён» — убираем карточку
   if (b.undo) delete o.readyAt;
   else if (!o.readyAt) {
     o.readyAt = Date.now();
@@ -1680,6 +1708,15 @@ function staffAction(b) {
     if (!db.orders.some((y) => y.id === b.id && y.restaurantId === r.id)) throw fail(400, 'bad action');
     markTest(r, [b.id], b.action === 'test');
     audit(`${member.name} (менеджер)`, `Заказ ${b.action === 'test' ? 'помечен тестовым' : 'снова учитывается'}`, r.id);
+  } else if (b.kind === 'order' && b.action === 'remove') {
+    // «Удалить (дубль)» — только менеджер: заказ пропадает из счёта и статистики, кухня видит «убрано»
+    if (member.role !== 'manager') throw fail(403, 'managers only');
+    const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && y.status !== 'rejected' && !y.paidAt);
+    if (!x) throw fail(400, 'bad action');
+    Object.assign(x, { status: 'rejected', rejectedAt: Date.now(), removedAt: Date.now(), removedBy: member.name, by: member.name });
+    r.removedIds = [...(r.removedIds || []), x.id].slice(-5000);
+    logEvent(r.id, 'order_remove', { ...who, id: x.id, table: x.table, total: x.total });
+    audit(`${member.name} (менеджер)`, `Заказ удалён как дубль: ${tableLabel(x.table)}, ฿${x.total}`, r.id);
   } else if (b.kind === 'order' && b.action === 'paid') {
     // Оплачен один счёт стола; стол остаётся открытым, пока его не закроют
     const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && !y.closed && y.status !== 'rejected');
@@ -1691,6 +1728,9 @@ function staffAction(b) {
     // «Иду» по заказу — останавливаем напоминания; правка заказа тоже значит, что официант им занялся
     ackOrder(x);
     if (b.action === 'edit') {
+      const had = new Set(x.items.map((i) => `${i.id}|${i.opt || ''}|${[...(i.mods || [])].sort().join(',')}`));
+      const miss = missingChoice(r, (b.items || []).filter((i) => !had.has(`${i?.id}|${i?.opt || ''}|${[...(i?.mods || [])].map(String).sort().join(',')}`)));
+      if (miss) throw fail(400, `Не выбран обязательный вариант: ${miss}`);
       const items = buildItems(r, b.items);
       if (!items.length) throw fail(400, 'empty order');
       Object.assign(x, { items, total: items.reduce((s, i) => s + i.price * i.qty, 0), editedAt: Date.now(), editedBy: member.name });

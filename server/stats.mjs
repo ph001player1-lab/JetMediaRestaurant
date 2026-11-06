@@ -222,7 +222,8 @@ function promoStats(ev, r, stats, days) {
 // где есть тестовое, выпадает целиком: заказы, вызовы, реакции, действия гостя.
 export function testCtx(r) {
   const staff = [...(r.staff || []), ...(r.staffArchive || [])].filter((m) => m.test);
-  return { ids: new Set(staff.map((m) => m.id)), names: new Set(staff.map((m) => m.name)), marks: new Set(r.testIds || []), before: r.testBefore || 0 };
+  return { ids: new Set(staff.map((m) => m.id)), names: new Set(staff.map((m) => m.name)), marks: new Set(r.testIds || []), before: r.testBefore || 0,
+    removed: new Set(r.removedIds || []) }; // заказы, удалённые менеджером как дубль
 }
 const isTestStaff = (c, e) => !!e.by && (c.ids.has(e.by) || (e.by.startsWith('name:') && c.names.has(e.by.slice(5))));
 
@@ -256,7 +257,7 @@ function realOnly(ev, ctxs) {
   for (const v of visitsOf(ev, ctxs)) if (v.why) v.events.forEach((e) => drop.add(e));
   return ev.filter((e) => {
     const c = ctxs[e.r];
-    return !drop.has(e) && (!c || (e.t >= c.before && !isTestStaff(c, e)));
+    return !drop.has(e) && (!c || (e.t >= c.before && !isTestStaff(c, e) && !(e.id && c.removed?.has(e.id))));
   });
 }
 // Дневные счётчики (показы акций, появления персонажа) — только после начала боевой работы
