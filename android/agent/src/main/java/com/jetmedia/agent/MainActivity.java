@@ -27,6 +27,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
+import android.os.StatFs;
 import android.os.SystemClock;
 import android.os.UserManager;
 import android.provider.Settings;
@@ -252,6 +254,30 @@ public class MainActivity extends Activity {
         IntentFilter f = new IntentFilter(Intent.ACTION_SHUTDOWN);
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(r, f, Context.RECEIVER_EXPORTED);
         else registerReceiver(r, f);
+
+        // Экран погасили кнопкой — планшет засыпает: сразу говорим серверу «выключен» (без тревоги).
+        // Экран включили — сразу на связь, не ждём очередного опроса; это не обрыв, а пробуждение
+        BroadcastReceiver screen = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context c, Intent i) {
+                if (Intent.ACTION_SCREEN_OFF.equals(i.getAction())) {
+                    getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "jet:bye").acquire(6000);
+                    int level = batteryLevel();
+                    new Thread(() -> sayBye("screen", level)).start();
+                } else {
+                    io.execute(() -> { lastServerOk = System.currentTimeMillis(); everOk = false; outageStart = 0; outageFails = 0; step = 0; });
+                    for (long d : new long[] { 500, 4000, 9000 }) handler.postDelayed(() -> io.execute(MainActivity.this::pollServer), d);
+                }
+            }
+        };
+        IntentFilter sf = new IntentFilter(Intent.ACTION_SCREEN_OFF);
+        sf.addAction(Intent.ACTION_SCREEN_ON);
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(screen, sf, Context.RECEIVER_EXPORTED);
+        else registerReceiver(screen, sf);
+    }
+
+    private boolean screenOn() {
+        try { return getSystemService(PowerManager.class).isInteractive(); } catch (Exception e) { return true; }
     }
 
     private int batteryLevel() {
@@ -446,6 +472,7 @@ public class MainActivity extends Activity {
             t.put("version", BuildConfig.VERSION_NAME).put("model", Build.MODEL)
                     .put("android", Build.VERSION.RELEASE).put("owner", isOwner())
                     .put("uptime", SystemClock.elapsedRealtime()).put("allowOpen", prefs.getBoolean("allowOpen", false))
+                    .put("screen", screenOn()).put("freeMb", freeMb())
                     .put("url", prefs.getString("url", "")).put("voices", voiceList())
                     // какой PIN сервисного меню у планшета (первые 8 знаков отпечатка) — портал показывает, кто уже получил новый
                     .put("pin", prefs.getString("pinHash", "").length() >= 8 ? prefs.getString("pinHash", "").substring(0, 8) : "");
@@ -465,6 +492,8 @@ public class MainActivity extends Activity {
             if (outageStart != 0 && outageFails >= 2 && everOk) body.put("outage", outageJson());
             String scan = prefs.getString("scan", "");
             if (!scan.isEmpty()) body.put("scan", new JSONObject(scan));
+            String upd = prefs.getString("upd", "");
+            if (!upd.isEmpty()) body.put("update", new JSONObject(upd));
 
             HttpURLConnection c = (HttpURLConnection) new URL(server() + "/api/device/poll").openConnection();
             c.setConnectTimeout(10000);
@@ -479,6 +508,7 @@ public class MainActivity extends Activity {
             ok = true; // сервер ответил — связь есть, что бы ни думал Android
             if (netlog.equals(prefs.getString("netlog", "[]"))) prefs.edit().remove("netlog").apply();
             if (!scan.isEmpty() && scan.equals(prefs.getString("scan", ""))) prefs.edit().remove("scan").apply();
+            if (!upd.isEmpty() && upd.equals(prefs.getString("upd", ""))) prefs.edit().remove("upd").apply();
             // разрешены ли чужие открытые сети как запасные (включается в админке, по умолчанию — нет)
             prefs.edit().putBoolean("allowOpen", resp.optBoolean("allowOpenWifi", false)).apply();
             JSONArray commands = resp.optJSONArray("commands");
@@ -675,6 +705,13 @@ public class MainActivity extends Activity {
                 return;
             }
 
+            if (!screenOn()) { // планшет спит — сеть и не должна работать
+                outageStart = 0;
+                outageFails = 0;
+                step = 0;
+                lastServerOk = now;
+                return;
+            }
             if (outageStart == 0) {
                 outageStart = now;
                 outageErr = err;
@@ -918,24 +955,71 @@ public class MainActivity extends Activity {
         }
     }
 
-    // Тихая установка новой версии агента: владельцу устройства подтверждение не нужно
+    // Тихая установка новой версии агента: владельцу устройства подтверждение не нужно.
+    // Скачиваем во временный файл (до 3 попыток), проверяем место и версию внутри файла. Итог — установлено,
+    // уже последняя или ошибка с причиной — уходит на сервер: портал показывает, сервер повторяет команду
     private void installUpdate(String apkUrl) {
+        File apk = new File(getCacheDir(), "agent.apk");
         try {
+            long free = freeMb();
+            if (free >= 0 && free < 60) { updResult(this, "fail", "мало памяти на планшете: свободно " + free + " МБ"); return; }
+            String err = null;
+            for (int i = 1; i <= 3; i++) {
+                try { download(apkUrl, apk); err = null; break; }
+                catch (Exception e) { err = describe(e); SystemClock.sleep(5000L * i); }
+            }
+            if (err != null) { updResult(this, "fail", "не скачалось за 3 попытки: " + err); return; }
+            PackageInfo info = getPackageManager().getPackageArchiveInfo(apk.getPath(), 0);
+            if (info == null) { updResult(this, "fail", "скачанный файл повреждён"); return; }
+            if (code(info) <= BuildConfig.VERSION_CODE) { updResult(this, "latest", "уже последняя версия " + BuildConfig.VERSION_NAME); return; }
             PackageInstaller installer = getPackageManager().getPackageInstaller();
-            int id = installer.createSession(
-                    new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL));
+            int id = installer.createSession(new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL));
             PackageInstaller.Session session = installer.openSession(id);
-            try (InputStream in = new URL(apkUrl).openStream();
-                 OutputStream out = session.openWrite("agent.apk", 0, -1)) {
+            try (InputStream in = new java.io.FileInputStream(apk); OutputStream out = session.openWrite("agent.apk", 0, apk.length())) {
                 byte[] buf = new byte[65536];
                 for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
                 session.fsync(out);
             }
             int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0);
             Intent done = new Intent(this, UpdateReceiver.class);
+            updResult(this, "installing", "устанавливаю " + info.versionName);
             session.commit(PendingIntent.getBroadcast(this, id, done, flags).getIntentSender());
             session.close();
+        } catch (Exception e) {
+            updResult(this, "fail", "установка не началась: " + e.getClass().getSimpleName() + (e.getMessage() != null ? " " + e.getMessage() : ""));
+        } finally {
+            if (!apk.delete()) apk.deleteOnExit();
+        }
+    }
+
+    private static long code(PackageInfo p) {
+        return Build.VERSION.SDK_INT >= 28 ? p.getLongVersionCode() : p.versionCode;
+    }
+
+    private static void download(String url, File to) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(30000);
+        int status = c.getResponseCode();
+        if (status != 200) throw new java.io.IOException("HTTP " + status);
+        long want = c.getContentLengthLong(), got = 0;
+        try (InputStream in = c.getInputStream(); OutputStream out = new java.io.FileOutputStream(to)) {
+            byte[] buf = new byte[65536];
+            for (int n; (n = in.read(buf)) > 0; ) { out.write(buf, 0, n); got += n; }
+        }
+        if (want > 0 && got != want) throw new java.io.IOException("файл недокачан: " + got + " из " + want + " байт");
+    }
+
+    // Итог обновления — серверу с ближайшим опросом
+    static void updResult(Context c, String status, String msg) {
+        try {
+            c.getSharedPreferences("jet", MODE_PRIVATE).edit().putString("upd", new JSONObject()
+                    .put("at", System.currentTimeMillis()).put("status", status).put("msg", msg).toString()).apply();
         } catch (Exception ignored) { }
+    }
+
+    private long freeMb() {
+        try { return new StatFs(getFilesDir().getPath()).getAvailableBytes() / 1048576; } catch (Exception e) { return -1; }
     }
 
     private static String read(InputStream in) throws Exception {

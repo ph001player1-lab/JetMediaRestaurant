@@ -494,6 +494,15 @@ document.addEventListener('toggle', (e) => {
   const k = e.target.dataset?.k;
   if (k) e.target.open ? openLogs.add(k) : openLogs.delete(k);
 }, true);
+// Обновление агента: попытки (сервер повторяет до 5 раз) и итог с причиной
+function updLine(d) {
+  const u = d.upd;
+  if (!u) return '';
+  if (u.status === 'ok') return Date.now() - u.done < 3600e3 ? `<br><small class="online">✅ ${esc(u.msg)}</small>` : '';
+  if (u.status === 'latest') return '';
+  if (u.status === 'failed') return `<br><small class="offline" title="${esc(u.msg || '')}">⚠️ не обновился за ${u.tries} попыток${u.msg ? ': ' + esc(u.msg) : ''}</small>`;
+  return `<br><small class="hint">⏳ обновление, попытка ${u.tries} из 5${u.msg ? ' · ' + esc(u.msg) : ''}</small>`;
+}
 // «Сети рядом»: что видит планшет (по кнопке; агент 0.1.15+)
 function scanBox(d) {
   const sc = d.scan;
@@ -516,15 +525,16 @@ function deviceRow(d, i) {
     const t = d.telemetry || {};
     return `<tr>
       <td>${esc(t.model)}<br><small>${esc(d.id)}</small></td>
-      <td class="${d.online ? 'online' : 'offline'}">${d.online ? 'онлайн' : d.offAt && d.offAt >= d.lastSeen ? `⏻ выключен ${d.offReason === 'battery' ? '— сел аккумулятор' : 'кнопкой'}` : 'офлайн'}${d.pending ? ` · в очереди: ${d.pending}` : ''}
+      <td class="${d.online && t.screen !== false ? 'online' : 'offline'}">${d.online && t.screen === false ? '😴 экран погашен' : d.online ? 'онлайн'
+        : d.offAt && d.offAt >= d.lastSeen ? (d.offReason === 'battery' ? '🪫 выключился — сел аккумулятор' : d.offReason === 'screen' ? '😴 экран погашен' : '⏻ выключен кнопкой') : 'офлайн'}${d.pending ? ` · в очереди: ${d.pending}` : ''}
         ${t.wifi ? `<br><small>Wi-Fi: ${esc(t.wifi)} · ${esc(t.rssi)} dBm${t.freq ? ` · ${t.freq < 3000 ? '2.4' : '5'} ГГц` : ''}</small>` : ''}
         ${outagesBox(d)}
         ${scanBox(d)}
         ${d.netlog?.length ? `<details class="dlog" data-k="net-${esc(d.id)}" ${openLogs.has('net-' + d.id) ? 'open' : ''}><summary>📶 Журнал сети: ${new Date(d.netlog[0].at).toLocaleString()} · ${esc(d.netlog[0].why.slice(0, 40))}…</summary>
           ${d.netlog.map((n) => `<div>${new Date(n.at).toLocaleString()} — ${esc(n.from || '?')} → ${esc(n.to || '?')}: ${esc(n.why)}</div>`).join('')}</details>` : ''}
         ${d.events?.length ? `<br><small class="offline" title="${esc(d.events.map((e) => new Date(e.at).toLocaleString() + ' — ' + e.text).join('\n'))}">сбой ${new Date(d.events[0].at).toLocaleString()}: ${esc(d.events[0].text.slice(0, 60))}</small>` : ''}</td>
-      <td>${t.battery ?? '—'}%${t.charging ? ' ⚡' : ''}</td>
-      <td>${esc(t.version)}</td>
+      <td>${t.battery ?? '—'}%${t.charging ? ' ⚡' : ''}${t.freeMb >= 0 ? `<br><small class="${t.freeMb < 300 ? 'offline' : 'hint'}" title="Свободная память планшета">💾 ${t.freeMb >= 1024 ? (t.freeMb / 1024).toFixed(1) + ' ГБ' : t.freeMb + ' МБ'}</small>` : ''}</td>
+      <td>${esc(t.version)}${updLine(d)}</td>
       <td>${verCell(d, i)}</td>
       <td><select onchange="assign(${i}, this.value)">${placeOptions(d)}</select><br><small>${esc(t.url || 'экран статуса')}</small></td>
       <td>${new Date(d.lastSeen).toLocaleString()}</td>

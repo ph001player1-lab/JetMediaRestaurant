@@ -444,7 +444,7 @@ function diagDevices(b, q, req) {
         id: d.id, name: deviceName(d), restaurant: db.restaurants[d.restaurantId]?.name || '', table: d.table || '', role: d.role || '',
         online: now - (d.lastSeen || 0) < ONLINE_MS, lastSeen: d.lastSeen || 0, firstSeen: d.firstSeen || 0, pageSeen: d.pageSeen || 0,
         offlineAlert: d.offlineAlert || 0, quiet: d.quiet || 0, offAt: d.offAt || 0, offReason: d.offReason || '', onAt: d.onAt || 0, bootAt: d.bootAt || 0,
-        ip: d.ip || '', telemetry, outages: d.outages || [], netlog: d.netlog || [], events: d.events || [], scan: d.scan || null,
+        ip: d.ip || '', telemetry, outages: d.outages || [], netlog: d.netlog || [], events: d.events || [], scan: d.scan || null, upd: d.upd || null,
       };
     }),
     restaurants: Object.values(db.restaurants).map((r) => ({ id: r.id, name: r.name, hours: r.hours || null, used: hoursOf(r), detected: detected(r.id) })),
@@ -565,14 +565,22 @@ function devicePoll(b, q, req) {
     d.quiet = 0;
     d.group = 0;
   }
-  // включили после выключения кнопкой (агент 0.1.15+)
-  if (d.offAt) {
+  // экран погашен (агент 0.1.16+): планшет спит — считаем выключенным, даже если изредка выходит на связь
+  const screenOff = b.telemetry?.screen === false;
+  if (screenOff && !d.offAt) { d.offAt = Date.now(); d.offReason = 'screen'; }
+  // включили после выключения кнопкой (агент 0.1.15+) или после сна
+  if (d.offAt && !screenOff) {
     d.onAt = Date.now();
     if (d.restaurantId) logEvent(d.restaurantId, 'dev_on', { dev: d.id, offMs: Date.now() - d.offAt });
     d.offAt = 0;
   }
   const up = Number(b.telemetry?.uptime);
   if (up > 0) d.bootAt = Date.now() - up;
+  // итог обновления агента (0.1.16+): установлено / уже последняя / ошибка с причиной
+  if (b.update && typeof b.update === 'object' && d.upd) {
+    d.upd = { ...d.upd, status: cut(b.update.status, 20), msg: cut(b.update.msg, 200), resAt: Date.now() };
+    if (d.upd.status === 'latest') d.upd.done = Date.now();
+  }
   // «Сети рядом» по кнопке в портале
   if (b.scan && typeof b.scan === 'object' && Array.isArray(b.scan.list)) {
     d.scan = { at: Date.now(), list: b.scan.list.slice(0, 40).map((n) => ({
@@ -675,7 +683,7 @@ function deviceBye(b) {
   if (DEVICE_KEY && b.key !== DEVICE_KEY) throw fail(403, 'bad device key');
   const battery = b.reason === 'battery';
   d.offAt = Date.now();
-  d.offReason = battery ? 'battery' : 'shutdown';
+  d.offReason = battery ? 'battery' : b.reason === 'screen' ? 'screen' : 'shutdown';
   if (d.restaurantId) logEvent(d.restaurantId, 'dev_off', { dev: d.id, why: d.offReason });
   const r = db.restaurants[d.restaurantId];
   if (battery && (!r || isWorking(r))) tgAlert(`🪫 ${deviceName(d)}: выключился — сел аккумулятор (${Number(b.battery) || 0}%). Поставьте на зарядку`);
@@ -690,7 +698,7 @@ const SLOT_MIN = 5, SLOTS = 1440 / SLOT_MIN;
 db.presence ??= {};
 const bkkMin = (ts) => { const x = new Date(ts + 7 * 3600_000); return x.getUTCHours() * 60 + x.getUTCMinutes(); };
 const hhmm = (m) => { const x = ((Math.round(m) % 1440) + 1440) % 1440; return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`; };
-const devOn = (d, now) => now - (d.lastSeen || 0) < ONLINE_MS && !(d.offAt && d.offAt >= d.lastSeen);
+const devOn = (d, now) => now - (d.lastSeen || 0) < ONLINE_MS && !(d.offAt && d.offAt >= d.lastSeen) && d.telemetry?.screen !== false;
 setInterval(() => {
   const now = Date.now(), key = thDay(now), slot = Math.floor(bkkMin(now) / SLOT_MIN), old = thDay(now - 21 * 864e5);
   const on = {};
@@ -788,6 +796,31 @@ function cleanHours(b) {
 }
 const hoursText = (h) => (h ? `${hhmm(h.from)}–${h.to === 0 ? '24:00' : hhmm(h.to)}` : '');
 
+// Обновление агента: команда дошла, но версия не сменилась (не скачалось, мало памяти, установка отклонена) — сервер
+// повторяет каждые 10 минут, пока планшет на связи, до 5 попыток; не вышло — сообщение в Telegram с последней причиной
+const UPD_EVERY = 10 * 60_000, UPD_TRIES = 5;
+setInterval(() => {
+  const now = Date.now();
+  for (const d of Object.values(db.devices)) {
+    const u = d.upd;
+    if (!u) continue;
+    if (u.done) { if (now - u.done > 864e5) delete d.upd; continue; }
+    if ((d.telemetry?.version || '') !== u.from) { u.done = now; u.status = 'ok'; u.msg = `установлена ${d.telemetry?.version || ''}`; continue; }
+    if (now - (d.lastSeen || 0) > ONLINE_MS || now - u.lastTry < UPD_EVERY) continue;
+    if (u.status === 'installing' && now - (u.resAt || 0) < 5 * 60_000) continue; // ещё ставится
+    if (u.tries >= UPD_TRIES) {
+      u.done = now;
+      u.status = 'failed';
+      tgAlert(`⚠️ ${deviceName(d)}: агент не обновился за ${UPD_TRIES} попыток (осталась ${u.from || '?'}). Последняя причина: ${u.msg || 'планшет не ответил'}`);
+      continue;
+    }
+    d.queue.push({ type: 'update' });
+    u.tries++;
+    u.lastTry = now;
+    u.status = 'sent';
+  }
+}, 60_000).unref();
+
 // Ресторан, где пропали почти все планшеты разом, — одно сообщение о восстановлении (через 1,5 минуты, когда вернутся все)
 const recovered = {};
 setInterval(() => {
@@ -865,7 +898,7 @@ setInterval(() => {
     d.offlineAlert = now;
     // выключили кнопкой (агент сообщил) или пропал вне часов работы ресторана — без Telegram
     const r = db.restaurants[d.restaurantId];
-    d.quiet = (d.offAt && d.offAt >= d.lastSeen - 1000) || (r && !isWorking(r, d.lastSeen)) ? 1 : 0;
+    d.quiet = (d.offAt && d.offAt >= d.lastSeen - 1000) || d.telemetry?.screen === false || (r && !isWorking(r, d.lastSeen)) ? 1 : 0;
     if (d.restaurantId) logEvent(d.restaurantId, 'dev_offline', { dev: d.id, ...(d.quiet ? { quiet: d.offAt ? 'off' : 'hours' } : {}) });
     if (!d.quiet) loud.push(d);
   }
@@ -2778,6 +2811,7 @@ function admin(method, p, b, me, q) {
   if (method === 'POST' && m[2] === 'command') {
     if (!COMMANDS.includes(b.type)) throw fail(400, 'unknown command');
     d.queue.push(b);
+    if (b.type === 'update') d.upd = { at: Date.now(), from: d.telemetry?.version || '', tries: 1, lastTry: Date.now(), status: 'sent' };
     save();
     return {};
   }
