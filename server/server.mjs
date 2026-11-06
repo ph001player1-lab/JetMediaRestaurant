@@ -681,6 +681,14 @@ function devicePoll(b, q, req) {
   d.telemetry = b.telemetry || {};
   d.lastSeen = Date.now();
   d.ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  // Страница планшета сама восстанавливается: привязан к столу или входу, а показывает не ту страницу (например,
+  // после переустановки агента загрузчиком) — шлём нужную. Страницу, заданную вручную кнопкой «Страница», не трогаем
+  const want = d.urlWant !== undefined ? d.urlWant : d.restaurantId && (d.table || d.role === 'entrance') ? guestUrl(d) : null;
+  if (want !== null && typeof d.telemetry.url === 'string' && d.telemetry.url !== want && !d.queue.some((c) => c.type === 'url')
+    && Date.now() - (d.urlFixAt || 0) > 60_000) {
+    d.urlFixAt = Date.now();
+    d.queue.push({ type: 'url', url: want });
+  }
   const commands = d.queue.splice(0);
   save();
   // PIN сервисного меню (если меняли в админке): агент хранит у себя и сверяет введённый.
@@ -3197,6 +3205,8 @@ function admin(method, p, b, me, q) {
   if (method === 'POST' && m[2] === 'command') {
     if (!COMMANDS.includes(b.type)) throw fail(400, 'unknown command');
     d.queue.push(b);
+    // «Страница» вручную: её и держим; пустая — снова страница стола (если привязан)
+    if (b.type === 'url') { if (b.url) d.urlWant = String(b.url); else delete d.urlWant; }
     if (b.type === 'update') d.upd = { at: Date.now(), from: d.telemetry?.version || '', tries: 1, lastTry: Date.now(), status: 'sent' };
     save();
     return {};
@@ -3205,7 +3215,7 @@ function admin(method, p, b, me, q) {
     if (INSTANCE === 'test') throw fail(400, 'Переключать версии можно в рабочем портале');
     const ch = b.channel === 'test' ? 'test' : undefined;
     return (ch ? testAlive() : Promise.resolve()).then(() => {
-      if (d.channel !== ch && (d.table || d.role === 'entrance')) d.queue.push({ type: 'url', url: guestUrl({ ...d, channel: ch }) });
+      if (d.channel !== ch && (d.table || d.role === 'entrance')) { delete d.urlWant; d.queue.push({ type: 'url', url: guestUrl({ ...d, channel: ch }) }); }
       d.channel = ch;
       save();
       return {};
@@ -3217,6 +3227,7 @@ function admin(method, p, b, me, q) {
     d.role = b.restaurantId && b.table === 'entrance' ? 'entrance' : 'table';
     d.table = b.restaurantId && b.table && d.role === 'table' ? String(b.table) : null;
     const placed = d.table || d.role === 'entrance';
+    delete d.urlWant; // привязали к столу — страница стола
     d.queue.push({ type: 'url', url: placed ? guestUrl(d) : '' });
     save();
     return {};
