@@ -388,7 +388,8 @@ let voidSt = null;
 const hhmm = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 const hms = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 let pushLogOpen = false;
-// Чья служба уведомлений доставляет на этот телефон — по адресу подписки: Android/Chrome — Google, iPhone — Apple
+// Чья служба уведомлений доставляет на этот телефон — по адресу подписки: Android (Chrome, Samsung Internet) — Google,
+// iPhone — Apple; незнакомая служба — её адрес в скобках
 const pushSvc = (host) => (/apple\.com$/.test(host || '') ? 'Apple' : /googleapis\.com$/.test(host || '') ? 'Google'
   : /mozilla\.com$/.test(host || '') ? 'Mozilla' : /windows\.com$/.test(host || '') ? 'Microsoft' : '');
 // Строка уведомления: когда отправили, ответ Google, получил ли телефон (и через сколько), показал ли;
@@ -400,7 +401,7 @@ function pushLine(x, full) {
     : x.gotAt ? ` · ${t('pushGot')} ${sec <= 60 ? `<b class="pok">${t('pushIn')} ${sec} ${t('pushSec')}</b>` : `<b class="pbad">${t('pushLate')} ${hms(x.gotAt)}</b>`}${x.shownAt ? ` · <b class="pok">${t('pushShown')}</b>` : ''}`
     : Date.now() - x.at > 30_000 ? ` · <b class="pbad">${t('pushNotGot')}</b>` : ` · ${t('pushWait')}`;
   const ref = !full ? '' : x.refCancel ? ` · ${t('refCancel')}` : x.refAckAt ? ` · ${t(x.kind === 'ready' ? 'refServed' : 'refAck')} ${hms(x.refAckAt)}${x.refAckBy ? ` ${esc(x.refAckBy)}` : ''}` : '';
-  return `${hms(x.at)} ${what}${ok ? `<b class="pok">${pushSvc(x.host) ? t('pushOk').replace('{s}', pushSvc(x.host)) : t('pushOkAny')}</b>` : `<b class="pbad">${t('pushErr')} ${x.status || esc(x.error || '')}${x.dropped ? ` — ${t('pushRenew')}` : ''}</b>`}${phone}${ref}`;
+  return `${hms(x.at)} ${what}${ok ? `<b class="pok">${pushSvc(x.host) ? t('pushOk').replace('{s}', pushSvc(x.host)) : `${t('pushOkAny')}${x.host ? ` (${esc(x.host)})` : ''}`}</b>` : `<b class="pbad">${t('pushErr')} ${x.status || esc(x.error || '')}${x.dropped ? ` — ${t('pushRenew')}` : ''}</b>`}${phone}${ref}`;
 }
 const histLines = (list, sign = '') => (list || []).map(([n, q, ml]) => `${sign}${q} × ${esc(itemName(n))}${ml ? ` (${esc(itemName(ml))})` : ''}`).join(', ');
 // «🔁 Переделать»: какие блюда и сколько вернули + причина. «✕ Отменить заказ»: что отменяется + причина
