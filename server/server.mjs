@@ -521,6 +521,36 @@ function diagDevices(b, q, req) {
     restaurants: Object.values(db.restaurants).map((r) => ({ id: r.id, name: r.name, hours: r.hours || null, used: hoursOf(r), detected: detected(r.id) })),
   };
 }
+// Что стало с вызовом или заказом из уведомления: кто нажал «Иду» / подтвердил и когда
+function pushRefState(x) {
+  if (!x.ref) return {};
+  const c = db.calls.find((y) => y.id === x.ref) || db.orders.find((y) => y.id === x.ref);
+  if (!c) return {};
+  if (c.cancelled) return { refCancel: 1 }; // гость отменил вызов сам
+  if (x.kind === 'ready') return c.servedAt ? { refAckAt: c.servedAt, refAckBy: c.servedBy || '' } : {}; // «готово» → «Подано»
+  const ackAt = c.ackAt || c.doneAt || c.confirmedAt || 0;
+  return ackAt ? { refAckAt: ackAt, refAckBy: c.ackBy || c.by || '' } : {};
+}
+// Уведомления официантам: телефоны (журнал доставки) и ход вызовов из журнала событий — вызов, напоминания,
+// «Иду», «Готово», отмена гостем — за days дней (до 7)
+function diagPush(b, q, req) {
+  diagAuth(req);
+  const days = Math.min(7, Math.max(1, Number(q.days) || 1)), to = Date.now();
+  const kinds = new Set(['call', 'remind', 'call_ack', 'call_done', 'call_cancel', 'shift']);
+  return {
+    at: to,
+    phones: Object.values(db.sessions).filter((s) => s.restaurantId).map((s) => {
+      const r = db.restaurants[s.restaurantId], m = (r?.staff || []).find((x) => x.id === s.staffId);
+      return {
+        restaurant: r?.name || '', name: m?.name || '', role: m?.role || '', onShift: !!s.onShift, lang: s.lang || '', ua: s.ua || '',
+        subs: s.subs.map((x) => new URL(x.endpoint).host), testAt: s.pushTestAt || 0,
+        log: (s.pushLog || (s.pushLast ? [s.pushLast] : [])).map(({ ack, ...x }) => ({ ...x, ...pushRefState(x) })),
+      };
+    }),
+    calls: events.read(to - days * 864e5, to, null).filter((e) => kinds.has(e.k))
+      .map((e) => ({ ...e, restaurant: db.restaurants[e.r]?.name || '', device: db.devices[e.dev] ? deviceName(db.devices[e.dev]) : e.dev })),
+  };
+}
 // События устройств из журнала: пропадания (больше порога), обрывы глазами планшета, сбои — за days дней (до 31)
 function diagEvents(b, q, req) {
   diagAuth(req);
@@ -1423,8 +1453,8 @@ function guestCall(b) {
     if (b.type === 'bill') {
       const due = openAt(db.orders, t.r, t.table).filter((o) => o.status !== 'rejected').reduce((a, o) => a + o.items
         .filter((i) => !i.paidAt && !o.paidAt && (!scope || (i.g || o.guest || 1) === scope)).reduce((x, i) => x + i.price * i.qty, 0), 0);
-      notify(t.r.id, t.table, 'bill', ` · ฿${due.toLocaleString('en')}`, false, scope ? t : 'table');
-    } else notify(t.r.id, t.table, b.type, '', false, t.n > 1 ? t : null);
+      notify(t.r.id, t.table, 'bill', ` · ฿${due.toLocaleString('en')}`, false, scope ? t : 'table', c.id);
+    } else notify(t.r.id, t.table, b.type, '', false, t.n > 1 ? t : null, c.id);
   }
   save();
   return c;
@@ -1467,7 +1497,7 @@ function guestOrder(b) {
   db.orders.push(o);
   logEvent(t.r.id, 'order', { id: o.id, table: t.table, dev: t.dev || undefined, total: o.total, items: items.map((i) => [i.id, i.qty, i.price]), lang: b.lang, guest: t.n, phone: t.phone ? 1 : undefined });
   touchTable(t.r, t.table);
-  notify(t.r.id, t.table, 'order', ` · ฿${o.total}`, false, t.n > 1 ? t : null);
+  notify(t.r.id, t.table, 'order', ` · ฿${o.total}`, false, t.n > 1 ? t : null, o.id);
   save();
   return o;
 }
@@ -1537,7 +1567,10 @@ function staffState(b, q) {
   return {
     restaurant: { name: r.name, pos: r.menuSource?.type === 'pos', tables: r.tables || [] },
     build: BUILD, instance: INSTANCE, version: VERSION,
-    me: { name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0, pushLast: s.pushLast || null },
+    me: {
+      name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0, pushLast: pushLastOf(s),
+      pushLog: (s.pushLog || []).map(({ ack, host, ...x }) => ({ ...x, ...pushRefState(x) })).reverse(), pushTestAt: s.pushTestAt || 0,
+    },
     // «Столы» официанта: его столы из ЛК менеджера, а если не назначены — все столы ресторана
     myTables: (r.tables || []).filter((tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb)),
     vapidKey: db.vapid.publicKey,
@@ -1708,7 +1741,7 @@ function kitchenReady(b) {
     hist(o, 'ready', '');
     o.kitchenItems = kitchenSnap(o); // кухня приготовила это — следующие правки покажутся как новые
     logEvent(r.id, 'order_ready', { id: o.id, table: o.table, ms: o.readyAt - (o.confirmedAt || o.at) });
-    notify(r.id, o.table, 'ready');
+    notify(r.id, o.table, 'ready', '', false, null, o.id);
   }
   save();
   return {};
@@ -1737,11 +1770,23 @@ function pushAckId(s) {
   if (pushAcks.size > 2000) pushAcks.delete(pushAcks.keys().next().value);
   return id;
 }
+// Журнал уведомлений телефона: последние 30 — когда отправили, что ответил Google, когда телефон получил и показал.
+// Виден официанту внизу экрана «Вызовы» и в диагностике (/api/diag/push)
+const PUSH_LOG = 30;
+function pushRecord(s, sub, res, meta) {
+  const x = { ...res, ...meta };
+  s.pushLog = [...(s.pushLog || []), x].slice(-PUSH_LOG);
+  delete s.pushLast; // раньше хранили только последнее — теперь это последняя строка журнала
+  if (!res.ok) { s.subs = s.subs.filter((y) => y !== sub); x.dropped = true; }
+  save();
+  return x;
+}
+const pushLastOf = (s) => s.pushLog?.at(-1) || s.pushLast || null;
 function staffPushAck(b) {
   const a = pushAcks.get(String(b.id || ''));
   if (!a) return {};
-  const pl = a.s.pushLast;
-  if (pl && pl.ack === b.id) {
+  const pl = (a.s.pushLog || []).find((x) => x.ack === b.id);
+  if (pl) {
     if (b.stage === 'got') pl.gotAt = Date.now();
     if (b.stage === 'shown') pl.shownAt = Date.now();
     if (b.stage === 'fail') pl.showErr = String(b.err || 'error').slice(0, 120);
@@ -1750,27 +1795,29 @@ function staffPushAck(b) {
   return {};
 }
 
-// «Проверить уведомление»: через 10 секунд — тестовое уведомление этому телефону (успеть заблокировать экран)
+// «Проверить уведомление»: через 10 секунд (успеть заблокировать экран) или через 6 минут — телефон успевает
+// уснуть глубоко (так и теряются вызовы на телефонах с жёстким энергосбережением)
 function staffPushTest(b) {
   const { s } = session(b.token);
   if (!s.subs.length) throw fail(400, 'no subscription');
-  const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en;
+  const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en, delay = Number(b.delay) === 360 ? 360_000 : 10_000;
+  s.pushTestAt = Date.now() + delay;
+  save();
   setTimeout(() => {
+    if (s.pushTestAt && s.pushTestAt <= Date.now() + 1000) delete s.pushTestAt;
     for (const sub of s.subs) {
       const ack = pushAckId(s);
-      sendPush(sub, { title: 'JET MEDIA', body: `✅ ${L.test || 'Test notification'}`, group: 'test', tag: `test-${Date.now()}`, ack }, db.vapid).then((res) => {
-        s.pushLast = { ...res, kind: 'test', ack };
-        if (!res.ok) { s.subs = s.subs.filter((x) => x !== sub); s.pushLast.dropped = true; }
-        save();
-      });
+      sendPush(sub, { title: 'JET MEDIA', body: `✅ ${L.test || 'Test notification'}`, group: 'test', tag: `test-${Date.now()}`, ack }, db.vapid)
+        .then((res) => pushRecord(s, sub, res, { kind: 'test', ack, delay: delay / 1000 }));
     }
-  }, 10_000);
+  }, delay);
   return {};
 }
 
-function staffSubscribe(b) {
+function staffSubscribe(b, q, req) {
   const { s } = session(b.token);
   if (!b.sub?.endpoint || !b.sub.keys?.p256dh) throw fail(400, 'bad subscription');
+  s.ua = String(req?.headers?.['user-agent'] || '').slice(0, 200); // модель телефона и браузер — для диагностики уведомлений
   s.subs = s.subs.filter((x) => x.endpoint !== b.sub.endpoint).concat(b.sub);
   if (PUSH_TEXT[b.lang]) s.lang = b.lang;
   save();
@@ -1962,7 +2009,7 @@ function staffAction(b) {
 // Пуш всем сотрудникам ресторана, которые на смене и включили уведомления
 // Официантам этого стола (без назначенных столов — всех столов); менеджерам — напоминания
 // и вызовы, которые некому отправить
-function notify(restaurantId, table, kind, extra = '', reminder = false, guest = null) {
+function notify(restaurantId, table, kind, extra = '', reminder = false, guest = null, ref = '') {
   const r = db.restaurants[restaurantId];
   if (!r) return;
   const member = (s) => (r.staff || []).find((m) => m.id === s.staffId);
@@ -1978,10 +2025,7 @@ function notify(restaurantId, table, kind, extra = '', reminder = false, guest =
       group: `${kind}-${table}`, tag: `${kind}-${table}-${Date.now()}` };
     for (const sub of s.subs) {
       const ack = pushAckId(s);
-      sendPush(sub, { ...data, ack }, db.vapid).then((res) => {
-        s.pushLast = { ...res, kind, reminder, ack };
-        if (!res.ok) { s.subs = s.subs.filter((x) => x !== sub); s.pushLast.dropped = true; save(); }
-      });
+      sendPush(sub, { ...data, ack }, db.vapid).then((res) => pushRecord(s, sub, res, { kind, table, ack, ...(reminder ? { reminder } : {}), ...(ref ? { ref } : {}) }));
     }
   }
 }
@@ -1999,7 +2043,7 @@ setInterval(() => {
     if (kind === 'order' && now - x.at > ORDER_REMIND_MAX_MS) continue;
     x.reminders = (x.reminders || 0) + 1;
     x.notifiedAt = now;
-    notify(x.restaurantId, x.table, kind, '', true);
+    notify(x.restaurantId, x.table, kind, '', true, null, x.id);
     logEvent(x.restaurantId, 'remind', { table: x.table, kind });
   }
 }, 15_000);
@@ -3355,6 +3399,7 @@ const PUBLIC = {
   'GET /api/diag/devices': diagDevices,
   'GET /api/diag/events': diagEvents,
   'GET /api/diag/server': diagServer,
+  'GET /api/diag/push': diagPush,
   'GET /api/kitchen/state': kitchenState,
   'POST /api/kitchen/ready': kitchenReady,
   'POST /api/guest/order': guestOrder,
