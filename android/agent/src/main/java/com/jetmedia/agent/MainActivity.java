@@ -473,6 +473,9 @@ public class MainActivity extends Activity {
                     .put("android", Build.VERSION.RELEASE).put("owner", isOwner())
                     .put("uptime", SystemClock.elapsedRealtime()).put("allowOpen", prefs.getBoolean("allowOpen", false))
                     .put("screen", screenOn()).put("freeMb", freeMb())
+                    .put("wifiV", prefs.getString("wifiV", "")).put("authFail", authFail == null ? JSONObject.NULL : authFail)
+                    .put("backup", backupId != -1 && curId() == backupId
+                            ? new JSONObject().put("ssid", curSsid()).put("since", backupSince) : JSONObject.NULL)
                     .put("url", prefs.getString("url", "")).put("voices", voiceList())
                     // какой PIN сервисного меню у планшета (первые 8 знаков отпечатка) — портал показывает, кто уже получил новый
                     .put("pin", prefs.getString("pinHash", "").length() >= 8 ? prefs.getString("pinHash", "").substring(0, 8) : "");
@@ -509,6 +512,12 @@ public class MainActivity extends Activity {
             if (netlog.equals(prefs.getString("netlog", "[]"))) prefs.edit().remove("netlog").apply();
             if (!scan.isEmpty() && scan.equals(prefs.getString("scan", ""))) prefs.edit().remove("scan").apply();
             if (!upd.isEmpty() && upd.equals(prefs.getString("upd", ""))) prefs.edit().remove("upd").apply();
+            // сеть ресторана из админки (имя, пароль, новый пароль) — приходит, когда изменилась
+            JSONObject wcfg = resp.optJSONObject("wifi");
+            if (wcfg != null && !wcfg.optString("v").equals(prefs.getString("wifiV", ""))) {
+                prefs.edit().putString("wifiCfg", wcfg.toString()).putString("wifiV", wcfg.optString("v")).putInt("wifiIdx", 0).apply();
+                restCfgNew = true;
+            }
             // разрешены ли чужие открытые сети как запасные (включается в админке, по умолчанию — нет)
             prefs.edit().putBoolean("allowOpen", resp.optBoolean("allowOpenWifi", false)).apply();
             JSONArray commands = resp.optJSONArray("commands");
@@ -546,6 +555,9 @@ public class MainActivity extends Activity {
     private WifiManager.WifiLock wifiLock, wifiLockFast;
     private int step, outageFails, trialId = -1, backupId = -1, mainTrialBack = -1, trialLevel;
     private boolean everOk; // сервер хоть раз ответил после запуска — до этого сеть просто поднимается после включения
+    private boolean restCfgNew, triedNext;
+    private long lastRestCheck, restFailSince;
+    private JSONObject authFail; // сеть ресторана видна, но не пускает (похоже, сменили пароль)
     private String pickInfo = "";
     private long lastStepAt, outageStart, trialUntil, backupSince, mainTrialUntil;
     private boolean trialOurs;
@@ -666,6 +678,8 @@ public class MainActivity extends Activity {
                 netLog("", "", "Wi-Fi был выключен — включил");
             }
             int cur = curId();
+            restWifi(now, ok);
+            cur = curId();
             if (ok) {
                 lastServerOk = now;
                 everOk = true;
@@ -847,6 +861,7 @@ public class MainActivity extends Activity {
             if (s.level < -85) continue; // слишком слабый сигнал — не меняем шило на мыло
             if (q.equals(current) || (ban != null && ban > now)) continue;
             Candidate c = null;
+            if (authFail != null && s.SSID.equals(authFail.optString("ssid"))) continue; // пароль не подходит — не тратим время
             if (saved != null) for (WifiConfiguration w : saved) {
                 if (q.equals(w.SSID)) { c = new Candidate(w.networkId, s.SSID, s.level, isOurs(w.networkId)); break; }
             }
@@ -860,6 +875,118 @@ public class MainActivity extends Activity {
                 + (bannedN > 0 ? ", не прошли проверку за последний час: " + bannedN : "")
                 + (allowOpen ? "" : "; открытые сети запрещены в админке");
         return best;
+    }
+
+    // ---------- Сеть ресторана из админки. Сохраняем её сами (в сервисное меню лезть не нужно). Пароль сменили:
+    // есть второй (новый) пароль из админки — пробуем его; нет — отмечаем «не пускает» (сервер напишет в Telegram),
+    // а связь держим через открытую сеть рядом, пока в админке не впишут новый пароль: он придёт сюда же
+    private JSONObject restCfg() {
+        try {
+            String s = prefs.getString("wifiCfg", "");
+            return s.isEmpty() ? null : new JSONObject(s);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private WifiConfiguration findConf(String ssid) {
+        List<WifiConfiguration> saved = wifi().getConfiguredNetworks();
+        if (saved != null) for (WifiConfiguration w : saved) if (("\"" + ssid + "\"").equals(w.SSID) && !isOurs(w.networkId)) return w;
+        return null;
+    }
+
+    private static void setKey(WifiConfiguration c, String pass) {
+        c.allowedKeyManagement.clear();
+        if (pass.isEmpty()) {
+            c.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+        } else {
+            c.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
+            c.preSharedKey = "\"" + pass + "\"";
+        }
+    }
+
+    // Записать сеть ресторана с паролем номер idx (0 — пароль, 1 — новый пароль). Возвращает id сети или -1
+    private int writeRest(JSONObject cfg, int idx) {
+        WifiManager wm = wifi();
+        String ssid = cfg.optString("ssid"), pass = cfg.optString(idx == 0 ? "pass" : "pass2");
+        WifiConfiguration c = findConf(ssid);
+        int id;
+        if (c == null) {
+            c = new WifiConfiguration();
+            c.SSID = "\"" + ssid + "\"";
+            setKey(c, pass);
+            id = wm.addNetwork(c);
+        } else {
+            setKey(c, pass);
+            id = wm.updateNetwork(c);
+            if (id == -1 && !ssid.equals(curSsid())) { // чужую запись Android не дал изменить — пересоздаём (мы к ней не подключены)
+                wm.removeNetwork(c.networkId);
+                c.networkId = -1;
+                id = wm.addNetwork(c);
+            }
+        }
+        if (id != -1) wm.enableNetwork(id, false);
+        prefs.edit().putInt("wifiIdx", idx).apply();
+        return id;
+    }
+
+    private void restWifi(long now, boolean ok) {
+        if (!isOwner() || !screenOn() || trialId != -1 || mainTrialBack != -1) return;
+        JSONObject cfg = restCfg();
+        if (cfg == null || cfg.optString("ssid").isEmpty()) return;
+        String ssid = cfg.optString("ssid"), cur = curSsid();
+        boolean onRest = cur.equals(ssid);
+        if (restCfgNew) { // новые данные из админки
+            restCfgNew = false;
+            triedNext = false;
+            banned.remove(ssid);
+            boolean hadFail = authFail != null;
+            authFail = null;
+            restFailSince = 0;
+            if (onRest && ok) return; // подключены и связь есть — текущий пароль годится, ничего не трогаем
+            int id = writeRest(cfg, 0);
+            netLog(cur, ssid, id == -1 ? "не удалось сохранить сеть ресторана «" + ssid + "» из админки"
+                    : (hadFail ? "новый пароль сети «" + ssid + "» из админки — подключаюсь" : "сеть ресторана «" + ssid + "» сохранена из админки"));
+            // стоим на запасной открытой сети — сразу пробуем вернуться (минута на проверку, не вышло — назад)
+            if (id != -1 && backupId != -1 && curId() == backupId) {
+                mainTrialBack = backupId;
+                mainTrialUntil = now + MAIN_TRIAL_MS;
+                wifi().enableNetwork(id, true);
+            }
+            return;
+        }
+        if (onRest) {
+            if (ok) { authFail = null; restFailSince = 0; triedNext = false; }
+            return;
+        }
+        // «не пускает» — только когда планшет вообще не подключён к Wi-Fi, а сеть ресторана рядом видна с хорошим сигналом
+        // (подключён к другой сети или связь есть — значит, дело не в пароле)
+        if (ok || !cur.isEmpty()) { restFailSince = 0; return; }
+        if (now - lastRestCheck < 30_000) return;
+        lastRestCheck = now;
+        WifiManager wm = wifi();
+        if (!wm.isWifiEnabled()) return; // выкл/вкл Wi-Fi — подождём
+        int level = -200;
+        for (ScanResult s : wm.getScanResults()) if (ssid.equals(s.SSID)) level = Math.max(level, s.level);
+        if (level < -75) { restFailSince = 0; return; } // не видно — мы не в ресторане или сеть выключена
+        if (findConf(ssid) == null) { writeRest(cfg, 0); return; }
+        if (restFailSince == 0) { restFailSince = now; return; }
+        if (now - restFailSince < 90_000) return; // Android пробует подключиться; переподключение и выкл/вкл Wi-Fi — тоже
+        // сеть видна полторы минуты, а подключиться не выходит — вероятно, сменили пароль
+        int idx = prefs.getInt("wifiIdx", 0), next = 1 - idx;
+        String other = cfg.optString(next == 0 ? "pass" : "pass2");
+        if (!triedNext && !other.isEmpty() && !other.equals(cfg.optString(idx == 0 ? "pass" : "pass2"))) {
+            triedNext = true;
+            restFailSince = now;
+            int id = writeRest(cfg, next);
+            if (id != -1) wm.enableNetwork(id, true);
+            netLog(cur, ssid, "сеть «" + ssid + "» не пускает — пробую " + (next == 1 ? "новый" : "прежний") + " пароль из админки");
+            return;
+        }
+        if (authFail == null) {
+            try { authFail = new JSONObject().put("ssid", ssid).put("at", now).put("level", level); } catch (Exception ignored) { }
+            netLog(cur, cur, "сеть ресторана «" + ssid + "» видна (сигнал " + level + " dBm), но не пускает — похоже, сменили пароль");
+        }
     }
 
     // Почему запасная сеть не подошла: не подключилась, не дала адрес, страница входа, нет интернета

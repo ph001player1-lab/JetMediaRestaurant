@@ -600,6 +600,11 @@ function devicePoll(b, q, req) {
     d.netlog = [{ at, from: String(n.from || '').slice(0, 64), to: String(n.to || '').slice(0, 64), why: String(n.why || '').slice(0, 160) },
       ...(d.netlog || [])].sort((x, y) => y.at - x.at).slice(0, 30);
   }
+  // Wi-Fi глазами планшета (агент 0.1.17+): ушёл на чужую открытую сеть, вернулся, сеть ресторана «не пускает»
+  const nt = b.telemetry || {}, pt = d.telemetry || {};
+  if (nt.authFail?.ssid && nt.authFail.at !== pt.authFail?.at) wifiNews(d, 'auth', nt);
+  if (nt.backup?.ssid && !pt.backup?.ssid) wifiNews(d, 'backup', nt);
+  if (nt.backup === null && pt.backup?.ssid) wifiNews(d, 'back', pt);
   d.telemetry = b.telemetry || {};
   d.lastSeen = Date.now();
   d.ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
@@ -608,6 +613,9 @@ function devicePoll(b, q, req) {
   // PIN сервисного меню (если меняли в админке): агент хранит у себя и сверяет введённый.
   // allowOpenWifi — можно ли при потере связи подключаться к чужим открытым сетям (по умолчанию нет)
   const out = { commands, allowOpenWifi: !!db.allowOpenWifi };
+  // сеть ресторана из админки — только планшетам этого ресторана и только когда изменилась
+  const rw = db.restaurants[d.restaurantId]?.wifi;
+  if (rw?.ssid && d.telemetry.wifiV !== rw.v) out.wifi = { ssid: rw.ssid, pass: rw.pass || '', pass2: rw.pass2 || '', v: rw.v };
   if (db.servicePin) out.pin = { salt: db.servicePin.salt, hash: db.servicePin.hash };
   return out;
 }
@@ -794,6 +802,12 @@ function cleanHours(b) {
   const from = parseHm(b?.from), to = parseHm(b?.to);
   return { mode, ...(from !== null && to !== null ? { from, to } : {}) };
 }
+// Сколько планшетов ресторана уже получили сеть из админки
+function wifiStatus(r) {
+  const devs = Object.values(db.devices).filter((d) => d.restaurantId === r.id);
+  return { total: devs.length, got: r.wifi ? devs.filter((d) => d.telemetry?.wifiV === r.wifi.v).length : 0,
+    old: devs.filter((d) => !('wifiV' in (d.telemetry || {}))).length };
+}
 const hoursText = (h) => (h ? `${hhmm(h.from)}–${h.to === 0 ? '24:00' : hhmm(h.to)}` : '');
 
 // Обновление агента: команда дошла, но версия не сменилась (не скачалось, мало памяти, установка отклонена) — сервер
@@ -820,6 +834,53 @@ setInterval(() => {
     u.status = 'sent';
   }
 }, 60_000).unref();
+
+// ---------- Wi-Fi ресторана из админки: имя сети, пароль и новый пароль (если ресторан собирается сменить).
+// Пароли уходят только планшетам этого ресторана; в журнал админки — только факт изменения
+function cleanWifi(b) {
+  const ssid = String(b?.ssid || '').trim().slice(0, 32);
+  if (!ssid) return null;
+  const pw = (v) => {
+    const x = String(v || '');
+    if (x && (x.length < 8 || x.length > 63)) throw fail(400, 'Пароль Wi-Fi — от 8 до 63 символов (пусто — сеть без пароля)');
+    return x;
+  };
+  const pass = pw(b.pass), pass2 = pw(b.pass2);
+  return { ssid, pass, pass2, v: sha256(`${ssid}\n${pass}\n${pass2}`).slice(0, 10) };
+}
+// Сообщения о Wi-Fi копим минуту и шлём одним сообщением на ресторан (одинаковые — не чаще раза в 30 минут)
+const wifiQueue = [], wifiSent = {};
+function wifiNews(d, kind, t) {
+  wifiQueue.push({ at: Date.now(), kind, rid: d.restaurantId || '', dev: d.id,
+    ssid: kind === 'auth' ? t.authFail.ssid : t.backup?.ssid || '', via: t.backup?.ssid || '' });
+}
+setInterval(() => {
+  const now = Date.now(), ready = wifiQueue.filter((x) => now - x.at > 60_000);
+  if (!ready.length) return;
+  for (const x of ready) wifiQueue.splice(wifiQueue.indexOf(x), 1);
+  const groups = {};
+  for (const x of ready) (groups[`${x.rid}|${x.kind}`] ??= []).push(x);
+  for (const [key, list] of Object.entries(groups)) {
+    const [rid, kind] = key.split('|'), r = db.restaurants[rid];
+    if (kind !== 'back' && now - (wifiSent[key] || 0) < 30 * 60_000) continue;
+    // «не пускает» уже говорит, что планшеты на открытой сети — отдельное «через открытую сеть» не шлём
+    if (kind === 'backup' && (groups[`${rid}|auth`] || now - (wifiSent[`${rid}|auth`] || 0) < 30 * 60_000)) continue;
+    wifiSent[key] = now;
+    const devs = [...new Set(list.map((x) => x.dev))].map((id) => db.devices[id]).filter(Boolean);
+    const names = devs.map((d) => (r && d.table ? tableLabel(d.table) : deviceName(d))).join(', ');
+    const place = r ? r.name : 'Без ресторана', ssid = list[0].ssid;
+    const via = devs.map((d) => d.telemetry?.backup?.ssid).find(Boolean);
+    if (kind === 'auth') {
+      tgAlert(`🔑 ${place}: ${names} — сеть «${ssid}» видна, но не пускает. Похоже, сменили пароль Wi-Fi.\n`
+        + `Впишите новый в админке: Рестораны → ${place} → Wi-Fi ресторана — планшеты получат его сами`
+        + (via ? ` (сейчас на связи через открытую сеть «${via}»).` : ' (как только выйдут на связь через открытую сеть рядом).'));
+    } else if (kind === 'backup') {
+      tgAlert(`📶 ${place}: ${names} — на связи через чужую открытую сеть «${ssid}»: сеть ресторана не даёт связи`);
+    } else {
+      tgAlert(`✅ ${place}: ${names} — ${devs.length > 1 ? 'вернулись' : 'вернулся'} на сеть ресторана`);
+    }
+  }
+}, 30_000).unref();
 
 // Ресторан, где пропали почти все планшеты разом, — одно сообщение о восстановлении (через 1,5 минуты, когда вернутся все)
 const recovered = {};
@@ -2600,7 +2661,8 @@ function admin(method, p, b, me, q) {
     const list = Object.values(db.restaurants).filter((r) => !scope || scope.has(r.id));
     if (me.role === 'viewer') return list.map((r) => ({ id: r.id, name: r.name }));
     return list.map((r) => ({ ...r, menuSource: publicSource(r.menuSource), tagRules: r.tagRules || DEFAULT_RULES, customTags: r.customTags || [], menuIssues: menuIssues(r),
-      hoursInfo: { detected: detected(r.id), used: hoursOf(r), usedText: hoursText(hoursOf(r)) } }));
+      hoursInfo: { detected: detected(r.id), used: hoursOf(r), usedText: hoursText(hoursOf(r)) },
+      wifiStatus: wifiStatus(r) }));
   }
   if (method === 'POST' && p === '/api/restaurants') {
     if (scope && !scope.has(b.id)) throw fail(403, 'Нет доступа к этому ресторану');
@@ -2628,7 +2690,10 @@ function admin(method, p, b, me, q) {
       syncKey: prev.syncKey || crypto.randomBytes(12).toString('hex'),
       // часы работы: по планшетам / вручную / нет (демо) — для тревог о связи и сводки
       hours: b.hours !== undefined ? cleanHours(b.hours) : prev.hours,
+      // Wi-Fi меняется только в рабочей админке: планшеты связаны с рабочей
+      wifi: b.wifi !== undefined && INSTANCE !== 'test' ? cleanWifi(b.wifi) : prev.wifi,
     };
+    if ((db.restaurants[id].wifi?.v || '') !== (prev.wifi?.v || '')) audit(me.email, `Wi-Fi ресторана «${db.restaurants[id].name}» изменён`, id);
     hoursCache.delete(id);
     // меню — по источнику до этого сохранения: если ресторан уже синхронизировался, присланное меню не заменяет синхронизированное
     if (Array.isArray(b.tagRules)) db.restaurants[id].tagRules = cleanRules(b.tagRules, db.restaurants[id]);

@@ -217,6 +217,17 @@
       </div>
       <div id="rHoursInfo" class="hint" style="margin-top:4px"></div>
     </div>
+    <div style="flex-basis:100%;border-top:1px solid #eee;padding-top:6px">
+      <b>Wi-Fi ресторана</b> <small class="hint">— планшеты ресторана сохранят сеть сами (агент 0.1.17+), в сервисное меню лезть не нужно</small>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:4px">
+        <label>Название сети <input id="rWifiSsid" autocomplete="off" style="width:200px"></label>
+        <label>Пароль <span class="pinw"><input id="rWifiPass" class="masked" autocomplete="off" style="width:180px"><button type="button" class="eye" data-eye="1" title="Показать">👁</button></span></label>
+        <label>Новый пароль <small class="hint">(если ресторан собирается сменить)</small> <span class="pinw"><input id="rWifiPass2" class="masked" autocomplete="off" style="width:180px"><button type="button" class="eye" data-eye="1" title="Показать">👁</button></span></label>
+      </div>
+      <small class="hint">Пароль сменили без предупреждения — планшеты уйдут на открытую сеть рядом (если разрешено в «Устройствах»), в Telegram придёт «🔑 сеть не пускает».
+        Впишите новый пароль сюда — планшеты получат его через открытую сеть и вернутся. Сменят по договорённости — заранее впишите «новый пароль»: планшеты перейдут на него сами.</small>
+      <div id="rWifiInfo" class="hint" style="margin-top:4px"></div>
+    </div>
     <details style="flex-basis:100%"><summary>Типы рекламы, которые в этом ресторане не показывать <span id="rCatsN" class="hint"></span></summary><div id="rCats" class="hint" style="columns:3 220px"></div></details>
     <details style="flex-basis:100%"><summary>Реклама, которую в этом ресторане не показывать</summary><div id="rBlocked" class="hint"></div></details>
     <label>Язык редактирования
@@ -528,6 +539,8 @@ function deviceRow(d, i) {
       <td class="${d.online && t.screen !== false ? 'online' : 'offline'}">${d.online && t.screen === false ? '😴 экран погашен' : d.online ? 'онлайн'
         : d.offAt && d.offAt >= d.lastSeen ? (d.offReason === 'battery' ? '🪫 выключился — сел аккумулятор' : d.offReason === 'screen' ? '😴 экран погашен' : '⏻ выключен кнопкой') : 'офлайн'}${d.pending ? ` · в очереди: ${d.pending}` : ''}
         ${t.wifi ? `<br><small>Wi-Fi: ${esc(t.wifi)} · ${esc(t.rssi)} dBm${t.freq ? ` · ${t.freq < 3000 ? '2.4' : '5'} ГГц` : ''}</small>` : ''}
+        ${t.authFail?.ssid ? `<br><small class="offline">🔑 сеть «${esc(t.authFail.ssid)}» не пускает — похоже, сменили пароль</small>` : ''}
+        ${t.backup?.ssid ? `<br><small class="offline">📶 через открытую сеть «${esc(t.backup.ssid)}» с ${new Date(t.backup.since).toLocaleTimeString().slice(0, 5)}</small>` : ''}
         ${outagesBox(d)}
         ${scanBox(d)}
         ${d.netlog?.length ? `<details class="dlog" data-k="net-${esc(d.id)}" ${openLogs.has('net-' + d.id) ? 'open' : ''}><summary>📶 Журнал сети: ${new Date(d.netlog[0].at).toLocaleString()} · ${esc(d.netlog[0].why.slice(0, 40))}…</summary>
@@ -683,6 +696,12 @@ async function edit(id) {
   $('rHoursFrom').value = Number.isFinite(hrs.from) ? hm(hrs.from) : '';
   $('rHoursTo').value = Number.isFinite(hrs.to) ? (hrs.to === 0 ? '24:00' : hm(hrs.to)) : '';
   $('rHoursInfo').innerHTML = hoursInfoHtml(cur);
+  $('rWifiSsid').value = cur.wifi?.ssid || '';
+  $('rWifiPass').value = cur.wifi?.pass || '';
+  $('rWifiPass2').value = cur.wifi?.pass2 || '';
+  const ws = cur.wifiStatus;
+  $('rWifiInfo').innerHTML = cur.wifi && ws ? `Получили сеть: <b>${ws.got} из ${ws.total}</b> планшетов${ws.old ? ` · со старым агентом (не получат, пока не обновить): ${ws.old}` : ''}` : '';
+  if (vers.instance === 'test') $('rWifiInfo').innerHTML += '<br>Это тестовая админка: Wi-Fi ресторана меняется в рабочей (app.jetmedia.dev).';
   if (!ads.length) ads = await api('/api/ads').catch(() => []);
   if (!adCats.length) adCats = await api('/api/ad-cats').catch(() => []);
   cur.blockedAds ||= [];
@@ -932,6 +951,8 @@ async function saveRestaurant(notice) {
   cur.tariff = $('rTariff').value;
   cur.adEvery = Number($('rAdEvery').value) || 2;
   cur.hours = { mode: $('rHoursMode').value, from: $('rHoursFrom').value.trim(), to: $('rHoursTo').value.trim() };
+  cur.wifi = { ssid: $('rWifiSsid').value.trim(), pass: $('rWifiPass').value, pass2: $('rWifiPass2').value };
+  for (const k of ['pass', 'pass2']) if (cur.wifi[k] && (cur.wifi[k].length < 8 || cur.wifi[k].length > 63)) return alert('Пароль Wi-Fi — от 8 до 63 символов (пусто — сеть без пароля)');
   if (cur.hours.mode === 'manual' && (!cur.hours.from || !cur.hours.to)) return alert('Часы работы «только вручную»: укажите время «с» и «до», например 10:00 и 24:00');
   if (GEO) { cur.district = $('rDistrict').value; cur.address = $('rAddress').value.trim(); }
   // список уже показан для этого ресторана — берём отметки из него
