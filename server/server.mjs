@@ -1818,7 +1818,9 @@ function staffSubscribe(b, q, req) {
   const { s } = session(b.token);
   if (!b.sub?.endpoint || !b.sub.keys?.p256dh) throw fail(400, 'bad subscription');
   s.ua = String(req?.headers?.['user-agent'] || '').slice(0, 200); // модель телефона и браузер — для диагностики уведомлений
-  s.subs = s.subs.filter((x) => x.endpoint !== b.sub.endpoint).concat(b.sub);
+  // Вход — это один браузер на одном телефоне: у него одна подписка. Новая (например, свежая перед проверкой)
+  // заменяет прежнюю — иначе уведомления уходили бы и на старую (ответ 410 «подписки нет») и дублировались в журнале
+  s.subs = [b.sub];
   if (PUSH_TEXT[b.lang]) s.lang = b.lang;
   save();
   return {};
