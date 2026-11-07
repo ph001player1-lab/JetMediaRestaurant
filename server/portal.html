@@ -609,11 +609,24 @@ async function loadVersions() {
   document.title = test ? 'JET MEDIA · ТЕСТ' : 'JET MEDIA';
   $('verBox').innerHTML = test
     ? `<b style="color:#c62828">🧪 Это ТЕСТОВАЯ версия ${esc(vers.test || '')}</b> — база скопирована с рабочей, в Telegram не пишет.
-       Планшеты переводят на тест в рабочем портале.`
+       Планшеты переводят на тест в рабочем портале.<br>
+       <button id="copyProd" onclick="copyFromProd()">⇩ Перенести все пользовательские настройки с рабочей</button>
+       ${vers.copiedAt ? `<button onclick="copyFromProd(true)">↩ Вернуть как было до переноса</button>
+       <span class="hint">· последний перенос: ${new Date(vers.copiedAt).toLocaleString('ru-RU')}</span>` : ''}`
     : `<b>Версии:</b> рабочая <b>${esc(vers.prod || '—')}</b> · тестовая <b>${esc(vers.test || 'не запущена')}</b>
        <span class="hint">· заказы и вызовы с планшетов на тестовой версии приходят только в тестовое приложение официанта (${esc(vers.testUrl)}/staff/)</span><br>
        Перевести <select id="chRest"><option value="">всю сеть</option>${rests.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</select>
        на <button onclick="setChannel('test')">🧪 тестовую</button> <button onclick="setChannel('')">рабочую</button>`;
+}
+// Тестовая: настройки с рабочей (рестораны с меню, персоналом, дизайном и схемой зала, реклама, персонажи, админы, цены, Wi-Fi)
+async function copyFromProd(undo) {
+  if (!confirm(undo ? 'Вернуть настройки тестовой как были до последнего переноса?'
+    : 'Перенести с рабочей все пользовательские настройки?\n\nЗаменятся: рестораны (меню, акции, персонал, столы, дизайн, схема зала, часы), реклама, ИИ-персонажи, администраторы, цены, Wi-Fi, PIN планшетов.\nОстанутся свои: заказы, вызовы, статистика, входы официантов.\n\nПрежние настройки тестовой сохранятся — их можно вернуть кнопкой «Вернуть как было».')) return;
+  const b = $('copyProd'); if (b) { b.disabled = true; b.textContent = '⏳ Переносим…'; }
+  const r = await api('/api/settings/copy-from-prod', 'POST', { undo: !!undo }).catch((e) => ({ error: e.message }));
+  if (r.error) alert(r.error);
+  else alert(undo ? 'Настройки возвращены как были.' : `Готово: ресторанов ${r.restaurants}, картинок докачано ${r.files}${r.missing ? `, не нашлось ${r.missing}` : ''}.`);
+  location.reload();
 }
 function verCell(d, i) {
   const test = d.channel === 'test';

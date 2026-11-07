@@ -146,12 +146,12 @@
   }
 
   // ---------- Масштаб схемы: по умолчанию вся зона на экране; два пальца — масштаб, один палец (когда увеличено) —
-  // двигать; двойное касание по пустому месту — увеличить / вернуть; кнопки − ⤢ +; колесо мыши в редакторе.
+  // двигать; двойное касание по пустому месту — увеличить / вернуть; колесо мыши и тачпад в редакторе (кнопок нет — не закрывают столы).
   // Сильно уменьшено — кнопки и надписи у столов прячутся (действия — в «Нужно сделать»). Масштаб зоны помнит телефон
   const zs = {};
   let gesture = false;
   const zget = (key) => zs[key] || (zs[key] = (() => { try { return JSON.parse(localStorage.getItem('jf:z:' + key)); } catch { return null; } })() || { z: 0, x: 0, y: 0 });
-  const zoomWrap = (inner) => `<div class="fzwrap">${inner}<div class="fzbtns"><button data-zm="-1" aria-label="−">−</button><button data-zm="0" aria-label="⤢">⤢</button><button data-zm="1" aria-label="+">+</button></div></div>`;
+  const zoomWrap = (inner) => `<div class="fzwrap">${inner}</div>`;
   function attachZoom(root, key, maxH, opts = {}) {
     const wrap = root.querySelector('.fzwrap'), plan = wrap?.querySelector('.fplan');
     if (!plan) return;
@@ -176,12 +176,6 @@
     const zoomAt = (nz, cx, cy) => { const k = nz / st.z; st.x = cx - (cx - st.x) * k; st.y = cy - (cy - st.y) * k; st.z = nz; apply(true); };
     apply();
     const pt = (t) => { const r = wrap.getBoundingClientRect(); return { x: t.clientX - r.left, y: t.clientY - r.top }; };
-    wrap.querySelector('.fzbtns').onclick = (e) => {
-      const b = e.target.closest('[data-zm]'); if (!b) return;
-      e.stopPropagation();
-      const m = Number(b.dataset.zm);
-      if (!m) { st.z = fit; apply(true); } else zoomAt(st.z * (m > 0 ? 1.4 : 1 / 1.4), W / 2, H / 2);
-    };
     let t0 = null, lastTap = 0, moved = false;
     wrap.addEventListener('touchstart', (e) => {
       moved = false;
@@ -446,8 +440,6 @@
 .fplanwrap{overflow-x:auto;padding-bottom:16px}.fplan{position:relative;margin:4px auto 0}
 .fzwrap{position:relative;overflow:hidden;margin:4px 0 16px;border-radius:12px;touch-action:pan-y}.fzwrap.fzin{touch-action:none;box-shadow:inset 0 0 0 1px #d9cdc1}
 .fzwrap .fplan{position:absolute;left:0;top:0;margin:0;transform-origin:0 0}
-.fzbtns{position:absolute;right:4px;top:4px;z-index:6;display:flex;gap:4px;opacity:.9}
-.fzbtns button{width:32px;height:32px;border-radius:10px;border:1px solid #d9cdc1;background:#fff;color:#1f1a17;font:inherit;font-size:17px;font-weight:700;padding:0;display:grid;place-items:center}
 .fsmall .fqn,.fsmall .fstat,.fsmall .ftile .fs{display:none}
 .ftile{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;border:2px solid #d9cdc1;background:#fff;color:#1f1a17;padding:0;line-height:1.1;cursor:pointer;touch-action:manipulation;font:inherit;user-select:none;-webkit-user-select:none}
 .ftile.rd{border-radius:50%}.ftile .fn{font-size:17px;font-weight:800}.ftile .fn.sm{font-size:13px}.ftile .fs{font-size:11px;font-weight:600;margin-top:2px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}

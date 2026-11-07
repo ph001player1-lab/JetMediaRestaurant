@@ -118,32 +118,70 @@ async function pullAllDevices() {
     }));
   } catch { /* рабочая недоступна */ }
 }
-// Схемы залов рабочей версии — тестовой (по ключу устройств, только изнутри сервера, как список планшетов)
-function internalFloors(b, q, req) {
+// Пользовательские настройки (что задают админы и менеджеры) — с рабочей на тестовую, по кнопке в тестовом портале.
+// Рестораны целиком (меню, акции, персонал, столы, дизайн, схема зала…), реклама, ИИ-персонажи, админы, цены, Wi-Fi, PIN.
+// Заказы, вызовы, статистика, входы и уведомления тестовой остаются свои
+const SETTINGS_KEYS = ['restaurants', 'ads', 'characters', 'admins', 'pricing', 'fleetWifi', 'allowOpenWifi', 'servicePin', 'fxCustom', 'eleven'];
+const SETTINGS_BACKUP = path.join(DATA_DIR, 'before-settings-copy.json');
+function internalSettings(b, q, req) {
   if (INSTANCE !== 'prod' || !process.env.DEVICE_KEY || q.key !== process.env.DEVICE_KEY || req.headers['x-forwarded-for']) throw fail(403, 'forbidden');
-  return { floors: Object.values(db.restaurants).filter((r) => r.floor?.zones?.length).map((r) => ({ id: r.id, name: r.name, floor: r.floor })) };
+  return { settings: Object.fromEntries(SETTINGS_KEYS.map((k) => [k, db[k]])) };
 }
-// Тестовая: один раз переносим схему зала Veranda с рабочей (проверить зум на настоящей схеме). Рабочая отдаёт
-// схемы с этой версии — пока не умеет, пробуем каждые 5 минут
-async function pullVerandaFloor() {
-  if (INSTANCE !== 'test' || !process.env.DEVICE_KEY || db.migrations.verandaFloor) return;
+async function copySettingsFromProd(who) {
+  if (INSTANCE !== 'test') throw fail(400, 'Перенос настроек — только на тестовой версии');
+  if (!process.env.DEVICE_KEY) throw fail(400, 'Нет ключа устройств — тестовая не связана с рабочей');
+  let j;
   try {
-    const j = await (await fetch(`${PROD_API}/api/internal/floors?key=${encodeURIComponent(process.env.DEVICE_KEY)}`, { signal: AbortSignal.timeout(5000) })).json();
-    const src = (j.floors || []).find((x) => /veranda/i.test(x.name || ''));
-    if (!src) return;
-    const r = db.restaurants[src.id] || Object.values(db.restaurants).find((x) => /veranda/i.test(x.name || ''));
-    if (!r) return;
-    // столы рабочей, которых на тесте нет, — серыми «столами без планшета» на тех же местах: схема та же целиком
-    const has = new Set(r.tables || []);
-    const zones = (src.floor.zones || []).map((z) => ({ ...z, tables: (z.tables || []).filter((x) => has.has(x.t)),
-      decor: [...(z.decor || []), ...(z.tables || []).filter((x) => !has.has(x.t)).map((x) => ({ ...x, kind: 'table', text: String(x.t).replace(/^\D+(?=\d)/, '') }))] }));
-    r.floor = cleanFloor({ ...src.floor, zones }, r);
-    db.migrations.verandaFloor = Date.now();
-    save();
-    console.log(`Схема зала ${r.name} перенесена с рабочей: зон ${r.floor.zones.length}`);
-  } catch { /* рабочая ещё не отдаёт схемы — в следующий раз */ }
+    j = await (await fetch(`${PROD_API}/api/internal/settings?key=${encodeURIComponent(process.env.DEVICE_KEY)}`, { signal: AbortSignal.timeout(15000) })).json();
+  } catch { throw fail(502, 'Рабочая версия не отвечает'); }
+  const src = j?.settings;
+  if (!src?.restaurants) throw fail(502, 'Рабочая версия ещё не умеет отдавать настройки — сначала выкатите на неё эту версию (RELEASE)');
+  // как было на тестовой — чтобы можно было вернуть
+  fs.writeFileSync(SETTINGS_BACKUP, JSON.stringify({ at: Date.now(), who, data: Object.fromEntries(SETTINGS_KEYS.map((k) => [k, db[k]])) }));
+  for (const k of SETTINGS_KEYS) if (k !== 'restaurants' && src[k] !== undefined) db[k] = structuredClone(src[k]);
+  // рестораны: с рабочей — целиком; свои отметки тестовой (тестовые визиты, удалённые заказы, ссылка экрана кухни) — остаются;
+  // рестораны, которые есть только на тестовой, не трогаем
+  for (const [id, pr] of Object.entries(src.restaurants)) {
+    const old = db.restaurants[id], r = structuredClone(pr);
+    if (old) {
+      for (const k of ['testIds', 'testBefore', 'removedIds']) if (old[k] !== undefined) r[k] = old[k]; else delete r[k];
+      if (old.flow?.kitchenKey && r.flow) r.flow.kitchenKey = old.flow.kitchenKey;
+    }
+    db.restaurants[id] = r;
+    hoursCache.delete(id);
+  }
+  save();
+  // картинки и голос, загруженные на рабочей после копирования базы, — докачиваем
+  const need = [...new Set(JSON.stringify(src).match(/\/uploads\/[a-f0-9]+\.(jpg|png|webp|svg|mp3|ogg|wav)/g) || [])]
+    .map((u) => u.slice(9)).filter((f) => !fs.existsSync(path.join(UPLOADS, f)));
+  let got = 0;
+  fs.mkdirSync(UPLOADS, { recursive: true });
+  for (let i = 0; i < need.length; i += 6) {
+    await Promise.all(need.slice(i, i + 6).map(async (f) => {
+      try {
+        const res = await fetch(`${PROD_API}/uploads/${f}`, { signal: AbortSignal.timeout(15000) });
+        if (!res.ok) return;
+        fs.writeFileSync(path.join(UPLOADS, f), Buffer.from(await res.arrayBuffer()));
+        got++;
+      } catch { /* эта картинка — без неё */ }
+    }));
+  }
+  const n = Object.keys(src.restaurants).length;
+  audit(who, `Настройки перенесены с рабочей: ресторанов ${n}, картинок докачано ${got}`);
+  return { restaurants: n, files: got, missing: need.length - got };
 }
-if (INSTANCE === 'test') { setTimeout(pullVerandaFloor, 20_000).unref(); setInterval(pullVerandaFloor, 5 * 60e3).unref(); }
+function restoreSettings(who) {
+  if (INSTANCE !== 'test') throw fail(400, 'Только на тестовой версии');
+  let bk;
+  try { bk = JSON.parse(fs.readFileSync(SETTINGS_BACKUP, 'utf8')); } catch { throw fail(404, 'Нечего возвращать — переноса ещё не было'); }
+  for (const k of SETTINGS_KEYS) if (bk.data[k] !== undefined) db[k] = bk.data[k]; else delete db[k];
+  for (const id of Object.keys(db.restaurants)) hoursCache.delete(id);
+  save();
+  fs.rmSync(SETTINGS_BACKUP, { force: true });
+  audit(who, 'Настройки тестовой возвращены как были до переноса с рабочей');
+  return {};
+}
+const settingsBackupAt = () => { try { return JSON.parse(fs.readFileSync(SETTINGS_BACKUP, 'utf8')).at || 0; } catch { return 0; } };
 function internalDevices(b, q, req) {
   if (INSTANCE !== 'prod' || !process.env.DEVICE_KEY || q.key !== process.env.DEVICE_KEY || req.headers['x-forwarded-for']) throw fail(403, 'forbidden');
   return { devices: Object.values(db.devices).map(({ queue, ...d }) => d) };
@@ -3625,7 +3663,12 @@ function admin(method, p, b, me, q) {
   // Версии (рабочая и тестовая) и переключение планшетов между ними
   if (method === 'GET' && p === '/api/devices/_versions') {
     return (INSTANCE === 'test' ? Promise.resolve(VERSION) : getTestVersion())
-      .then((test) => ({ instance: INSTANCE, prod: INSTANCE === 'prod' ? VERSION : null, test, testUrl: TEST_URL }));
+      .then((test) => ({ instance: INSTANCE, prod: INSTANCE === 'prod' ? VERSION : null, test, testUrl: TEST_URL, copiedAt: INSTANCE === 'test' ? settingsBackupAt() : 0 }));
+  }
+  // Тестовая: перенести все пользовательские настройки с рабочей / вернуть как было
+  if (method === 'POST' && p === '/api/settings/copy-from-prod') {
+    if (me.role !== 'super') throw fail(403, 'Переносит настройки только суперадмин');
+    return b.undo ? restoreSettings(me.email) : copySettingsFromProd(me.email);
   }
   if (method === 'POST' && p === '/api/devices/_channel') {
     if (INSTANCE === 'test') throw fail(400, 'Переключать версии можно в рабочем портале');
@@ -3706,7 +3749,7 @@ const PUBLIC = {
   'POST /api/guest/join': guestJoin,
   'GET /api/version': () => ({ version: VERSION, instance: INSTANCE }),
   'GET /api/internal/device': internalDevice,
-  'GET /api/internal/floors': internalFloors,
+  'GET /api/internal/settings': internalSettings,
   'GET /api/internal/devices': internalDevices,
   'GET /api/internal/server': internalServer,
   'GET /api/diag/devices': diagDevices,
