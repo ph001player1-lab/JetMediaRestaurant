@@ -8,7 +8,11 @@
       unplaced: 'Не на схеме', tables: 'Столы', yours: 'ваш', min: 'мин', table: 'стол',
       st_free: 'свободен', st_busy: 'гости', st_cook: 'готовится', st_call: 'Вызов официанта', st_bill: 'Просят счёт', st_new: 'Новый заказ', st_ready: 'Готово — нести', st_callAck: 'Официант идёт', st_billAck: 'Несут счёт', paidAll: 'оплачен', carry: 'нести',
       q_ack: 'Иду', q_done: 'Готово', q_confirm: 'Принять', q_kitchen: 'На кухню', q_served: 'Подано', q_paid: 'Оплачен', q_close: 'Закрыть',
-      st_tokitchen: 'Заказ не отдан на кухню', todo: 'Нужно сделать', atKitchen: 'На кухне', yourMove: 'ваш ход',
+      st_tokitchen: 'Заказ не отдан на кухню',
+      st_pay: 'Гости за столом', st_close: 'Всё оплачено', allFree: 'Все столы свободны', due: 'к оплате', later: 'Дальше по столам',
+      need_pay: 'Взять оплату', need_close: 'Закрыть стол — всё оплачено', need_closePos: 'Закрыть стол после оплаты в кассе',
+      lb_free: 'свободен', lb_call: 'вызов {m}′', lb_bill: 'счёт {m}′', lb_new: 'новый заказ', lb_tokitchen: 'отдать на кухню', lb_ready: 'нести', lb_ack: 'идёт {n}',
+      lb_cook: 'ждём кухню {m}′', lb_pay: 'взять оплату', lb_close: 'закрыть стол', todo: 'Нужно сделать', atKitchen: 'На кухне', yourMove: 'ваш ход',
       need_call: 'Подойти к гостю', need_bill: 'Принести счёт', need_new: 'Подтвердить заказ', need_tokitchen: 'Отдать заказ на кухню', need_ready: 'Отнести — блюда готовы',
       need_callAck: 'Идёт {n} — потом «Готово»', need_billAck: 'Счёт несёт {n} — потом «Готово»', need_cook: 'Ждём кухню', need_cookNoScreen: 'Когда отнесёте — «Подано»',
       qh_kitchen: 'На кухню — заказ отдали на кухню (если нет экрана кухни)',
@@ -25,7 +29,11 @@
       unplaced: 'Not on the plan', tables: 'Tables', yours: 'yours', min: 'min', table: 'table',
       st_free: 'free', st_busy: 'guests', st_cook: 'cooking', st_call: 'Waiter call', st_bill: 'Bill requested', st_new: 'New order', st_ready: 'Ready — carry it', st_callAck: 'Waiter on the way', st_billAck: 'Bringing the bill', paidAll: 'paid', carry: 'carry',
       q_ack: 'Going', q_done: 'Done', q_confirm: 'Accept', q_kitchen: 'To kitchen', q_served: 'Served', q_paid: 'Paid', q_close: 'Close',
-      st_tokitchen: 'Order not in the kitchen yet', todo: 'To do', atKitchen: 'In the kitchen', yourMove: 'your move',
+      st_tokitchen: 'Order not in the kitchen yet',
+      st_pay: 'Guests at the table', st_close: 'All paid', allFree: 'All tables are free', due: 'to pay', later: 'Next at the tables',
+      need_pay: 'Take the payment', need_close: 'Close the table — all paid', need_closePos: 'Close the table after payment at the cashier',
+      lb_free: 'free', lb_call: 'call {m}′', lb_bill: 'bill {m}′', lb_new: 'new order', lb_tokitchen: 'to kitchen', lb_ready: 'carry', lb_ack: '{n} going',
+      lb_cook: 'kitchen {m}′', lb_pay: 'take payment', lb_close: 'close table', todo: 'To do', atKitchen: 'In the kitchen', yourMove: 'your move',
       need_call: 'Go to the guest', need_bill: 'Bring the bill', need_new: 'Confirm the order', need_tokitchen: 'Pass the order to the kitchen', need_ready: 'Carry it — the food is ready',
       need_callAck: '{n} is going — then “Done”', need_billAck: '{n} brings the bill — then “Done”', need_cook: 'Waiting for the kitchen', need_cookNoScreen: 'When you bring it — “Served”',
       qh_kitchen: 'To kitchen — the order was passed to the kitchen (when there is no kitchen screen)',
@@ -42,14 +50,22 @@
       unplaced: 'ไม่อยู่ในผัง', tables: 'โต๊ะ', yours: 'ของคุณ', min: 'นาที', table: 'โต๊ะ',
       st_free: 'ว่าง', st_busy: 'มีแขก', st_cook: 'กำลังทำ', st_call: 'เรียกพนักงาน', st_bill: 'ขอเช็คบิล', st_new: 'ออร์เดอร์ใหม่', st_ready: 'พร้อม — นำไปเสิร์ฟ', st_callAck: 'พนักงานกำลังไป', st_billAck: 'กำลังนำบิลไป', paidAll: 'ชำระแล้ว', carry: 'นำไป',
       q_ack: 'กำลังไป', q_done: 'เสร็จ', q_confirm: 'รับ', q_kitchen: 'ส่งครัว', q_served: 'เสิร์ฟแล้ว', q_paid: 'ชำระแล้ว', q_close: 'ปิดโต๊ะ',
-      st_tokitchen: 'ออร์เดอร์ยังไม่ถึงครัว', todo: 'ต้องทำ', atKitchen: 'ในครัว', yourMove: 'ตาคุณ',
+      st_tokitchen: 'ออร์เดอร์ยังไม่ถึงครัว',
+      st_pay: 'แขกอยู่ที่โต๊ะ', st_close: 'ชำระครบแล้ว', allFree: 'ทุกโต๊ะว่าง', due: 'ค้างชำระ', later: 'ต่อไปที่โต๊ะ',
+      need_pay: 'รับชำระเงิน', need_close: 'ปิดโต๊ะ — ชำระครบแล้ว', need_closePos: 'ปิดโต๊ะหลังชำระที่แคชเชียร์',
+      lb_free: 'ว่าง', lb_call: 'เรียก {m}′', lb_bill: 'บิล {m}′', lb_new: 'ออร์เดอร์ใหม่', lb_tokitchen: 'ส่งครัว', lb_ready: 'นำไป', lb_ack: '{n} ไปแล้ว',
+      lb_cook: 'รอครัว {m}′', lb_pay: 'รับเงิน', lb_close: 'ปิดโต๊ะ', todo: 'ต้องทำ', atKitchen: 'ในครัว', yourMove: 'ตาคุณ',
       need_call: 'ไปหาแขก', need_bill: 'นำบิลไป', need_new: 'ยืนยันออร์เดอร์', need_tokitchen: 'ส่งออร์เดอร์เข้าครัว', need_ready: 'นำไปเสิร์ฟ — อาหารพร้อม',
       need_callAck: '{n} กำลังไป — แล้วกด “เสร็จ”', need_billAck: '{n} นำบิลไป — แล้วกด “เสร็จ”', need_cook: 'รอครัว', need_cookNoScreen: 'เสิร์ฟแล้วกด “เสิร์ฟแล้ว”' },
     my: { list: '☰ စာရင်း', floor: '▦ ပုံစံ', mine: 'ကျွန်ုပ်၏ စားပွဲ', attention: 'ဂရုစိုက်ရန်', fold: 'ဖျောက် ▾', unfold: 'ပြ ▸', calm: 'အားလုံး အဆင်ပြေ 👌',
       unplaced: 'ပုံစံတွင် မပါ', tables: 'စားပွဲများ', yours: 'သင့်', min: 'မိနစ်', table: 'စားပွဲ',
       st_free: 'အားသည်', st_busy: 'ဧည့်သည်ရှိ', st_cook: 'ချက်နေသည်', st_call: 'စားပွဲထိုး ခေါ်', st_bill: 'ဘေလ် တောင်း', st_new: 'အော်ဒါ အသစ်', st_ready: 'အဆင်သင့် — ယူသွား', st_callAck: 'သွားနေပြီ', st_billAck: 'ဘေလ် ယူသွားနေ', paidAll: 'ပေးပြီး', carry: 'ယူသွား',
       q_ack: 'သွားမည်', q_done: 'ပြီးပြီ', q_confirm: 'လက်ခံ', q_kitchen: 'မီးဖိုချောင်', q_served: 'ကျွေးပြီး', q_paid: 'ပေးပြီး', q_close: 'ပိတ်',
-      st_tokitchen: 'အော်ဒါ မီးဖိုချောင် မရောက်သေး', todo: 'လုပ်ရန်', atKitchen: 'မီးဖိုချောင်တွင်', yourMove: 'သင့်အလှည့်',
+      st_tokitchen: 'အော်ဒါ မီးဖိုချောင် မရောက်သေး',
+      st_pay: 'ဧည့်သည် ရှိ', st_close: 'အားလုံး ပေးပြီး', allFree: 'စားပွဲအားလုံး အားသည်', due: 'ပေးရန်', later: 'နောက်ထပ်',
+      need_pay: 'ငွေ လက်ခံ', need_close: 'စားပွဲ ပိတ် — ပေးပြီး', need_closePos: 'ကောင်တာတွင် ပေးပြီးမှ စားပွဲ ပိတ်',
+      lb_free: 'အားသည်', lb_call: 'ခေါ် {m}′', lb_bill: 'ဘေလ် {m}′', lb_new: 'အော်ဒါသစ်', lb_tokitchen: 'မီးဖိုချောင်', lb_ready: 'ယူသွား', lb_ack: '{n} သွားနေ',
+      lb_cook: 'စောင့် {m}′', lb_pay: 'ငွေယူ', lb_close: 'ပိတ်', todo: 'လုပ်ရန်', atKitchen: 'မီးဖိုချောင်တွင်', yourMove: 'သင့်အလှည့်',
       need_call: 'ဧည့်သည်ထံ သွား', need_bill: 'ဘေလ် ယူသွား', need_new: 'အော်ဒါ အတည်ပြု', need_tokitchen: 'အော်ဒါကို မီးဖိုချောင်သို့ ပို့', need_ready: 'ယူသွား — အစားအစာ အဆင်သင့်',
       need_callAck: '{n} သွားနေ — ပြီးလျှင် “ပြီးပြီ”', need_billAck: '{n} ဘေလ် ယူသွားနေ — ပြီးလျှင် “ပြီးပြီ”', need_cook: 'မီးဖိုချောင်ကို စောင့်', need_cookNoScreen: 'ကျွေးပြီးလျှင် “ကျွေးပြီး”' },
   };
@@ -62,8 +78,9 @@
   const mins = (ts) => Math.max(0, Math.floor((Date.now() - ts) / 60000));
   const ui = { zone: store('zone') || '', mine: store('mine') === '1', queue: store('queue') !== '0' };
   // «ваш ход»: что официант должен сделать, по срочности
-  const RANK = { call: 0, bill: 1, new: 2, tokitchen: 3, ready: 4, callAck: 5, billAck: 6 };
-  const COLOR = { call: 'var(--f-call)', bill: 'var(--f-bill)', new: 'var(--f-new)', tokitchen: 'var(--f-kit)', ready: 'var(--f-ready)', callAck: '#1f1a17', billAck: '#1f1a17', cook: 'var(--f-cook)' };
+  const RANK = { call: 0, bill: 1, new: 2, tokitchen: 3, ready: 4, callAck: 5, billAck: 6, pay: 7, close: 8 };
+  const URGENT = new Set(['call', 'bill', 'new', 'tokitchen', 'ready']);
+  const COLOR = { call: 'var(--f-call)', bill: 'var(--f-bill)', new: 'var(--f-new)', tokitchen: 'var(--f-kit)', ready: 'var(--f-ready)', callAck: '#1f1a17', billAck: '#1f1a17', cook: 'var(--f-cook)', pay: '#5f564f', close: '#5d7a62' };
 
   // Что за столом: самое срочное дело, сколько ждут, кто идёт, сумма к оплате; следующая быстрая кнопка
   function stateOf(tb, s, flow, quick, many) {
@@ -85,7 +102,8 @@
     else if (ready.length) { st = 'ready'; since = first(ready, (o) => o.readyAt); }
     else if (ac.length) { st = ac.some((c) => c.type !== 'bill') ? 'callAck' : 'billAck'; who = ac[0].by || ''; }
     else if (cooking.length) { st = 'cook'; since = first(cooking, (o) => o.kitchenAt || o.cookFrom || o.confirmedAt || o.at); }
-    else if (orders.length || calls.length) st = 'busy';
+    // стол занят, срочного нет: пока не освободится — взять оплату, потом закрыть стол
+    else if (orders.length || calls.length) st = !s.restaurant?.pos && due > 0 ? 'pay' : 'close';
     let q = null;
     if ((st === 'call' || st === 'bill') && quick.ack) q = 'ack';
     else if (st === 'new' && quick.confirm) q = 'confirm';
@@ -93,18 +111,20 @@
     else if (st === 'ready' && quick.served) q = 'served';
     else if ((st === 'callAck' || st === 'billAck') && quick.done) q = 'done';
     else if (st === 'cook' && !flow.kitchenScreen && quick.served) q = 'served'; // экрана кухни нет — «Подано» сразу
-    else if (st === 'busy' && due > 0 && quick.paid && !many && !s.restaurant?.pos) q = 'paid';
-    else if (st === 'busy' && due === 0 && total > 0 && quick.close) q = 'close';
-    return { tb, st, since, who, due, total, q };
+    else if (st === 'pay' && quick.paid && !many) q = 'paid';
+    else if (st === 'close' && quick.close) q = 'close';
+    return { tb, st, since, who, due, total, q, pos: !!s.restaurant?.pos };
   }
   function sub(x) {
     if (x.st === 'call' || x.st === 'bill' || x.st === 'new' || x.st === 'tokitchen') return `${{ call: '🔔', bill: '🧾', new: '🍽', tokitchen: '📋' }[x.st]} ${mins(x.since)}′`;
     if (x.st === 'ready') return `✅ ${t('carry')}`;
     if (x.st === 'callAck' || x.st === 'billAck') return `🤵 ${esc(String(x.who).split(' ')[0])}`;
     if (x.st === 'cook') return `🍳 ${mins(x.since)}′`;
-    if (x.st === 'busy') return x.due ? money(x.due) : x.total ? `✓ ${t('paidAll')}` : '';
+    if (x.st === 'pay') return money(x.due);
+    if (x.st === 'close') return x.total && !x.pos ? `✓ ${t('paidAll')}` : '';
     return '';
   }
+  const statusText = (x) => t('lb_' + (x.st === 'billAck' || x.st === 'callAck' ? 'ack' : x.st)).replace('{m}', mins(x.since)).replace('{n}', String(x.who || '').split(' ')[0]);
   const zonesOf = (floor) => (floor?.zones || []).filter((z) => z.tables.length || z.decor.length);
   const rowsOf = (z, extra = 0) => Math.max(1, ...z.tables.map((x) => x.y + x.h), ...z.decor.map((x) => x.y + x.h)) + extra;
 
@@ -128,7 +148,7 @@
     const zoneOfT = (tb) => zones.find((z) => z.tables.some((x) => x.t === tb))?.name || '';
     if (!zones.some((z) => z.id === ui.zone)) ui.zone = zones[0]?.id || '';
     const z = zones.find((x) => x.id === ui.zone);
-    const urgent = (tb) => st[tb] && RANK[st[tb].st] !== undefined && st[tb].st !== 'callAck' && st[tb].st !== 'billAck';
+    const urgent = (tb) => st[tb] && URGENT.has(st[tb].st);
     const late = (x) => ['call', 'bill', 'new', 'tokitchen'].includes(x.st) && mins(x.since) >= 5;
     const tileCls = (x) => `ftile ${x.st}${late(x) ? ' late' : ''}${ui.mine && showMine ? (mineSet.has(x.tb) ? ' fmine' : ' fdim') : ''}`;
     const qbtn = (x, cls, style = '') => `<button class="${cls} q-${x.st}" style="${style}" data-fq="${x.q}" data-ftab="${esc(x.tb)}">${t('q_' + x.q)}</button>`;
@@ -155,10 +175,19 @@
         occ.add(c.join(','));
         chips.push({ x, cx: c[0], cy: c[1], side: c[0] > p.x + p.w - 1 ? 'r' : c[0] < p.x ? 'l' : c[1] > p.y ? 'b' : 't' });
       }
+      // нет быстрой кнопки — рядом пишем, что со столом: свободен, ждём кухню, взять оплату, закрыть стол…
+      for (const p of z.tables) {
+        const x = st[p.t];
+        if (!x || x.q) continue;
+        const c = [[p.x + p.w, p.y], [p.x - 1, p.y], [p.x, p.y + p.h], [p.x, p.y - 1]].find(([cx, cy]) => cx >= 0 && cx < z.cols && cy >= 0 && !occ.has(`${cx},${cy}`));
+        if (!c) continue;
+        occ.add(c.join(','));
+        chips.push({ x, cx: c[0], cy: c[1], side: c[0] > p.x + p.w - 1 ? 'r' : c[0] < p.x ? 'l' : c[1] > p.y ? 'b' : 't', label: true });
+      }
       const extra = Math.max(0, ...chips.map((c) => c.cy + 1)) - rowsOf(z);
-      const overlay = (cell, gap) => chips.map(({ x, cx, cy, side }) => {
-        const h = Math.min(cell - gap, 36);
-        return qbtn(x, `fqn fq-${side}`, `left:${cx * cell + gap / 2}px;top:${cy * cell + (cell - h) / 2}px;width:${cell - gap}px;height:${h}px`);
+      const overlay = (cell, gap) => chips.map(({ x, cx, cy, side, label }) => {
+        const h = Math.min(cell - gap, 36), pos = `left:${cx * cell + gap / 2}px;top:${cy * cell + (cell - h) / 2}px;width:${cell - gap}px;height:${h}px`;
+        return label ? `<span class="fstat s-${x.st} fs-${side}" style="${pos}">${esc(statusText(x))}</span>` : qbtn(x, `fqn fq-${side}`, pos);
       }).join('');
       const W = Math.min(el.clientWidth || 360, 560);
       html += `<div class="fplanwrap">${planHtml(z, W, ui.queue ? 0.8 : 1, tile, decorDef, Math.max(0, extra), ui.queue ? 'compact' : '', overlay)}</div>`;
@@ -170,7 +199,8 @@
     }
     // «Нужно сделать»: что требуется от официанта по каждому столу, по срочности, со всех зон;
     // «На кухне»: где мяч у кухни — сколько готовится. Сворачивается — остаётся одна схема
-    const todo = Object.values(st).filter((x) => RANK[x.st] !== undefined).sort((a, b) => RANK[a.st] - RANK[b.st] || (a.since || 0) - (b.since || 0));
+    const todo = Object.values(st).filter((x) => RANK[x.st] !== undefined && RANK[x.st] < 7).sort((a, b) => RANK[a.st] - RANK[b.st] || (a.since || 0) - (b.since || 0));
+    const later = Object.values(st).filter((x) => x.st === 'pay' || x.st === 'close').sort((a, b) => RANK[a.st] - RANK[b.st]);
     const cooking = Object.values(st).filter((x) => x.st === 'cook').sort((a, b) => a.since - b.since);
     const where = (x) => esc([zoneOfT(x.tb), ctx.tbl(x.tb)].filter(Boolean).join(' · ')) + (mineSet.has(x.tb) && showMine ? ` · ${t('yours')}` : '');
     const row = (x, title, info) => `<div class="frow r-${x.st}" data-ftab="${esc(x.tb)}"><span class="fdot" style="background:${COLOR[x.st]}">${esc(short(x.tb))}</span>
@@ -178,9 +208,14 @@
     html += `<div class="fqueue"><div class="fqh"><b>${t('todo')} · ${todo.length}</b><button data-fqueue="1">${ui.queue ? t('fold') : t('unfold')}</button></div>`;
     if (ui.queue) {
       html += todo.length ? todo.map((x) => row(x, esc(t('need_' + x.st).replace('{n}', String(x.who).split(' ')[0] || '')),
-        `${t('st_' + x.st)}${x.since && x.st !== 'ready' ? ` · ${mins(x.since)} ${t('min')}` : ''}`)).join('') : `<p class="empty">${t('calm')}</p>`;
+        `${t('st_' + x.st)}${x.since && x.st !== 'ready' ? ` · ${mins(x.since)} ${t('min')}` : ''}`)).join('')
+        : !later.length && !cooking.length ? `<p class="empty">${t('allFree')}</p>` : '';
       if (cooking.length) html += `<div class="fqh"><b>${t('atKitchen')} · ${cooking.length}</b></div>`
         + cooking.map((x) => row(x, `${t('st_cook')} · ${mins(x.since)} ${t('min')}`, t(x.q === 'served' ? 'need_cookNoScreen' : 'need_cook'))).join('');
+      // пока стол не освободился: взять оплату, закрыть стол
+      if (later.length) html += `<div class="fqh"><b>${t('later')} · ${later.length}</b></div>`
+        + later.map((x) => row(x, x.st === 'pay' ? `${t('need_pay')} · ${money(x.due)}` : t(x.pos ? 'need_closePos' : 'need_close'),
+          x.st === 'pay' ? `${t('st_pay')} · ${t('due')} ${money(x.due)}` : t('st_close'))).join('');
     }
     html += '</div>';
     el.innerHTML = html;
@@ -311,7 +346,7 @@
 .ftile.free{background:transparent;border-style:dashed;color:#8a7f76}.ftile.cook{border-color:var(--f-cook)}.ftile.cook .fs{color:var(--f-cook)}
 .ftile.call,.ftile.bill,.ftile.new,.ftile.ready{color:#fff}.ftile.call{background:var(--f-call);border-color:var(--f-call)}.ftile.bill{background:var(--f-bill);border-color:var(--f-bill)}
 .ftile.new{background:var(--f-new);border-color:var(--f-new)}.ftile.tokitchen{background:var(--f-kit);border-color:var(--f-kit);color:#fff}.ftile.ready{background:var(--f-ready);border-color:var(--f-ready)}
-.ftile.callAck{border:3px solid var(--f-call)}.ftile.billAck{border:3px solid var(--f-bill)}
+.ftile.pay{border-color:#5f564f}.ftile.close{background:#eef4ee;border-color:#5d7a62}.ftile.callAck{border:3px solid var(--f-call)}.ftile.billAck{border:3px solid var(--f-bill)}
 .ftile.call::after,.ftile.new::after{content:"";position:absolute;inset:-6px;border-radius:inherit;border:3px solid var(--f-call);opacity:0;animation:fring 1.6s ease-out infinite;pointer-events:none}.ftile.new::after{border-color:var(--f-new)}
 @keyframes fring{0%{opacity:.7;transform:scale(.92)}100%{opacity:0;transform:scale(1.12)}}@media (prefers-reduced-motion:reduce){.ftile.call::after,.ftile.new::after{animation:none;opacity:.6}}
 .ftile.late .fs::before{content:"⚠ "}.ftile.fdim{opacity:.35}.ftile.fmine{box-shadow:0 0 0 2px #1f1a17}
@@ -326,7 +361,10 @@
 .fqh button{background:transparent;color:#8a7f76;padding:4px 0;font-size:13px}
 .frow{display:flex;align-items:center;gap:10px;background:#fff;border-radius:12px;padding:8px 10px;margin-bottom:8px;cursor:pointer}
 .fdot{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:none}
-.ftx{flex:1;min-width:0;font-size:15px}.ftx small{display:block;color:#8a7f76;font-size:12px}.frow .fqr{flex:none}.frow.r-cook{background:transparent;border:1px dashed #d9cdc1}
+.ftx{flex:1;min-width:0;font-size:15px}.ftx small{display:block;color:#8a7f76;font-size:12px}.frow .fqr{flex:none}.frow.r-cook,.frow.r-pay,.frow.r-close{background:transparent;border:1px dashed #d9cdc1}
+.fstat{position:absolute;display:grid;place-items:center;text-align:center;font-size:10px;font-weight:600;line-height:1.05;color:#5f564f;pointer-events:none;overflow-wrap:normal;word-break:keep-all;letter-spacing:-.2px}
+.fstat.s-free{color:#b3a89e;font-weight:500}.fstat.s-cook{color:var(--f-cook)}.fstat.s-pay{color:#1f1a17;font-weight:700}.fstat.s-close{color:#5d7a62;font-weight:700}
+.fstat.s-call,.fstat.s-bill,.fstat.s-new,.fstat.s-tokitchen,.fstat.s-ready{color:var(--f-call);font-weight:800}
 .fseg{display:inline-flex;background:#efe7df;border-radius:10px;padding:3px;margin:4px 0 8px}.fseg button{background:transparent;color:#8a7f76;padding:6px 12px;font-size:13px;border-radius:8px}.fseg button.on{background:#fff;color:#1f1a17;font-weight:700}
 .fedwrap{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}.fside{flex:1;min-width:260px}
 .fphone{width:100%;max-width:390px;box-sizing:border-box;padding:10px 12px;background:#f5f0ea;border-radius:16px}
