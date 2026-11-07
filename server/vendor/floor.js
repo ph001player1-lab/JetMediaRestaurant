@@ -137,16 +137,94 @@
   const ghostHtml = (d, style, extra = '', attr = '') => `<div class="ftile ghostt${d.sh === 'rd' ? ' rd' : ''}${extra}" style="${style}" ${attr}><span class="fn${String(d.text).length > 3 ? ' sm' : ''}">${esc(d.text)}</span></div>`;
   const decorDef = (d, i, style) => (d.kind === 'table' ? ghostHtml(d, style) : `<div class="fdecor" style="${style}">${esc(decorText(d))}</div>`);
   function planHtml(z, width, k, tile, decor = decorDef, extraRows = 0, cls = '', overlay = () => '') {
-    // клетка не меньше 44 px — под палец; широкая зона прокручивается вбок
-    const cell = Math.max(44, Math.floor((width / z.cols) * k)), gap = 6, rows = rowsOf(z, extraRows);
+    // схема рисуется в клетках по 52 px, на экран её вписывает масштаб (attachZoom): вся зона видна, текст уменьшается вместе с ней
+    const cell = 52, gap = 6, rows = rowsOf(z, extraRows);
     const box = (o) => `left:${o.x * cell + gap / 2}px;top:${o.y * cell + gap / 2}px;width:${o.w * cell - gap}px;height:${o.h * cell - gap}px`;
     return `<div class="fplan ${cls}" style="width:${cell * z.cols}px;height:${cell * rows}px;--cell:${cell}px">`
       + z.decor.map((d, i) => decor(d, i, box(d))).join('')
       + z.tables.map((x) => tile(x, box(x))).join('') + overlay(cell, gap) + '</div>';
   }
 
+  // ---------- Масштаб схемы: по умолчанию вся зона на экране; два пальца — масштаб, один палец (когда увеличено) —
+  // двигать; двойное касание по пустому месту — увеличить / вернуть; кнопки − ⤢ +; колесо мыши в редакторе.
+  // Сильно уменьшено — кнопки и надписи у столов прячутся (действия — в «Нужно сделать»). Масштаб зоны помнит телефон
+  const zs = {};
+  let gesture = false;
+  const zget = (key) => zs[key] || (zs[key] = (() => { try { return JSON.parse(localStorage.getItem('jf:z:' + key)); } catch { return null; } })() || { z: 0, x: 0, y: 0 });
+  const zoomWrap = (inner) => `<div class="fzwrap">${inner}<div class="fzbtns"><button data-zm="-1" aria-label="−">−</button><button data-zm="0" aria-label="⤢">⤢</button><button data-zm="1" aria-label="+">+</button></div></div>`;
+  function attachZoom(root, key, maxH, opts = {}) {
+    const wrap = root.querySelector('.fzwrap'), plan = wrap?.querySelector('.fplan');
+    if (!plan) return;
+    // экран ещё скрыт (приложение открывается) — размеров нет; считаем, когда схема станет видна
+    if (!wrap.clientWidth || !plan.offsetWidth) { if ((opts.tries || 0) < 50) setTimeout(() => wrap.isConnected && attachZoom(root, key, maxH, { ...opts, tries: (opts.tries || 0) + 1 }), 150); return; }
+    const W = wrap.clientWidth, w = plan.offsetWidth, h = plan.offsetHeight;
+    const fit = Math.min(1.3, W / w, Math.max(160, maxH) / h), st = zget(key);
+    if (!st.z || Math.abs(st.z - (st.fit || fit)) < 0.01) st.z = fit; // был «вся зона» — остаётся «вся зона» при другом экране
+    st.fit = fit;
+    const H = Math.ceil(h * fit);
+    wrap.style.height = H + 'px';
+    const apply = (save) => {
+      st.z = Math.min(Math.max(st.z, fit), Math.max(fit * 3, 2.5));
+      const cw = w * st.z, ch = h * st.z;
+      st.x = cw <= W ? (W - cw) / 2 : Math.min(0, Math.max(W - cw, st.x));
+      st.y = ch <= H ? (H - ch) / 2 : Math.min(0, Math.max(H - ch, st.y));
+      plan.style.transform = `translate(${st.x}px,${st.y}px) scale(${st.z})`;
+      plan.classList.toggle('fsmall', st.z < 0.72);
+      wrap.classList.toggle('fzin', st.z > fit + 0.01);
+      if (save) try { localStorage.setItem('jf:z:' + key, JSON.stringify(st)); } catch { /* без памяти — по умолчанию */ }
+    };
+    const zoomAt = (nz, cx, cy) => { const k = nz / st.z; st.x = cx - (cx - st.x) * k; st.y = cy - (cy - st.y) * k; st.z = nz; apply(true); };
+    apply();
+    const pt = (t) => { const r = wrap.getBoundingClientRect(); return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+    wrap.querySelector('.fzbtns').onclick = (e) => {
+      const b = e.target.closest('[data-zm]'); if (!b) return;
+      e.stopPropagation();
+      const m = Number(b.dataset.zm);
+      if (!m) { st.z = fit; apply(true); } else zoomAt(st.z * (m > 0 ? 1.4 : 1 / 1.4), W / 2, H / 2);
+    };
+    let t0 = null, lastTap = 0, moved = false;
+    wrap.addEventListener('touchstart', (e) => {
+      moved = false;
+      if (e.touches.length === 2) {
+        const a = pt(e.touches[0]), b = pt(e.touches[1]);
+        t0 = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, m: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, z: st.z, x: st.x, y: st.y };
+        gesture = true;
+        opts.onPinch?.();
+      } else if (e.touches.length === 1 && st.z > fit + 0.01 && !e.target.closest('.fedit [data-et], .fedit [data-ed]')) t0 = { p: pt(e.touches[0]), x: st.x, y: st.y };
+    }, { passive: true });
+    wrap.addEventListener('touchmove', (e) => {
+      if (!t0) return;
+      if (e.touches.length === 2 && t0.d) {
+        e.preventDefault();
+        const a = pt(e.touches[0]), b = pt(e.touches[1]), k = Math.hypot(a.x - b.x, a.y - b.y) / t0.d;
+        st.z = t0.z * k; st.x = (a.x + b.x) / 2 - (t0.m.x - t0.x) * k; st.y = (a.y + b.y) / 2 - (t0.m.y - t0.y) * k;
+        moved = true;
+        apply();
+      } else if (e.touches.length === 1 && t0.p) {
+        const a = pt(e.touches[0]);
+        if (Math.abs(a.x - t0.p.x) + Math.abs(a.y - t0.p.y) > 6) moved = true;
+        if (moved) { e.preventDefault(); gesture = true; st.x = t0.x + a.x - t0.p.x; st.y = t0.y + a.y - t0.p.y; apply(); }
+      }
+    }, { passive: false });
+    wrap.addEventListener('touchend', (e) => {
+      if (e.touches.length) return;
+      if (t0) apply(true);
+      t0 = null;
+      setTimeout(() => { gesture = false; }, 60);
+      // двойное касание по пустому месту: увеличить в 2 раза / вернуть «вся зона»
+      if (!moved && !e.target.closest('.ftile, button, .fqn, .fdecor')) {
+        const now = Date.now();
+        if (now - lastTap < 320) { const p = pt(e.changedTouches[0]); if (st.z > fit + 0.01) { st.z = fit; apply(true); } else zoomAt(fit * 2, p.x, p.y); lastTap = 0; e.preventDefault(); } else lastTap = now;
+      }
+    });
+    // после движения палец отпустили на столе — не открываем его
+    wrap.addEventListener('click', (e) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+    wrap.addEventListener('wheel', (e) => { if (!opts.wheel && !e.ctrlKey) return; e.preventDefault(); const p = pt(e); zoomAt(st.z * (e.deltaY < 0 ? 1.15 : 1 / 1.15), p.x, p.y); }, { passive: false });
+  }
+
   // ---------- экран официанта ----------
   function view(el, ctx) {
+    if (gesture) return; // палец двигает или увеличивает схему — не перерисовываем под ним
     lang = ctx.lang || 'ru';
     const { s, flow, many } = ctx, quick = s.floor?.quick || {}, zones = zonesOf(s.floor), all = s.restaurant.tables || [];
     const st = Object.fromEntries(all.map((tb) => [tb, stateOf(tb, s, flow, quick, many(tb))]));
@@ -199,7 +277,7 @@
         return label ? `<span class="fstat s-${x.st} fs-${side}" style="${pos}">${esc(statusText(x))}</span>` : qbtn(x, `fqn fq-${side}`, bpos);
       }).join('');
       const W = Math.min(el.clientWidth || 360, 560);
-      html += `<div class="fplanwrap">${planHtml(z, W, ui.queue ? 0.8 : 1, tile, decorDef, Math.max(0, extra), ui.queue ? 'compact' : '', overlay)}</div>`;
+      html += zoomWrap(planHtml(z, W, 1, tile, decorDef, Math.max(0, extra), '', overlay));
       const rest = all.filter((tb) => !placed.has(tb));
       if (rest.length) html += `<div class="fzh">${t('unplaced')}</div>${flat(rest)}`;
     } else {
@@ -228,6 +306,7 @@
     }
     html += '</div>';
     el.innerHTML = html;
+    if (z) attachZoom(el, 'v:' + z.id, Math.round(window.innerHeight * (ui.queue ? 0.5 : 0.75)));
     el.onclick = (e) => {
       const q = e.target.closest('[data-fq]');
       if (q) { e.stopPropagation(); return ctx.onAct(q.dataset.ftab, q.dataset.fq, st[q.dataset.ftab]); }
@@ -245,7 +324,7 @@
   const uid = () => Math.random().toString(36).slice(2, 8);
   function editor(el, ctx) {
     lang = ctx.lang || 'ru';
-    if (ed.drag) return; // тащат стол — не перерисовываем
+    if (ed.drag || gesture) return; // тащат стол или двигают схему — не перерисовываем
     if (ed.rid !== ctx.rid || !ed.draft) {
       ed.rid = ctx.rid; ed.draft = JSON.parse(JSON.stringify(ctx.floor || { zones: [], quick: {} })); ed.sel = null; ed.dirty = false;
       if (!ed.draft.zones.length) ed.draft.zones.push({ id: uid(), name: t('zone1'), cols: 6, tables: [], decor: [] });
@@ -265,9 +344,9 @@
       html += `<div class="fzrow"><input id="fzName" data-ezname="1" value="${esc(z.name)}" maxlength="20" aria-label="${esc(t('zoneName'))}">
         <label>${t('cols')} <select data-ecols="1">${[4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map((n) => `<option ${n === z.cols ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <button class="ghostbtn" data-ezdel="1">${t('zoneDel')}</button></div>`;
-      html += '<div class="fplanwrap">' + planHtml(z, W, 1, (p, style) => `<div class="ftile busy${p.sh === 'rd' ? ' rd' : ''}${ed.sel === 't:' + p.t ? ' fsel' : ''}" style="${style}" data-et="${esc(p.t)}"><span class="fn${short(p.t).length > 3 ? ' sm' : ''}">${esc(short(p.t))}</span></div>`,
+      html += zoomWrap(planHtml(z, W, 1, (p, style) => `<div class="ftile busy${p.sh === 'rd' ? ' rd' : ''}${ed.sel === 't:' + p.t ? ' fsel' : ''}" style="${style}" data-et="${esc(p.t)}"><span class="fn${short(p.t).length > 3 ? ' sm' : ''}">${esc(short(p.t))}</span></div>`,
         (d, i, style) => (d.kind === 'table' ? ghostHtml(d, style, ed.sel === 'd:' + i ? ' fsel' : '', `data-ed="${i}"`)
-          : `<div class="fdecor${ed.sel === 'd:' + i ? ' fsel' : ''}" style="${style}" data-ed="${i}">${esc(decorText(d))}</div>`), 2, 'fedit') + '</div>';
+          : `<div class="fdecor${ed.sel === 'd:' + i ? ' fsel' : ''}" style="${style}" data-ed="${i}">${esc(decorText(d))}</div>`), 2, 'fedit'));
     } else if (z) html += '<div class="fprev"></div>'; // заполняется ниже — тем же кодом, что у официанта
     html += '</div><div class="fside">';
     if (ed.mode === 'edit' && z) {
@@ -338,18 +417,19 @@
     // перетаскивание: стол или надпись встаёт в ближайшую свободную клетку
     const plan = el.querySelector('.fedit');
     if (!plan) return;
+    attachZoom(el, 'e:' + z.id, 520, { wheel: true, onPinch: () => { ed.drag = null; } });
     plan.onpointerdown = (e) => {
       const n = e.target.closest('[data-et], [data-ed]'); if (!n) return;
       const o = n.dataset.et !== undefined ? z.tables.find((p) => p.t === n.dataset.et) : z.decor[Number(n.dataset.ed)];
       ed.sel = n.dataset.et !== undefined ? 't:' + n.dataset.et : 'd:' + n.dataset.ed;
-      const cell = plan.clientWidth / z.cols, r = plan.getBoundingClientRect();
-      ed.drag = { o, n, cell, r, dx: e.clientX - r.left - o.x * cell, dy: e.clientY - r.top - o.y * cell, moved: false, to: null };
+      const cell = plan.offsetWidth / z.cols, r = plan.getBoundingClientRect(), k = r.width / plan.offsetWidth; // k — масштаб схемы
+      ed.drag = { o, n, cell, r, k, dx: (e.clientX - r.left) / k - o.x * cell, dy: (e.clientY - r.top) / k - o.y * cell, moved: false, to: null };
       n.setPointerCapture?.(e.pointerId); n.classList.add('fsel');
       e.preventDefault();
     };
     plan.onpointermove = (e) => {
       const g = ed.drag; if (!g) return;
-      const px = e.clientX - g.r.left - g.dx, py = e.clientY - g.r.top - g.dy;
+      const px = (e.clientX - g.r.left) / g.k - g.dx, py = (e.clientY - g.r.top) / g.k - g.dy;
       if (Math.abs(px - g.o.x * g.cell) + Math.abs(py - g.o.y * g.cell) > 4) g.moved = true;
       g.n.style.left = px + 'px'; g.n.style.top = py + 'px';
       const x = Math.round(px / g.cell), y = Math.round(py / g.cell);
@@ -364,6 +444,11 @@
 .fzones button.on{background:#1f1a17;color:#fff}.fcnt{background:var(--f-call);color:#fff;border-radius:999px;font-size:11px;min-width:18px;height:18px;display:inline-grid;place-items:center;padding:0 5px}
 .fzones .fminebtn{margin-left:auto;background:transparent;border:1px solid #d9cdc1;font-size:13px}.fzones .fminebtn.on{background:#fff;border-color:#1f1a17;color:#1f1a17}
 .fplanwrap{overflow-x:auto;padding-bottom:16px}.fplan{position:relative;margin:4px auto 0}
+.fzwrap{position:relative;overflow:hidden;margin:4px 0 16px;border-radius:12px;touch-action:pan-y}.fzwrap.fzin{touch-action:none;box-shadow:inset 0 0 0 1px #d9cdc1}
+.fzwrap .fplan{position:absolute;left:0;top:0;margin:0;transform-origin:0 0}
+.fzbtns{position:absolute;right:4px;top:4px;z-index:6;display:flex;gap:4px;opacity:.9}
+.fzbtns button{width:32px;height:32px;border-radius:10px;border:1px solid #d9cdc1;background:#fff;color:#1f1a17;font:inherit;font-size:17px;font-weight:700;padding:0;display:grid;place-items:center}
+.fsmall .fqn,.fsmall .fstat,.fsmall .ftile .fs{display:none}
 .ftile{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;border:2px solid #d9cdc1;background:#fff;color:#1f1a17;padding:0;line-height:1.1;cursor:pointer;touch-action:manipulation;font:inherit;user-select:none;-webkit-user-select:none}
 .ftile.rd{border-radius:50%}.ftile .fn{font-size:17px;font-weight:800}.ftile .fn.sm{font-size:13px}.ftile .fs{font-size:11px;font-weight:600;margin-top:2px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .compact .ftile .fs{display:none}.compact .ftile .fn{font-size:15px}
