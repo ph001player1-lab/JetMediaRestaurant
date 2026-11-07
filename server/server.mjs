@@ -50,6 +50,7 @@ const STATIC = {
   '/vendor/stats.js': 'vendor/stats.js',
   '/vendor/arrows.js': 'vendor/arrows.js',
   '/vendor/floor.js': 'vendor/floor.js',
+  '/vendor/menucats.js': 'vendor/menucats.js',
   // слайды инструкции установки приложения (ЛК → Персонал)
   '/staff/install/samsung-1.jpg': 'assets/install/samsung-1.jpg',
   '/staff/install/samsung-2.jpg': 'assets/install/samsung-2.jpg',
@@ -181,6 +182,9 @@ const DISPLAY = {
   slideFx: 'ltr', slideMs: 600,
   theme: 'classic', // цветовая тема планшета (themes.mjs), выбирается во вкладке «Дизайн»
   arrows: 'circle', arrowSize: 100, // вид стрелок карусели (vendor/arrows.js) и их размер, %
+  // вид меню на планшетах и телефонах гостей: classic — как раньше (разделы строкой сверху), tiles — плитки разделов
+  // слева + карточки, catalog — сетка разделов + блюда списком
+  menuView: 'classic',
 };
 const DISPLAY_RANGE = { idleSec: [10, 600], slideSec: [3, 60], titleSize: [16, 80], textSize: [12, 48], adEvery: [1, 10], slideMs: [200, 3000], arrowSize: [50, 200] };
 const ARROWS = ['circle', 'square', 'light', 'outline', 'chevron', 'accent', 'glass', 'tab', 'triangle', 'line', 'none'];
@@ -1391,7 +1395,7 @@ async function guestState(b, q) {
     timers: pick(timersOf(r), ['cartMin', 'langMin']), visit: r.visits?.[d.table] || 0,
     menu: (r.menu || []).filter(onMenu), tags: r.customTags || [],
     slides: slidesFor(r, d.id),
-    display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) },
+    display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) }, menuCats: r.menuCats || {},
     avatar: avatarFor(r),
   };
   // Планшет у входа: только витрина — карусель и просмотр меню, без заказов и вызовов
@@ -1412,7 +1416,7 @@ function phoneState(q) {
   if (!r || Date.now() - s.last > KEY_IDLE_MS || !flowOf(r).phones) return { ended: 'expired' };
   const base = {
     restaurant: { name: r.name, langs: r.langs }, build: BUILD, instance: INSTANCE, table: s.table, mode: 'phone',
-    display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) },
+    display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) }, menuCats: r.menuCats || {},
   };
   if (!q.g) return { ...base, join: true };
   let w;
@@ -2379,7 +2383,7 @@ function managerGet(b, q) {
   return {
     restaurant: {
       id: r.id, name: r.name, staffCode: r.staffCode || '', langs: r.langs || [], tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
-      floor: floorOf(r),
+      floor: floorOf(r), menuCats: r.menuCats || {},
       menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [], staffArchive: r.staffArchive || [],
       menuSource: publicSource(r.menuSource), menuIssues: menuIssues(r), timers: timersOf(r),
       display: { ...DISPLAY, ...r.display },
@@ -2422,6 +2426,12 @@ function managerSave(b) {
   // «реклама после каждых N слайдов» задаёт админка — из ЛК не меняется
   if (b.timers) r.timers = cleanTimers(b.timers);
   if (b.floor) r.floor = cleanFloor(b.floor, r);
+  // разделы меню в новом виде: своя иконка и группа (Кухня / Бар / Сладкое / сверху) — вместо подобранных сами
+  if (b.menuCats && typeof b.menuCats === 'object') {
+    r.menuCats = Object.fromEntries(Object.entries(b.menuCats).slice(0, 200).map(([k, v]) => [String(k).slice(0, 80), {
+      icon: String(v?.icon || '').trim().slice(0, 8), group: ['food', 'bar', 'sweet', 'top'].includes(v?.group) ? v.group : '' }])
+      .filter(([, v]) => v.icon || v.group));
+  }
   if (b.display) r.display = { ...cleanDisplay(b.display), adEvery: { ...DISPLAY, ...r.display }.adEvery };
   if (b.avatar) r.avatar = cleanAvatar(b.avatar, r);
   if (b.flow) {
@@ -3047,6 +3057,7 @@ function cleanDisplay(d) {
     if (k === 'theme') return [k, themeOf(d.theme).id];
     if (k === 'slideFx') return [k, ['ltr', 'rtl', 'ttb', 'btt'].includes(d.slideFx) ? d.slideFx : def];
     if (k === 'arrows') return [k, ARROWS.includes(d.arrows) ? d.arrows : def];
+    if (k === 'menuView') return [k, ['classic', 'tiles', 'catalog'].includes(d.menuView) ? d.menuView : def];
     if (typeof def !== 'number') return [k, /^#[0-9a-f]{6}$/i.test(d[k]) ? d[k] : def];
     const [min, max] = DISPLAY_RANGE[k];
     return [k, Math.min(max, Math.max(min, Math.round(Number(d[k])) || def))];
