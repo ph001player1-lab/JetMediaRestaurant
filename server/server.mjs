@@ -2479,8 +2479,11 @@ function cleanFloor(f, r) {
     const tables = (Array.isArray(z.tables) ? z.tables : []).filter((x) => (r.tables || []).includes(x.t) && !used.has(x.t) && used.add(x.t))
       .slice(0, 80).map((x) => ({ t: x.t, ...box(x), sh: x.sh === 'rd' ? 'rd' : 'sq' }));
     // надписи (бар, вход, своя) и столы без планшета — только рисунок на схеме, номер — любой текст
+    // key — готовая надпись (бар, вход…): переводится на язык официанта сама; tr — перевод своей надписи
+    const KEYS = ['bar', 'entrance', 'cashier', 'kitchen', 'window', 'wall'];
+    const tr = (v) => Object.fromEntries(['ru', 'en', 'th', 'my'].map((l) => [l, String(v?.[l] || '').trim().slice(0, 14)]).filter(([, x]) => x));
     const decor = (Array.isArray(z.decor) ? z.decor : []).slice(0, 80).map((x) => ({ ...box(x), text: String(x.text || '').trim().slice(0, 14),
-      ...(x.kind === 'table' ? { kind: 'table', sh: x.sh === 'rd' ? 'rd' : 'sq' } : {}) })).filter((x) => x.text);
+      ...(x.kind === 'table' ? { kind: 'table', sh: x.sh === 'rd' ? 'rd' : 'sq' } : KEYS.includes(x.key) ? { key: x.key } : Object.keys(tr(x.tr)).length ? { tr: tr(x.tr) } : {}) })).filter((x) => x.text);
     return { id: String(z.id || `z${i}`).slice(0, 20), name: String(z.name || '').trim().slice(0, 20) || `Зона ${i + 1}`, cols, tables, decor };
   });
   const quick = Object.fromEntries(Object.keys(QUICK_DEF).map((k) => [k, f.quick?.[k] === undefined ? QUICK_DEF[k] : !!f.quick[k]]));

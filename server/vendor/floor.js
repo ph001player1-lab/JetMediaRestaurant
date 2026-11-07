@@ -20,7 +20,7 @@
       edPhone: 'Так схема выглядит на телефоне официанта', zoneAdd: '+ Зона', zoneName: 'Название зоны', cols: 'Клеток в ширину', zoneDel: 'Удалить зону', zoneDelAsk: 'Удалить зону «{n}»? Её столы вернутся в «Не на схеме».',
       edit: 'Правка', preview: 'Как у официанта', pick: 'Нажмите на стол или надпись, чтобы изменить. Столы из «Не на схеме» — нажмите, чтобы поставить.',
       square: '□ Квадрат', round: '○ Круг', wider: 'Шире', narrower: 'Уже', taller: 'Выше', lower: 'Ниже', unplace: 'Убрать со схемы', delDecor: 'Удалить', label: 'Надпись',
-      addDecor: 'Добавить надпись:', customLabel: 'Своя надпись', newLabel: 'Надпись', ghostTable: 'Стол без планшета', tableNo: 'Номер стола',
+      addDecor: 'Добавить надпись:', trHint: 'Перевод для официантов (пусто — как написано):', customLabel: 'Своя надпись', newLabel: 'Надпись', ghostTable: 'Стол без планшета', tableNo: 'Номер стола',
       ghostNote: 'Стол без планшета — только рисунок на схеме: серый, пунктиром, без вызовов и заказов. Номер — любой текст.', ghostHint: 'Стол без планшета', decor: ['Бар', 'Вход', 'Касса', 'Кухня', 'Окно', 'Стена'], noRoom: 'В зоне нет свободной клетки — сделайте зону шире или уберите стол',
       quickT: 'Быстрые кнопки на схеме', quickHint: 'Что официант делает прямо со схемы, не открывая стол. Остальное — в карточке стола.',
       qh_ack: 'Иду — вызов официанта и просьба счёта', qh_done: 'Готово — вызов выполнен, счёт отнесли', qh_confirm: 'Принять — новый заказ с планшета или телефона',
@@ -42,7 +42,7 @@
       edPhone: 'This is how the plan looks on a waiter’s phone', zoneAdd: '+ Zone', zoneName: 'Zone name', cols: 'Cells across', zoneDel: 'Delete zone', zoneDelAsk: 'Delete zone “{n}”? Its tables go back to “Not on the plan”.',
       edit: 'Edit', preview: 'Waiter’s view', pick: 'Tap a table or a label to change it. Tap a table under “Not on the plan” to place it.',
       square: '□ Square', round: '○ Round', wider: 'Wider', narrower: 'Narrower', taller: 'Taller', lower: 'Lower', unplace: 'Remove from plan', delDecor: 'Delete', label: 'Label',
-      addDecor: 'Add a label:', customLabel: 'Custom label', newLabel: 'Label', ghostTable: 'Table without a tablet', tableNo: 'Table number',
+      addDecor: 'Add a label:', trHint: 'Translation for waiters (empty — as written):', customLabel: 'Custom label', newLabel: 'Label', ghostTable: 'Table without a tablet', tableNo: 'Table number',
       ghostNote: 'A table without a tablet is only a drawing on the plan: grey, dashed, no calls or orders. The number is any text.', ghostHint: 'Table without a tablet', decor: ['Bar', 'Entrance', 'Cashier', 'Kitchen', 'Window', 'Wall'], noRoom: 'No free cell in this zone — make it wider or remove a table',
       quickT: 'Quick buttons on the plan', quickHint: 'What a waiter does right on the plan, without opening the table. Everything else is in the table card.',
       qh_ack: 'Going — waiter call and bill request', qh_done: 'Done — call handled, bill brought', qh_confirm: 'Accept — new order from a tablet or phone',
@@ -51,7 +51,7 @@
     th: { list: '☰ รายการ', floor: '▦ ผังร้าน', mine: 'โต๊ะของฉัน', attention: 'ต้องดูแล', fold: 'ซ่อน ▾', unfold: 'แสดง ▸', calm: 'เรียบร้อยดี 👌',
       unplaced: 'ไม่อยู่ในผัง', tables: 'โต๊ะ', yours: 'ของคุณ', min: 'นาที', table: 'โต๊ะ',
       st_free: 'ว่าง', st_busy: 'มีแขก', st_cook: 'กำลังทำ', st_call: 'เรียกพนักงาน', st_bill: 'ขอเช็คบิล', st_new: 'ออร์เดอร์ใหม่', st_ready: 'พร้อม — นำไปเสิร์ฟ', st_callAck: 'พนักงานกำลังไป', st_billAck: 'กำลังนำบิลไป', paidAll: 'ชำระแล้ว', carry: 'นำไป',
-      q_ack: 'กำลังไป', q_done: 'เสร็จ', q_confirm: 'รับ', q_kitchen: 'ส่งครัว', q_served: 'เสิร์ฟแล้ว', q_paid: 'ชำระแล้ว', q_close: 'ปิดโต๊ะ',
+      q_ack: 'กำลังไป', q_done: 'เสร็จ', q_confirm: 'รับ', q_kitchen: 'ส่งครัว', q_served: 'เสิร์ฟแล้ว', q_paid: 'ชำระแล้ว', q_close: 'ปิดโต๊ะ', decor: ['บาร์', 'ทางเข้า', 'แคชเชียร์', 'ครัว', 'หน้าต่าง', 'ผนัง'],
       st_tokitchen: 'ออร์เดอร์ยังไม่ถึงครัว',
       st_pay: 'แขกอยู่ที่โต๊ะ', st_close: 'ชำระครบแล้ว', allFree: 'ทุกโต๊ะว่าง', due: 'ค้างชำระ', later: 'ต่อไปที่โต๊ะ',
       need_pay: 'รับชำระเงิน', need_close: 'ปิดโต๊ะ — ชำระครบแล้ว', need_closePos: 'ปิดโต๊ะหลังชำระที่แคชเชียร์',
@@ -62,7 +62,7 @@
     my: { list: '☰ စာရင်း', floor: '▦ ပုံစံ', mine: 'ကျွန်ုပ်၏ စားပွဲ', attention: 'ဂရုစိုက်ရန်', fold: 'ဖျောက် ▾', unfold: 'ပြ ▸', calm: 'အားလုံး အဆင်ပြေ 👌',
       unplaced: 'ပုံစံတွင် မပါ', tables: 'စားပွဲများ', yours: 'သင့်', min: 'မိနစ်', table: 'စားပွဲ',
       st_free: 'အားသည်', st_busy: 'ဧည့်သည်ရှိ', st_cook: 'ချက်နေသည်', st_call: 'စားပွဲထိုး ခေါ်', st_bill: 'ဘေလ် တောင်း', st_new: 'အော်ဒါ အသစ်', st_ready: 'အဆင်သင့် — ယူသွား', st_callAck: 'သွားနေပြီ', st_billAck: 'ဘေလ် ယူသွားနေ', paidAll: 'ပေးပြီး', carry: 'ယူသွား',
-      q_ack: 'သွားမည်', q_done: 'ပြီးပြီ', q_confirm: 'လက်ခံ', q_kitchen: 'မီးဖိုချောင်', q_served: 'ကျွေးပြီး', q_paid: 'ပေးပြီး', q_close: 'ပိတ်',
+      q_ack: 'သွားမည်', q_done: 'ပြီးပြီ', q_confirm: 'လက်ခံ', q_kitchen: 'မီးဖိုချောင်', q_served: 'ကျွေးပြီး', q_paid: 'ပေးပြီး', q_close: 'ပိတ်', decor: ['ဘား', 'ဝင်ပေါက်', 'ငွေကောင်တာ', 'မီးဖိုချောင်', 'ပြတင်းပေါက်', 'နံရံ'],
       st_tokitchen: 'အော်ဒါ မီးဖိုချောင် မရောက်သေး',
       st_pay: 'ဧည့်သည် ရှိ', st_close: 'အားလုံး ပေးပြီး', allFree: 'စားပွဲအားလုံး အားသည်', due: 'ပေးရန်', later: 'နောက်ထပ်',
       need_pay: 'ငွေ လက်ခံ', need_close: 'စားပွဲ ပိတ် — ပေးပြီး', need_closePos: 'ကောင်တာတွင် ပေးပြီးမှ စားပွဲ ပိတ်',
@@ -131,8 +131,11 @@
   const rowsOf = (z, extra = 0) => Math.max(1, ...z.tables.map((x) => x.y + x.h), ...z.decor.map((x) => x.y + x.h)) + extra;
 
   // Схема зоны: клетка — по ширине экрана; tiles(x) — кнопка стола с подписью и быстрой кнопкой
+  const DECOR_KEYS = ['bar', 'entrance', 'cashier', 'kitchen', 'window', 'wall'];
+  const presetKey = (text) => { for (const l of Object.values(L)) { const i = (l.decor || []).indexOf(text); if (i >= 0) return DECOR_KEYS[i]; } return ''; };
+  const decorText = (d) => { const k = d.key || presetKey(d.text); return k ? t('decor')[DECOR_KEYS.indexOf(k)] : d.tr?.[lang] || d.text; };
   const ghostHtml = (d, style, extra = '', attr = '') => `<div class="ftile ghostt${d.sh === 'rd' ? ' rd' : ''}${extra}" style="${style}" ${attr}><span class="fn${String(d.text).length > 3 ? ' sm' : ''}">${esc(d.text)}</span></div>`;
-  const decorDef = (d, i, style) => (d.kind === 'table' ? ghostHtml(d, style) : `<div class="fdecor" style="${style}">${esc(d.text)}</div>`);
+  const decorDef = (d, i, style) => (d.kind === 'table' ? ghostHtml(d, style) : `<div class="fdecor" style="${style}">${esc(decorText(d))}</div>`);
   function planHtml(z, width, k, tile, decor = decorDef, extraRows = 0, cls = '', overlay = () => '') {
     // клетка не меньше 44 px — под палец; широкая зона прокручивается вбок
     const cell = Math.max(44, Math.floor((width / z.cols) * k)), gap = 6, rows = rowsOf(z, extraRows);
@@ -264,7 +267,7 @@
         <button class="ghostbtn" data-ezdel="1">${t('zoneDel')}</button></div>`;
       html += '<div class="fplanwrap">' + planHtml(z, W, 1, (p, style) => `<div class="ftile busy${p.sh === 'rd' ? ' rd' : ''}${ed.sel === 't:' + p.t ? ' fsel' : ''}" style="${style}" data-et="${esc(p.t)}"><span class="fn${short(p.t).length > 3 ? ' sm' : ''}">${esc(short(p.t))}</span></div>`,
         (d, i, style) => (d.kind === 'table' ? ghostHtml(d, style, ed.sel === 'd:' + i ? ' fsel' : '', `data-ed="${i}"`)
-          : `<div class="fdecor${ed.sel === 'd:' + i ? ' fsel' : ''}" style="${style}" data-ed="${i}">${esc(d.text)}</div>`), 2, 'fedit') + '</div>';
+          : `<div class="fdecor${ed.sel === 'd:' + i ? ' fsel' : ''}" style="${style}" data-ed="${i}">${esc(decorText(d))}</div>`), 2, 'fedit') + '</div>';
     } else if (z) html += '<div class="fprev"></div>'; // заполняется ниже — тем же кодом, что у официанта
     html += '</div><div class="fside">';
     if (ed.mode === 'edit' && z) {
@@ -272,10 +275,11 @@
           <button data-ew="1">${t('wider')}</button><button data-ew="-1">${t('narrower')}</button><button data-eh="1">${t('taller')}</button><button data-eh="-1">${t('lower')}</button><button data-eun="1">${t('unplace')}</button></div>`
         : selD ? `<div class="ftool">${selD.kind === 'table' ? `<b>${t('ghostTable')}:</b><button class="${selD.sh !== 'rd' ? 'on' : ''}" data-edsh="sq">${t('square')}</button><button class="${selD.sh === 'rd' ? 'on' : ''}" data-edsh="rd">${t('round')}</button>` : ''}
           <input id="fdText" data-etext="1" value="${esc(selD.text)}" maxlength="14" aria-label="${esc(t(selD.kind === 'table' ? 'tableNo' : 'label'))}" style="width:120px">
-          <button data-ew="1">${t('wider')}</button><button data-ew="-1">${t('narrower')}</button><button data-eh="1">${t('taller')}</button><button data-eh="-1">${t('lower')}</button><button data-edel="1">${t('delDecor')}</button></div>`
+          <button data-ew="1">${t('wider')}</button><button data-ew="-1">${t('narrower')}</button><button data-eh="1">${t('taller')}</button><button data-eh="-1">${t('lower')}</button><button data-edel="1">${t('delDecor')}</button></div>
+          ${selD.kind !== 'table' && !(selD.key || presetKey(selD.text)) ? `<div class="ftool"><span class="empty">${t('trHint')}</span>${['ru', 'en', 'th', 'my'].map((l) => `<label class="ftr">${l.toUpperCase()} <input id="fdTr-${l}" data-etr="${l}" value="${esc(selD.tr?.[l] || '')}" maxlength="14"></label>`).join('')}</div>` : ''}`
         : `<p class="empty">${t('pick')}</p>`;
       html += `<div class="ftool"><b>${t('unplaced')}:</b> ${rest.map((tb) => `<button class="fput" data-eput="${esc(tb)}">${esc(short(tb))}</button>`).join('') || '—'}</div>
-        <div class="ftool"><b>${t('addDecor')}</b> ${t('decor').map((d) => `<button data-eadd="${esc(d)}">${esc(d)}</button>`).join('')}<button data-eaddc="1">+ ${t('customLabel')}</button></div>
+        <div class="ftool"><b>${t('addDecor')}</b> ${t('decor').map((d, i) => `<button data-eadd="${DECOR_KEYS[i]}">${esc(d)}</button>`).join('')}<button data-eaddc="1">+ ${t('customLabel')}</button></div>
         <div class="ftool"><button data-eghost="1">+ ${t('ghostTable')}</button><span class="empty">${t('ghostNote')}</span></div>`;
     }
     html += `<div class="ed"><b>${t('quickT')}</b><span class="empty">${t('quickHint')}</span>
@@ -304,7 +308,7 @@
       if (d.eun && selT) { z.tables.splice(z.tables.indexOf(selT), 1); ed.sel = null; return redraw(); }
       if (d.edel && selD) { z.decor.splice(z.decor.indexOf(selD), 1); ed.sel = null; return redraw(); }
       if (d.eput) { const p = firstFree(1, 1); if (!p) return alert(t('noRoom')); z.tables.push({ t: d.eput, ...p, w: 1, h: 1, sh: 'sq' }); ed.sel = 't:' + d.eput; return redraw(); }
-      if (d.eadd) { const p = firstFree(1, 1); if (!p) return alert(t('noRoom')); z.decor.push({ ...p, w: 1, h: 1, text: d.eadd }); ed.sel = 'd:' + (z.decor.length - 1); return redraw(); }
+      if (d.eadd) { const p = firstFree(1, 1); if (!p) return alert(t('noRoom')); z.decor.push({ ...p, w: 1, h: 1, key: d.eadd, text: t('decor')[DECOR_KEYS.indexOf(d.eadd)] }); ed.sel = 'd:' + (z.decor.length - 1); return redraw(); }
       // своя надпись и стол без планшета: сразу выделены, поле текста — в фокусе
       if (d.eaddc || d.eghost) {
         const p = firstFree(1, 1); if (!p) return alert(t('noRoom'));
@@ -328,7 +332,8 @@
     el.oninput = (e) => {
       const d = e.target.dataset;
       if (d.ezname) { z.name = e.target.value; ed.dirty = true; el.querySelector(`[data-ezone="${CSS.escape(z.id)}"]`).textContent = z.name; }
-      if (d.etext && selD) { selD.text = e.target.value; ed.dirty = true; const n = el.querySelector(`[data-ed="${z.decor.indexOf(selD)}"]`); if (n) (n.querySelector('.fn') || n).textContent = selD.text; }
+      if (d.etr && selD) { selD.tr = { ...selD.tr, [d.etr]: e.target.value }; ed.dirty = true; return; }
+      if (d.etext && selD) { delete selD.key; selD.text = e.target.value; ed.dirty = true; const n = el.querySelector(`[data-ed="${z.decor.indexOf(selD)}"]`); if (n) (n.querySelector('.fn') || n).textContent = selD.text; }
     };
     // перетаскивание: стол или надпись встаёт в ближайшую свободную клетку
     const plan = el.querySelector('.fedit');
@@ -392,6 +397,7 @@
 @media (min-width:700px){.fphone{border:10px solid #1d1a18;border-radius:30px;min-height:560px}}
 .fedit{background-color:#fff;background-image:linear-gradient(#e6ddd3 1px,transparent 1px),linear-gradient(90deg,#e6ddd3 1px,transparent 1px);background-size:var(--cell) var(--cell);border:1px solid #d9cdc1;border-radius:8px}
 .fedit .ftile,.fedit .fdecor{cursor:grab;touch-action:none}
+.ftr{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700}.ftr input{width:96px!important}
 .ftile.ghostt{background:transparent;border:2px dashed #c9bdb1;color:#a39a91}.fplan:not(.fedit) .ghostt{pointer-events:none;cursor:default}.fsel{outline:3px solid var(--f-new);outline-offset:2px;z-index:3}
 .fzrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px;font-size:13px}.fzrow input{width:140px}.fzrow select{width:auto}
 .ftool{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0;font-size:14px}.ftool button{padding:7px 10px;font-size:13px;background:#efe7df;color:#1f1a17}.ftool button.on{background:#1f1a17;color:#fff}
