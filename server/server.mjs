@@ -2474,11 +2474,13 @@ function cleanFloor(f, r) {
   const int = (v, a, b) => Math.min(b, Math.max(a, Math.round(Number(v)) || 0));
   const used = new Set();
   const zones = (Array.isArray(f.zones) ? f.zones : []).slice(0, 8).map((z, i) => {
-    const cols = int(z.cols || 6, 4, 8);
+    const cols = int(z.cols || 6, 4, 16);
     const box = (x) => { const w = int(x.w || 1, 1, cols), h = int(x.h || 1, 1, 8); return { x: int(x.x, 0, cols - w), y: int(x.y, 0, 60), w, h }; };
     const tables = (Array.isArray(z.tables) ? z.tables : []).filter((x) => (r.tables || []).includes(x.t) && !used.has(x.t) && used.add(x.t))
       .slice(0, 80).map((x) => ({ t: x.t, ...box(x), sh: x.sh === 'rd' ? 'rd' : 'sq' }));
-    const decor = (Array.isArray(z.decor) ? z.decor : []).slice(0, 40).map((x) => ({ ...box(x), text: String(x.text || '').trim().slice(0, 14) })).filter((x) => x.text);
+    // надписи (бар, вход, своя) и столы без планшета — только рисунок на схеме, номер — любой текст
+    const decor = (Array.isArray(z.decor) ? z.decor : []).slice(0, 80).map((x) => ({ ...box(x), text: String(x.text || '').trim().slice(0, 14),
+      ...(x.kind === 'table' ? { kind: 'table', sh: x.sh === 'rd' ? 'rd' : 'sq' } : {}) })).filter((x) => x.text);
     return { id: String(z.id || `z${i}`).slice(0, 20), name: String(z.name || '').trim().slice(0, 20) || `Зона ${i + 1}`, cols, tables, decor };
   });
   const quick = Object.fromEntries(Object.keys(QUICK_DEF).map((k) => [k, f.quick?.[k] === undefined ? QUICK_DEF[k] : !!f.quick[k]]));

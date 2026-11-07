@@ -20,7 +20,8 @@
       edPhone: 'Так схема выглядит на телефоне официанта', zoneAdd: '+ Зона', zoneName: 'Название зоны', cols: 'Клеток в ширину', zoneDel: 'Удалить зону', zoneDelAsk: 'Удалить зону «{n}»? Её столы вернутся в «Не на схеме».',
       edit: 'Правка', preview: 'Как у официанта', pick: 'Нажмите на стол или надпись, чтобы изменить. Столы из «Не на схеме» — нажмите, чтобы поставить.',
       square: '□ Квадрат', round: '○ Круг', wider: 'Шире', narrower: 'Уже', taller: 'Выше', lower: 'Ниже', unplace: 'Убрать со схемы', delDecor: 'Удалить', label: 'Надпись',
-      addDecor: 'Добавить надпись:', decor: ['Бар', 'Вход', 'Касса', 'Кухня', 'Окно', 'Стена'], noRoom: 'В зоне нет свободной клетки — сделайте зону шире или уберите стол',
+      addDecor: 'Добавить надпись:', customLabel: 'Своя надпись', newLabel: 'Надпись', ghostTable: 'Стол без планшета', tableNo: 'Номер стола',
+      ghostNote: 'Стол без планшета — только рисунок на схеме: серый, пунктиром, без вызовов и заказов. Номер — любой текст.', ghostHint: 'Стол без планшета', decor: ['Бар', 'Вход', 'Касса', 'Кухня', 'Окно', 'Стена'], noRoom: 'В зоне нет свободной клетки — сделайте зону шире или уберите стол',
       quickT: 'Быстрые кнопки на схеме', quickHint: 'Что официант делает прямо со схемы, не открывая стол. Остальное — в карточке стола.',
       qh_ack: 'Иду — вызов официанта и просьба счёта', qh_done: 'Готово — вызов выполнен, счёт отнесли', qh_confirm: 'Принять — новый заказ с планшета или телефона',
       qh_served: 'Подано — кухня приготовила, официант отнёс', qh_paid: 'Оплачен — счёт оплачен (деньги — лучше через карточку стола)', qh_close: 'Закрыть стол — всё оплачено (лучше через карточку стола)',
@@ -41,7 +42,8 @@
       edPhone: 'This is how the plan looks on a waiter’s phone', zoneAdd: '+ Zone', zoneName: 'Zone name', cols: 'Cells across', zoneDel: 'Delete zone', zoneDelAsk: 'Delete zone “{n}”? Its tables go back to “Not on the plan”.',
       edit: 'Edit', preview: 'Waiter’s view', pick: 'Tap a table or a label to change it. Tap a table under “Not on the plan” to place it.',
       square: '□ Square', round: '○ Round', wider: 'Wider', narrower: 'Narrower', taller: 'Taller', lower: 'Lower', unplace: 'Remove from plan', delDecor: 'Delete', label: 'Label',
-      addDecor: 'Add a label:', decor: ['Bar', 'Entrance', 'Cashier', 'Kitchen', 'Window', 'Wall'], noRoom: 'No free cell in this zone — make it wider or remove a table',
+      addDecor: 'Add a label:', customLabel: 'Custom label', newLabel: 'Label', ghostTable: 'Table without a tablet', tableNo: 'Table number',
+      ghostNote: 'A table without a tablet is only a drawing on the plan: grey, dashed, no calls or orders. The number is any text.', ghostHint: 'Table without a tablet', decor: ['Bar', 'Entrance', 'Cashier', 'Kitchen', 'Window', 'Wall'], noRoom: 'No free cell in this zone — make it wider or remove a table',
       quickT: 'Quick buttons on the plan', quickHint: 'What a waiter does right on the plan, without opening the table. Everything else is in the table card.',
       qh_ack: 'Going — waiter call and bill request', qh_done: 'Done — call handled, bill brought', qh_confirm: 'Accept — new order from a tablet or phone',
       qh_served: 'Served — the kitchen cooked it, the waiter brought it', qh_paid: 'Paid — the bill is paid (money is better through the table card)', qh_close: 'Close table — everything is paid (better through the table card)',
@@ -129,9 +131,11 @@
   const rowsOf = (z, extra = 0) => Math.max(1, ...z.tables.map((x) => x.y + x.h), ...z.decor.map((x) => x.y + x.h)) + extra;
 
   // Схема зоны: клетка — по ширине экрана; tiles(x) — кнопка стола с подписью и быстрой кнопкой
-  const decorDef = (d, i, style) => `<div class="fdecor" style="${style}">${esc(d.text)}</div>`;
+  const ghostHtml = (d, style, extra = '', attr = '') => `<div class="ftile ghostt${d.sh === 'rd' ? ' rd' : ''}${extra}" style="${style}" ${attr}><span class="fn${String(d.text).length > 3 ? ' sm' : ''}">${esc(d.text)}</span></div>`;
+  const decorDef = (d, i, style) => (d.kind === 'table' ? ghostHtml(d, style) : `<div class="fdecor" style="${style}">${esc(d.text)}</div>`);
   function planHtml(z, width, k, tile, decor = decorDef, extraRows = 0, cls = '', overlay = () => '') {
-    const cell = Math.max(38, Math.floor((width / z.cols) * k)), gap = 6, rows = rowsOf(z, extraRows);
+    // клетка не меньше 44 px — под палец; широкая зона прокручивается вбок
+    const cell = Math.max(44, Math.floor((width / z.cols) * k)), gap = 6, rows = rowsOf(z, extraRows);
     const box = (o) => `left:${o.x * cell + gap / 2}px;top:${o.y * cell + gap / 2}px;width:${o.w * cell - gap}px;height:${o.h * cell - gap}px`;
     return `<div class="fplan ${cls}" style="width:${cell * z.cols}px;height:${cell * rows}px;--cell:${cell}px">`
       + z.decor.map((d, i) => decor(d, i, box(d))).join('')
@@ -187,7 +191,9 @@
       const extra = Math.max(0, ...chips.map((c) => c.cy + 1)) - rowsOf(z);
       const overlay = (cell, gap) => chips.map(({ x, cx, cy, side, label }) => {
         const h = Math.min(cell - gap, 36), pos = `left:${cx * cell + gap / 2}px;top:${cy * cell + (cell - h) / 2}px;width:${cell - gap}px;height:${h}px`;
-        return label ? `<span class="fstat s-${x.st} fs-${side}" style="${pos}">${esc(statusText(x))}</span>` : qbtn(x, `fqn fq-${side}`, pos);
+        // кнопка — по ширине текста, с центром в своей клетке (не меньше клетки)
+        const bpos = `left:${cx * cell + cell / 2}px;top:${cy * cell + (cell - h) / 2}px;min-width:${cell - gap}px;height:${h}px;transform:translateX(-50%)`;
+        return label ? `<span class="fstat s-${x.st} fs-${side}" style="${pos}">${esc(statusText(x))}</span>` : qbtn(x, `fqn fq-${side}`, bpos);
       }).join('');
       const W = Math.min(el.clientWidth || 360, 560);
       html += `<div class="fplanwrap">${planHtml(z, W, ui.queue ? 0.8 : 1, tile, decorDef, Math.max(0, extra), ui.queue ? 'compact' : '', overlay)}</div>`;
@@ -254,20 +260,23 @@
       <div class="fseg"><button class="${ed.mode === 'edit' ? 'on' : ''}" data-emode="edit">${t('edit')}</button><button class="${ed.mode === 'preview' ? 'on' : ''}" data-emode="preview">${t('preview')}</button></div>`;
     if (z && ed.mode === 'edit') {
       html += `<div class="fzrow"><input id="fzName" data-ezname="1" value="${esc(z.name)}" maxlength="20" aria-label="${esc(t('zoneName'))}">
-        <label>${t('cols')} <select data-ecols="1">${[4, 5, 6, 7, 8].map((n) => `<option ${n === z.cols ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <label>${t('cols')} <select data-ecols="1">${[4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map((n) => `<option ${n === z.cols ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <button class="ghostbtn" data-ezdel="1">${t('zoneDel')}</button></div>`;
-      html += planHtml(z, W, 1, (p, style) => `<div class="ftile busy${p.sh === 'rd' ? ' rd' : ''}${ed.sel === 't:' + p.t ? ' fsel' : ''}" style="${style}" data-et="${esc(p.t)}"><span class="fn${short(p.t).length > 3 ? ' sm' : ''}">${esc(short(p.t))}</span></div>`,
-        (d, i, style) => `<div class="fdecor${ed.sel === 'd:' + i ? ' fsel' : ''}" style="${style}" data-ed="${i}">${esc(d.text)}</div>`, 2, 'fedit');
+      html += '<div class="fplanwrap">' + planHtml(z, W, 1, (p, style) => `<div class="ftile busy${p.sh === 'rd' ? ' rd' : ''}${ed.sel === 't:' + p.t ? ' fsel' : ''}" style="${style}" data-et="${esc(p.t)}"><span class="fn${short(p.t).length > 3 ? ' sm' : ''}">${esc(short(p.t))}</span></div>`,
+        (d, i, style) => (d.kind === 'table' ? ghostHtml(d, style, ed.sel === 'd:' + i ? ' fsel' : '', `data-ed="${i}"`)
+          : `<div class="fdecor${ed.sel === 'd:' + i ? ' fsel' : ''}" style="${style}" data-ed="${i}">${esc(d.text)}</div>`), 2, 'fedit') + '</div>';
     } else if (z) html += '<div class="fprev"></div>'; // заполняется ниже — тем же кодом, что у официанта
     html += '</div><div class="fside">';
     if (ed.mode === 'edit' && z) {
       html += selT ? `<div class="ftool"><b>${esc(ctx.tbl(selT.t))}:</b><button class="${selT.sh !== 'rd' ? 'on' : ''}" data-esh="sq">${t('square')}</button><button class="${selT.sh === 'rd' ? 'on' : ''}" data-esh="rd">${t('round')}</button>
           <button data-ew="1">${t('wider')}</button><button data-ew="-1">${t('narrower')}</button><button data-eh="1">${t('taller')}</button><button data-eh="-1">${t('lower')}</button><button data-eun="1">${t('unplace')}</button></div>`
-        : selD ? `<div class="ftool"><input data-etext="1" value="${esc(selD.text)}" maxlength="14" aria-label="${esc(t('label'))}" style="width:120px">
+        : selD ? `<div class="ftool">${selD.kind === 'table' ? `<b>${t('ghostTable')}:</b><button class="${selD.sh !== 'rd' ? 'on' : ''}" data-edsh="sq">${t('square')}</button><button class="${selD.sh === 'rd' ? 'on' : ''}" data-edsh="rd">${t('round')}</button>` : ''}
+          <input id="fdText" data-etext="1" value="${esc(selD.text)}" maxlength="14" aria-label="${esc(t(selD.kind === 'table' ? 'tableNo' : 'label'))}" style="width:120px">
           <button data-ew="1">${t('wider')}</button><button data-ew="-1">${t('narrower')}</button><button data-eh="1">${t('taller')}</button><button data-eh="-1">${t('lower')}</button><button data-edel="1">${t('delDecor')}</button></div>`
         : `<p class="empty">${t('pick')}</p>`;
       html += `<div class="ftool"><b>${t('unplaced')}:</b> ${rest.map((tb) => `<button class="fput" data-eput="${esc(tb)}">${esc(short(tb))}</button>`).join('') || '—'}</div>
-        <div class="ftool"><b>${t('addDecor')}</b> ${t('decor').map((d) => `<button data-eadd="${esc(d)}">${esc(d)}</button>`).join('')}</div>`;
+        <div class="ftool"><b>${t('addDecor')}</b> ${t('decor').map((d) => `<button data-eadd="${esc(d)}">${esc(d)}</button>`).join('')}<button data-eaddc="1">+ ${t('customLabel')}</button></div>
+        <div class="ftool"><button data-eghost="1">+ ${t('ghostTable')}</button><span class="empty">${t('ghostNote')}</span></div>`;
     }
     html += `<div class="ed"><b>${t('quickT')}</b><span class="empty">${t('quickHint')}</span>
       ${['ack', 'done', 'confirm', 'kitchen', 'served', 'paid', 'close'].map((k) => `<label class="fq"><input type="checkbox" id="fq-${k}" data-eq="${k}" ${f.quick?.[k] ? 'checked' : ''}> ${t('qh_' + k)}</label>`).join('')}</div>
@@ -296,6 +305,16 @@
       if (d.edel && selD) { z.decor.splice(z.decor.indexOf(selD), 1); ed.sel = null; return redraw(); }
       if (d.eput) { const p = firstFree(1, 1); if (!p) return alert(t('noRoom')); z.tables.push({ t: d.eput, ...p, w: 1, h: 1, sh: 'sq' }); ed.sel = 't:' + d.eput; return redraw(); }
       if (d.eadd) { const p = firstFree(1, 1); if (!p) return alert(t('noRoom')); z.decor.push({ ...p, w: 1, h: 1, text: d.eadd }); ed.sel = 'd:' + (z.decor.length - 1); return redraw(); }
+      // своя надпись и стол без планшета: сразу выделены, поле текста — в фокусе
+      if (d.eaddc || d.eghost) {
+        const p = firstFree(1, 1); if (!p) return alert(t('noRoom'));
+        const nums = [...(ctx.tables || []).map(short), ...f.zones.flatMap((x) => x.decor.filter((q) => q.kind === 'table').map((q) => q.text))].map((v) => parseInt(v, 10)).filter((v) => v > 0);
+        z.decor.push(d.eghost ? { ...p, w: 1, h: 1, text: String(Math.max(0, ...nums) + 1), kind: 'table', sh: 'sq' } : { ...p, w: 1, h: 1, text: t('newLabel') });
+        ed.sel = 'd:' + (z.decor.length - 1); redraw();
+        const inp = el.querySelector('#fdText'); if (inp) { inp.focus(); inp.select(); }
+        return;
+      }
+      if (d.edsh && selD) { selD.sh = d.edsh; return redraw(); }
       if (d.esave) {
         try { await ctx.onSave(f); ed.dirty = false; ed.msg = t('saved'); } catch (err) { ed.msg = err.message || String(err); }
         return editor(el, ctx);
@@ -309,7 +328,7 @@
     el.oninput = (e) => {
       const d = e.target.dataset;
       if (d.ezname) { z.name = e.target.value; ed.dirty = true; el.querySelector(`[data-ezone="${CSS.escape(z.id)}"]`).textContent = z.name; }
-      if (d.etext && selD) { selD.text = e.target.value; ed.dirty = true; const n = el.querySelector(`[data-ed="${z.decor.indexOf(selD)}"]`); if (n) n.textContent = selD.text; }
+      if (d.etext && selD) { selD.text = e.target.value; ed.dirty = true; const n = el.querySelector(`[data-ed="${z.decor.indexOf(selD)}"]`); if (n) (n.querySelector('.fn') || n).textContent = selD.text; }
     };
     // перетаскивание: стол или надпись встаёт в ближайшую свободную клетку
     const plan = el.querySelector('.fedit');
@@ -351,9 +370,9 @@
 .ftile.call::after,.ftile.new::after{content:"";position:absolute;inset:-6px;border-radius:inherit;border:3px solid var(--f-call);opacity:0;animation:fring 1.6s ease-out infinite;pointer-events:none}.ftile.new::after{border-color:var(--f-new)}
 @keyframes fring{0%{opacity:.7;transform:scale(.92)}100%{opacity:0;transform:scale(1.12)}}@media (prefers-reduced-motion:reduce){.ftile.call::after,.ftile.new::after{animation:none;opacity:.6}}
 .ftile.late .fs::before{content:"⚠ "}.ftile.fdim{opacity:.35}.ftile.fmine{box-shadow:0 0 0 2px #1f1a17}
-.fqn{position:absolute;z-index:2;background:#1f1a17;color:#fff;font:inherit;font-size:10px;font-weight:700;line-height:1.05;padding:2px 2px;border-radius:9px;border:0;display:grid;place-items:center;text-align:center;overflow-wrap:normal;word-break:keep-all;letter-spacing:-.2px;box-shadow:0 0 0 2px #f5f0ea}
+.fqn{position:absolute;z-index:2;background:#1f1a17;color:#fff;font:inherit;font-size:10px;font-weight:700;line-height:1.05;padding:2px 5px;border-radius:9px;border:0;display:grid;place-items:center;text-align:center;overflow-wrap:normal;word-break:keep-all;letter-spacing:-.2px;box-shadow:0 0 0 2px #f5f0ea}
 .fqn::after{content:"";position:absolute;width:6px;height:6px;background:#1f1a17;transform:rotate(45deg)}.fq-r::after{left:-3px;top:calc(50% - 3px)}.fq-l::after{right:-3px;top:calc(50% - 3px)}.fq-b::after{top:-3px;left:calc(50% - 3px)}.fq-t::after{bottom:-3px;left:calc(50% - 3px)}
-.fdecor{position:absolute;border-radius:10px;background:repeating-linear-gradient(135deg,#efe7df 0 6px,transparent 6px 12px);border:1px solid #d9cdc1;color:#8a7f76;font-size:11px;font-weight:700;display:grid;place-items:center;text-transform:uppercase;letter-spacing:.05em;text-align:center;overflow:hidden}
+.fdecor{position:absolute;border-radius:10px;background:repeating-linear-gradient(135deg,#efe7df 0 6px,transparent 6px 12px);border:1px solid #d9cdc1;color:#8a7f76;font-size:10px;font-weight:700;display:grid;place-items:center;text-align:center;overflow:hidden;overflow-wrap:anywhere;line-height:1.05;padding:2px}
 .fzh{font-size:12px;font-weight:700;color:#8a7f76;text-transform:uppercase;letter-spacing:.05em;margin:10px 2px 4px}
 .fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px 8px;margin:4px 0 12px}.fcell{display:flex;flex-direction:column;gap:6px}
 .fgrid .ftile{position:relative;height:74px;border-radius:14px}.fgrid .ftile .fn{font-size:20px}
@@ -372,7 +391,8 @@
 .fphone{width:100%;max-width:390px;box-sizing:border-box;padding:10px 12px;background:#f5f0ea;border-radius:16px}
 @media (min-width:700px){.fphone{border:10px solid #1d1a18;border-radius:30px;min-height:560px}}
 .fedit{background-color:#fff;background-image:linear-gradient(#e6ddd3 1px,transparent 1px),linear-gradient(90deg,#e6ddd3 1px,transparent 1px);background-size:var(--cell) var(--cell);border:1px solid #d9cdc1;border-radius:8px}
-.fedit .ftile,.fedit .fdecor{cursor:grab;touch-action:none}.fsel{outline:3px solid var(--f-new);outline-offset:2px;z-index:3}
+.fedit .ftile,.fedit .fdecor{cursor:grab;touch-action:none}
+.ftile.ghostt{background:transparent;border:2px dashed #c9bdb1;color:#a39a91}.fplan:not(.fedit) .ghostt{pointer-events:none;cursor:default}.fsel{outline:3px solid var(--f-new);outline-offset:2px;z-index:3}
 .fzrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px;font-size:13px}.fzrow input{width:140px}.fzrow select{width:auto}
 .ftool{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0;font-size:14px}.ftool button{padding:7px 10px;font-size:13px;background:#efe7df;color:#1f1a17}.ftool button.on{background:#1f1a17;color:#fff}
 .ftool .fput{border:2px dashed #d9cdc1;background:transparent;font-weight:700}
