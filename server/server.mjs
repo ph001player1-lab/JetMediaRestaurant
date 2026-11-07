@@ -3394,9 +3394,11 @@ function setArchive(r, list) {
 // Пометка визита стола «тест»: его заказы и вызовы (ids) — в r.testIds
 function markTest(r, ids, test) {
   const set = new Set(r.testIds || []);
-  for (const id of (ids || []).map(String).slice(0, 200)) test ? set.add(id) : set.delete(id);
+  // весь период разом — до 10 000 заказов за раз
+  const list = new Set((Array.isArray(ids) ? ids : []).map(String).slice(0, 10000));
+  for (const id of list) test ? set.add(id) : set.delete(id);
   r.testIds = [...set].slice(-20000);
-  for (const o of db.orders) if (o.restaurantId === r.id && (ids || []).includes(o.id)) o.test = !!test;
+  for (const o of db.orders) if (o.restaurantId === r.id && list.has(o.id)) o.test = !!test;
 }
 const period = (q) => {
   const now = Date.now(), to = Math.min(Number(q.to) || now, now + 864e5);

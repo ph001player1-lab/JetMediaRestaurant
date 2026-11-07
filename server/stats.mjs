@@ -331,6 +331,8 @@ export function restaurantReport({ log, db, r, from, to, staffNames, tests }) {
     from, to, tests: !!tests, summary: summary(ev), prev: summary(prev), reaction: reaction(ev),
     excluded: { visits: testVisits.length, orders: testVisits.reduce((s, v) => s + v.orders, 0), total: testVisits.reduce((s, v) => s + v.total, 0) },
     // журнал визитов: последние 300, у каждого — тестовый ли и почему
+    // «Тест» для всех визитов периода разом: визиты, которые можно отметить (не прошлые данные и не тестовый сотрудник)
+    markAll: (() => { const m = all.filter((v) => !v.why || v.why === 'mark'); return { n: m.length, marked: m.filter((v) => v.why).length, ids: m.flatMap((v) => v.ids) }; })(),
     visits: all.reverse().slice(0, 300).map(({ events, staff, r: rid, ...v }) => ({ ...v, staff: [...staff], log: visitLog(events, dishName(r, true)) })),
     staff: staffStats(ev, staffNames, to), tables: tableStats(ev), dishes: dishStats(ev, r),
     promos: promoStats(ev, r, db.stats, days), avatar: avatarStats(ev, db.stats, rids, () => days), ...timeStats(ev),

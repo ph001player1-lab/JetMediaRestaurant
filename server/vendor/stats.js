@@ -21,7 +21,7 @@
       hoursOn: 'Часов на связи', adImps: 'Показов рекламы', adScans: 'Сканов рекламы', leads: 'Заявок', online: 'онлайн', offlineNow: 'офлайн', byRest: 'По ресторанам: показы / сканы / заявки', tts: 'Озвучка ElevenLabs, символов', sec: 'с', min: 'мин',
       wd: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], hint: 'Время — тайское. Выручка — только заказы через планшет.',
       withTests: 'С тестовыми', recalc: 'Пересчитать', excluded: 'Не учтено как тестовое', visitsN: 'визитов', ordersN: 'заказов',
-      visits: 'Журнал визитов столов', when: 'Когда', test: 'Тест', whyBefore: 'прошлые данные', whyStaff: 'тестовый сотрудник',
+      visits: 'Журнал визитов столов', when: 'Когда', test: 'Тест', whyBefore: 'прошлые данные', allPeriod: 'все за период', markAllQ: 'Пометить тестовыми все визиты за выбранный период ({n})? Они не войдут в статистику.', unmarkAllQ: 'Снять «Тест» со всех визитов за период ({n})? Они снова войдут в статистику.', whyStaff: 'тестовый сотрудник',
       visitsHint: 'Визит — от первого вызова или заказа до «Закрыть стол». Отметьте «Тест», чтобы визит не шёл в статистику.',
       manager: 'менеджер', waiter: 'официант',
     },
@@ -44,7 +44,7 @@
       hoursOn: 'Hours online', adImps: 'Ad impressions', adScans: 'Ad scans', leads: 'Leads', online: 'online', offlineNow: 'offline', byRest: 'By restaurant: impressions / scans / leads', tts: 'ElevenLabs voice, characters', sec: 's', min: 'min',
       wd: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], hint: 'Thailand time. Revenue counts tablet orders only.',
       withTests: 'Include test data', recalc: 'Recalculate', excluded: 'Left out as test', visitsN: 'visits', ordersN: 'orders',
-      visits: 'Table visits log', when: 'When', test: 'Test', whyBefore: 'earlier data', whyStaff: 'test staff',
+      visits: 'Table visits log', when: 'When', test: 'Test', whyBefore: 'earlier data', allPeriod: 'all in period', markAllQ: 'Mark all visits in the selected period as test ({n})? They will not count in statistics.', unmarkAllQ: 'Unmark all visits in the period ({n})? They will count in statistics again.', whyStaff: 'test staff',
       visitsHint: 'A visit lasts from the first call or order until “Close table”. Tick “Test” to keep a visit out of the statistics.',
       manager: 'manager', waiter: 'waiter',
     },
@@ -67,7 +67,7 @@
       hoursOn: 'ชั่วโมงออนไลน์', adImps: 'แสดงโฆษณา', adScans: 'สแกนโฆษณา', leads: 'คำขอ', online: 'ออนไลน์', offlineNow: 'ออฟไลน์', byRest: 'ตามร้าน: แสดง / สแกน / คำขอ', tts: 'เสียง ElevenLabs ตัวอักษร', sec: 'วิ', min: 'นาที',
       wd: ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'], hint: 'เวลาประเทศไทย ยอดขายนับเฉพาะออร์เดอร์ผ่านแท็บเล็ต',
       withTests: 'รวมข้อมูลทดสอบ', recalc: 'คำนวณใหม่', excluded: 'ไม่นับ (ทดสอบ)', visitsN: 'ครั้ง', ordersN: 'ออร์เดอร์',
-      visits: 'บันทึกการใช้โต๊ะ', when: 'เวลา', test: 'ทดสอบ', whyBefore: 'ข้อมูลเก่า', whyStaff: 'พนักงานทดสอบ',
+      visits: 'บันทึกการใช้โต๊ะ', when: 'เวลา', test: 'ทดสอบ', allPeriod: 'ทั้งหมดในช่วงนี้', markAllQ: 'ทำเครื่องหมายทุกการใช้โต๊ะในช่วงนี้เป็นการทดสอบ ({n})? จะไม่นับในสถิติ', unmarkAllQ: 'ยกเลิกเครื่องหมายทดสอบทั้งหมดในช่วงนี้ ({n})? จะกลับมานับในสถิติ', whyBefore: 'ข้อมูลเก่า', whyStaff: 'พนักงานทดสอบ',
       visitsHint: 'การใช้โต๊ะ: ตั้งแต่การเรียกหรือออร์เดอร์แรกจนถึง “ปิดโต๊ะ” ติ๊ก “ทดสอบ” เพื่อไม่นับในสถิติ',
       manager: 'ผู้จัดการ', waiter: 'พนักงาน',
     },
@@ -144,13 +144,14 @@
     // Сколько не учтено как тестовое
     const excludedHtml = (d) => (!d.tests && d.excluded?.visits ? `<p class="js-hint">🧪 ${t.excluded}: ${d.excluded.visits} ${t.visitsN}, ${d.excluded.orders} ${t.ordersN}, ${money(d.excluded.total)}</p>` : '');
     // Журнал визитов: у каждого — «Тест» (прошлые данные и тестовые сотрудники — без галочки, с причиной)
-    let visits = [];
+    let visits = [], markAll = null;
     function visitsHtml(d) {
       visits = d.visits || [];
+      markAll = d.markAll || null;
       if (!visits.length) return '';
       const when = (v) => new Date(v.from + TZ).toISOString().slice(5, 16).replace('T', ' ') + '–' + new Date(v.to + TZ).toISOString().slice(11, 16);
       return `<details class="js-ex"><summary>${t.visits} (${visits.length})</summary><p class="js-hint">${t.visitsHint} ${t.vlogHint}</p>
-        <div class="js-wrap"><table class="js-tbl"><thead><tr><th>${t.when}</th><th>${t.table}</th><th>${t.orders}</th><th>${t.sum}</th><th>${t.staff}</th><th>${t.test}</th></tr></thead>
+        <div class="js-wrap"><table class="js-tbl"><thead><tr><th>${t.when}</th><th>${t.table}</th><th>${t.orders}</th><th>${t.sum}</th><th>${t.staff}</th><th>${t.test}${opt.markVisit && markAll?.n ? `<br><label class="js-all"><input type="checkbox" data-visitall="1" ${markAll.marked === markAll.n ? 'checked' : ''}> ${t.allPeriod}</label>` : ''}</th></tr></thead>
         <tbody>${visits.map((v, i) => `<tr class="${v.why ? 'js-test' : ''}"><td>${(v.log || []).length ? `<button class="js-vbtn" data-vlog="${i}">▸</button> ` : ''}${when(v)}</td><td>${esc(v.table)}</td><td>${v.orders}</td><td>${money(v.total)}</td>
           <td>${esc(v.staff.join(', '))}</td><td>${v.why === 'before' ? t.whyBefore : v.why === 'staff' ? t.whyStaff
             : opt.markVisit ? `<input type="checkbox" data-visit="${i}" ${v.why === 'mark' ? 'checked' : ''}>` : v.why ? '✓' : ''}</td></tr>`).join('')}</tbody></table></div></details>`;
@@ -208,12 +209,24 @@
     }
 
     let rests = null;
-    async function load() {
-      el.innerHTML = controls(rests) + `<p class="js-hint">${t.loading}</p>`;
+    // keep — пересчёт после отметки «Тест»: журнал остаётся открытым, раскрытые визиты и прокрутка — на месте
+    async function load(keep) {
+      const was = keep && {
+        open: [...el.querySelectorAll('details')].map((x) => x.open),
+        vlog: [...el.querySelectorAll('.js-vrow')].map((x) => x.previousElementSibling?.querySelector('[data-vlog]')?.dataset.vlog).filter(Boolean),
+        y: window.scrollY, sc: [...el.querySelectorAll('.js-wrap')].map((x) => x.scrollLeft),
+      };
+      if (keep) el.querySelectorAll('[data-visit], [data-visitall]').forEach((x) => { x.disabled = true; });
+      else el.innerHTML = controls(rests) + `<p class="js-hint">${t.loading}</p>`;
       const d = await opt.load(st.from, st.to, st.r, st.tests);
       if (d.error) { el.innerHTML = controls(rests) + `<p class="js-none">${esc(d.error)}</p>`; return; }
       if (opt.admin) rests = d.restaurants;
       el.innerHTML = controls(rests) + `<div class="js-body">${opt.admin ? adminHtml(d) : restaurantHtml(d)}</div>`;
+      if (!was) return;
+      el.querySelectorAll('details').forEach((x, i) => { if (was.open[i]) x.open = true; });
+      for (const i of was.vlog) el.querySelector(`[data-vlog="${i}"]`)?.click();
+      el.querySelectorAll('.js-wrap').forEach((x, i) => { x.scrollLeft = was.sc[i] || 0; });
+      window.scrollTo(0, was.y);
     }
     el.onclick = (e) => {
       const b = e.target.closest('button');
@@ -246,7 +259,14 @@
       if (e.target.id === 'jsTests') { st.tests = e.target.checked; load(); }
       if (e.target.dataset.visit !== undefined) {
         await opt.markVisit(visits[Number(e.target.dataset.visit)].ids, e.target.checked, st.r);
-        load();
+        load(true);
+      }
+      // все визиты периода разом (не только 300 последних в журнале)
+      if (e.target.dataset.visitall && markAll) {
+        const on = e.target.checked;
+        if (!confirm((on ? t.markAllQ : t.unmarkAllQ).replace('{n}', markAll.n))) { e.target.checked = !on; return; }
+        await opt.markVisit(markAll.ids, on, st.r);
+        load(true);
       }
     };
     load();
@@ -262,7 +282,7 @@
 .js-tbl th{font-size:12px;color:#8a7f76;white-space:normal}.js-charts{display:flex;flex-wrap:wrap;gap:12px}.js-chart{background:#fff;border-radius:12px;padding:10px;flex:1 1 320px}
 .js-chart h4{margin:0 0 8px;font-size:13px}.js-bars{display:flex;align-items:flex-end;gap:2px;height:120px}.js-bars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
 .js-test td{color:#b0a69c}.js-ex{background:#fff;border-radius:12px;padding:8px 12px;margin:0 0 10px}.js-ex summary{cursor:pointer;font-weight:600}.js-ex label{display:inline-block;margin:4px 14px 4px 0;white-space:nowrap}
-.js-vbtn{padding:0 6px!important;margin:0!important;border:1px solid #ddd;border-radius:6px;background:#fff;color:#222;cursor:pointer;font-size:12px}
+.js-ex .js-all{font-weight:400;white-space:nowrap;color:#222;display:inline-flex;align-items:center;gap:4px;margin-top:2px}.js-vbtn{padding:0 6px!important;margin:0!important;border:1px solid #ddd;border-radius:6px;background:#fff;color:#222;cursor:pointer;font-size:12px}
 .js-vlog{margin:2px 0 6px;padding-left:18px;font-size:13px;line-height:1.5}.js-vlog .js-warn{color:#c62828}.js-vrow td{background:#faf7f4}
 .js-bars i{display:block;width:100%;background:#c8553d;border-radius:3px 3px 0 0;min-height:1px}.js-bars span{font-size:9px;color:#8a7f76;margin-top:2px}.js-body h3{margin:18px 0 6px}`;
   const s = document.createElement('style');
