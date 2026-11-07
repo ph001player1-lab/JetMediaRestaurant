@@ -49,6 +49,7 @@ const STATIC = {
   '/vendor/qrcode.js': 'vendor/qrcode.js',
   '/vendor/stats.js': 'vendor/stats.js',
   '/vendor/arrows.js': 'vendor/arrows.js',
+  '/vendor/floor.js': 'vendor/floor.js',
   // слайды инструкции установки приложения (ЛК → Персонал)
   '/staff/install/samsung-1.jpg': 'assets/install/samsung-1.jpg',
   '/staff/install/samsung-2.jpg': 'assets/install/samsung-2.jpg',
@@ -1576,6 +1577,7 @@ function staffState(b, q) {
       deaf: s.onShift ? deafOf(s) : null,
     },
     team: teamOf(r),
+    floor: floorOf(r),
     // «Столы» официанта: его столы из ЛК менеджера, а если не назначены — все столы ресторана
     myTables: (r.tables || []).filter((tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb)),
     vapidKey: db.vapid.publicKey,
@@ -2300,6 +2302,7 @@ function managerGet(b, q) {
   return {
     restaurant: {
       id: r.id, name: r.name, staffCode: r.staffCode || '', langs: r.langs || [], tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
+      floor: floorOf(r),
       menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [], staffArchive: r.staffArchive || [],
       menuSource: publicSource(r.menuSource), menuIssues: menuIssues(r), timers: timersOf(r),
       display: { ...DISPLAY, ...r.display },
@@ -2341,6 +2344,7 @@ function managerSave(b) {
   if (Array.isArray(b.promos) || Array.isArray(b.menu)) syncPromoItems(r);
   // «реклама после каждых N слайдов» задаёт админка — из ЛК не меняется
   if (b.timers) r.timers = cleanTimers(b.timers);
+  if (b.floor) r.floor = cleanFloor(b.floor, r);
   if (b.display) r.display = { ...cleanDisplay(b.display), adEvery: { ...DISPLAY, ...r.display }.adEvery };
   if (b.avatar) r.avatar = cleanAvatar(b.avatar, r);
   if (b.flow) {
@@ -2379,8 +2383,29 @@ function saveTables(r, list) {
   for (const x of [...db.calls, ...db.orders]) {
     if (x.restaurantId === r.id && !x.closed) x.table = move(x.table) || x.table;
   }
+  // схема зала: переименованный стол остаётся на своём месте, удалённый — уходит со схемы
+  for (const z of r.floor?.zones || []) z.tables = z.tables.map((x) => ({ ...x, t: move(x.t) })).filter((x) => x.t);
   for (const k of Object.values(db.tableKeys)) if (k.r === r.id) k.table = move(k.table) || k.table;
   r.tables = rows.map((x) => x.to);
+}
+
+// ---------- Схема зала (ЛК → «Схема зала»): зоны, столы в клетках, надписи (бар, вход…) и быстрые кнопки на схеме.
+// Клетки, а не пиксели — схема растягивается на любой телефон. Нет схемы — официант видит столы плитками
+const QUICK_DEF = { ack: true, done: true, confirm: true, served: true, paid: false, close: false };
+const floorOf = (r) => ({ zones: r.floor?.zones || [], quick: { ...QUICK_DEF, ...r.floor?.quick } });
+function cleanFloor(f, r) {
+  const int = (v, a, b) => Math.min(b, Math.max(a, Math.round(Number(v)) || 0));
+  const used = new Set();
+  const zones = (Array.isArray(f.zones) ? f.zones : []).slice(0, 8).map((z, i) => {
+    const cols = int(z.cols || 6, 4, 8);
+    const box = (x) => { const w = int(x.w || 1, 1, cols), h = int(x.h || 1, 1, 8); return { x: int(x.x, 0, cols - w), y: int(x.y, 0, 60), w, h }; };
+    const tables = (Array.isArray(z.tables) ? z.tables : []).filter((x) => (r.tables || []).includes(x.t) && !used.has(x.t) && used.add(x.t))
+      .slice(0, 80).map((x) => ({ t: x.t, ...box(x), sh: x.sh === 'rd' ? 'rd' : 'sq' }));
+    const decor = (Array.isArray(z.decor) ? z.decor : []).slice(0, 40).map((x) => ({ ...box(x), text: String(x.text || '').trim().slice(0, 14) })).filter((x) => x.text);
+    return { id: String(z.id || `z${i}`).slice(0, 20), name: String(z.name || '').trim().slice(0, 20) || `Зона ${i + 1}`, cols, tables, decor };
+  });
+  const quick = Object.fromEntries(Object.keys(QUICK_DEF).map((k) => [k, f.quick?.[k] === undefined ? QUICK_DEF[k] : !!f.quick[k]]));
+  return { zones, quick };
 }
 
 // Статистика ресторана для ЛК менеджера (без внешней рекламы)
