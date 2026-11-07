@@ -136,33 +136,40 @@
   /* ---- Вид меню «Плитки» и «Каталог» (ЛК → Дизайн): разделы плиткой слева, поиск, группы. Классический — как раньше */
   #side, #mtop { display: none; }
   body.lay-tiles #side, body.lay-catalog #side { display: flex; flex-direction: column; gap: 10px; flex: none; padding: 12px 10px 0 14px; background: var(--card); border-right: 1px solid var(--line); min-height: 0; }
-  body.lay-tiles #side { width: 28%; } body.lay-catalog #side { width: 40%; }
-  body.lay-tiles #cats, body.lay-catalog #cats { display: grid; white-space: normal; overflow-y: auto; overflow-x: hidden; padding: 2px 2px 14px; box-shadow: none; background: transparent; gap: 10px; align-content: start; flex: 1; min-height: 0; }
-  body.lay-tiles #cats { grid-template-columns: 1fr 1fr; } body.lay-catalog #cats { grid-template-columns: 1fr 1fr 1fr 1fr; }
-  #cats .ct { display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; padding: 10px 6px; border-radius: 16px; border: 2px solid transparent; background: var(--bg); color: var(--ink); position: relative; min-height: 96px; font-size: 14px; }
-  #cats .ct .ic { font-size: 32px; line-height: 1; margin-bottom: 5px; }
-  #cats .ct .nm { font-weight: 700; line-height: 1.15; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; }
+  /* ширина колонки разделов — от экрана: планшеты стоят вертикально (≈800 px), бывают и горизонтальные */
+  body.lay-tiles #side { width: 26%; } body.lay-catalog #side { width: 38%; }
+  @media (orientation: portrait) { body.lay-tiles #side { width: 36%; } body.lay-catalog #side { width: 44%; } }
+  body.lay-tiles #side, body.lay-catalog #side { min-width: 0; overflow: hidden; }
+  /* плитки: столбцов столько, сколько помещается (не уже 100 px); прокрутка только вертикальная */
+  body.lay-tiles #cats, body.lay-catalog #cats { display: grid; white-space: normal; overflow-y: auto; overflow-x: hidden; padding: 2px 2px 14px; box-shadow: none; background: transparent; gap: 8px; align-content: start; flex: 1; min-height: 0; min-width: 0; }
+  body.lay-tiles #cats { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); } body.lay-catalog #cats { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+  #cats .ct { display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; padding: 8px 4px; border-radius: 16px; border: 2px solid transparent; background: var(--bg); color: var(--ink); position: relative; min-height: 92px; min-width: 0; overflow: hidden; font-size: 13px; }
+  #cats .ct .ic { font-size: 30px; line-height: 1; margin-bottom: 5px; }
+  #cats .ct .nm { font-weight: 700; line-height: 1.15; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; max-width: 100%; word-break: break-word; overflow-wrap: anywhere; hyphens: auto; }
   #cats .ct .cn { position: absolute; top: 5px; right: 8px; font-size: 11px; color: var(--muted); font-weight: 700; }
   body.lay-tiles #cats .ct.on, body.lay-catalog #cats .ct.on { background: var(--card); color: var(--ink); border-color: var(--accent); }
-  #cats .ct.wide { grid-column: 1 / -1; min-height: 0; flex-direction: row; padding: 12px; font-weight: 700; }
+  #cats .ct.wide { grid-column: 1 / -1; min-height: 0; flex-direction: row; padding: 10px 8px; font-weight: 700; white-space: normal; font-size: 13px; line-height: 1.2; }
   #cats .ct.wide.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .msrch { display: flex; align-items: center; background: var(--bg); border: 2px solid var(--line); border-radius: 14px; padding: 0 8px 0 12px; height: 52px; }
-  .msrch input { border: 0; outline: 0; background: transparent; font-size: 19px; flex: 1; min-width: 0; color: var(--ink); margin-left: 8px; -webkit-appearance: none; }
+  .msrch input { border: 0; outline: 0; background: transparent; font-size: 18px; flex: 1; min-width: 0; width: 100%; color: var(--ink); margin-left: 8px; -webkit-appearance: none; }
   .msrch .mqx { border: 0; background: var(--soft); color: var(--ink); border-radius: 50%; width: 34px; height: 34px; font-size: 15px; }
   .mgroups { display: flex; flex-wrap: wrap; }
-  .mgroups button { border: 0; background: var(--soft); color: var(--ink); border-radius: 999px; padding: 9px 13px; font-size: 16px; font-weight: 600; margin: 0 6px 6px 0; }
+  .mgroups button { border: 0; background: var(--soft); color: var(--ink); border-radius: 999px; padding: 8px 11px; font-size: 15px; font-weight: 600; margin: 0 5px 5px 0; white-space: nowrap; }
   .mgroups button.on { background: var(--ink); color: var(--card); }
   .mfound { margin: 8px 8px 0; font-size: 22px; font-weight: 700; } .mfound small { color: var(--muted); font-size: 16px; font-weight: 600; margin-left: 6px; }
   .mnone { color: var(--muted); font-size: 20px; text-align: center; padding: 40px 16px; }
-  body.lay-tiles .item { width: calc(33.333% - 16px); }
-  body.lay-tiles .item img, body.lay-tiles .ph { height: 190px; }
+  body.lay-tiles .item { width: calc(50% - 16px); }
+  body.lay-tiles .item img, body.lay-tiles .ph { height: 200px; }
+  body.lay-tiles .item .n, body.lay-catalog .item .n { font-size: 19px; overflow-wrap: anywhere; word-break: break-word; }
+  body.lay-tiles .row, body.lay-catalog .row { flex-wrap: wrap; } body.lay-tiles .row .price { margin-right: 8px; }
+  body.lay-tiles .add, body.lay-catalog .add { padding: 12px 14px; font-size: 16px; }
   body.lay-catalog .grid { display: block; }
   body.lay-catalog .item.irow { width: auto; display: flex; align-items: center; padding: 10px 12px; margin: 8px; }
   .irow img, .irow .ph { width: 96px !important; height: 96px !important; border-radius: 12px; flex: none; }
   .irow .b { flex: 1; min-width: 0; padding: 0 14px !important; }
   .irow .n { margin-bottom: 2px !important; } .irow .d { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .irow .price { margin-right: 10px; white-space: nowrap; } .irow .ip { display: none; }
-  body.phone .irow .op1 { display: none; } body.phone .irow .ip { display: block; margin-top: 4px; } body.phone .irow .n { font-size: 16px; line-height: 1.2; }
+  .irow .op1 { display: none; } .irow .ip { display: block; margin-top: 4px; font-size: 19px; }
+  .irow .add { flex: none; } body.phone .irow .n { font-size: 16px; line-height: 1.2; }
   .item[data-dish] { cursor: pointer; }
   /* телефон гостя: те же виды, разделы колонкой слева, поиск и группы — строкой над меню */
   body.phone.lay-tiles #mtop, body.phone.lay-catalog #mtop { display: block; padding: 8px 10px 4px; background: var(--card); flex: none; }
@@ -175,6 +182,13 @@
   body.phone.lay-tiles .item { width: calc(100% - 10px); } body.phone.lay-tiles .item img, body.phone.lay-tiles .ph { height: 170px; }
   body.phone .irow { padding: 8px !important; margin: 5px !important; } body.phone .irow img, body.phone .irow .ph { width: 64px !important; height: 64px !important; }
   body.phone .irow .b { padding: 0 8px !important; } body.phone .irow .add { padding: 8px 10px; }
+  /* своя клавиатура для поиска на планшете — на языке гостя (системная клавиатура Android язык меню не знает) */
+  #kbd { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; background: var(--card); box-shadow: 0 -6px 24px rgba(0,0,0,.25); padding: 10px 8px 14px; }
+  #kbd .kr { display: flex; justify-content: center; margin: 0 0 8px; }
+  #kbd button { flex: 1 1 0; max-width: 76px; min-width: 0; height: 64px; margin: 0 3px; border: 0; border-radius: 12px; background: var(--soft); color: var(--ink); font-size: 26px; font-weight: 600; padding: 0; }
+  #kbd button.w { max-width: none; flex: 4 1 0; font-size: 18px; } #kbd button.m { max-width: 110px; flex: 1.5 1 0; font-size: 18px; }
+  #kbd button.ok { background: var(--accent); color: var(--accent-ink); } #kbd button.on { background: var(--ink); color: var(--card); }
+  body.kbd-on #items { padding-bottom: 330px; }
   /* карточка блюда: фото крупно, описание, отметки, варианты и «Добавить» */
   .pimg { display: block; width: 100%; max-height: 46vh; object-fit: cover; border-radius: 16px; margin: 0 0 14px; background: var(--soft); }
   .pdesc { color: var(--muted); font-size: 18px; line-height: 1.45; margin: 4px 0 12px; white-space: pre-line; }
@@ -345,6 +359,7 @@
   <div class="abottom"><div id="cdots"></div><div class="acts" id="acts"></div></div>
 </div>
 <div id="callBar"></div>
+<div id="kbd" hidden></div>
 <div id="qrBox"></div>
 <div id="toast"></div>
 <div id="lead"></div>
@@ -355,28 +370,28 @@
 <script src="/vendor/menucats.js"></script>
 <script>
 var T = {
-  en: { infoSys: 'Digital waiter assistant — the JET MEDIA system', infoJoin: 'Connect your restaurant', infoJoinHint: 'Leave your name and phone — we will call you back.', infoSend: 'Send', infoThanks: 'Thank you! We will call you soon.', infoDevice: 'Device', infoVersion: 'Version', infoOnline: 'online', infoOffline: 'no connection', stConfirmed: 'confirmed', stCooking: 'being prepared', stReady: '✅ ready — on its way', stServed: '🍽 Served · enjoy your meal', stPaid: '✓ Order paid · thank you!', mSearch: 'Search: soup, shrimp, #spicy…', mFound: 'found', mNone: 'Nothing found — ask the waiter, they will help 🙂', mg_food: 'Kitchen', mg_bar: 'Bar', mg_sweet: 'Sweets', ostPending: '⏳ Waiting for the waiter to confirm', ostCooking: '🍳 Your order is being prepared · {m} min', ostReady: '✅ Ready — on its way to you', phoneOrder: 'Order from phone', qrTitle: 'Order from your phone', qrText: 'Scan with your phone camera — browse the menu and order yourselves. Everyone at the table can join.', qrHint: 'Several of you? Everyone can order from their own phone', phonesOn: 'Phones connected', joinHi: 'Welcome!', joinName: 'What is your name? (optional — the waiter will see it)', joinGo: 'Continue', joinSkip: 'Skip', you: 'you', guest: 'Guest', billAsk: 'Which bill?', myBill: 'My bill', tableBill: 'Bill for the whole table', byGuests: 'By guests', ended: 'The visit at this table is over. To order, scan the QR code on the tablet at your table.', phoneOff: 'This phone was disconnected from the table. To order, scan the QR code on the tablet at your table.', callOn: '🔔 Waiter called', billOn: '🧾 Bill requested', orderOn: '🍽 Order sent to the waiter', comingBar: '🤵 The waiter is on the way to you', cancelCall: '✕ Cancel call', cancelBill: '✕ Cancel bill request', cancelled: 'Call cancelled', leadName: 'Your name', leadPhone: 'Phone', leadBad: 'Please enter your phone number', orderByPromo: 'Order this offer', orderPromo: 'Order', table: 'Table', call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
+  en: { infoSys: 'Digital waiter assistant — the JET MEDIA system', infoJoin: 'Connect your restaurant', infoJoinHint: 'Leave your name and phone — we will call you back.', infoSend: 'Send', infoThanks: 'Thank you! We will call you soon.', infoDevice: 'Device', infoVersion: 'Version', infoOnline: 'online', infoOffline: 'no connection', stConfirmed: 'confirmed', stCooking: 'being prepared', stReady: '✅ ready — on its way', stServed: '🍽 Served · enjoy your meal', stPaid: '✓ Order paid · thank you!', mSearch: 'Search: soup, shrimp, #spicy…', mSearchShort: 'Search', mFound: 'found', mNone: 'Nothing found — ask the waiter, they will help 🙂', mg_food: 'Kitchen', mg_bar: 'Bar', mg_sweet: 'Sweets', ostPending: '⏳ Waiting for the waiter to confirm', ostCooking: '🍳 Your order is being prepared · {m} min', ostReady: '✅ Ready — on its way to you', phoneOrder: 'Order from phone', qrTitle: 'Order from your phone', qrText: 'Scan with your phone camera — browse the menu and order yourselves. Everyone at the table can join.', qrHint: 'Several of you? Everyone can order from their own phone', phonesOn: 'Phones connected', joinHi: 'Welcome!', joinName: 'What is your name? (optional — the waiter will see it)', joinGo: 'Continue', joinSkip: 'Skip', you: 'you', guest: 'Guest', billAsk: 'Which bill?', myBill: 'My bill', tableBill: 'Bill for the whole table', byGuests: 'By guests', ended: 'The visit at this table is over. To order, scan the QR code on the tablet at your table.', phoneOff: 'This phone was disconnected from the table. To order, scan the QR code on the tablet at your table.', callOn: '🔔 Waiter called', billOn: '🧾 Bill requested', orderOn: '🍽 Order sent to the waiter', comingBar: '🤵 The waiter is on the way to you', cancelCall: '✕ Cancel call', cancelBill: '✕ Cancel bill request', cancelled: 'Call cancelled', leadName: 'Your name', leadPhone: 'Phone', leadBad: 'Please enter your phone number', orderByPromo: 'Order this offer', orderPromo: 'Order', table: 'Table', call: 'Call waiter', bill: 'Bill, please', cart: 'Order', send: 'Send to waiter', empty: 'Your order is empty', total: 'Total',
         sent: 'Order sent. A waiter will come to confirm it.', called: 'The waiter has been called', coming: 'The waiter is on the way',
         confirmed: 'Order confirmed', add: 'Add', close: 'Close', ordered: 'Ordered',
         pending: 'awaiting confirmation', rejected: 'cancelled', day: '★ Dish of the day', menu: 'Open menu', ad: 'Advertisement',
         offline: 'No connection. Please wave to the waiter — we are reconnecting.', offlineBar: 'No connection — reconnecting…', queued: 'No connection — it will be sent automatically as soon as the connection is back. The waiter will get it.', queuedBar: 'waiting to send: {n}',
         edited: 'The waiter updated your order', scan: 'Scan the QR code', tableTotal: 'Table total', back: 'Back to the slideshow',
         recommend: 'I recommend', showDish: 'Show me', another: 'Something else', askRec: 'What do you recommend?', order: 'Order', diet: 'Special diet', dietAsk: 'What suits you?', noDish: 'Sorry, there is nothing like that on the menu yet — please ask the waiter!', prev: 'Back', dayRec: 'Today\'s dish of the day', noneYet: 'none yet', allMenu: 'Show the whole menu', paid: 'paid', dietHere: 'Here is what suits you', otherDiet: 'Another option', added: 'Added to your order', alreadyOrdered: 'We have already ordered', needMe: 'Great! If you need me, tap my round button at the bottom of the screen.' },
-  ru: { infoSys: 'Цифровой помощник официанта — система JET MEDIA', infoJoin: 'Подключить свой ресторан', infoJoinHint: 'Оставьте имя и телефон — мы перезвоним.', infoSend: 'Отправить', infoThanks: 'Спасибо! Скоро перезвоним.', infoDevice: 'Устройство', infoVersion: 'Версия', infoOnline: 'на связи', infoOffline: 'нет связи', stConfirmed: 'подтверждён', stCooking: 'готовится', stReady: '✅ готово — сейчас принесут', stServed: '🍽 Подано · приятного аппетита', stPaid: '✓ Заказ оплачен · спасибо!', mSearch: 'Поиск: борщ, креветки, #острое…', mFound: 'найдено', mNone: 'Ничего не нашлось — спросите официанта, он подскажет 🙂', mg_food: 'Кухня', mg_bar: 'Бар', mg_sweet: 'Сладкое', ostPending: '⏳ Ждём подтверждения официанта', ostCooking: '🍳 Ваш заказ готовится · {m} мин', ostReady: '✅ Готово — сейчас принесут', phoneOrder: 'Заказ с телефона', qrTitle: 'Заказ со своего телефона', qrText: 'Отсканируйте камерой телефона — смотрите меню и заказывайте сами. Подключиться может каждый за столом.', qrHint: 'Вас несколько? Каждый может заказывать со своего телефона', phonesOn: 'Подключено телефонов', joinHi: 'Добро пожаловать!', joinName: 'Как вас зовут? (необязательно — так вас увидит официант)', joinGo: 'Продолжить', joinSkip: 'Пропустить', you: 'вы', guest: 'Гость', billAsk: 'Какой счёт?', myBill: 'Мой счёт', tableBill: 'Счёт всего стола', byGuests: 'По гостям', ended: 'Визит за этим столом закончился. Чтобы заказать, отсканируйте QR-код на планшете на вашем столе.', phoneOff: 'Этот телефон отключён от стола. Чтобы заказать, отсканируйте QR-код на планшете на вашем столе.', callOn: '🔔 Официант вызван', billOn: '🧾 Вы попросили счёт', orderOn: '🍽 Заказ отправлен официанту', comingBar: '🤵 Официант уже идёт к вам', cancelCall: '✕ Отменить вызов', cancelBill: '✕ Отменить счёт', cancelled: 'Вызов отменён', leadName: 'Ваше имя', leadPhone: 'Телефон', leadBad: 'Укажите номер телефона', orderByPromo: 'Заказать по акции', orderPromo: 'Заказать', table: 'Стол', call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
+  ru: { infoSys: 'Цифровой помощник официанта — система JET MEDIA', infoJoin: 'Подключить свой ресторан', infoJoinHint: 'Оставьте имя и телефон — мы перезвоним.', infoSend: 'Отправить', infoThanks: 'Спасибо! Скоро перезвоним.', infoDevice: 'Устройство', infoVersion: 'Версия', infoOnline: 'на связи', infoOffline: 'нет связи', stConfirmed: 'подтверждён', stCooking: 'готовится', stReady: '✅ готово — сейчас принесут', stServed: '🍽 Подано · приятного аппетита', stPaid: '✓ Заказ оплачен · спасибо!', mSearch: 'Поиск: борщ, креветки, #острое…', mSearchShort: 'Поиск', mFound: 'найдено', mNone: 'Ничего не нашлось — спросите официанта, он подскажет 🙂', mg_food: 'Кухня', mg_bar: 'Бар', mg_sweet: 'Сладкое', ostPending: '⏳ Ждём подтверждения официанта', ostCooking: '🍳 Ваш заказ готовится · {m} мин', ostReady: '✅ Готово — сейчас принесут', phoneOrder: 'Заказ с телефона', qrTitle: 'Заказ со своего телефона', qrText: 'Отсканируйте камерой телефона — смотрите меню и заказывайте сами. Подключиться может каждый за столом.', qrHint: 'Вас несколько? Каждый может заказывать со своего телефона', phonesOn: 'Подключено телефонов', joinHi: 'Добро пожаловать!', joinName: 'Как вас зовут? (необязательно — так вас увидит официант)', joinGo: 'Продолжить', joinSkip: 'Пропустить', you: 'вы', guest: 'Гость', billAsk: 'Какой счёт?', myBill: 'Мой счёт', tableBill: 'Счёт всего стола', byGuests: 'По гостям', ended: 'Визит за этим столом закончился. Чтобы заказать, отсканируйте QR-код на планшете на вашем столе.', phoneOff: 'Этот телефон отключён от стола. Чтобы заказать, отсканируйте QR-код на планшете на вашем столе.', callOn: '🔔 Официант вызван', billOn: '🧾 Вы попросили счёт', orderOn: '🍽 Заказ отправлен официанту', comingBar: '🤵 Официант уже идёт к вам', cancelCall: '✕ Отменить вызов', cancelBill: '✕ Отменить счёт', cancelled: 'Вызов отменён', leadName: 'Ваше имя', leadPhone: 'Телефон', leadBad: 'Укажите номер телефона', orderByPromo: 'Заказать по акции', orderPromo: 'Заказать', table: 'Стол', call: 'Вызвать официанта', bill: 'Счёт', cart: 'Заказ', send: 'Отправить официанту', empty: 'Заказ пуст', total: 'Итого',
         sent: 'Заказ отправлен. Официант подойдёт подтвердить.', called: 'Официант вызван', coming: 'Официант идёт',
         confirmed: 'Заказ подтверждён', add: 'Добавить', close: 'Закрыть', ordered: 'Заказано',
         pending: 'ждёт подтверждения', rejected: 'отменён', day: '★ Блюдо дня', menu: 'Открыть меню', ad: 'Реклама',
         offline: 'Нет связи. Пожалуйста, позовите официанта жестом — мы восстанавливаем подключение.', offlineBar: 'Нет связи — восстанавливаем подключение…', queued: 'Нет связи — отправим автоматически, как только она появится. Официант получит.', queuedBar: 'ждёт отправки: {n}',
         edited: 'Официант изменил ваш заказ', scan: 'Отсканируйте QR-код', tableTotal: 'Итого по столу', back: 'На главный экран',
         recommend: 'Советую попробовать', showDish: 'Показать', another: 'Что-нибудь ещё', askRec: 'Что посоветуешь?', order: 'Заказ', diet: 'Особые пожелания', dietAsk: 'Что вам подходит?', noDish: 'Пока таких блюд в меню нет — спросите официанта, он подскажет!', prev: 'Назад', dayRec: 'Сегодня блюдо дня', noneYet: 'пока нет', allMenu: 'Показать всё меню', paid: 'оплачен', dietHere: 'Вот что вам подойдёт', otherDiet: 'Другое пожелание', added: 'Добавлено в заказ', alreadyOrdered: 'Уже заказали', needMe: 'Отлично! Если понадоблюсь — нажмите мою круглую кнопку внизу экрана.' },
-  th: { infoSys: 'ผู้ช่วยพนักงานเสิร์ฟดิจิทัล — ระบบ JET MEDIA', infoJoin: 'เชื่อมต่อร้านอาหารของคุณ', infoJoinHint: 'ฝากชื่อและเบอร์โทร แล้วเราจะติดต่อกลับ', infoSend: 'ส่ง', infoThanks: 'ขอบคุณ! เราจะติดต่อกลับเร็วๆ นี้', infoDevice: 'อุปกรณ์', infoVersion: 'เวอร์ชัน', infoOnline: 'ออนไลน์', infoOffline: 'ไม่มีการเชื่อมต่อ', stConfirmed: 'ยืนยันแล้ว', stCooking: 'กำลังทำ', stReady: '✅ พร้อมแล้ว — กำลังนำไปเสิร์ฟ', stServed: '🍽 เสิร์ฟแล้ว · ขอให้อร่อย', stPaid: '✓ ชำระเงินแล้ว · ขอบคุณ!', mSearch: 'ค้นหา: ซุป กุ้ง #เผ็ด…', mFound: 'พบ', mNone: 'ไม่พบ — สอบถามพนักงานได้เลย 🙂', mg_food: 'อาหาร', mg_bar: 'เครื่องดื่ม', mg_sweet: 'ของหวาน', ostPending: '⏳ รอพนักงานยืนยัน', ostCooking: '🍳 กำลังเตรียมอาหารของคุณ · {m} นาที', ostReady: '✅ พร้อมแล้ว — กำลังนำไปเสิร์ฟ', phoneOrder: 'สั่งจากมือถือ', qrTitle: 'สั่งจากมือถือของคุณ', qrText: 'สแกนด้วยกล้องมือถือ — ดูเมนูและสั่งอาหารได้เอง ทุกคนที่โต๊ะเชื่อมต่อได้', qrHint: 'มากันหลายคน? ทุกคนสั่งจากมือถือของตัวเองได้', phonesOn: 'มือถือที่เชื่อมต่อ', joinHi: 'ยินดีต้อนรับ!', joinName: 'คุณชื่ออะไร? (ไม่บังคับ — พนักงานจะเห็นชื่อนี้)', joinGo: 'ต่อไป', joinSkip: 'ข้าม', you: 'คุณ', guest: 'แขก', billAsk: 'เช็คบิลแบบไหน?', myBill: 'บิลของฉัน', tableBill: 'บิลทั้งโต๊ะ', byGuests: 'แยกตามแขก', ended: 'การใช้บริการที่โต๊ะนี้สิ้นสุดแล้ว หากต้องการสั่ง กรุณาสแกน QR โค้ดบนแท็บเล็ตที่โต๊ะของคุณ', phoneOff: 'มือถือเครื่องนี้ถูกตัดการเชื่อมต่อจากโต๊ะ หากต้องการสั่ง กรุณาสแกน QR โค้ดบนแท็บเล็ตที่โต๊ะของคุณ', callOn: '🔔 เรียกพนักงานแล้ว', billOn: '🧾 ขอเช็คบิลแล้ว', orderOn: '🍽 ส่งรายการให้พนักงานแล้ว', comingBar: '🤵 พนักงานกำลังไปหาคุณ', cancelCall: '✕ ยกเลิกการเรียก', cancelBill: '✕ ยกเลิกเช็คบิล', cancelled: 'ยกเลิกการเรียกแล้ว', leadName: 'ชื่อของคุณ', leadPhone: 'เบอร์โทร', leadBad: 'กรุณาใส่เบอร์โทรศัพท์', orderByPromo: 'สั่งโปรโมชันนี้', orderPromo: 'สั่งเลย', table: 'โต๊ะ', call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
+  th: { infoSys: 'ผู้ช่วยพนักงานเสิร์ฟดิจิทัล — ระบบ JET MEDIA', infoJoin: 'เชื่อมต่อร้านอาหารของคุณ', infoJoinHint: 'ฝากชื่อและเบอร์โทร แล้วเราจะติดต่อกลับ', infoSend: 'ส่ง', infoThanks: 'ขอบคุณ! เราจะติดต่อกลับเร็วๆ นี้', infoDevice: 'อุปกรณ์', infoVersion: 'เวอร์ชัน', infoOnline: 'ออนไลน์', infoOffline: 'ไม่มีการเชื่อมต่อ', stConfirmed: 'ยืนยันแล้ว', stCooking: 'กำลังทำ', stReady: '✅ พร้อมแล้ว — กำลังนำไปเสิร์ฟ', stServed: '🍽 เสิร์ฟแล้ว · ขอให้อร่อย', stPaid: '✓ ชำระเงินแล้ว · ขอบคุณ!', mSearch: 'ค้นหา: ซุป กุ้ง #เผ็ด…', mSearchShort: 'ค้นหา', mFound: 'พบ', mNone: 'ไม่พบ — สอบถามพนักงานได้เลย 🙂', mg_food: 'อาหาร', mg_bar: 'เครื่องดื่ม', mg_sweet: 'ของหวาน', ostPending: '⏳ รอพนักงานยืนยัน', ostCooking: '🍳 กำลังเตรียมอาหารของคุณ · {m} นาที', ostReady: '✅ พร้อมแล้ว — กำลังนำไปเสิร์ฟ', phoneOrder: 'สั่งจากมือถือ', qrTitle: 'สั่งจากมือถือของคุณ', qrText: 'สแกนด้วยกล้องมือถือ — ดูเมนูและสั่งอาหารได้เอง ทุกคนที่โต๊ะเชื่อมต่อได้', qrHint: 'มากันหลายคน? ทุกคนสั่งจากมือถือของตัวเองได้', phonesOn: 'มือถือที่เชื่อมต่อ', joinHi: 'ยินดีต้อนรับ!', joinName: 'คุณชื่ออะไร? (ไม่บังคับ — พนักงานจะเห็นชื่อนี้)', joinGo: 'ต่อไป', joinSkip: 'ข้าม', you: 'คุณ', guest: 'แขก', billAsk: 'เช็คบิลแบบไหน?', myBill: 'บิลของฉัน', tableBill: 'บิลทั้งโต๊ะ', byGuests: 'แยกตามแขก', ended: 'การใช้บริการที่โต๊ะนี้สิ้นสุดแล้ว หากต้องการสั่ง กรุณาสแกน QR โค้ดบนแท็บเล็ตที่โต๊ะของคุณ', phoneOff: 'มือถือเครื่องนี้ถูกตัดการเชื่อมต่อจากโต๊ะ หากต้องการสั่ง กรุณาสแกน QR โค้ดบนแท็บเล็ตที่โต๊ะของคุณ', callOn: '🔔 เรียกพนักงานแล้ว', billOn: '🧾 ขอเช็คบิลแล้ว', orderOn: '🍽 ส่งรายการให้พนักงานแล้ว', comingBar: '🤵 พนักงานกำลังไปหาคุณ', cancelCall: '✕ ยกเลิกการเรียก', cancelBill: '✕ ยกเลิกเช็คบิล', cancelled: 'ยกเลิกการเรียกแล้ว', leadName: 'ชื่อของคุณ', leadPhone: 'เบอร์โทร', leadBad: 'กรุณาใส่เบอร์โทรศัพท์', orderByPromo: 'สั่งโปรโมชันนี้', orderPromo: 'สั่งเลย', table: 'โต๊ะ', call: 'เรียกพนักงาน', bill: 'เช็คบิล', cart: 'รายการสั่ง', send: 'ส่งให้พนักงาน', empty: 'ยังไม่มีรายการ', total: 'รวม',
         sent: 'ส่งรายการแล้ว พนักงานจะมายืนยัน', called: 'เรียกพนักงานแล้ว', coming: 'พนักงานกำลังมา',
         confirmed: 'ยืนยันรายการแล้ว', add: 'เพิ่ม', close: 'ปิด', ordered: 'สั่งแล้ว',
         pending: 'รอยืนยัน', rejected: 'ยกเลิกแล้ว', day: '★ เมนูแนะนำประจำวัน', menu: 'ดูเมนู', ad: 'โฆษณา',
         offline: 'ไม่มีการเชื่อมต่อ กรุณาโบกมือเรียกพนักงาน ระบบกำลังเชื่อมต่อใหม่', offlineBar: 'ไม่มีการเชื่อมต่อ — กำลังเชื่อมต่อใหม่…', queued: 'ไม่มีการเชื่อมต่อ — ระบบจะส่งให้อัตโนมัติเมื่อเชื่อมต่อได้ พนักงานจะได้รับแน่นอน', queuedBar: 'รอส่ง: {n}',
         edited: 'พนักงานแก้ไขรายการของคุณแล้ว', scan: 'สแกน QR โค้ด', tableTotal: 'รวมทั้งโต๊ะ', back: 'กลับหน้าหลัก',
         recommend: 'แนะนำให้ลอง', showDish: 'ดูเมนูนี้', another: 'อย่างอื่น', askRec: 'แนะนำอะไรดี?', order: 'ออร์เดอร์', diet: 'อาหารพิเศษ', dietAsk: 'แบบไหนเหมาะกับคุณคะ?', noDish: 'ขออภัย ยังไม่มีเมนูแบบนี้ กรุณาถามพนักงานนะคะ', prev: 'กลับ', dayRec: 'เมนูแนะนำของวันนี้', noneYet: 'ยังไม่มี', allMenu: 'แสดงเมนูทั้งหมด', paid: 'ชำระแล้ว', dietHere: 'นี่คือเมนูที่เหมาะกับคุณ', otherDiet: 'ตัวเลือกอื่น', added: 'เพิ่มในรายการแล้ว', alreadyOrdered: 'สั่งแล้ว', needMe: 'เยี่ยมเลย! ถ้าต้องการหนู แตะปุ่มกลมของหนูด้านล่างจอนะคะ' },
-  zh: { infoSys: '数字服务员助手 — JET MEDIA 系统', infoJoin: '接入您的餐厅', infoJoinHint: '留下您的姓名和电话，我们会回电。', infoSend: '发送', infoThanks: '谢谢！我们会尽快回电。', infoDevice: '设备', infoVersion: '版本', infoOnline: '在线', infoOffline: '无连接', stConfirmed: '已确认', stCooking: '制作中', stReady: '✅ 已做好——马上送到', stServed: '🍽 已上菜 · 请慢用', stPaid: '✓ 订单已付款 · 谢谢！', mSearch: '搜索：汤、虾、#辣…', mFound: '找到', mNone: '没有找到——请询问服务员 🙂', mg_food: '菜品', mg_bar: '饮品', mg_sweet: '甜点', ostPending: '⏳ 等待服务员确认', ostCooking: '🍳 您的订单正在制作 · {m} 分钟', ostReady: '✅ 已做好——马上送到', phoneOrder: '手机点餐', qrTitle: '用自己的手机点餐', qrText: '用手机相机扫描——自己浏览菜单并点餐。同桌每个人都可以加入。', qrHint: '几位一起？每个人都可以用自己的手机点餐', phonesOn: '已连接手机', joinHi: '欢迎！', joinName: '您怎么称呼？（可选——服务员会看到）', joinGo: '继续', joinSkip: '跳过', you: '您', guest: '客人', billAsk: '哪个账单？', myBill: '我的账单', tableBill: '整桌账单', byGuests: '按客人', ended: '本桌的用餐已结束。如需点餐，请扫描您桌上平板电脑的二维码。', phoneOff: '此手机已与本桌断开。如需点餐，请扫描您桌上平板电脑的二维码。', callOn: '🔔 已呼叫服务员', billOn: '🧾 已请求结账', orderOn: '🍽 订单已发送给服务员', comingBar: '🤵 服务员正在过来', cancelCall: '✕ 取消呼叫', cancelBill: '✕ 取消结账', cancelled: '呼叫已取消', leadName: '您的姓名', leadPhone: '电话', leadBad: '请输入电话号码', orderByPromo: '参加此优惠', orderPromo: '立即点单', table: '桌', call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
+  zh: { infoSys: '数字服务员助手 — JET MEDIA 系统', infoJoin: '接入您的餐厅', infoJoinHint: '留下您的姓名和电话，我们会回电。', infoSend: '发送', infoThanks: '谢谢！我们会尽快回电。', infoDevice: '设备', infoVersion: '版本', infoOnline: '在线', infoOffline: '无连接', stConfirmed: '已确认', stCooking: '制作中', stReady: '✅ 已做好——马上送到', stServed: '🍽 已上菜 · 请慢用', stPaid: '✓ 订单已付款 · 谢谢！', mSearch: '搜索：汤、虾、#辣…', mSearchShort: '搜索', mFound: '找到', mNone: '没有找到——请询问服务员 🙂', mg_food: '菜品', mg_bar: '饮品', mg_sweet: '甜点', ostPending: '⏳ 等待服务员确认', ostCooking: '🍳 您的订单正在制作 · {m} 分钟', ostReady: '✅ 已做好——马上送到', phoneOrder: '手机点餐', qrTitle: '用自己的手机点餐', qrText: '用手机相机扫描——自己浏览菜单并点餐。同桌每个人都可以加入。', qrHint: '几位一起？每个人都可以用自己的手机点餐', phonesOn: '已连接手机', joinHi: '欢迎！', joinName: '您怎么称呼？（可选——服务员会看到）', joinGo: '继续', joinSkip: '跳过', you: '您', guest: '客人', billAsk: '哪个账单？', myBill: '我的账单', tableBill: '整桌账单', byGuests: '按客人', ended: '本桌的用餐已结束。如需点餐，请扫描您桌上平板电脑的二维码。', phoneOff: '此手机已与本桌断开。如需点餐，请扫描您桌上平板电脑的二维码。', callOn: '🔔 已呼叫服务员', billOn: '🧾 已请求结账', orderOn: '🍽 订单已发送给服务员', comingBar: '🤵 服务员正在过来', cancelCall: '✕ 取消呼叫', cancelBill: '✕ 取消结账', cancelled: '呼叫已取消', leadName: '您的姓名', leadPhone: '电话', leadBad: '请输入电话号码', orderByPromo: '参加此优惠', orderPromo: '立即点单', table: '桌', call: '呼叫服务员', bill: '结账', cart: '订单', send: '发送给服务员', empty: '订单为空', total: '合计',
         sent: '订单已发送，服务员将前来确认', called: '已呼叫服务员', coming: '服务员马上就来',
         confirmed: '订单已确认', add: '添加', close: '关闭', ordered: '已点',
         pending: '待确认', rejected: '已取消', day: '★ 今日推荐', menu: '查看菜单', ad: '广告',
@@ -404,6 +419,9 @@ var IDLE_RESET_MS = 180000, HOLD_AFTER_SWIPE_MS = 20000, DAY = '★day';
 var D = new URLSearchParams(location.search).get('d') || '';
 // Предпросмотр в портале и кабинете менеджера: слайд приходит через postMessage, без сервера и подсчёта показов
 var PREVIEW = new URLSearchParams(location.search).get('preview') === '1';
+// Предпросмотр вида меню в ЛК (mpreview=1, mview=tiles|catalog|classic): настоящее меню ресторана, но без заставки,
+// вызовов, заказов и отметки «планшет включён»
+var QS = new URLSearchParams(location.search), MPREVIEW = QS.get('mpreview') === '1', MVIEW = QS.get('mview') || '';
 // Телефон гостя: страница открыта по QR-коду стола (/t/<ключ стола>); личный ключ гостя — в памяти телефона
 var KEY = (location.pathname.match(/^\/t\/([\w-]+)/) || [])[1] || '';
 var PHONE = !!KEY, GT = '';
@@ -516,7 +534,7 @@ function flushOutbox() {
 
 function load() {
   var q = PHONE ? 'k=' + encodeURIComponent(KEY) + (GT ? '&g=' + encodeURIComponent(GT) : '') : 'd=' + encodeURIComponent(D);
-  return request('/api/guest/state?' + q).then(function (s) {
+  return request('/api/guest/state?' + q + (MPREVIEW ? '&preview=1' : '')).then(function (s) {
     if (PHONE && (s.ended || s.join)) return phoneGate(s);
     if (s.unassigned) {
       show('app', false); show('msg', true);
@@ -528,6 +546,7 @@ function load() {
     if (BUILD && s.build && s.build !== BUILD && !cartCount() && !outbox.length && Date.now() - lastTouch > 30000) { location.reload(); return; }
     BUILD = BUILD || s.build;
     var first = !state;
+    if (MPREVIEW) { s.calls = []; s.orders = []; } // предпросмотр в ЛК: без вызовов и заказов этого стола
     // стол закрыли (гости ушли) — язык ресторана по умолчанию и пустая корзина для следующих гостей
     if (!PHONE && state && s.visit && state.visit !== undefined && s.visit !== state.visit) { lang = null; cart = {}; }
     state = s;
@@ -538,8 +557,9 @@ function load() {
         if (sv && sv.visit === (s.visit || 0) && Date.now() - sv.touch < ((s.timers || {}).langMin || 120) * 60000 && (s.restaurant.langs || []).indexOf(sv.lang) >= 0) { lang = sv.lang; lastTouch = sv.touch; }
       } catch (e) { /* нет хранилища — язык по умолчанию */ }
     }
+    if (MPREVIEW && first && (s.restaurant.langs || []).indexOf(QS.get('lang')) >= 0) lang = QS.get('lang');
     if (!lang) lang = defLang();
-    if (!PHONE) { try { localStorage.jmGuestLang = JSON.stringify({ lang: lang, visit: s.visit || 0, touch: lastTouch }); } catch (e) { /* без хранилища */ } }
+    if (!PHONE && !MPREVIEW) { try { localStorage.jmGuestLang = JSON.stringify({ lang: lang, visit: s.visit || 0, touch: lastTouch }); } catch (e) { /* без хранилища */ } }
     applyTheme(s.display || {});
     state.calls = s.calls || [];
     mergeQueued();
@@ -679,7 +699,7 @@ function notifyChanges(first) {
 // Иконка и группа раздела подбираются по его названию (русскому и английскому), менеджер может заменить в ЛК
 var mq = '', mgroup = '';
 var GROUP_ICONS = { food: '🍽', bar: '🍷', sweet: '🍰' };
-function menuView() { var v = state && state.display && state.display.menuView; return v === 'tiles' || v === 'catalog' ? v : 'classic'; }
+function menuView() { var v = MVIEW || (state && state.display && state.display.menuView); return v === 'tiles' || v === 'catalog' ? v : 'classic'; }
 function catObj(c) { for (var k = 0; k < state.menu.length; k++) if ((tr(state.menu[k].cat) || '—') === c) return state.menu[k].cat || {}; return {}; }
 function catKey(o) { return typeof o === 'string' ? o : o.ru || o.en || o[Object.keys(o)[0]] || ''; }
 function catInfo(c) {
@@ -707,6 +727,30 @@ function searchHits(q) {
     return (all(i.name) + ' ' + all(i.desc)).toLowerCase().indexOf(q) >= 0;
   });
 }
+// ---------- Своя клавиатура поиска на планшете: язык гостя (рус / англ / тайский; китайский — латиницей: поиск ищет
+// по всем языкам меню). Системная клавиатура не появляется (inputmode="none"). На телефонах гостей — их клавиатура
+var KB = {
+  ru: [['й', 'ц', 'у', 'к', 'е', 'н', 'г', 'ш', 'щ', 'з', 'х'], ['ф', 'ы', 'в', 'а', 'п', 'р', 'о', 'л', 'д', 'ж', 'э'], ['я', 'ч', 'с', 'м', 'и', 'т', 'ь', 'б', 'ю', 'ъ']],
+  en: [['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'], ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'], ['z', 'x', 'c', 'v', 'b', 'n', 'm']],
+  th: [['ภ', 'ถ', 'ุ', 'ึ', 'ค', 'ต', 'จ', 'ข', 'ช'], ['ๆ', 'ไ', 'ำ', 'พ', 'ะ', 'ั', 'ี', 'ร', 'น', 'ย', 'บ', 'ล'], ['ฟ', 'ห', 'ก', 'ด', 'เ', '้', '่', 'า', 'ส', 'ว', 'ง'], ['ผ', 'ป', 'แ', 'อ', 'ิ', 'ื', 'ท', 'ม', 'ใ', 'ฝ']],
+  th2: [['ู', '฿', 'ฎ', 'ฑ', 'ธ', 'ํ', '๊', 'ณ', 'ฯ', 'ญ', 'ฐ'], ['ฤ', 'ฆ', 'ฏ', 'โ', 'ฌ', '็', '๋', 'ษ', 'ศ', 'ซ', 'ฉ'], ['ฮ', 'ฺ', '์', 'ฒ', 'ฬ', 'ฦ', 'ฃ', 'ฅ']]
+};
+var kbdLang = '', kbdShift = false;
+function kbdLangs() { var l = (state.restaurant.langs || ['en']).filter(function (x) { return KB[x]; }); return l.length ? l : ['en']; }
+function kbdOpen() {
+  if (PHONE || !$('mq')) return;
+  if (!kbdLang || !KB[kbdLang]) kbdLang = KB[lang] ? lang : 'en';
+  var rows = kbdLang === 'th' && kbdShift ? KB.th2 : KB[kbdLang];
+  $('kbd').innerHTML = rows.map(function (r) { return '<div class="kr">' + r.map(function (k) { return '<button data-k="' + esc(k) + '">' + esc(k) + '</button>'; }).join('') + '</div>'; }).join('') +
+    '<div class="kr">' + (kbdLang === 'th' ? '<button class="m' + (kbdShift ? ' on' : '') + '" data-kshift="1">⇧</button>' : '') +
+    (kbdLangs().length > 1 ? '<button class="m" data-klang="1">🌐 ' + kbdLang.toUpperCase() + '</button>' : '') +
+    '<button class="w" data-k=" ">␣</button><button class="m" data-kdel="1">⌫</button><button class="m ok" data-kok="1">✓</button></div>';
+  $('kbd').hidden = false;
+  document.body.classList.add('kbd-on');
+}
+function kbdClose() { if ($('kbd').hidden) return; $('kbd').hidden = true; document.body.classList.remove('kbd-on'); if ($('mq')) $('mq').blur(); }
+function kbdType(v) { mq = v; $('mq').value = v; lastTouch = Date.now(); renderAll(); }
+
 // Поиск и группы: на планшете — в колонке разделов слева, на телефоне — строкой над меню
 function placeMenuParts(v) {
   var side = $('side'), top = $('mtop'), cats = $('cats');
@@ -721,11 +765,12 @@ function placeMenuParts(v) {
     $('mtop').appendChild(box);
     $('mtop').appendChild(gr);
     $('mq').addEventListener('input', function () { mq = this.value; lastTouch = Date.now(); renderAll(); });
+    if (!PHONE) { $('mq').setAttribute('inputmode', 'none'); $('mq').addEventListener('focus', function () { kbdLang = ''; kbdShift = false; kbdOpen(); }); }
   }
   var host = PHONE ? top : side;
   if ($('msearch').parentNode !== host) { host.insertBefore($('mgroups'), host.firstChild); host.insertBefore($('msearch'), host.firstChild); }
   if (cats.parentNode !== side) side.appendChild(cats);
-  $('mq').placeholder = t('mSearch');
+  $('mq').placeholder = PHONE ? t('mSearch') : t('mSearchShort');
   document.querySelector('[data-mqx]').hidden = !mq;
 }
 
@@ -1161,6 +1206,7 @@ function orderStatus(o) {
 }
 
 function sendOrder() {
+  if (MPREVIEW) return;
   if (sending) return;
   sending = true;
   var items = Object.keys(cart).map(function (k) { var p = k.split('|'); return { id: p[0], opt: p[1] || '', mods: p[2] ? p[2].split(',') : [], qty: cart[k] }; });
@@ -1186,6 +1232,7 @@ function sendOrder() {
 }
 
 function call(type, scope) {
+  if (MPREVIEW) return;
   if (isEntrance() || PREVIEW) return;
   var body = { type: type, scope: scope || '', rid: newRid() };
   var queued = function () {
@@ -1447,7 +1494,9 @@ function renderAttract() {
 
 // index — номер слайда или 'avatar'; без него — обычный старт показа (с персонажа, если так настроено)
 function showAttract(index) {
+  if (MPREVIEW) return;
   if (mq) { mq = ''; if ($('mq')) $('mq').value = ''; } // гость ушёл — поиск сбрасываем
+  kbdClose();
   var a = state.avatar;
   if (!slides().length && !a) return;
   if (index === 'avatar') avShowing = true;
@@ -1858,6 +1907,18 @@ document.addEventListener('click', function (e) {
     else if (a.id === 'aCall') { if (activeCall('waiter')) cancelCall('waiter'); else { hideAttract(); call('waiter'); } }
     return;
   }
+  // своя клавиатура поиска
+  var kb = e.target.closest('#kbd button');
+  if (kb) {
+    var kd = kb.dataset;
+    if (kd.k !== undefined) kbdType(mq + kd.k);
+    else if (kd.kdel) kbdType(mq.slice(0, -1));
+    else if (kd.kshift) { kbdShift = !kbdShift; kbdOpen(); }
+    else if (kd.klang) { var ls = kbdLangs(); kbdLang = ls[(ls.indexOf(kbdLang) + 1) % ls.length]; kbdShift = false; kbdOpen(); }
+    else if (kd.kok) kbdClose();
+    return;
+  }
+  if (!e.target.closest('#kbd, #msearch')) kbdClose();
   // нажали на блюдо (не на «Добавить») — карточка блюда
   var dish = e.target.closest('[data-dish]');
   if (dish && !e.target.closest('button')) { openOptions(dish.dataset.dish, true); return; }
@@ -1865,7 +1926,7 @@ document.addEventListener('click', function (e) {
   if (!b) return;
   var d = b.dataset;
   if (d.mgroup) { mgroup = d.mgroup; cat = null; renderAll(); $('items').scrollTop = 0; return; }
-  if (d.mqx) { mq = ''; $('mq').value = ''; renderAll(); return; }
+  if (d.mqx) { mq = ''; $('mq').value = ''; renderAll(); if (!$('kbd').hidden) kbdOpen(); return; }
   if (d.lang) { lang = d.lang; renderAll(); }
   else if (d.cat) goCat(d.cat);
   else if (d.diet) openDiet();

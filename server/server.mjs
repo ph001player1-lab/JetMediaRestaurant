@@ -1386,7 +1386,7 @@ async function guestState(b, q) {
   if (q.k) return phoneState(q);
   await pullDevice(q.d);
   const d = db.devices[q.d];
-  if (d) d.pageSeen = Date.now(); // страница планшета открыта — для «есть ли в ресторане включённые планшеты»
+  if (d && !q.preview) d.pageSeen = Date.now(); // страница планшета открыта (предпросмотр в ЛК — не считается)
   const r = d && db.restaurants[d.restaurantId];
   if (!r || (!d.table && d.role !== 'entrance')) return { unassigned: true };
   const base = {
