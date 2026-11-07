@@ -263,7 +263,13 @@ const uid = () => crypto.randomBytes(6).toString('hex');
 const day = thDay; // дни считаем по тайскому времени
 // Журнал событий для статистики и счётчики по дням
 const events = eventLog(path.join(DATA_DIR, 'events'));
-const logEvent = (rid, k, data = {}) => events.add({ t: Date.now(), r: rid, k, ...data });
+// capture — события текущего действия официанта: при «Отменить» статистика их не учитывает
+let capture = null;
+const logEvent = (rid, k, data = {}) => {
+  const e = { t: Date.now(), r: rid, k, ...data };
+  if (capture) capture.push({ k, id: e.id, t: e.t });
+  return events.add(e);
+};
 const bump = (key, n = 1) => { db.stats[key] = (db.stats[key] || 0) + n; };
 const fail = (status, message) => Object.assign(new Error(message), { status });
 // ---------- Администраторы портала: вход по почте и паролю, роли, журнал изменений
@@ -1538,10 +1544,10 @@ function buildItems(r, list) {
 // ---------- Персонал: вход по коду ресторана + личному PIN, уведомления через Web Push
 
 const PUSH_TEXT = {
-  en: { check: '✅ You are on shift — notifications work', lost: 'not delivered to {n}', table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready', wholeTable: 'whole table', test: 'Test: notifications work' },
-  th: { check: '✅ คุณเข้ากะแล้ว — การแจ้งเตือนใช้งานได้', lost: 'ส่งไม่ถึง {n}', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ', wholeTable: 'ทั้งโต๊ะ', test: 'ทดสอบ: การแจ้งเตือนใช้งานได้' },
-  ru: { check: '✅ Вы на смене — уведомления работают', lost: 'не дошло до {n}', table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов', wholeTable: 'весь стол', test: 'Проверка: уведомления приходят' },
-  my: { check: '✅ သင် တာဝန်ချိန်ရောက်ပြီ — အသိပေးချက်များ အလုပ်လုပ်သည်', lost: '{n} ထံ မရောက်ပါ', table: 'စားပွဲ', waiter: 'စားပွဲထိုး ခေါ်နေသည်', bill: 'ဘေလ် တောင်းနေသည်', order: 'အော်ဒါ အသစ်', again: 'သတိပေးချက်', guest: 'ဧည့်သည်', ready: 'အော်ဒါ အဆင်သင့် ဖြစ်ပြီ', wholeTable: 'စားပွဲတစ်ခုလုံး', test: 'စမ်းသပ်: အသိပေးချက်များ အလုပ်လုပ်သည်' },
+  en: { kitchen: 'Send the order to the kitchen', check: '✅ You are on shift — notifications work', lost: 'not delivered to {n}', table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready', wholeTable: 'whole table', test: 'Test: notifications work' },
+  th: { kitchen: 'ส่งออร์เดอร์เข้าครัว', check: '✅ คุณเข้ากะแล้ว — การแจ้งเตือนใช้งานได้', lost: 'ส่งไม่ถึง {n}', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ', wholeTable: 'ทั้งโต๊ะ', test: 'ทดสอบ: การแจ้งเตือนใช้งานได้' },
+  ru: { kitchen: 'Отправьте заказ на кухню', check: '✅ Вы на смене — уведомления работают', lost: 'не дошло до {n}', table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов', wholeTable: 'весь стол', test: 'Проверка: уведомления приходят' },
+  my: { kitchen: 'အော်ဒါကို မီးဖိုချောင်သို့ ပို့ပါ', check: '✅ သင် တာဝန်ချိန်ရောက်ပြီ — အသိပေးချက်များ အလုပ်လုပ်သည်', lost: '{n} ထံ မရောက်ပါ', table: 'စားပွဲ', waiter: 'စားပွဲထိုး ခေါ်နေသည်', bill: 'ဘေလ် တောင်းနေသည်', order: 'အော်ဒါ အသစ်', again: 'သတိပေးချက်', guest: 'ဧည့်သည်', ready: 'အော်ဒါ အဆင်သင့် ဖြစ်ပြီ', wholeTable: 'စားပွဲတစ်ခုလုံး', test: 'စမ်းသပ်: အသိပေးချက်များ အလုပ်လုပ်သည်' },
 };
 
 function session(token) {
@@ -1575,6 +1581,7 @@ function staffState(b, q) {
       name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0, pushLast: pushLastOf(s),
       pushLog: (s.pushLog || []).map(({ ack, ...x }) => ({ ...x, ...pushRefState(x) })).reverse(), pushTestAt: s.pushTestAt || 0,
       deaf: s.onShift ? deafOf(s) : null,
+      lastAct: s.lastAct && Date.now() - s.lastAct.at < UNDO_MS ? { id: s.lastAct.id, act: s.lastAct.act, table: s.lastAct.table, ago: Date.now() - s.lastAct.at } : null,
     },
     team: teamOf(r),
     floor: floorOf(r),
@@ -1614,6 +1621,19 @@ function missingChoice(r, list) {
 const itemsSig = (items) => items.map((i) => `${i.id}|${i.opt || ''}|${(i.mods || []).join(',')}|${i.qty}`).sort().join(';');
 
 function staffOrder(b) {
+  const { s: ses } = session(b.token);
+  const n = db.orders.length;
+  capture = [];
+  let o;
+  try { o = staffOrderDo(b); } finally { var evs = capture; capture = null; }
+  // новый заказ официанта — его можно отменить сразу («↩ Отменить «Новый заказ»»)
+  if (db.orders.length > n && o?.id) {
+    ses.lastAct = { id: uid(), act: 'order:new', table: o.table, at: Date.now(), before: [], created: [o.id], after: [{ type: 'order', id: o.id, json: JSON.stringify(o) }], events: evs };
+    save();
+  }
+  return o;
+}
+function staffOrderDo(b) {
   const { s: ses, r, member } = session(b.token);
   if (!ses.onShift) throw fail(403, OFF_SHIFT);
   ses.actAt = Date.now();
@@ -1866,7 +1886,52 @@ function staffLogout(b) {
 const NEXT = { call: { ack: 'ack', done: 'done' }, order: { confirm: 'confirmed', reject: 'rejected' } };
 
 const OFF_SHIFT = 'Вы не на смене — нажмите «На смене», чтобы работать с вызовами и заказами';
+// ---------- «↩ Отменить» последнее действие официанта (2 минуты). Перед действием запоминаем, какими были вызовы
+// и заказы стола; отмена возвращает их как было — если после действия стол никто не менял. Закрытие стола,
+// отключение телефона гостя и «Тестовый заказ» не отменяются (стол закрывается с подтверждением, тест — переключатель)
+const UNDO_MS = 2 * 60e3;
+const NO_UNDO = new Set(['table:close', 'table:paid', 'guest:off', 'order:test', 'order:untest']);
+function undoTargets(b, r) {
+  if (b.kind === 'table' || b.kind === 'guestpaid') return [...openAt(db.calls, r, b.id).map((x) => ['call', x]), ...openAt(db.orders, r, b.id).map((x) => ['order', x])];
+  if (b.kind === 'call') return db.calls.filter((y) => y.id === b.id && y.restaurantId === r.id).map((x) => ['call', x]);
+  if (b.kind === 'order') return db.orders.filter((y) => y.id === b.id && y.restaurantId === r.id).map((x) => ['order', x]);
+  return [];
+}
 function staffAction(b) {
+  const { s: ses, r } = session(b.token);
+  const act = `${b.kind}:${b.action || ''}`, targets = NO_UNDO.has(act) ? [] : undoTargets(b, r);
+  const snap = () => targets.map(([type, x]) => ({ type, id: x.id, json: JSON.stringify(x) }));
+  const before = snap();
+  capture = [];
+  let res;
+  try { res = staffActionDo(b); } finally { var evs = capture; capture = null; }
+  const after = snap();
+  if (NO_UNDO.has(act)) delete ses.lastAct;
+  else if (after.some((a, i) => a.json !== before[i].json)) {
+    ses.lastAct = { id: uid(), act, table: b.kind === 'table' || b.kind === 'guestpaid' ? b.id : targets[0][1].table, at: Date.now(), before, after, events: evs };
+    save();
+  }
+  return res;
+}
+function staffUndo(b) {
+  const { s: ses, r, member } = session(b.token);
+  if (!ses.onShift) throw fail(403, OFF_SHIFT);
+  const u = ses.lastAct;
+  if (!u || u.id !== b.id || Date.now() - u.at > UNDO_MS) throw fail(400, 'Отменить уже нельзя — прошло больше 2 минут или после этого было другое действие');
+  const find = (a) => (a.type === 'call' ? db.calls : db.orders).find((x) => x.id === a.id && x.restaurantId === r.id);
+  if (u.after.some((a) => JSON.stringify(find(a)) !== a.json)) throw fail(409, 'Отменить нельзя: после этого стол уже изменился');
+  const changed = u.before.filter((a) => u.after.find((x) => x.id === a.id)?.json !== a.json);
+  for (const a of changed) { const x = find(a); for (const k of Object.keys(x)) delete x[k]; Object.assign(x, JSON.parse(a.json)); }
+  // новый заказ официанта: отменяем (кухня увидит «отменён»), из статистики он уходит вместе с событиями
+  for (const id of u.created || []) Object.assign(find({ type: 'order', id }), { status: 'rejected', rejectedAt: Date.now(), cancelledAt: Date.now(), cancelledBy: member.name, cancelNote: '↩' });
+  if (u.act === 'order:remove') r.removedIds = (r.removedIds || []).filter((id) => !u.before.some((a) => a.id === id));
+  for (const a of [...changed, ...(u.created || []).map((id) => ({ type: 'order', id }))]) if (a.type === 'order') hist(find(a), 'revert', member.name, { of: u.act });
+  logEvent(r.id, 'undo', { by: member.id, bn: member.name, table: u.table, of: u.act, acts: u.events });
+  delete ses.lastAct;
+  save();
+  return {};
+}
+function staffActionDo(b) {
   const { s: ses, r, member } = session(b.token);
   if (!ses.onShift) throw fail(403, OFF_SHIFT); // не на смене — только смотреть
   ses.actAt = Date.now();
@@ -2216,6 +2281,17 @@ setInterval(() => {
     notify(x.restaurantId, x.table, kind, '', true, null, x.id);
     logEvent(x.restaurantId, 'remind', { table: x.table, kind });
   }
+  // Заказ подтверждён, а «Заказ отправлен на кухню» не нажали (экрана кухни нет): через 5 минут — напоминание
+  // официантам стола и менеджерам, потом каждые 5 минут, до 3 раз. Только свежие заказы (последний час)
+  for (const o of db.orders) {
+    if (o.status !== 'confirmed' || o.kitchenAt || o.paidAt || o.closed || o.test || now - (o.confirmedAt || o.at) > 3600e3) continue;
+    const r = db.restaurants[o.restaurantId], f = r && flowOf(r);
+    if (!f || !f.kitchenBtn || f.kitchenScreen || (o.kitchenReminds || 0) >= 3 || now - (o.kitchenRemindAt || o.confirmedAt || o.at) < 5 * 60e3) continue;
+    o.kitchenReminds = (o.kitchenReminds || 0) + 1;
+    o.kitchenRemindAt = now;
+    notify(o.restaurantId, o.table, 'kitchen', '', true, null, o.id);
+    logEvent(o.restaurantId, 'remind', { table: o.table, kind: 'kitchen' });
+  }
 }, 15_000);
 
 // ---------- Забытые вызовы и заказы. Вызов без реакции официанта больше часа — забыт: снимается, если за столом нет заказа
@@ -2391,7 +2467,7 @@ function saveTables(r, list) {
 
 // ---------- Схема зала (ЛК → «Схема зала»): зоны, столы в клетках, надписи (бар, вход…) и быстрые кнопки на схеме.
 // Клетки, а не пиксели — схема растягивается на любой телефон. Нет схемы — официант видит столы плитками
-const QUICK_DEF = { ack: true, done: true, confirm: true, served: true, paid: false, close: false };
+const QUICK_DEF = { ack: true, done: true, confirm: true, kitchen: true, served: true, paid: false, close: false };
 const floorOf = (r) => ({ zones: r.floor?.zones || [], quick: { ...QUICK_DEF, ...r.floor?.quick } });
 function cleanFloor(f, r) {
   const int = (v, a, b) => Math.min(b, Math.max(a, Math.round(Number(v)) || 0));
@@ -3598,6 +3674,7 @@ const PUBLIC = {
   'POST /api/guest/order': guestOrder,
   'GET /api/staff/state': staffState,
   'POST /api/staff/action': staffAction,
+  'POST /api/staff/undo': staffUndo,
   'POST /api/staff/order': staffOrder,
   'POST /api/staff/login': staffLogin,
   'POST /api/staff/shift': staffShift,

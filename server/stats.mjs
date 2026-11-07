@@ -83,7 +83,10 @@ function summary(ev) {
 
 // Заказ в статистике — каким он стал в итоге: правки официанта меняют сумму и блюда; отменённый или отклонённый
 // заказ не считается (в журнале визитов остаётся как «order_void»). Исходный вид — в _items/_total для журнала
-function finalOrders(ev) {
+function finalOrders(ev0) {
+  // «↩ Отменить» официанта: события отменённого действия не считаются
+  const undone = new Set(ev0.filter((e) => e.k === 'undo').flatMap((e) => (e.acts || []).map((x) => `${x.k}|${x.id}|${x.t}`)));
+  const ev = undone.size ? ev0.filter((e) => !undone.has(`${e.k}|${e.id}|${e.t}`)) : ev0;
   const last = {}, voided = new Set();
   for (const e of ev) {
     if (e.k === 'order_edit' && e.id && e.items) last[e.id] = e;
@@ -179,7 +182,7 @@ const dishName = (r, all = false) => {
 };
 // Журнал визита: заказы и всё, что с ними делали (кто, когда, что добавили/убрали, переделка, отмена с причиной)
 const LOG_KINDS = new Set(['order', 'order_void', 'order_ack', 'order_edit', 'order_kitchen', 'order_ready', 'order_served', 'order_redo',
-  'order_cancel', 'order_reject', 'order_remove', 'paid', 'close']);
+  'order_cancel', 'order_reject', 'order_remove', 'paid', 'close', 'undo']);
 function visitLog(events, name) {
   const lines = (list) => (list || []).map(([id, qty]) => [name(id), qty]);
   return events.filter((e) => LOG_KINDS.has(e.k)).slice(0, 120).map((e) => {
@@ -193,6 +196,7 @@ function visitLog(events, name) {
     if (e.note) x.note = e.note;
     if (e.k === 'order_edit' || e.k === 'order_cancel' || e.k === 'paid') x.total = e.total;
     if (e.noKitchen) x.noKitchen = 1;
+    if (e.k === 'undo') x.of = e.of;
     return x;
   });
 }

@@ -7,7 +7,11 @@
     ru: { list: '☰ Список', floor: '▦ Схема', mine: 'Мои столы', attention: 'Требует внимания', fold: 'свернуть ▾', unfold: 'развернуть ▸', calm: 'Всё спокойно 👌',
       unplaced: 'Не на схеме', tables: 'Столы', yours: 'ваш', min: 'мин', table: 'стол',
       st_free: 'свободен', st_busy: 'гости', st_cook: 'готовится', st_call: 'Вызов официанта', st_bill: 'Просят счёт', st_new: 'Новый заказ', st_ready: 'Готово — нести', st_callAck: 'Официант идёт', st_billAck: 'Несут счёт', paidAll: 'оплачен', carry: 'нести',
-      q_ack: 'Иду', q_done: 'Готово', q_confirm: 'Принять', q_served: 'Подано', q_paid: 'Оплачен', q_close: 'Закрыть',
+      q_ack: 'Иду', q_done: 'Готово', q_confirm: 'Принять', q_kitchen: 'На кухню', q_served: 'Подано', q_paid: 'Оплачен', q_close: 'Закрыть',
+      st_tokitchen: 'Заказ не отдан на кухню', todo: 'Нужно сделать', atKitchen: 'На кухне', yourMove: 'ваш ход',
+      need_call: 'Подойти к гостю', need_bill: 'Принести счёт', need_new: 'Подтвердить заказ', need_tokitchen: 'Отдать заказ на кухню', need_ready: 'Отнести — блюда готовы',
+      need_callAck: 'Идёт {n} — потом «Готово»', need_billAck: 'Счёт несёт {n} — потом «Готово»', need_cook: 'Ждём кухню', need_cookNoScreen: 'Когда отнесёте — «Подано»',
+      qh_kitchen: 'На кухню — заказ отдали на кухню (если нет экрана кухни)',
       edTitle: 'Схема зала', edHint: 'Расставьте столы как в зале: тащите пальцем или мышью, стол встанет в клетку. Нажмите на стол — внизу форма и размер. Официанты видят схему в приложении (вид «Схема»). Пока схемы нет — столы у них плитками.',
       edPhone: 'Так схема выглядит на телефоне официанта', zoneAdd: '+ Зона', zoneName: 'Название зоны', cols: 'Клеток в ширину', zoneDel: 'Удалить зону', zoneDelAsk: 'Удалить зону «{n}»? Её столы вернутся в «Не на схеме».',
       edit: 'Правка', preview: 'Как у официанта', pick: 'Нажмите на стол или надпись, чтобы изменить. Столы из «Не на схеме» — нажмите, чтобы поставить.',
@@ -20,7 +24,11 @@
     en: { list: '☰ List', floor: '▦ Floor', mine: 'My tables', attention: 'Needs attention', fold: 'hide ▾', unfold: 'show ▸', calm: 'All calm 👌',
       unplaced: 'Not on the plan', tables: 'Tables', yours: 'yours', min: 'min', table: 'table',
       st_free: 'free', st_busy: 'guests', st_cook: 'cooking', st_call: 'Waiter call', st_bill: 'Bill requested', st_new: 'New order', st_ready: 'Ready — carry it', st_callAck: 'Waiter on the way', st_billAck: 'Bringing the bill', paidAll: 'paid', carry: 'carry',
-      q_ack: 'Going', q_done: 'Done', q_confirm: 'Accept', q_served: 'Served', q_paid: 'Paid', q_close: 'Close',
+      q_ack: 'Going', q_done: 'Done', q_confirm: 'Accept', q_kitchen: 'To kitchen', q_served: 'Served', q_paid: 'Paid', q_close: 'Close',
+      st_tokitchen: 'Order not in the kitchen yet', todo: 'To do', atKitchen: 'In the kitchen', yourMove: 'your move',
+      need_call: 'Go to the guest', need_bill: 'Bring the bill', need_new: 'Confirm the order', need_tokitchen: 'Pass the order to the kitchen', need_ready: 'Carry it — the food is ready',
+      need_callAck: '{n} is going — then “Done”', need_billAck: '{n} brings the bill — then “Done”', need_cook: 'Waiting for the kitchen', need_cookNoScreen: 'When you bring it — “Served”',
+      qh_kitchen: 'To kitchen — the order was passed to the kitchen (when there is no kitchen screen)',
       edTitle: 'Floor plan', edHint: 'Place the tables as in the room: drag with a finger or mouse, a table snaps to the grid. Tap a table to change its shape and size. Waiters see the plan in the app (“Floor” view). Without a plan they see tables as tiles.',
       edPhone: 'This is how the plan looks on a waiter’s phone', zoneAdd: '+ Zone', zoneName: 'Zone name', cols: 'Cells across', zoneDel: 'Delete zone', zoneDelAsk: 'Delete zone “{n}”? Its tables go back to “Not on the plan”.',
       edit: 'Edit', preview: 'Waiter’s view', pick: 'Tap a table or a label to change it. Tap a table under “Not on the plan” to place it.',
@@ -33,11 +41,17 @@
     th: { list: '☰ รายการ', floor: '▦ ผังร้าน', mine: 'โต๊ะของฉัน', attention: 'ต้องดูแล', fold: 'ซ่อน ▾', unfold: 'แสดง ▸', calm: 'เรียบร้อยดี 👌',
       unplaced: 'ไม่อยู่ในผัง', tables: 'โต๊ะ', yours: 'ของคุณ', min: 'นาที', table: 'โต๊ะ',
       st_free: 'ว่าง', st_busy: 'มีแขก', st_cook: 'กำลังทำ', st_call: 'เรียกพนักงาน', st_bill: 'ขอเช็คบิล', st_new: 'ออร์เดอร์ใหม่', st_ready: 'พร้อม — นำไปเสิร์ฟ', st_callAck: 'พนักงานกำลังไป', st_billAck: 'กำลังนำบิลไป', paidAll: 'ชำระแล้ว', carry: 'นำไป',
-      q_ack: 'กำลังไป', q_done: 'เสร็จ', q_confirm: 'รับ', q_served: 'เสิร์ฟแล้ว', q_paid: 'ชำระแล้ว', q_close: 'ปิดโต๊ะ' },
+      q_ack: 'กำลังไป', q_done: 'เสร็จ', q_confirm: 'รับ', q_kitchen: 'ส่งครัว', q_served: 'เสิร์ฟแล้ว', q_paid: 'ชำระแล้ว', q_close: 'ปิดโต๊ะ',
+      st_tokitchen: 'ออร์เดอร์ยังไม่ถึงครัว', todo: 'ต้องทำ', atKitchen: 'ในครัว', yourMove: 'ตาคุณ',
+      need_call: 'ไปหาแขก', need_bill: 'นำบิลไป', need_new: 'ยืนยันออร์เดอร์', need_tokitchen: 'ส่งออร์เดอร์เข้าครัว', need_ready: 'นำไปเสิร์ฟ — อาหารพร้อม',
+      need_callAck: '{n} กำลังไป — แล้วกด “เสร็จ”', need_billAck: '{n} นำบิลไป — แล้วกด “เสร็จ”', need_cook: 'รอครัว', need_cookNoScreen: 'เสิร์ฟแล้วกด “เสิร์ฟแล้ว”' },
     my: { list: '☰ စာရင်း', floor: '▦ ပုံစံ', mine: 'ကျွန်ုပ်၏ စားပွဲ', attention: 'ဂရုစိုက်ရန်', fold: 'ဖျောက် ▾', unfold: 'ပြ ▸', calm: 'အားလုံး အဆင်ပြေ 👌',
       unplaced: 'ပုံစံတွင် မပါ', tables: 'စားပွဲများ', yours: 'သင့်', min: 'မိနစ်', table: 'စားပွဲ',
       st_free: 'အားသည်', st_busy: 'ဧည့်သည်ရှိ', st_cook: 'ချက်နေသည်', st_call: 'စားပွဲထိုး ခေါ်', st_bill: 'ဘေလ် တောင်း', st_new: 'အော်ဒါ အသစ်', st_ready: 'အဆင်သင့် — ယူသွား', st_callAck: 'သွားနေပြီ', st_billAck: 'ဘေလ် ယူသွားနေ', paidAll: 'ပေးပြီး', carry: 'ယူသွား',
-      q_ack: 'သွားမည်', q_done: 'ပြီးပြီ', q_confirm: 'လက်ခံ', q_served: 'ကျွေးပြီး', q_paid: 'ပေးပြီး', q_close: 'ပိတ်' },
+      q_ack: 'သွားမည်', q_done: 'ပြီးပြီ', q_confirm: 'လက်ခံ', q_kitchen: 'မီးဖိုချောင်', q_served: 'ကျွေးပြီး', q_paid: 'ပေးပြီး', q_close: 'ပိတ်',
+      st_tokitchen: 'အော်ဒါ မီးဖိုချောင် မရောက်သေး', todo: 'လုပ်ရန်', atKitchen: 'မီးဖိုချောင်တွင်', yourMove: 'သင့်အလှည့်',
+      need_call: 'ဧည့်သည်ထံ သွား', need_bill: 'ဘေလ် ယူသွား', need_new: 'အော်ဒါ အတည်ပြု', need_tokitchen: 'အော်ဒါကို မီးဖိုချောင်သို့ ပို့', need_ready: 'ယူသွား — အစားအစာ အဆင်သင့်',
+      need_callAck: '{n} သွားနေ — ပြီးလျှင် “ပြီးပြီ”', need_billAck: '{n} ဘေလ် ယူသွားနေ — ပြီးလျှင် “ပြီးပြီ”', need_cook: 'မီးဖိုချောင်ကို စောင့်', need_cookNoScreen: 'ကျွေးပြီးလျှင် “ကျွေးပြီး”' },
   };
   let lang = 'ru';
   const t = (k) => (L[lang] && L[lang][k] !== undefined ? L[lang][k] : L.en[k] !== undefined ? L.en[k] : L.ru[k]);
@@ -47,8 +61,9 @@
   const money = (n) => '฿' + Math.round(n).toLocaleString('en');
   const mins = (ts) => Math.max(0, Math.floor((Date.now() - ts) / 60000));
   const ui = { zone: store('zone') || '', mine: store('mine') === '1', queue: store('queue') !== '0' };
-  const RANK = { call: 0, bill: 1, new: 2, ready: 3, callAck: 4, billAck: 5 };
-  const COLOR = { call: 'var(--f-call)', bill: 'var(--f-bill)', new: 'var(--f-new)', ready: 'var(--f-ready)', callAck: '#1f1a17', billAck: '#1f1a17' };
+  // «ваш ход»: что официант должен сделать, по срочности
+  const RANK = { call: 0, bill: 1, new: 2, tokitchen: 3, ready: 4, callAck: 5, billAck: 6 };
+  const COLOR = { call: 'var(--f-call)', bill: 'var(--f-bill)', new: 'var(--f-new)', tokitchen: 'var(--f-kit)', ready: 'var(--f-ready)', callAck: '#1f1a17', billAck: '#1f1a17', cook: 'var(--f-cook)' };
 
   // Что за столом: самое срочное дело, сколько ждут, кто идёт, сумма к оплате; следующая быстрая кнопка
   function stateOf(tb, s, flow, quick, many) {
@@ -57,7 +72,8 @@
     const nc = calls.filter((c) => c.status === 'new'), ac = calls.filter((c) => c.status !== 'new');
     const pending = orders.filter((o) => o.status === 'pending');
     const ready = orders.filter((o) => o.status === 'confirmed' && o.readyAt && !o.servedAt);
-    const cooking = orders.filter((o) => o.status === 'confirmed' && !o.readyAt && !o.servedAt);
+    const toKitchen = flow.kitchenBtn && !flow.kitchenScreen ? orders.filter((o) => o.status === 'confirmed' && !o.kitchenAt && !o.paidAt && !o.servedAt) : [];
+    const cooking = orders.filter((o) => o.status === 'confirmed' && !o.readyAt && !o.servedAt && !toKitchen.includes(o));
     let total = 0, due = 0;
     for (const o of orders) for (const i of o.items) { total += i.price * i.qty; if (!i.paidAt && !o.paidAt) due += i.price * i.qty; }
     const first = (l, f) => Math.min(...l.map(f));
@@ -65,13 +81,15 @@
     if (nc.some((c) => c.type !== 'bill')) { st = 'call'; since = first(nc.filter((c) => c.type !== 'bill'), (c) => c.at); }
     else if (nc.length) { st = 'bill'; since = first(nc, (c) => c.at); }
     else if (pending.length) { st = 'new'; since = first(pending, (o) => o.at); }
+    else if (toKitchen.length) { st = 'tokitchen'; since = first(toKitchen, (o) => o.confirmedAt || o.at); }
     else if (ready.length) { st = 'ready'; since = first(ready, (o) => o.readyAt); }
     else if (ac.length) { st = ac.some((c) => c.type !== 'bill') ? 'callAck' : 'billAck'; who = ac[0].by || ''; }
-    else if (cooking.length) { st = 'cook'; since = first(cooking, (o) => o.cookFrom || o.confirmedAt || o.at); }
+    else if (cooking.length) { st = 'cook'; since = first(cooking, (o) => o.kitchenAt || o.cookFrom || o.confirmedAt || o.at); }
     else if (orders.length || calls.length) st = 'busy';
     let q = null;
     if ((st === 'call' || st === 'bill') && quick.ack) q = 'ack';
     else if (st === 'new' && quick.confirm) q = 'confirm';
+    else if (st === 'tokitchen' && quick.kitchen) q = 'kitchen';
     else if (st === 'ready' && quick.served) q = 'served';
     else if ((st === 'callAck' || st === 'billAck') && quick.done) q = 'done';
     else if (st === 'cook' && !flow.kitchenScreen && quick.served) q = 'served'; // экрана кухни нет — «Подано» сразу
@@ -80,7 +98,7 @@
     return { tb, st, since, who, due, total, q };
   }
   function sub(x) {
-    if (x.st === 'call' || x.st === 'bill' || x.st === 'new') return `${x.st === 'call' ? '🔔' : x.st === 'bill' ? '🧾' : '🍽'} ${mins(x.since)}′`;
+    if (x.st === 'call' || x.st === 'bill' || x.st === 'new' || x.st === 'tokitchen') return `${{ call: '🔔', bill: '🧾', new: '🍽', tokitchen: '📋' }[x.st]} ${mins(x.since)}′`;
     if (x.st === 'ready') return `✅ ${t('carry')}`;
     if (x.st === 'callAck' || x.st === 'billAck') return `🤵 ${esc(String(x.who).split(' ')[0])}`;
     if (x.st === 'cook') return `🍳 ${mins(x.since)}′`;
@@ -92,12 +110,12 @@
 
   // Схема зоны: клетка — по ширине экрана; tiles(x) — кнопка стола с подписью и быстрой кнопкой
   const decorDef = (d, i, style) => `<div class="fdecor" style="${style}">${esc(d.text)}</div>`;
-  function planHtml(z, width, k, tile, decor = decorDef, extraRows = 0, cls = '') {
+  function planHtml(z, width, k, tile, decor = decorDef, extraRows = 0, cls = '', overlay = () => '') {
     const cell = Math.max(38, Math.floor((width / z.cols) * k)), gap = 6, rows = rowsOf(z, extraRows);
     const box = (o) => `left:${o.x * cell + gap / 2}px;top:${o.y * cell + gap / 2}px;width:${o.w * cell - gap}px;height:${o.h * cell - gap}px`;
     return `<div class="fplan ${cls}" style="width:${cell * z.cols}px;height:${cell * rows}px;--cell:${cell}px">`
       + z.decor.map((d, i) => decor(d, i, box(d))).join('')
-      + z.tables.map((x) => tile(x, box(x))).join('') + '</div>';
+      + z.tables.map((x) => tile(x, box(x))).join('') + overlay(cell, gap) + '</div>';
   }
 
   // ---------- экран официанта ----------
@@ -111,34 +129,60 @@
     if (!zones.some((z) => z.id === ui.zone)) ui.zone = zones[0]?.id || '';
     const z = zones.find((x) => x.id === ui.zone);
     const urgent = (tb) => st[tb] && RANK[st[tb].st] !== undefined && st[tb].st !== 'callAck' && st[tb].st !== 'billAck';
-    const chip = (x) => (x.q ? `<span class="fchip" role="button" data-fq="${x.q}" data-ftab="${esc(x.tb)}">${t('q_' + x.q)}</span>` : '');
-    const tileCls = (x) => `ftile ${x.st}${['call', 'bill', 'new'].includes(x.st) && mins(x.since) >= 5 ? ' late' : ''}${ui.mine && showMine ? (mineSet.has(x.tb) ? ' fmine' : ' fdim') : ''}`;
+    const late = (x) => ['call', 'bill', 'new', 'tokitchen'].includes(x.st) && mins(x.since) >= 5;
+    const tileCls = (x) => `ftile ${x.st}${late(x) ? ' late' : ''}${ui.mine && showMine ? (mineSet.has(x.tb) ? ' fmine' : ' fdim') : ''}`;
+    const qbtn = (x, cls, style = '') => `<button class="${cls} q-${x.st}" style="${style}" data-fq="${x.q}" data-ftab="${esc(x.tb)}">${t('q_' + x.q)}</button>`;
     const tile = (p, style) => {
       const x = st[p.t] || stateOf(p.t, s, flow, quick, false);
-      return `<button class="${tileCls(x)}${p.sh === 'rd' ? ' rd' : ''}${x.q ? ' hasq' : ''}" style="${style}" data-ftab="${esc(p.t)}"><span class="fn${short(p.t).length > 3 ? ' sm' : ''}">${esc(short(p.t))}</span><span class="fs">${sub(x)}</span>${chip(x)}</button>`;
+      return `<button class="${tileCls(x)}${p.sh === 'rd' ? ' rd' : ''}" style="${style}" data-ftab="${esc(p.t)}"><span class="fn${short(p.t).length > 3 ? ' sm' : ''}">${esc(short(p.t))}</span><span class="fs">${sub(x)}</span></button>`;
     };
-    const flat = (list) => `<div class="fgrid">${list.map((tb) => { const x = st[tb]; return `<button class="${tileCls(x)}" data-ftab="${esc(tb)}"><span class="fn${short(tb).length > 3 ? ' sm' : ''}">${esc(short(tb))}</span><span class="fs">${sub(x) || t('st_free')}</span>${chip(x)}</button>`; }).join('')}</div>`;
+    // плитки (нет схемы или стол не на схеме): кнопка действия — отдельно под плиткой, не на ней
+    const flat = (list) => `<div class="fgrid">${list.map((tb) => { const x = st[tb]; return `<div class="fcell"><button class="${tileCls(x)}" data-ftab="${esc(tb)}"><span class="fn${short(tb).length > 3 ? ' sm' : ''}">${esc(short(tb))}</span><span class="fs">${sub(x) || t('st_free')}</span></button>${x.q ? qbtn(x, 'fqb') : ''}</div>`; }).join('')}</div>`;
     let html = '';
     if (zones.length) {
       html += `<div class="fzones">${zones.map((x) => { const n = x.tables.filter((p) => urgent(p.t)).length; return `<button class="${x.id === ui.zone ? 'on' : ''}" data-fzone="${esc(x.id)}">${esc(x.name)}${n ? `<span class="fcnt">${n}</span>` : ''}</button>`; }).join('')}
         ${showMine ? `<button class="fminebtn${ui.mine ? ' on' : ''}" data-fmine="1">${ui.mine ? '✓ ' : ''}${t('mine')}</button>` : ''}</div>`;
+      // кнопка действия — в свободной клетке рядом со столом (справа, слева, снизу, сверху): нажатие на стол
+      // не сработает как действие, и наоборот. Рядом места нет — действие в «Нужно сделать» ниже
+      const occ = new Set(), mark = (o) => { for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) occ.add(`${x},${y}`); };
+      z.tables.forEach(mark); z.decor.forEach(mark);
+      const chips = [];
+      for (const p of z.tables) {
+        const x = st[p.t];
+        if (!x?.q) continue;
+        const c = [[p.x + p.w, p.y], [p.x - 1, p.y], [p.x, p.y + p.h], [p.x, p.y - 1]].find(([cx, cy]) => cx >= 0 && cx < z.cols && cy >= 0 && !occ.has(`${cx},${cy}`));
+        if (!c) continue;
+        occ.add(c.join(','));
+        chips.push({ x, cx: c[0], cy: c[1], side: c[0] > p.x + p.w - 1 ? 'r' : c[0] < p.x ? 'l' : c[1] > p.y ? 'b' : 't' });
+      }
+      const extra = Math.max(0, ...chips.map((c) => c.cy + 1)) - rowsOf(z);
+      const overlay = (cell, gap) => chips.map(({ x, cx, cy, side }) => {
+        const h = Math.min(cell - gap, 36);
+        return qbtn(x, `fqn fq-${side}`, `left:${cx * cell + gap / 2}px;top:${cy * cell + (cell - h) / 2}px;width:${cell - gap}px;height:${h}px`);
+      }).join('');
       const W = Math.min(el.clientWidth || 360, 560);
-      html += `<div class="fplanwrap">${planHtml(z, W, ui.queue ? 0.8 : 1, tile, decorDef, 0, ui.queue ? 'compact' : '')}</div>`;
+      html += `<div class="fplanwrap">${planHtml(z, W, ui.queue ? 0.8 : 1, tile, decorDef, Math.max(0, extra), ui.queue ? 'compact' : '', overlay)}</div>`;
       const rest = all.filter((tb) => !placed.has(tb));
       if (rest.length) html += `<div class="fzh">${t('unplaced')}</div>${flat(rest)}`;
     } else {
       html += showMine ? `<div class="fzones"><span class="fzh" style="margin:0">${t('tables')}</span><button class="fminebtn${ui.mine ? ' on' : ''}" data-fmine="1">${ui.mine ? '✓ ' : ''}${t('mine')}</button></div>` : '';
       html += flat(all);
     }
-    // «Требует внимания»: дела из всех зон по срочности; сворачивается — остаётся одна схема
-    const items = Object.values(st).filter((x) => RANK[x.st] !== undefined).sort((a, b) => RANK[a.st] - RANK[b.st] || (a.since || 0) - (b.since || 0));
-    if (zones.length) {
-      html += `<div class="fqueue"><div class="fqh"><b>${t('attention')} · ${items.length}</b><button data-fqueue="1">${ui.queue ? t('fold') : t('unfold')}</button></div>`;
-      if (ui.queue) html += items.length ? items.map((x) => `<div class="frow" data-ftab="${esc(x.tb)}"><span class="fdot" style="background:${COLOR[x.st]}">${esc(short(x.tb))}</span>
-          <span class="ftx"><b>${t('st_' + x.st)}</b>${['call', 'bill', 'new'].includes(x.st) ? ` · ${mins(x.since)} ${t('min')}` : x.who ? ` · ${esc(x.who)}` : ''}<small>${esc([zoneOfT(x.tb), ctx.tbl(x.tb)].filter(Boolean).join(' · '))}${mineSet.has(x.tb) && showMine ? ` · ${t('yours')}` : ''}</small></span>
-          ${x.q ? `<button data-fq="${x.q}" data-ftab="${esc(x.tb)}">${t('q_' + x.q)}</button>` : ''}</div>`).join('') : `<p class="empty">${t('calm')}</p>`;
-      html += '</div>';
+    // «Нужно сделать»: что требуется от официанта по каждому столу, по срочности, со всех зон;
+    // «На кухне»: где мяч у кухни — сколько готовится. Сворачивается — остаётся одна схема
+    const todo = Object.values(st).filter((x) => RANK[x.st] !== undefined).sort((a, b) => RANK[a.st] - RANK[b.st] || (a.since || 0) - (b.since || 0));
+    const cooking = Object.values(st).filter((x) => x.st === 'cook').sort((a, b) => a.since - b.since);
+    const where = (x) => esc([zoneOfT(x.tb), ctx.tbl(x.tb)].filter(Boolean).join(' · ')) + (mineSet.has(x.tb) && showMine ? ` · ${t('yours')}` : '');
+    const row = (x, title, info) => `<div class="frow r-${x.st}" data-ftab="${esc(x.tb)}"><span class="fdot" style="background:${COLOR[x.st]}">${esc(short(x.tb))}</span>
+      <span class="ftx"><b>${title}</b><small>${info} · ${where(x)}</small></span>${x.q ? qbtn(x, 'fqr') : ''}</div>`;
+    html += `<div class="fqueue"><div class="fqh"><b>${t('todo')} · ${todo.length}</b><button data-fqueue="1">${ui.queue ? t('fold') : t('unfold')}</button></div>`;
+    if (ui.queue) {
+      html += todo.length ? todo.map((x) => row(x, esc(t('need_' + x.st).replace('{n}', String(x.who).split(' ')[0] || '')),
+        `${t('st_' + x.st)}${x.since && x.st !== 'ready' ? ` · ${mins(x.since)} ${t('min')}` : ''}`)).join('') : `<p class="empty">${t('calm')}</p>`;
+      if (cooking.length) html += `<div class="fqh"><b>${t('atKitchen')} · ${cooking.length}</b></div>`
+        + cooking.map((x) => row(x, `${t('st_cook')} · ${mins(x.since)} ${t('min')}`, t(x.q === 'served' ? 'need_cookNoScreen' : 'need_cook'))).join('');
     }
+    html += '</div>';
     el.innerHTML = html;
     el.onclick = (e) => {
       const q = e.target.closest('[data-fq]');
@@ -191,7 +235,7 @@
         <div class="ftool"><b>${t('addDecor')}</b> ${t('decor').map((d) => `<button data-eadd="${esc(d)}">${esc(d)}</button>`).join('')}</div>`;
     }
     html += `<div class="ed"><b>${t('quickT')}</b><span class="empty">${t('quickHint')}</span>
-      ${['ack', 'done', 'confirm', 'served', 'paid', 'close'].map((k) => `<label class="fq"><input type="checkbox" id="fq-${k}" data-eq="${k}" ${f.quick?.[k] ? 'checked' : ''}> ${t('qh_' + k)}</label>`).join('')}</div>
+      ${['ack', 'done', 'confirm', 'kitchen', 'served', 'paid', 'close'].map((k) => `<label class="fq"><input type="checkbox" id="fq-${k}" data-eq="${k}" ${f.quick?.[k] ? 'checked' : ''}> ${t('qh_' + k)}</label>`).join('')}</div>
       <div class="bar"><button data-esave="1">${t('save')}</button><span class="${ed.dirty ? 'due' : 'pok'}">${ed.msg || (ed.dirty ? t('unsaved') : '')}</span></div></div></div>`;
     el.innerHTML = html;
     // «Как у официанта»: тот же экран, что у официанта, с живыми вызовами и заказами — по черновику схемы
@@ -256,7 +300,7 @@
     plan.onpointerup = end; plan.onpointercancel = end;
   }
 
-  const css = `:root{--f-call:#d63a2a;--f-bill:#7a3fa3;--f-new:#e8870c;--f-ready:#2e7d32;--f-cook:#b7791f}
+  const css = `:root{--f-call:#d63a2a;--f-bill:#7a3fa3;--f-new:#e8870c;--f-ready:#2e7d32;--f-cook:#b7791f;--f-kit:#0f766e}
 .fzones{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 6px}.fzones button{border:0;background:#efe7df;color:#1f1a17;border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;display:inline-flex;gap:6px;align-items:center}
 .fzones button.on{background:#1f1a17;color:#fff}.fcnt{background:var(--f-call);color:#fff;border-radius:999px;font-size:11px;min-width:18px;height:18px;display:inline-grid;place-items:center;padding:0 5px}
 .fzones .fminebtn{margin-left:auto;background:transparent;border:1px solid #d9cdc1;font-size:13px}.fzones .fminebtn.on{background:#fff;border-color:#1f1a17;color:#1f1a17}
@@ -266,23 +310,23 @@
 .compact .ftile .fs{display:none}.compact .ftile .fn{font-size:15px}
 .ftile.free{background:transparent;border-style:dashed;color:#8a7f76}.ftile.cook{border-color:var(--f-cook)}.ftile.cook .fs{color:var(--f-cook)}
 .ftile.call,.ftile.bill,.ftile.new,.ftile.ready{color:#fff}.ftile.call{background:var(--f-call);border-color:var(--f-call)}.ftile.bill{background:var(--f-bill);border-color:var(--f-bill)}
-.ftile.new{background:var(--f-new);border-color:var(--f-new)}.ftile.ready{background:var(--f-ready);border-color:var(--f-ready)}
+.ftile.new{background:var(--f-new);border-color:var(--f-new)}.ftile.tokitchen{background:var(--f-kit);border-color:var(--f-kit);color:#fff}.ftile.ready{background:var(--f-ready);border-color:var(--f-ready)}
 .ftile.callAck{border:3px solid var(--f-call)}.ftile.billAck{border:3px solid var(--f-bill)}
 .ftile.call::after,.ftile.new::after{content:"";position:absolute;inset:-6px;border-radius:inherit;border:3px solid var(--f-call);opacity:0;animation:fring 1.6s ease-out infinite;pointer-events:none}.ftile.new::after{border-color:var(--f-new)}
 @keyframes fring{0%{opacity:.7;transform:scale(.92)}100%{opacity:0;transform:scale(1.12)}}@media (prefers-reduced-motion:reduce){.ftile.call::after,.ftile.new::after{animation:none;opacity:.6}}
 .ftile.late .fs::before{content:"⚠ "}.ftile.fdim{opacity:.35}.ftile.fmine{box-shadow:0 0 0 2px #1f1a17}
-.fchip{position:absolute;left:50%;bottom:-11px;transform:translateX(-50%);background:#1f1a17;color:#fff;font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px;border:2px solid #f5f0ea;white-space:nowrap;z-index:2}
-.fchip::before{content:"";position:absolute;inset:-10px -8px}
-.fplan .ftile.hasq{justify-content:flex-start;padding-top:4px}.fplan .fchip{font-size:11px;padding:3px 8px;bottom:-10px}.fplan .ftile.hasq .fs{margin-top:0}
+.fqn{position:absolute;z-index:2;background:#1f1a17;color:#fff;font:inherit;font-size:10px;font-weight:700;line-height:1.05;padding:2px 2px;border-radius:9px;border:0;display:grid;place-items:center;text-align:center;overflow-wrap:normal;word-break:keep-all;letter-spacing:-.2px;box-shadow:0 0 0 2px #f5f0ea}
+.fqn::after{content:"";position:absolute;width:6px;height:6px;background:#1f1a17;transform:rotate(45deg)}.fq-r::after{left:-3px;top:calc(50% - 3px)}.fq-l::after{right:-3px;top:calc(50% - 3px)}.fq-b::after{top:-3px;left:calc(50% - 3px)}.fq-t::after{bottom:-3px;left:calc(50% - 3px)}
 .fdecor{position:absolute;border-radius:10px;background:repeating-linear-gradient(135deg,#efe7df 0 6px,transparent 6px 12px);border:1px solid #d9cdc1;color:#8a7f76;font-size:11px;font-weight:700;display:grid;place-items:center;text-transform:uppercase;letter-spacing:.05em;text-align:center;overflow:hidden}
 .fzh{font-size:12px;font-weight:700;color:#8a7f76;text-transform:uppercase;letter-spacing:.05em;margin:10px 2px 4px}
-.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin:4px 0 12px}.fgrid .ftile{position:relative;height:84px;border-radius:14px}
-.fgrid .fchip{position:static;transform:none;margin-top:6px;border:0}.fgrid .ftile .fn{font-size:20px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px 8px;margin:4px 0 12px}.fcell{display:flex;flex-direction:column;gap:6px}
+.fgrid .ftile{position:relative;height:74px;border-radius:14px}.fgrid .ftile .fn{font-size:20px}
+.fqb{background:#1f1a17;color:#fff;border:0;border-radius:10px;padding:8px 4px;font:inherit;font-size:13px;font-weight:700}
 .fqueue{margin-top:6px}.fqh{display:flex;justify-content:space-between;align-items:center;margin:6px 0}.fqh b{font-size:13px;color:#8a7f76;text-transform:uppercase;letter-spacing:.05em}
 .fqh button{background:transparent;color:#8a7f76;padding:4px 0;font-size:13px}
 .frow{display:flex;align-items:center;gap:10px;background:#fff;border-radius:12px;padding:8px 10px;margin-bottom:8px;cursor:pointer}
 .fdot{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:none}
-.ftx{flex:1;min-width:0;font-size:15px}.ftx small{display:block;color:#8a7f76;font-size:12px}.frow button{flex:none}
+.ftx{flex:1;min-width:0;font-size:15px}.ftx small{display:block;color:#8a7f76;font-size:12px}.frow .fqr{flex:none}.frow.r-cook{background:transparent;border:1px dashed #d9cdc1}
 .fseg{display:inline-flex;background:#efe7df;border-radius:10px;padding:3px;margin:4px 0 8px}.fseg button{background:transparent;color:#8a7f76;padding:6px 12px;font-size:13px;border-radius:8px}.fseg button.on{background:#fff;color:#1f1a17;font-weight:700}
 .fedwrap{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}.fside{flex:1;min-width:260px}
 .fphone{width:100%;max-width:390px;box-sizing:border-box;padding:10px 12px;background:#f5f0ea;border-radius:16px}
