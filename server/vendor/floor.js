@@ -80,7 +80,7 @@
   // «ваш ход»: что официант должен сделать, по срочности
   const RANK = { call: 0, bill: 1, new: 2, tokitchen: 3, ready: 4, callAck: 5, billAck: 6, pay: 7, close: 8 };
   const URGENT = new Set(['call', 'bill', 'new', 'tokitchen', 'ready']);
-  const COLOR = { call: 'var(--f-call)', bill: 'var(--f-bill)', new: 'var(--f-new)', tokitchen: 'var(--f-kit)', ready: 'var(--f-ready)', callAck: '#1f1a17', billAck: '#1f1a17', cook: 'var(--f-cook)', pay: '#5f564f', close: '#5d7a62' };
+  const COLOR = { call: 'var(--f-call)', bill: 'var(--f-bill)', new: 'var(--f-new)', tokitchen: 'var(--f-kit)', ready: 'var(--f-ready)', callAck: 'var(--f-call)', billAck: 'var(--f-bill)', cook: 'var(--f-cook)', pay: 'var(--f-pay)', close: 'var(--f-close)' };
 
   // Что за столом: самое срочное дело, сколько ждут, кто идёт, сумма к оплате; следующая быстрая кнопка
   function stateOf(tb, s, flow, quick, many) {
@@ -335,7 +335,7 @@
     plan.onpointerup = end; plan.onpointercancel = end;
   }
 
-  const css = `:root{--f-call:#d63a2a;--f-bill:#7a3fa3;--f-new:#e8870c;--f-ready:#2e7d32;--f-cook:#b7791f;--f-kit:#0f766e}
+  const css = `:root{--f-call:#d63a2a;--f-bill:#7a3fa3;--f-new:#f2b705;--f-ready:#1f6fd1;--f-cook:#ef7d00;--f-kit:#0f766e;--f-pay:#2e7d32;--f-close:#64748b}
 .fzones{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 6px}.fzones button{border:0;background:#efe7df;color:#1f1a17;border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;display:inline-flex;gap:6px;align-items:center}
 .fzones button.on{background:#1f1a17;color:#fff}.fcnt{background:var(--f-call);color:#fff;border-radius:999px;font-size:11px;min-width:18px;height:18px;display:inline-grid;place-items:center;padding:0 5px}
 .fzones .fminebtn{margin-left:auto;background:transparent;border:1px solid #d9cdc1;font-size:13px}.fzones .fminebtn.on{background:#fff;border-color:#1f1a17;color:#1f1a17}
@@ -343,10 +343,11 @@
 .ftile{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;border:2px solid #d9cdc1;background:#fff;color:#1f1a17;padding:0;line-height:1.1;cursor:pointer;touch-action:manipulation;font:inherit;user-select:none;-webkit-user-select:none}
 .ftile.rd{border-radius:50%}.ftile .fn{font-size:17px;font-weight:800}.ftile .fn.sm{font-size:13px}.ftile .fs{font-size:11px;font-weight:600;margin-top:2px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .compact .ftile .fs{display:none}.compact .ftile .fn{font-size:15px}
-.ftile.free{background:transparent;border-style:dashed;color:#8a7f76}.ftile.cook{border-color:var(--f-cook)}.ftile.cook .fs{color:var(--f-cook)}
-.ftile.call,.ftile.bill,.ftile.new,.ftile.ready{color:#fff}.ftile.call{background:var(--f-call);border-color:var(--f-call)}.ftile.bill{background:var(--f-bill);border-color:var(--f-bill)}
+.ftile.free{background:#fff;border-color:#d9cdc1;color:#1f1a17}.ftile.cook{background:var(--f-cook);border-color:var(--f-cook);color:#fff}
+.ftile.call,.ftile.bill,.ftile.ready{color:#fff}.ftile.new{color:#1f1a17}.ftile.call{background:var(--f-call);border-color:var(--f-call)}.ftile.bill{background:var(--f-bill);border-color:var(--f-bill)}
 .ftile.new{background:var(--f-new);border-color:var(--f-new)}.ftile.tokitchen{background:var(--f-kit);border-color:var(--f-kit);color:#fff}.ftile.ready{background:var(--f-ready);border-color:var(--f-ready)}
-.ftile.pay{border-color:#5f564f}.ftile.close{background:#eef4ee;border-color:#5d7a62}.ftile.callAck{border:3px solid var(--f-call)}.ftile.billAck{border:3px solid var(--f-bill)}
+.ftile.pay{background:var(--f-pay);border-color:var(--f-pay);color:#fff}.ftile.close{background:var(--f-close);border-color:var(--f-close);color:#fff}
+.ftile.callAck{background:#fde3df;border:3px solid var(--f-call)}.ftile.billAck{background:#efe3f7}.ftile.billAck{border:3px solid var(--f-bill)}
 .ftile.call::after,.ftile.new::after{content:"";position:absolute;inset:-6px;border-radius:inherit;border:3px solid var(--f-call);opacity:0;animation:fring 1.6s ease-out infinite;pointer-events:none}.ftile.new::after{border-color:var(--f-new)}
 @keyframes fring{0%{opacity:.7;transform:scale(.92)}100%{opacity:0;transform:scale(1.12)}}@media (prefers-reduced-motion:reduce){.ftile.call::after,.ftile.new::after{animation:none;opacity:.6}}
 .ftile.late .fs::before{content:"⚠ "}.ftile.fdim{opacity:.35}.ftile.fmine{box-shadow:0 0 0 2px #1f1a17}
@@ -361,10 +362,11 @@
 .fqh button{background:transparent;color:#8a7f76;padding:4px 0;font-size:13px}
 .frow{display:flex;align-items:center;gap:10px;background:#fff;border-radius:12px;padding:8px 10px;margin-bottom:8px;cursor:pointer}
 .fdot{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:none}
-.ftx{flex:1;min-width:0;font-size:15px}.ftx small{display:block;color:#8a7f76;font-size:12px}.frow .fqr{flex:none}.frow.r-cook,.frow.r-pay,.frow.r-close{background:transparent;border:1px dashed #d9cdc1}
+.ftx{flex:1;min-width:0;font-size:15px}.ftx small{display:block;color:#8a7f76;font-size:12px}.frow .fqr{flex:none}.frow.r-cook,.frow.r-pay,.frow.r-close{background:transparent;border:1px dashed #d9cdc1}.frow.r-new .fdot{color:#1f1a17}
 .fstat{position:absolute;display:grid;place-items:center;text-align:center;font-size:10px;font-weight:600;line-height:1.05;color:#5f564f;pointer-events:none;overflow-wrap:normal;word-break:keep-all;letter-spacing:-.2px}
-.fstat.s-free{color:#b3a89e;font-weight:500}.fstat.s-cook{color:var(--f-cook)}.fstat.s-pay{color:#1f1a17;font-weight:700}.fstat.s-close{color:#5d7a62;font-weight:700}
-.fstat.s-call,.fstat.s-bill,.fstat.s-new,.fstat.s-tokitchen,.fstat.s-ready{color:var(--f-call);font-weight:800}
+.fstat.s-free{color:#8a7f76;font-weight:500}.fstat.s-cook{color:var(--f-cook);font-weight:700}.fstat.s-pay{color:var(--f-pay);font-weight:800}.fstat.s-close{color:var(--f-close);font-weight:700}
+.fstat.s-call,.fstat.s-callAck{color:var(--f-call);font-weight:800}.fstat.s-bill,.fstat.s-billAck{color:var(--f-bill);font-weight:800}.fstat.s-new{color:#9a7400;font-weight:800}
+.fstat.s-tokitchen{color:var(--f-kit);font-weight:800}.fstat.s-ready{color:var(--f-ready);font-weight:800}
 .fseg{display:inline-flex;background:#efe7df;border-radius:10px;padding:3px;margin:4px 0 8px}.fseg button{background:transparent;color:#8a7f76;padding:6px 12px;font-size:13px;border-radius:8px}.fseg button.on{background:#fff;color:#1f1a17;font-weight:700}
 .fedwrap{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}.fside{flex:1;min-width:260px}
 .fphone{width:100%;max-width:390px;box-sizing:border-box;padding:10px 12px;background:#f5f0ea;border-radius:16px}
