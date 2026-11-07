@@ -118,6 +118,32 @@ async function pullAllDevices() {
     }));
   } catch { /* рабочая недоступна */ }
 }
+// Схемы залов рабочей версии — тестовой (по ключу устройств, только изнутри сервера, как список планшетов)
+function internalFloors(b, q, req) {
+  if (INSTANCE !== 'prod' || !process.env.DEVICE_KEY || q.key !== process.env.DEVICE_KEY || req.headers['x-forwarded-for']) throw fail(403, 'forbidden');
+  return { floors: Object.values(db.restaurants).filter((r) => r.floor?.zones?.length).map((r) => ({ id: r.id, name: r.name, floor: r.floor })) };
+}
+// Тестовая: один раз переносим схему зала Veranda с рабочей (проверить зум на настоящей схеме). Рабочая отдаёт
+// схемы с этой версии — пока не умеет, пробуем каждые 5 минут
+async function pullVerandaFloor() {
+  if (INSTANCE !== 'test' || !process.env.DEVICE_KEY || db.migrations.verandaFloor) return;
+  try {
+    const j = await (await fetch(`${PROD_API}/api/internal/floors?key=${encodeURIComponent(process.env.DEVICE_KEY)}`, { signal: AbortSignal.timeout(5000) })).json();
+    const src = (j.floors || []).find((x) => /veranda/i.test(x.name || ''));
+    if (!src) return;
+    const r = db.restaurants[src.id] || Object.values(db.restaurants).find((x) => /veranda/i.test(x.name || ''));
+    if (!r) return;
+    // столы рабочей, которых на тесте нет, — серыми «столами без планшета» на тех же местах: схема та же целиком
+    const has = new Set(r.tables || []);
+    const zones = (src.floor.zones || []).map((z) => ({ ...z, tables: (z.tables || []).filter((x) => has.has(x.t)),
+      decor: [...(z.decor || []), ...(z.tables || []).filter((x) => !has.has(x.t)).map((x) => ({ ...x, kind: 'table', text: String(x.t).replace(/^\D+(?=\d)/, '') }))] }));
+    r.floor = cleanFloor({ ...src.floor, zones }, r);
+    db.migrations.verandaFloor = Date.now();
+    save();
+    console.log(`Схема зала ${r.name} перенесена с рабочей: зон ${r.floor.zones.length}`);
+  } catch { /* рабочая ещё не отдаёт схемы — в следующий раз */ }
+}
+if (INSTANCE === 'test') { setTimeout(pullVerandaFloor, 20_000).unref(); setInterval(pullVerandaFloor, 5 * 60e3).unref(); }
 function internalDevices(b, q, req) {
   if (INSTANCE !== 'prod' || !process.env.DEVICE_KEY || q.key !== process.env.DEVICE_KEY || req.headers['x-forwarded-for']) throw fail(403, 'forbidden');
   return { devices: Object.values(db.devices).map(({ queue, ...d }) => d) };
@@ -3680,6 +3706,7 @@ const PUBLIC = {
   'POST /api/guest/join': guestJoin,
   'GET /api/version': () => ({ version: VERSION, instance: INSTANCE }),
   'GET /api/internal/device': internalDevice,
+  'GET /api/internal/floors': internalFloors,
   'GET /api/internal/devices': internalDevices,
   'GET /api/internal/server': internalServer,
   'GET /api/diag/devices': diagDevices,

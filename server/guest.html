@@ -136,16 +136,16 @@
   /* ---- Вид меню «Плитки» и «Каталог» (ЛК → Дизайн): разделы плиткой слева, поиск, группы. Классический — как раньше */
   #side, #mtop { display: none; }
   body.lay-tiles #side, body.lay-catalog #side { display: flex; flex-direction: column; gap: 10px; flex: none; padding: 12px 10px 0 14px; background: var(--card); border-right: 1px solid var(--line); min-height: 0; }
-  /* ширина колонки разделов — от экрана: планшеты стоят вертикально (≈800 px), бывают и горизонтальные */
-  body.lay-tiles #side { width: 26%; } body.lay-catalog #side { width: 38%; }
-  @media (orientation: portrait) { body.lay-tiles #side { width: 36%; } body.lay-catalog #side { width: 44%; } }
-  body.lay-tiles #side, body.lay-catalog #side { min-width: 0; overflow: hidden; }
-  /* плитки: столбцов столько, сколько помещается (не уже 100 px); прокрутка только вертикальная */
-  body.lay-tiles #cats, body.lay-catalog #cats { display: grid; white-space: normal; overflow-y: auto; overflow-x: hidden; padding: 2px 2px 14px; box-shadow: none; background: transparent; gap: 8px; align-content: start; flex: 1; min-height: 0; min-width: 0; }
-  body.lay-tiles #cats { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); } body.lay-catalog #cats { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+  /* колонка разделов — в одну плитку шириной; поиск и группы — строкой над меню; прокрутка только вертикальная */
+  body.lay-tiles #side, body.lay-catalog #side { width: 128px; min-width: 0; overflow: hidden; padding: 10px 8px 0 10px; }
+  body.lay-tiles #cats, body.lay-catalog #cats { display: grid; grid-template-columns: minmax(0, 1fr); white-space: normal; overflow-y: auto; overflow-x: hidden; padding: 2px 2px 14px; box-shadow: none; background: transparent; gap: 8px; align-content: start; grid-auto-rows: max-content; flex: 1; min-height: 0; min-width: 0; }
+  body.lay-tiles #mtop, body.lay-catalog #mtop { display: flex; align-items: center; padding: 10px 14px; background: var(--card); border-bottom: 1px solid var(--line); flex: none; }
+  body.lay-tiles #msearch, body.lay-catalog #msearch { flex: 1; min-width: 0; margin-right: 10px; }
+  body.lay-tiles .mgroups, body.lay-catalog .mgroups { flex-wrap: nowrap; } body.lay-tiles .mgroups button, body.lay-catalog .mgroups button { margin: 0 0 0 6px; }
   #cats .ct { display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0; padding: 8px 4px; border-radius: 16px; border: 2px solid transparent; background: var(--bg); color: var(--ink); position: relative; min-height: 92px; min-width: 0; overflow: hidden; font-size: 13px; }
   #cats .ct .ic { font-size: 30px; line-height: 1; margin-bottom: 5px; }
-  #cats .ct .nm { font-weight: 700; line-height: 1.15; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; max-width: 100%; word-break: break-word; overflow-wrap: anywhere; hyphens: auto; }
+  #cats .ct .nm { font-weight: 700; line-height: 1.15; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; max-width: 100%; word-break: normal; overflow-wrap: normal; }
+  #cats .ct .nm.brk { overflow-wrap: anywhere; word-break: break-word; }
   #cats .ct .cn { position: absolute; top: 5px; right: 8px; font-size: 11px; color: var(--muted); font-weight: 700; }
   body.lay-tiles #cats .ct.on, body.lay-catalog #cats .ct.on { background: var(--card); color: var(--ink); border-color: var(--accent); }
   #cats .ct.wide { grid-column: 1 / -1; min-height: 0; flex-direction: row; padding: 10px 8px; font-weight: 700; white-space: normal; font-size: 13px; line-height: 1.2; }
@@ -173,6 +173,7 @@
   .item[data-dish] { cursor: pointer; }
   /* телефон гостя: те же виды, разделы колонкой слева, поиск и группы — строкой над меню */
   body.phone.lay-tiles #mtop, body.phone.lay-catalog #mtop { display: block; padding: 8px 10px 4px; background: var(--card); flex: none; }
+  body.phone #msearch { margin-right: 0 !important; } body.phone .mgroups { flex-wrap: wrap !important; } body.phone .mgroups button { margin: 6px 6px 0 0 !important; }
   body.phone.lay-tiles #side, body.phone.lay-catalog #side { width: 27%; padding: 8px 6px 0 8px; }
   body.phone.lay-tiles #cats, body.phone.lay-catalog #cats { grid-template-columns: 1fr; gap: 6px; }
   body.phone #cats .ct { min-height: 66px; padding: 6px 3px; font-size: 11px; border-radius: 12px; }
@@ -767,10 +768,10 @@ function placeMenuParts(v) {
     $('mq').addEventListener('input', function () { mq = this.value; lastTouch = Date.now(); renderAll(); });
     if (!PHONE) { $('mq').setAttribute('inputmode', 'none'); $('mq').addEventListener('focus', function () { kbdLang = ''; kbdShift = false; kbdOpen(); }); }
   }
-  var host = PHONE ? top : side;
+  var host = top; // строкой над меню: на планшете колонка разделов узкая — в одну плитку
   if ($('msearch').parentNode !== host) { host.insertBefore($('mgroups'), host.firstChild); host.insertBefore($('msearch'), host.firstChild); }
   if (cats.parentNode !== side) side.appendChild(cats);
-  $('mq').placeholder = PHONE ? t('mSearch') : t('mSearchShort');
+  $('mq').placeholder = t('mSearch');
   document.querySelector('[data-mqx]').hidden = !mq;
 }
 
@@ -814,6 +815,7 @@ function renderAll() {
     list.map(function (c) {
       return '<button data-cat="' + esc(c) + '" class="' + (!tag && c === cat ? 'on' : '') + '">' + esc(c === DAY ? t('day') : c) + '</button>';
     }).join('');
+  if (V !== 'classic') fitCats();
   // Меню — одной лентой: все категории подряд, заголовок над каждой; листаешь — категория вверху меняется сама.
   // Ленту строим заново, только когда сменились меню, язык или подбор, — иначе страница не прыгает при добавлении блюда
   var sig = menuSig + '|' + lang + '|' + tag + '|' + isEntrance() + '|' + V + '|' + mgroup + '|' + mq + '|' + JSON.stringify(state.menuCats || {});
@@ -825,6 +827,23 @@ function renderAll() {
   updateAddButtons();
   renderFooter();
   if ($('attract').style.display === 'block') renderAttract();
+}
+
+// Название раздела в плитке — без переноса посреди слова: длинное слово уменьшаем шрифтом (до 9px), размер запоминаем
+var fitMemo = {};
+function fitCats() {
+  var l = document.querySelectorAll('#cats .ct .nm'), w = $('cats').clientWidth;
+  if (!w) return;
+  for (var i = 0; i < l.length; i++) {
+    var e = l[i], k = w + '|' + e.textContent, m = fitMemo[k];
+    if (m === undefined) {
+      var fs = 13;
+      while (e.scrollWidth > e.clientWidth + 1 && fs > 9) { fs--; e.style.fontSize = fs + 'px'; }
+      m = fitMemo[k] = e.scrollWidth > e.clientWidth + 1 ? -fs : fs;
+    }
+    if (Math.abs(m) !== 13) e.style.fontSize = Math.abs(m) + 'px';
+    if (m < 0) e.className += ' brk';
+  }
 }
 
 var feedTimer = null;
