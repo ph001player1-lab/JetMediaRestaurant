@@ -1581,7 +1581,7 @@ function staffState(b, q) {
       name: member.name, role: member.role, onShift: s.onShift, push: s.subs.length > 0, pushLast: pushLastOf(s),
       pushLog: (s.pushLog || []).map(({ ack, ...x }) => ({ ...x, ...pushRefState(x) })).reverse(), pushTestAt: s.pushTestAt || 0,
       deaf: s.onShift ? deafOf(s) : null,
-      lastAct: s.lastAct && Date.now() - s.lastAct.at < UNDO_MS ? { id: s.lastAct.id, act: s.lastAct.act, table: s.lastAct.table, ago: Date.now() - s.lastAct.at } : null,
+      lastAct: s.lastAct && Date.now() - s.lastAct.at < UNDO_MS ? { id: s.lastAct.id, act: s.lastAct.act, table: s.lastAct.table, ids: s.lastAct.ids || [] } : null,
     },
     team: teamOf(r),
     floor: floorOf(r),
@@ -1628,7 +1628,7 @@ function staffOrder(b) {
   try { o = staffOrderDo(b); } finally { var evs = capture; capture = null; }
   // новый заказ официанта — его можно отменить сразу («↩ Отменить «Новый заказ»»)
   if (db.orders.length > n && o?.id) {
-    ses.lastAct = { id: uid(), act: 'order:new', table: o.table, at: Date.now(), before: [], created: [o.id], after: [{ type: 'order', id: o.id, json: JSON.stringify(o) }], events: evs };
+    ses.lastAct = { id: uid(), act: 'order:new', table: o.table, at: Date.now(), before: [], created: [o.id], after: [{ type: 'order', id: o.id, json: JSON.stringify(o) }], events: evs, ids: [o.id] };
     save();
   }
   return o;
@@ -1908,7 +1908,8 @@ function staffAction(b) {
   const after = snap();
   if (NO_UNDO.has(act)) delete ses.lastAct;
   else if (after.some((a, i) => a.json !== before[i].json)) {
-    ses.lastAct = { id: uid(), act, table: b.kind === 'table' || b.kind === 'guestpaid' ? b.id : targets[0][1].table, at: Date.now(), before, after, events: evs };
+    ses.lastAct = { id: uid(), act, table: b.kind === 'table' || b.kind === 'guestpaid' ? b.id : targets[0][1].table, at: Date.now(), before, after, events: evs,
+      ids: after.filter((a, i) => a.json !== before[i].json).map((a) => a.id) }; // в карточках этих вызовов и заказов — «↩ Отменить»
     save();
   }
   return res;
