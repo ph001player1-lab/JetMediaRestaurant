@@ -28,6 +28,12 @@
   #attract .avchat { width: 11vw; height: 11vw; margin: 0 1vw; }
   .langs button { border: 1px solid var(--line); background: none; border-radius: 10px; padding: 10px 14px; font-size: 18px; margin-left: 8px; color: var(--ink); }
   .langs button.on { background: var(--ink); color: var(--card); border-color: var(--ink); }
+  /* Шапка меню на планшете — те же размеры и шрифты, что на заставке с рекламой (в долях экрана, а не в пикселях):
+     на любом планшете номер стола, «Заказ с телефона» и языки помещаются в строку одинаково во всех видах меню */
+  header { height: 8vh; padding: 0 2.5vw; flex: none; }
+  header .tno { font-size: 3.8vw; } header button.tno { padding: 1.2vw 2.8vw; border-radius: 1.5vw; }
+  .langs button { font-size: 2.4vw; padding: 1.2vw 2vw; margin-left: 1vw; border-radius: 1.5vw; }
+  .langs .qrbtn { padding: 1vw 2vw; border-width: .3vw !important; }
   #cats { white-space: nowrap; overflow-x: auto; padding: 10px 12px; background: var(--card); box-shadow: 0 1px 0 rgba(0,0,0,.06); flex: none; }
   #cats button { display: inline-block; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 24px; padding: 12px 18px; font-size: 18px; margin-right: 8px; }
   #cats button.on { background: var(--ink); color: var(--card); border-color: var(--ink); font-weight: 600; }
@@ -116,10 +122,10 @@
   .join input { width: 100%; font-size: 20px; padding: 14px; border-radius: 12px; border: 1px solid var(--line); margin: 14px 0 10px; background: var(--card); color: var(--ink); }
   .join button { width: 100%; border: 0; border-radius: 14px; font-size: 19px; font-weight: 600; padding: 16px; margin-top: 8px; background: var(--accent); color: var(--accent-ink); }
   .join button.ghost { background: var(--soft); color: var(--ink); }
-  body.phone header { padding: 10px 12px; }
+  body.phone header { padding: 10px 12px; height: auto; }
   body.phone header h1 { font-size: 20px; }
   body.phone .tno { font-size: 22px; }
-  body.phone .langs button { padding: 7px 9px; font-size: 14px; margin-left: 4px; }
+  body.phone .langs button { padding: 7px 9px; font-size: 14px; margin-left: 4px; border-radius: 10px; }
   body.phone #cats button { padding: 9px 13px; font-size: 15px; }
   body.phone .item { width: calc(50% - 10px); margin: 5px; }
   body.phone .item img, body.phone .ph { height: 150px; }
