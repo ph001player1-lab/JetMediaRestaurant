@@ -355,6 +355,27 @@ function realOnly(ev, ctxs) {
 // Дневные счётчики (показы акций, появления персонажа) — только после начала боевой работы
 const realDays = (days, c) => (c?.before ? days.filter((d) => d > thDay(c.before)) : days);
 
+// Ошибки процесса (стремимся к нулю): заказ гостя с планшета или телефона отменили или отклонили сотрудники;
+// заказы, помеченные «Тест» вручную (не прошлые данные и не тестовый сотрудник). По каждому — когда, стол, сумма, кто
+function processErrors(ev, visits, ctxs) {
+  const why = {};
+  for (const e of ev) if ((e.k === 'order_cancel' || e.k === 'order_reject') && e.id) why[e.id] = { k: e.k, bn: e.bn || '', note: e.note || '' };
+  const cancelled = ev.filter((e) => e.k === 'order_void' && e.src !== 'staff')
+    .map((e) => ({ t: e.t, table: e.table, total: e._total ?? e.total ?? 0, src: e.phone ? 'phone' : 'tablet', g: e.guest || 1, ...why[e.id] }));
+  const marked = [];
+  for (const v of visits) {
+    if (v.why !== 'mark' && !v.part) continue;
+    const c = ctxs[v.r];
+    for (const e of v.events) {
+      if ((e.k !== 'order' && e.k !== 'order_void') || !c.marks.has(e.id)) continue;
+      const by = c.by[e.id] || [];
+      marked.push({ t: e.t, table: e.table, total: e._total ?? e.total ?? 0, by: by[0] || '', at: by[1] || 0, src: e.src === 'staff' ? 'staff' : e.phone ? 'phone' : 'tablet' });
+    }
+  }
+  const pack = (l) => ({ n: l.length, sum: l.reduce((a, x) => a + (x.total || 0), 0), list: l.sort((a, b) => b.t - a.t).slice(0, 50) });
+  return { cancelled: pack(cancelled), marked: pack(marked) };
+}
+
 // Отчёт ресторана (ЛК менеджера и портал при выборе одного ресторана); tests — показать вместе с тестовыми
 export function restaurantReport({ log, db, r, from, to, staffNames, tests, dayFrom = () => null }) {
   const rids = new Set([r.id]);
@@ -369,7 +390,7 @@ export function restaurantReport({ log, db, r, from, to, staffNames, tests, dayF
   // из частично помеченных — только помеченные заказы
   const partOrders = partVisits.flatMap((v) => v.events.filter((e) => e.k === 'order' && ctxs[r.id].marks.has(e.id)));
   return {
-    from, to, tests: !!tests, summary: summary(ev), prev: summary(prev), reaction: reaction(ev),
+    from, to, tests: !!tests, summary: summary(ev), prev: summary(prev), reaction: reaction(ev), errors: processErrors(ev, all, ctxs),
     excluded: { visits: testVisits.length + partVisits.length, orders: testVisits.reduce((s, v) => s + v.orders, 0) + partOrders.length,
       total: testVisits.reduce((s, v) => s + v.total, 0) + partOrders.reduce((s, e) => s + (e.total || 0), 0) },
     // журнал визитов: последние 300, у каждого — тестовый ли и почему
@@ -390,8 +411,9 @@ export function networkReport({ log, db, rids, from, to, tests, dayFrom = () => 
   const raw = finalOrders(log.read(from, to, rids)), prevRaw = finalOrders(log.read(from - (to - from), from, rids));
   const ev = tests ? raw : realOnly(raw, ctxs);
   const prev = tests ? prevRaw : realOnly(prevRaw, ctxs);
+  const allVisits = visitsOf(raw, ctxs);
   const network = rests.map((r) => {
-    const mine = ev.filter((e) => e.r === r.id);
+    const mine = ev.filter((e) => e.r === r.id), er = processErrors(mine, allVisits.filter((v) => v.r === r.id), ctxs);
     const devices = Object.values(db.devices).filter((d) => d.restaurantId === r.id).length;
     const polls = sumCounter(db.stats, `up|${r.id}`, days);
     return {
@@ -400,6 +422,7 @@ export function networkReport({ log, db, rids, from, to, tests, dayFrom = () => 
       // Часов на связи в среднем на одно устройство в день (опрос раз в 15 секунд)
       uptimeH: devices ? +((polls * 15) / 3600 / devices / days.length).toFixed(1) : null,
       offline: mine.filter((e) => e.k === 'dev_offline').length, crashes: mine.filter((e) => e.k === 'dev_crash').length,
+      errCancel: er.cancelled.n, errMarked: er.marked.n,
     };
   }).sort((a, b) => b.revenue - a.revenue);
   const ads = db.ads.map((a) => {

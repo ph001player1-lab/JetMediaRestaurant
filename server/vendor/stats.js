@@ -21,7 +21,7 @@
       hoursOn: 'Часов на связи', adImps: 'Показов рекламы', adScans: 'Сканов рекламы', leads: 'Заявок', online: 'онлайн', offlineNow: 'офлайн', byRest: 'По ресторанам: показы / сканы / заявки', tts: 'Озвучка ElevenLabs, символов', sec: 'с', min: 'мин',
       wd: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], hint: 'Время — тайское. Выручка — только заказы через планшет.',
       withTests: 'С тестовыми', recalc: 'Пересчитать', excluded: 'Не учтено как тестовое', visitsN: 'визитов', ordersN: 'заказов',
-      visits: 'Журнал визитов столов', when: 'Когда', test: 'Тест', whyBefore: 'прошлые данные', partly: 'частично: {m} из {n}', allPeriod: 'все за период', markAllQ: 'Пометить тестовыми все визиты за выбранный период ({n})? Они не войдут в статистику.', unmarkAllQ: 'Снять «Тест» со всех визитов за период ({n})? Они снова войдут в статистику.', whyStaff: 'тестовый сотрудник',
+      visits: 'Журнал визитов столов', when: 'Когда', test: 'Тест', whyBefore: 'прошлые данные', errTitle: 'Ошибки процесса', errHint: 'Стремимся к нулю: заказ гостя не должен отменяться сотрудником, а настоящий заказ — помечаться тестовым. Нажмите, чтобы увидеть каждый.', errCancel: 'Заказы гостей, отменённые сотрудниками', errMarked: 'Заказы, помеченные тестовыми', errCancelled: 'отменил', errRejected: 'отклонил', errMarkedBy: 'пометил', errStaffOrder: 'заказ сотрудника', errCancelCol: 'Отменено заказов гостей', errMarkedCol: 'Помечено тестовыми', partly: 'частично: {m} из {n}', allPeriod: 'все за период', markAllQ: 'Пометить тестовыми все визиты за выбранный период ({n})? Они не войдут в статистику.', unmarkAllQ: 'Снять «Тест» со всех визитов за период ({n})? Они снова войдут в статистику.', whyStaff: 'тестовый сотрудник',
       visitsHint: 'Визит — от первого вызова или заказа до «Закрыть стол». Отметьте «Тест», чтобы визит не шёл в статистику.',
       manager: 'менеджер', waiter: 'официант',
     },
@@ -44,7 +44,7 @@
       hoursOn: 'Hours online', adImps: 'Ad impressions', adScans: 'Ad scans', leads: 'Leads', online: 'online', offlineNow: 'offline', byRest: 'By restaurant: impressions / scans / leads', tts: 'ElevenLabs voice, characters', sec: 's', min: 'min',
       wd: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], hint: 'Thailand time. Revenue counts tablet orders only.',
       withTests: 'Include test data', recalc: 'Recalculate', excluded: 'Left out as test', visitsN: 'visits', ordersN: 'orders',
-      visits: 'Table visits log', when: 'When', test: 'Test', whyBefore: 'earlier data', partly: 'partly: {m} of {n}', allPeriod: 'all in period', markAllQ: 'Mark all visits in the selected period as test ({n})? They will not count in statistics.', unmarkAllQ: 'Unmark all visits in the period ({n})? They will count in statistics again.', whyStaff: 'test staff',
+      visits: 'Table visits log', when: 'When', test: 'Test', whyBefore: 'earlier data', errTitle: 'Process errors', errHint: 'Aim for zero: a guest order should not be cancelled by staff, and a real order should not be marked as test. Tap to see each one.', errCancel: 'Guest orders cancelled by staff', errMarked: 'Orders marked as test', errCancelled: 'cancelled', errRejected: 'rejected', errMarkedBy: 'marked by', errStaffOrder: 'staff order', errCancelCol: 'Guest orders cancelled', errMarkedCol: 'Marked as test', partly: 'partly: {m} of {n}', allPeriod: 'all in period', markAllQ: 'Mark all visits in the selected period as test ({n})? They will not count in statistics.', unmarkAllQ: 'Unmark all visits in the period ({n})? They will count in statistics again.', whyStaff: 'test staff',
       visitsHint: 'A visit lasts from the first call or order until “Close table”. Tick “Test” to keep a visit out of the statistics.',
       manager: 'manager', waiter: 'waiter',
     },
@@ -67,7 +67,7 @@
       hoursOn: 'ชั่วโมงออนไลน์', adImps: 'แสดงโฆษณา', adScans: 'สแกนโฆษณา', leads: 'คำขอ', online: 'ออนไลน์', offlineNow: 'ออฟไลน์', byRest: 'ตามร้าน: แสดง / สแกน / คำขอ', tts: 'เสียง ElevenLabs ตัวอักษร', sec: 'วิ', min: 'นาที',
       wd: ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'], hint: 'เวลาประเทศไทย ยอดขายนับเฉพาะออร์เดอร์ผ่านแท็บเล็ต',
       withTests: 'รวมข้อมูลทดสอบ', recalc: 'คำนวณใหม่', excluded: 'ไม่นับ (ทดสอบ)', visitsN: 'ครั้ง', ordersN: 'ออร์เดอร์',
-      visits: 'บันทึกการใช้โต๊ะ', when: 'เวลา', test: 'ทดสอบ', allPeriod: 'ทั้งหมดในช่วงนี้', markAllQ: 'ทำเครื่องหมายทุกการใช้โต๊ะในช่วงนี้เป็นการทดสอบ ({n})? จะไม่นับในสถิติ', unmarkAllQ: 'ยกเลิกเครื่องหมายทดสอบทั้งหมดในช่วงนี้ ({n})? จะกลับมานับในสถิติ', partly: 'บางส่วน: {m} จาก {n}', whyBefore: 'ข้อมูลเก่า', whyStaff: 'พนักงานทดสอบ',
+      visits: 'บันทึกการใช้โต๊ะ', when: 'เวลา', test: 'ทดสอบ', allPeriod: 'ทั้งหมดในช่วงนี้', markAllQ: 'ทำเครื่องหมายทุกการใช้โต๊ะในช่วงนี้เป็นการทดสอบ ({n})? จะไม่นับในสถิติ', unmarkAllQ: 'ยกเลิกเครื่องหมายทดสอบทั้งหมดในช่วงนี้ ({n})? จะกลับมานับในสถิติ', partly: 'บางส่วน: {m} จาก {n}', errTitle: 'ข้อผิดพลาดของกระบวนการ', errHint: 'เป้าหมายคือศูนย์: ออเดอร์ของแขกไม่ควรถูกพนักงานยกเลิก และออเดอร์จริงไม่ควรถูกทำเครื่องหมายว่าทดสอบ แตะเพื่อดูแต่ละรายการ', errCancel: 'ออเดอร์แขกที่พนักงานยกเลิก', errMarked: 'ออเดอร์ที่ทำเครื่องหมายว่าทดสอบ', errCancelled: 'ยกเลิก', errRejected: 'ปฏิเสธ', errMarkedBy: 'ทำเครื่องหมายโดย', errStaffOrder: 'ออเดอร์พนักงาน', errCancelCol: 'ออเดอร์แขกที่ถูกยกเลิก', errMarkedCol: 'ทำเครื่องหมายทดสอบ', whyBefore: 'ข้อมูลเก่า', whyStaff: 'พนักงานทดสอบ',
       visitsHint: 'การใช้โต๊ะ: ตั้งแต่การเรียกหรือออร์เดอร์แรกจนถึง “ปิดโต๊ะ” ติ๊ก “ทดสอบ” เพื่อไม่นับในสถิติ',
       manager: 'ผู้จัดการ', waiter: 'พนักงาน',
     },
@@ -174,8 +174,19 @@
           + `${what ? `: ${what}` : ''}${e.total != null ? ` · ${money(e.total)}` : ''}${e.noKitchen ? ` (${t.noKitchenW})` : ''}${e.note ? ` — «${esc(e.note)}»` : ''}</li>`;
       }).join('')}</ul>`;
     }
+    // Ошибки процесса — на самом видном месте: больше нуля — красные, ноль — зелёные; по нажатию — каждый заказ
+    function errorsHtml(er) {
+      if (!er) return '';
+      const hm = (ts) => new Date(ts + TZ).toISOString().slice(5, 16).replace('T', ' ');
+      const box = (label, x, rows) => `<details class="js-err ${x.n ? 'bad' : 'ok'}"><summary><span>${esc(label)}</span><b>${x.n ? `${x.n} · ${money(x.sum)}` : '0 ✓'}</b></summary>${x.n ? `<ul class="js-vlog">${rows}</ul>` : ''}</details>`;
+      const who = (x) => (x.src === 'staff' ? t.errStaffOrder : `${t.guestW} ${x.g || 1}, ${x.src === 'phone' ? t.phoneW : t.tabletW}`);
+      return `<h3 class="js-errh">⚠️ ${t.errTitle}</h3><p class="js-hint">${t.errHint}</p><div class="js-errs">`
+        + box(t.errCancel, er.cancelled, er.cancelled.list.map((x) => `<li>${hm(x.t)} · ${esc(x.table)} · ${who(x)} · ${money(x.total)} — ${x.k === 'order_reject' ? t.errRejected : t.errCancelled}${x.bn ? `: ${esc(x.bn)}` : ''}${x.note ? ` — «${esc(x.note)}»` : ''}</li>`).join(''))
+        + box(t.errMarked, er.marked, er.marked.list.map((x) => `<li>${hm(x.t)} · ${esc(x.table)} · ${who({ ...x, g: 1 })} · ${money(x.total)}${x.by ? ` — ${t.errMarkedBy} ${esc(x.by)}${x.at ? `, ${hm(x.at)}` : ''}` : ''}</li>`).join(''))
+        + '</div>';
+    }
     function restaurantHtml(d) {
-      return visitsHtml(d) + summaryHtml(d.summary, d.prev, d.reaction) + excludedHtml(d)
+      return errorsHtml(d.errors) + visitsHtml(d) + summaryHtml(d.summary, d.prev, d.reaction) + excludedHtml(d)
         + table('staff', t.staff, [[t.name, 'name'], [t.callsAcked, 'calls'], [t.react, 'callMed', dur, durCsv], [t.ordersAcked, 'orders'],
           [t.sum, 'ordersSum', money, (v) => v], [t.paid, 'paid'], [t.shiftH, 'shiftH'], [t.activeH, 'activeH'], [t.days, 'days']], d.staff)
         + table('tables', t.tables, [[t.table, 'table'], [t.opens, 'opens'], [t.orders, 'orders'], [t.revenue, 'revenue', money, (v) => v],
@@ -187,11 +198,13 @@
         + table('promos', t.promos, [[t.promo, 'name'], [t.imps, 'imps'], [t.scans, 'scans'], [t.qty, 'qty'], [t.revenue, 'revenue', money, (v) => v]], d.promos)
         + avatarHtml(d.avatar) + timeHtml(d);
     }
+    const errCell = (v) => (v ? `<b class="js-down">${v}</b>` : '<span class="js-up">0</span>');
     function adminHtml(d) {
       const n = d.network;
       return (d.restaurant ? '' : summaryHtml(n.summary, n.prev, n.reaction))
         + table('network', t.network, [[t.rest, 'name'], [t.orders, 'orders'], [t.revenue, 'revenue', money, (v) => v], [t.avg, 'avg', money, (v) => v],
           [t.calls, 'calls'], [t.react, 'callMed', dur, durCsv], [t.conversion, 'conversion', (v) => (v == null ? '—' : `${v}%`)],
+          [t.errCancelCol, 'errCancel', errCell, (v) => v || 0], [t.errMarkedCol, 'errMarked', errCell, (v) => v || 0],
           [t.devices, 'devices'], [t.uptime, 'uptimeH'], [t.offline, 'offline'], [t.crashes, 'crashes'], [t.adScans, 'adScans'], [t.leads, 'leads']], n.network)
         + table('devices', t.devicesT, [[t.device, 'id'], [t.rest, 'rest'], [t.place, 'place'], [t.now, 'online', (v) => (v ? `<span class="js-up">${t.online}</span>` : `<span class="js-down">${t.offlineNow}</span>`), (v) => (v ? t.online : t.offlineNow)],
           [t.hoursOn, 'hours'], [t.orders, 'orders'], [t.revenue, 'revenue', money, (v) => v], [t.calls, 'calls'], [t.talks, 'talks'],
@@ -289,7 +302,9 @@
 .js-tbl th{font-size:12px;color:#8a7f76;white-space:normal}.js-charts{display:flex;flex-wrap:wrap;gap:12px}.js-chart{background:#fff;border-radius:12px;padding:10px;flex:1 1 320px}
 .js-chart h4{margin:0 0 8px;font-size:13px}.js-bars{display:flex;align-items:flex-end;gap:2px;height:120px}.js-bars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
 .js-test td{color:#b0a69c}.js-ex{background:#fff;border-radius:12px;padding:8px 12px;margin:0 0 10px}.js-ex summary{cursor:pointer;font-weight:600}.js-ex label{display:inline-block;margin:4px 14px 4px 0;white-space:nowrap}
-.js-ex .js-all{font-weight:400;white-space:nowrap;color:#222;display:inline-flex;align-items:center;gap:4px;margin-top:2px}.js-vbtn{padding:0 6px!important;margin:0!important;border:1px solid #ddd;border-radius:6px;background:#fff;color:#222;cursor:pointer;font-size:12px}
+.js-ex .js-all{font-weight:400;white-space:nowrap;color:#222;display:inline-flex;align-items:center;gap:4px;margin-top:2px}.js-errh{color:#c62828}.js-errs{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}.js-err{flex:1 1 300px;background:#fff;border-radius:12px;padding:10px 14px;border-left:6px solid #2e7d32;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.js-err.bad{border-color:#c62828;background:#fff5f5}.js-err summary{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;font-size:14px}.js-err summary b{font-size:22px;white-space:nowrap}
+.js-err.bad summary b{color:#c62828}.js-err.ok summary b{color:#2e7d32}.js-err.ok summary{cursor:default}.js-vbtn{padding:0 6px!important;margin:0!important;border:1px solid #ddd;border-radius:6px;background:#fff;color:#222;cursor:pointer;font-size:12px}
 .js-vlog{margin:2px 0 6px;padding-left:18px;font-size:13px;line-height:1.5}.js-vlog .js-warn{color:#c62828}.js-vrow td{background:#faf7f4}
 .js-bars i{display:block;width:100%;background:#c8553d;border-radius:3px 3px 0 0;min-height:1px}.js-bars span{font-size:9px;color:#8a7f76;margin-top:2px}.js-body h3{margin:18px 0 6px}`;
   const s = document.createElement('style');
