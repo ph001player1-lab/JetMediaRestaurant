@@ -1722,6 +1722,20 @@ function staffLogin(b) {
   return { token };
 }
 
+// Планшеты столов для схемы зала официанта: не на связи (выключен, сел, нет сети больше 3 минут) — «включить»;
+// заряд меньше 10% и не заряжается — «на зарядку». На столе несколько планшетов — по худшему
+function tabletsOf(r, now = Date.now()) {
+  const out = {};
+  for (const d of Object.values(db.devices)) {
+    if (d.restaurantId !== r.id || !d.table || d.role === 'entrance' || !d.lastSeen) continue;
+    const t = d.telemetry || {}, bat = Number(t.battery);
+    const off = now - d.lastSeen > 3 * 60_000 || (d.offAt && d.offAt >= d.lastSeen - 1000) || t.screen === false;
+    const x = { off: !!off, since: off ? Math.min(d.lastSeen, d.offAt || d.lastSeen) : 0, bat: Number.isFinite(bat) ? bat : null, chg: !!t.charging };
+    const bad = (y) => (y.off ? 2 : y.bat !== null && y.bat < 10 && !y.chg ? 1 : 0);
+    if (!out[d.table] || bad(x) > bad(out[d.table])) out[d.table] = x;
+  }
+  return out;
+}
 function staffState(b, q) {
   const { s, r, member } = session(q.token);
   s.seenAt = Date.now(); // приложение открыто — для автоконца смены без часов работы
@@ -1736,6 +1750,7 @@ function staffState(b, q) {
     },
     team: teamOf(r),
     floor: floorOf(r),
+    tablets: tabletsOf(r),
     // «Столы» официанта: его столы из ЛК менеджера, а если не назначены — все столы ресторана
     myTables: (r.tables || []).filter((tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb)),
     vapidKey: db.vapid.publicKey,

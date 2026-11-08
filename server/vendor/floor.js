@@ -10,7 +10,7 @@
       q_ack: 'Иду', q_done: 'Готово', q_confirm: 'Принять', q_kitchen: 'На кухню', q_served: 'Подано', q_paid: 'Оплачен', q_close: 'Закрыть',
       st_tokitchen: 'Заказ не отдан на кухню',
       st_pay: 'Гости за столом', st_close: 'Всё оплачено', allFree: 'Все столы свободны', due: 'к оплате', later: 'Дальше по столам',
-      need_pay: 'Взять оплату', need_close: 'Закрыть стол — всё оплачено', need_void: 'Закрыть стол — заказ отменён', st_void: 'Заказ отменён', voided: 'отменён', need_closePos: 'Закрыть стол после оплаты в кассе',
+      need_pay: 'Взять оплату', need_close: 'Закрыть стол — всё оплачено', need_void: 'Закрыть стол — заказ отменён', need_devoff: 'Включить планшет', need_devbat: 'Поставить планшет на зарядку', devOffS: 'выключен', devSince: 'не на связи с {t}', devBat: 'заряд {p}%', tabletsQ: 'Планшеты', lb_devoff: 'включить', lb_devbat: 'на зарядку', st_void: 'Заказ отменён', voided: 'отменён', need_closePos: 'Закрыть стол после оплаты в кассе',
       lb_free: 'свободен', lb_call: 'вызов {m}′', lb_bill: 'счёт {m}′', lb_new: 'новый заказ', lb_tokitchen: 'отдать на кухню', lb_ready: 'нести', lb_ack: 'идёт {n}',
       lb_cook: 'ждём кухню {m}′', lb_pay: 'взять оплату', lb_close: 'закрыть стол', todo: 'Нужно сделать', atKitchen: 'На кухне', yourMove: 'ваш ход',
       need_call: 'Подойти к гостю', need_bill: 'Принести счёт', need_new: 'Подтвердить заказ', need_tokitchen: 'Отдать заказ на кухню', need_ready: 'Отнести — блюда готовы',
@@ -32,7 +32,7 @@
       q_ack: 'Going', q_done: 'Done', q_confirm: 'Accept', q_kitchen: 'To kitchen', q_served: 'Served', q_paid: 'Paid', q_close: 'Close',
       st_tokitchen: 'Order not in the kitchen yet',
       st_pay: 'Guests at the table', st_close: 'All paid', allFree: 'All tables are free', due: 'to pay', later: 'Next at the tables',
-      need_pay: 'Take the payment', need_close: 'Close the table — all paid', need_void: 'Close the table — order cancelled', st_void: 'Order cancelled', voided: 'cancelled', need_closePos: 'Close the table after payment at the cashier',
+      need_pay: 'Take the payment', need_close: 'Close the table — all paid', need_void: 'Close the table — order cancelled', need_devoff: 'Turn on the tablet', need_devbat: 'Put the tablet on charge', devOffS: 'off', devSince: 'offline since {t}', devBat: 'battery {p}%', tabletsQ: 'Tablets', lb_devoff: 'turn on', lb_devbat: 'charge', st_void: 'Order cancelled', voided: 'cancelled', need_closePos: 'Close the table after payment at the cashier',
       lb_free: 'free', lb_call: 'call {m}′', lb_bill: 'bill {m}′', lb_new: 'new order', lb_tokitchen: 'to kitchen', lb_ready: 'carry', lb_ack: '{n} going',
       lb_cook: 'kitchen {m}′', lb_pay: 'take payment', lb_close: 'close table', todo: 'To do', atKitchen: 'In the kitchen', yourMove: 'your move',
       need_call: 'Go to the guest', need_bill: 'Bring the bill', need_new: 'Confirm the order', need_tokitchen: 'Pass the order to the kitchen', need_ready: 'Carry it — the food is ready',
@@ -54,7 +54,7 @@
       q_ack: 'กำลังไป', q_done: 'เสร็จ', q_confirm: 'รับ', q_kitchen: 'ส่งครัว', q_served: 'เสิร์ฟแล้ว', q_paid: 'ชำระแล้ว', q_close: 'ปิดโต๊ะ', decor: ['บาร์', 'ทางเข้า', 'แคชเชียร์', 'ครัว', 'หน้าต่าง', 'ผนัง'],
       st_tokitchen: 'ออร์เดอร์ยังไม่ถึงครัว',
       st_pay: 'แขกอยู่ที่โต๊ะ', st_close: 'ชำระครบแล้ว', allFree: 'ทุกโต๊ะว่าง', due: 'ค้างชำระ', later: 'ต่อไปที่โต๊ะ',
-      need_pay: 'รับชำระเงิน', need_close: 'ปิดโต๊ะ — ชำระครบแล้ว', need_void: 'ปิดโต๊ะ — ออเดอร์ถูกยกเลิก', st_void: 'ออเดอร์ถูกยกเลิก', voided: 'ยกเลิก', need_closePos: 'ปิดโต๊ะหลังชำระที่แคชเชียร์',
+      need_pay: 'รับชำระเงิน', need_close: 'ปิดโต๊ะ — ชำระครบแล้ว', need_void: 'ปิดโต๊ะ — ออเดอร์ถูกยกเลิก', need_devoff: 'เปิดแท็บเล็ต', need_devbat: 'ชาร์จแท็บเล็ต', devOffS: 'ปิดอยู่', devSince: 'ออฟไลน์ตั้งแต่ {t}', devBat: 'แบต {p}%', tabletsQ: 'แท็บเล็ต', lb_devoff: 'เปิดเครื่อง', lb_devbat: 'ชาร์จ', st_void: 'ออเดอร์ถูกยกเลิก', voided: 'ยกเลิก', need_closePos: 'ปิดโต๊ะหลังชำระที่แคชเชียร์',
       lb_free: 'ว่าง', lb_call: 'เรียก {m}′', lb_bill: 'บิล {m}′', lb_new: 'ออร์เดอร์ใหม่', lb_tokitchen: 'ส่งครัว', lb_ready: 'นำไป', lb_ack: '{n} ไปแล้ว',
       lb_cook: 'รอครัว {m}′', lb_pay: 'รับเงิน', lb_close: 'ปิดโต๊ะ', todo: 'ต้องทำ', atKitchen: 'ในครัว', yourMove: 'ตาคุณ',
       need_call: 'ไปหาแขก', need_bill: 'นำบิลไป', need_new: 'ยืนยันออร์เดอร์', need_tokitchen: 'ส่งออร์เดอร์เข้าครัว', need_ready: 'นำไปเสิร์ฟ — อาหารพร้อม',
@@ -65,7 +65,7 @@
       q_ack: 'သွားမည်', q_done: 'ပြီးပြီ', q_confirm: 'လက်ခံ', q_kitchen: 'မီးဖိုချောင်', q_served: 'ကျွေးပြီး', q_paid: 'ပေးပြီး', q_close: 'ပိတ်', decor: ['ဘား', 'ဝင်ပေါက်', 'ငွေကောင်တာ', 'မီးဖိုချောင်', 'ပြတင်းပေါက်', 'နံရံ'],
       st_tokitchen: 'အော်ဒါ မီးဖိုချောင် မရောက်သေး',
       st_pay: 'ဧည့်သည် ရှိ', st_close: 'အားလုံး ပေးပြီး', allFree: 'စားပွဲအားလုံး အားသည်', due: 'ပေးရန်', later: 'နောက်ထပ်',
-      need_pay: 'ငွေ လက်ခံ', need_close: 'စားပွဲ ပိတ် — ပေးပြီး', need_void: 'စားပွဲ ပိတ် — မှာစာ ပယ်ဖျက်ပြီး', st_void: 'မှာစာ ပယ်ဖျက်ပြီး', voided: 'ပယ်ဖျက်', need_closePos: 'ကောင်တာတွင် ပေးပြီးမှ စားပွဲ ပိတ်',
+      need_pay: 'ငွေ လက်ခံ', need_close: 'စားပွဲ ပိတ် — ပေးပြီး', need_void: 'စားပွဲ ပိတ် — မှာစာ ပယ်ဖျက်ပြီး', need_devoff: 'တက်ဘလက် ဖွင့်ပါ', need_devbat: 'တက်ဘလက် အားသွင်းပါ', devOffS: 'ပိတ်ထား', devSince: '{t} ကတည်းက အော့ဖ်လိုင်း', devBat: 'ဘက်ထရီ {p}%', tabletsQ: 'တက်ဘလက်', lb_devoff: 'ဖွင့်', lb_devbat: 'အားသွင်း', st_void: 'မှာစာ ပယ်ဖျက်ပြီး', voided: 'ပယ်ဖျက်', need_closePos: 'ကောင်တာတွင် ပေးပြီးမှ စားပွဲ ပိတ်',
       lb_free: 'အားသည်', lb_call: 'ခေါ် {m}′', lb_bill: 'ဘေလ် {m}′', lb_new: 'အော်ဒါသစ်', lb_tokitchen: 'မီးဖိုချောင်', lb_ready: 'ယူသွား', lb_ack: '{n} သွားနေ',
       lb_cook: 'စောင့် {m}′', lb_pay: 'ငွေယူ', lb_close: 'ပိတ်', todo: 'လုပ်ရန်', atKitchen: 'မီးဖိုချောင်တွင်', yourMove: 'သင့်အလှည့်',
       need_call: 'ဧည့်သည်ထံ သွား', need_bill: 'ဘေလ် ယူသွား', need_new: 'အော်ဒါ အတည်ပြု', need_tokitchen: 'အော်ဒါကို မီးဖိုချောင်သို့ ပို့', need_ready: 'ယူသွား — အစားအစာ အဆင်သင့်',
@@ -117,9 +117,16 @@
     else if (st === 'cook' && !flow.kitchenScreen && quick.served) q = 'served'; // экрана кухни нет — «Подано» сразу
     else if (st === 'pay' && quick.paid && !many) q = 'paid';
     else if (st === 'close' && quick.close) q = 'close';
-    return { tb, st, since, who, due, total, q, pos: !!s.restaurant?.pos, voided: st === 'close' && !orders.length && !calls.length && voids.length > 0 };
+    // планшет стола: не на связи — «включить», заряд меньше 10% и не заряжается — «на зарядку» (стол чёрный)
+    const tab = s.tablets?.[tb], dev = !tab ? null : tab.off ? 'off' : tab.bat !== null && tab.bat < 10 && !tab.chg ? 'bat' : null;
+    return { tb, st, since, who, due, total, q, pos: !!s.restaurant?.pos, voided: st === 'close' && !orders.length && !calls.length && voids.length > 0,
+      dev, devBat: tab?.bat, devSince: tab?.since || 0 };
   }
+  // планшет не в порядке, а срочного по гостям нет — на плитке про планшет
+  const devFirst = (x) => x.dev && !URGENT.has(x.st);
+  const devText = (x) => (x.dev === 'off' ? `⏻ ${t('devOffS')}` : `🪫 ${x.devBat}%`);
   function sub(x) {
+    if (devFirst(x)) return devText(x);
     if (x.st === 'call' || x.st === 'bill' || x.st === 'new' || x.st === 'tokitchen') return `${{ call: '🔔', bill: '🧾', new: '🍽', tokitchen: '📋' }[x.st]} ${mins(x.since)}′`;
     if (x.st === 'ready') return `✅ ${t('carry')}`;
     if (x.st === 'callAck' || x.st === 'billAck') return `🤵 ${esc(String(x.who).split(' ')[0])}`;
@@ -128,7 +135,7 @@
     if (x.st === 'close') return x.voided ? `✕ ${t('voided')}` : x.total && !x.pos ? `✓ ${t('paidAll')}` : '';
     return '';
   }
-  const statusText = (x) => t('lb_' + (x.st === 'billAck' || x.st === 'callAck' ? 'ack' : x.st)).replace('{m}', mins(x.since)).replace('{n}', String(x.who || '').split(' ')[0]);
+  const statusText = (x) => devFirst(x) ? t(x.dev === 'off' ? 'lb_devoff' : 'lb_devbat') : t('lb_' + (x.st === 'billAck' || x.st === 'callAck' ? 'ack' : x.st)).replace('{m}', mins(x.since)).replace('{n}', String(x.who || '').split(' ')[0]);
   const zonesOf = (floor) => (floor?.zones || []).filter((z) => z.tables.length || z.decor.length);
   const rowsOf = (z, extra = 0) => Math.max(1, ...z.tables.map((x) => x.y + x.h), ...z.decor.map((x) => x.y + x.h)) + extra;
 
@@ -237,7 +244,7 @@
     const z = zones.find((x) => x.id === ui.zone);
     const urgent = (tb) => st[tb] && URGENT.has(st[tb].st);
     const late = (x) => ['call', 'bill', 'new', 'tokitchen'].includes(x.st) && mins(x.since) >= 5;
-    const tileCls = (x) => `ftile ${x.st}${late(x) ? ' late' : ''}${ui.mine && showMine ? (mineSet.has(x.tb) ? ' fmine' : ' fdim') : ''}`;
+    const tileCls = (x) => `ftile ${x.st}${late(x) ? ' late' : ''}${x.dev ? (devFirst(x) ? ' fdev' : ' fdevmark') : ''}${ui.mine && showMine ? (mineSet.has(x.tb) ? ' fmine' : ' fdim') : ''}`;
     const qbtn = (x, cls, style = '') => `<button class="${cls} q-${x.st}" style="${style}" data-fq="${x.q}" data-ftab="${esc(x.tb)}">${t('q_' + x.q)}</button>`;
     const tile = (p, style) => {
       const x = st[p.t] || stateOf(p.t, s, flow, quick, false);
@@ -276,7 +283,7 @@
         const h = Math.min(cell - gap, 36), pos = `left:${cx * cell + gap / 2}px;top:${cy * cell + (cell - h) / 2}px;width:${cell - gap}px;height:${h}px`;
         // кнопка — по ширине текста, с центром в своей клетке (не меньше клетки)
         const bpos = `left:${cx * cell + cell / 2}px;top:${cy * cell + (cell - h) / 2}px;min-width:${cell - gap}px;height:${h}px;transform:translateX(-50%)`;
-        return label ? `<span class="fstat s-${x.st} fs-${side}" style="${pos}">${esc(statusText(x))}</span>` : qbtn(x, `fqn fq-${side}`, bpos);
+        return label ? `<span class="fstat s-${devFirst(x) ? 'dev' : x.st} fs-${side}" style="${pos}">${esc(statusText(x))}</span>` : qbtn(x, `fqn fq-${side}`, bpos);
       }).join('');
       const W = Math.min(el.clientWidth || 360, 560);
       html += zoomWrap(planHtml(z, W, 1, tile, decorDef, Math.max(0, extra), '', overlay));
@@ -291,6 +298,7 @@
     const todo = Object.values(st).filter((x) => RANK[x.st] !== undefined && RANK[x.st] < 7).sort((a, b) => RANK[a.st] - RANK[b.st] || (a.since || 0) - (b.since || 0));
     const later = Object.values(st).filter((x) => x.st === 'pay' || x.st === 'close').sort((a, b) => RANK[a.st] - RANK[b.st]);
     const cooking = Object.values(st).filter((x) => x.st === 'cook').sort((a, b) => a.since - b.since);
+    const devs = Object.values(st).filter((x) => x.dev).sort((a, b) => (a.dev === b.dev ? 0 : a.dev === 'off' ? -1 : 1));
     const where = (x) => esc([zoneOfT(x.tb), ctx.tbl(x.tb)].filter(Boolean).join(' · ')) + (mineSet.has(x.tb) && showMine ? ` · ${t('yours')}` : '');
     const row = (x, title, info) => `<div class="frow r-${x.st}" data-ftab="${esc(x.tb)}"><span class="fdot" style="background:${COLOR[x.st]}">${esc(short(x.tb))}</span>
       <span class="ftx"><b>${title}</b><small>${info} · ${where(x)}</small></span>${x.q ? qbtn(x, 'fqr') : ''}</div>`;
@@ -298,7 +306,10 @@
     if (ui.queue) {
       html += todo.length ? todo.map((x) => row(x, esc(t('need_' + x.st).replace('{n}', String(x.who).split(' ')[0] || '')),
         `${t('st_' + x.st)}${x.since && x.st !== 'ready' ? ` · ${mins(x.since)} ${t('min')}` : ''}`)).join('')
-        : !later.length && !cooking.length ? `<p class="empty">${t('allFree')}</p>` : '';
+        : !later.length && !cooking.length && !devs.length ? `<p class="empty">${t('allFree')}</p>` : '';
+      // планшеты столов: включить, поставить на зарядку
+      if (devs.length) html += `<div class="fqh"><b>${t('tabletsQ')} · ${devs.length}</b></div>` + devs.map((x) => `<div class="frow r-dev" data-ftab="${esc(x.tb)}"><span class="fdot" style="background:#111">${esc(short(x.tb))}</span>
+        <span class="ftx"><b>${esc(t(x.dev === 'off' ? 'need_devoff' : 'need_devbat'))}</b><small>${esc(x.dev === 'off' ? (x.devSince ? t('devSince').replace('{t}', new Date(x.devSince).toTimeString().slice(0, 5)) : t('devOffS')) : t('devBat').replace('{p}', x.devBat))} · ${where(x)}</small></span></div>`).join('');
       if (cooking.length) html += `<div class="fqh"><b>${t('atKitchen')} · ${cooking.length}</b></div>`
         + cooking.map((x) => row(x, `${t('st_cook')} · ${mins(x.since)} ${t('min')}`, t(x.q === 'served' ? 'need_cookNoScreen' : 'need_cook'))).join('');
       // пока стол не освободился: взять оплату, закрыть стол
@@ -452,7 +463,7 @@
 .ftile{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;border:2px solid #d9cdc1;background:#fff;color:#1f1a17;padding:0;line-height:1.1;cursor:pointer;touch-action:manipulation;font:inherit;user-select:none;-webkit-user-select:none}
 .ftile.rd{border-radius:50%}.ftile .fn{font-size:17px;font-weight:800}.ftile .fn.sm{font-size:13px}.ftile .fs{font-size:11px;font-weight:600;margin-top:2px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .compact .ftile .fs{display:none}.compact .ftile .fn{font-size:15px}
-.ftile.free{background:#fff;border-color:#d9cdc1;color:#1f1a17}.ftile.cook{background:var(--f-cook);border-color:var(--f-cook);color:#fff}
+.ftile.free{background:#fff;border-color:#d9cdc1;color:#1f1a17}.ftile.ftile.fdev,.fgrid .ftile.ftile.fdev{background:#111;border-color:#111;color:#fff}.ftile.fdevmark{box-shadow:0 0 0 3px #111}.fstat.s-dev{color:#111;font-weight:800}.ftile.cook{background:var(--f-cook);border-color:var(--f-cook);color:#fff}
 .ftile.call,.ftile.bill,.ftile.ready{color:#fff}.ftile.new{color:#1f1a17}.ftile.call{background:var(--f-call);border-color:var(--f-call)}.ftile.bill{background:var(--f-bill);border-color:var(--f-bill)}
 .ftile.new{background:var(--f-new);border-color:var(--f-new)}.ftile.tokitchen{background:var(--f-kit);border-color:var(--f-kit);color:#fff}.ftile.ready{background:var(--f-ready);border-color:var(--f-ready)}
 .ftile.pay{background:var(--f-pay);border-color:var(--f-pay);color:#fff}.ftile.close{background:var(--f-close);border-color:var(--f-close);color:#fff}
