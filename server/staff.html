@@ -428,7 +428,13 @@ const hhmm = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minu
 const hms = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 let pushLogOpen = false;
 // Вид экрана «Вызовы»: список (как раньше) или схема зала; открытый на схеме стол — карточка снизу
-let workView = (() => { try { return localStorage.workView === 'floor' ? 'floor' : 'list'; } catch { return 'list'; } })();
+// Экран «Вызовы»: по умолчанию — схема зала, список — по выбору (выбор помнит телефон). Один раз всем включаем схему
+let workView = (() => {
+  try {
+    if (localStorage.workViewV2 !== '1') { localStorage.workViewV2 = '1'; localStorage.workView = 'floor'; }
+    return localStorage.workView === 'list' ? 'list' : 'floor';
+  } catch { return 'floor'; }
+})();
 let sheetTable = null;
 // «↩ Отменить …» последнего действия: какая кнопка была нажата — её название на кнопке отмены
 const ACT_LABEL = { 'call:ack': 'going', 'table:ack': 'going', 'order:ack': 'going', 'call:done': 'done', 'order:confirm': 'confirm', 'order:reject': 'reject',
@@ -837,7 +843,7 @@ function render(s, force) {
   const floorOn = workView === 'floor';
   $('listView').hidden = floorOn;
   $('floorView').hidden = !floorOn;
-  $('viewSw').innerHTML = `<span class="vseg"><button class="${floorOn ? '' : 'on'}" data-vsw="list">${t('vList')}</button><button class="${floorOn ? 'on' : ''}" data-vsw="floor">${t('vFloor')}</button></span>`
+  $('viewSw').innerHTML = `<span class="vseg"><button class="${floorOn ? 'on' : ''}" data-vsw="floor">${t('vFloor')}</button><button class="${floorOn ? '' : 'on'}" data-vsw="list">${t('vList')}</button></span>`
     + (floorOn ? `<button data-onew="" data-t="newOrder">${t('newOrder')}</button>` : '');
   if (floorOn) JetFloor.view($('floorView'), floorCtx(s, flow, many));
   if (sheetTable && !(s.restaurant.tables || []).includes(sheetTable)) sheetTable = null;
@@ -1478,6 +1484,7 @@ function showTab(id) {
     return;
   }
   if (id !== 'tWork') loadManager();
+  else if (last) render(last, true); // вернулись на «Вызовы» — схема и список сразу по-новому (пока были скрыты, размеров не было)
 }
 
 // Вкладка «Устройства» обновляется сама: статус связи и заряд — как в портале администратора

@@ -10,7 +10,7 @@
       q_ack: 'Иду', q_done: 'Готово', q_confirm: 'Принять', q_kitchen: 'На кухню', q_served: 'Подано', q_paid: 'Оплачен', q_close: 'Закрыть',
       st_tokitchen: 'Заказ не отдан на кухню',
       st_pay: 'Гости за столом', st_close: 'Всё оплачено', allFree: 'Все столы свободны', due: 'к оплате', later: 'Дальше по столам',
-      need_pay: 'Взять оплату', need_close: 'Закрыть стол — всё оплачено', need_closePos: 'Закрыть стол после оплаты в кассе',
+      need_pay: 'Взять оплату', need_close: 'Закрыть стол — всё оплачено', need_void: 'Закрыть стол — заказ отменён', st_void: 'Заказ отменён', voided: 'отменён', need_closePos: 'Закрыть стол после оплаты в кассе',
       lb_free: 'свободен', lb_call: 'вызов {m}′', lb_bill: 'счёт {m}′', lb_new: 'новый заказ', lb_tokitchen: 'отдать на кухню', lb_ready: 'нести', lb_ack: 'идёт {n}',
       lb_cook: 'ждём кухню {m}′', lb_pay: 'взять оплату', lb_close: 'закрыть стол', todo: 'Нужно сделать', atKitchen: 'На кухне', yourMove: 'ваш ход',
       need_call: 'Подойти к гостю', need_bill: 'Принести счёт', need_new: 'Подтвердить заказ', need_tokitchen: 'Отдать заказ на кухню', need_ready: 'Отнести — блюда готовы',
@@ -32,7 +32,7 @@
       q_ack: 'Going', q_done: 'Done', q_confirm: 'Accept', q_kitchen: 'To kitchen', q_served: 'Served', q_paid: 'Paid', q_close: 'Close',
       st_tokitchen: 'Order not in the kitchen yet',
       st_pay: 'Guests at the table', st_close: 'All paid', allFree: 'All tables are free', due: 'to pay', later: 'Next at the tables',
-      need_pay: 'Take the payment', need_close: 'Close the table — all paid', need_closePos: 'Close the table after payment at the cashier',
+      need_pay: 'Take the payment', need_close: 'Close the table — all paid', need_void: 'Close the table — order cancelled', st_void: 'Order cancelled', voided: 'cancelled', need_closePos: 'Close the table after payment at the cashier',
       lb_free: 'free', lb_call: 'call {m}′', lb_bill: 'bill {m}′', lb_new: 'new order', lb_tokitchen: 'to kitchen', lb_ready: 'carry', lb_ack: '{n} going',
       lb_cook: 'kitchen {m}′', lb_pay: 'take payment', lb_close: 'close table', todo: 'To do', atKitchen: 'In the kitchen', yourMove: 'your move',
       need_call: 'Go to the guest', need_bill: 'Bring the bill', need_new: 'Confirm the order', need_tokitchen: 'Pass the order to the kitchen', need_ready: 'Carry it — the food is ready',
@@ -54,7 +54,7 @@
       q_ack: 'กำลังไป', q_done: 'เสร็จ', q_confirm: 'รับ', q_kitchen: 'ส่งครัว', q_served: 'เสิร์ฟแล้ว', q_paid: 'ชำระแล้ว', q_close: 'ปิดโต๊ะ', decor: ['บาร์', 'ทางเข้า', 'แคชเชียร์', 'ครัว', 'หน้าต่าง', 'ผนัง'],
       st_tokitchen: 'ออร์เดอร์ยังไม่ถึงครัว',
       st_pay: 'แขกอยู่ที่โต๊ะ', st_close: 'ชำระครบแล้ว', allFree: 'ทุกโต๊ะว่าง', due: 'ค้างชำระ', later: 'ต่อไปที่โต๊ะ',
-      need_pay: 'รับชำระเงิน', need_close: 'ปิดโต๊ะ — ชำระครบแล้ว', need_closePos: 'ปิดโต๊ะหลังชำระที่แคชเชียร์',
+      need_pay: 'รับชำระเงิน', need_close: 'ปิดโต๊ะ — ชำระครบแล้ว', need_void: 'ปิดโต๊ะ — ออเดอร์ถูกยกเลิก', st_void: 'ออเดอร์ถูกยกเลิก', voided: 'ยกเลิก', need_closePos: 'ปิดโต๊ะหลังชำระที่แคชเชียร์',
       lb_free: 'ว่าง', lb_call: 'เรียก {m}′', lb_bill: 'บิล {m}′', lb_new: 'ออร์เดอร์ใหม่', lb_tokitchen: 'ส่งครัว', lb_ready: 'นำไป', lb_ack: '{n} ไปแล้ว',
       lb_cook: 'รอครัว {m}′', lb_pay: 'รับเงิน', lb_close: 'ปิดโต๊ะ', todo: 'ต้องทำ', atKitchen: 'ในครัว', yourMove: 'ตาคุณ',
       need_call: 'ไปหาแขก', need_bill: 'นำบิลไป', need_new: 'ยืนยันออร์เดอร์', need_tokitchen: 'ส่งออร์เดอร์เข้าครัว', need_ready: 'นำไปเสิร์ฟ — อาหารพร้อม',
@@ -65,7 +65,7 @@
       q_ack: 'သွားမည်', q_done: 'ပြီးပြီ', q_confirm: 'လက်ခံ', q_kitchen: 'မီးဖိုချောင်', q_served: 'ကျွေးပြီး', q_paid: 'ပေးပြီး', q_close: 'ပိတ်', decor: ['ဘား', 'ဝင်ပေါက်', 'ငွေကောင်တာ', 'မီးဖိုချောင်', 'ပြတင်းပေါက်', 'နံရံ'],
       st_tokitchen: 'အော်ဒါ မီးဖိုချောင် မရောက်သေး',
       st_pay: 'ဧည့်သည် ရှိ', st_close: 'အားလုံး ပေးပြီး', allFree: 'စားပွဲအားလုံး အားသည်', due: 'ပေးရန်', later: 'နောက်ထပ်',
-      need_pay: 'ငွေ လက်ခံ', need_close: 'စားပွဲ ပိတ် — ပေးပြီး', need_closePos: 'ကောင်တာတွင် ပေးပြီးမှ စားပွဲ ပိတ်',
+      need_pay: 'ငွေ လက်ခံ', need_close: 'စားပွဲ ပိတ် — ပေးပြီး', need_void: 'စားပွဲ ပိတ် — မှာစာ ပယ်ဖျက်ပြီး', st_void: 'မှာစာ ပယ်ဖျက်ပြီး', voided: 'ပယ်ဖျက်', need_closePos: 'ကောင်တာတွင် ပေးပြီးမှ စားပွဲ ပိတ်',
       lb_free: 'အားသည်', lb_call: 'ခေါ် {m}′', lb_bill: 'ဘေလ် {m}′', lb_new: 'အော်ဒါသစ်', lb_tokitchen: 'မီးဖိုချောင်', lb_ready: 'ယူသွား', lb_ack: '{n} သွားနေ',
       lb_cook: 'စောင့် {m}′', lb_pay: 'ငွေယူ', lb_close: 'ပိတ်', todo: 'လုပ်ရန်', atKitchen: 'မီးဖိုချောင်တွင်', yourMove: 'သင့်အလှည့်',
       need_call: 'ဧည့်သည်ထံ သွား', need_bill: 'ဘေလ် ယူသွား', need_new: 'အော်ဒါ အတည်ပြု', need_tokitchen: 'အော်ဒါကို မီးဖိုချောင်သို့ ပို့', need_ready: 'ယူသွား — အစားအစာ အဆင်သင့်',
@@ -88,6 +88,7 @@
   function stateOf(tb, s, flow, quick, many) {
     const calls = s.calls.filter((c) => c.table === tb);
     const orders = s.orders.filter((o) => o.table === tb && o.status !== 'rejected');
+    const voids = s.orders.filter((o) => o.table === tb && o.status === 'rejected');
     const nc = calls.filter((c) => c.status === 'new'), ac = calls.filter((c) => c.status !== 'new');
     const pending = orders.filter((o) => o.status === 'pending');
     const ready = orders.filter((o) => o.status === 'confirmed' && o.readyAt && !o.servedAt);
@@ -105,7 +106,8 @@
     else if (ac.length) { st = ac.some((c) => c.type !== 'bill') ? 'callAck' : 'billAck'; who = ac[0].by || ''; }
     else if (cooking.length) { st = 'cook'; since = first(cooking, (o) => o.kitchenAt || o.cookFrom || o.confirmedAt || o.at); }
     // стол занят, срочного нет: пока не освободится — взять оплату, потом закрыть стол
-    else if (orders.length || calls.length) st = !s.restaurant?.pos && due > 0 ? 'pay' : 'close';
+    // остались только отменённые заказы — гостю виден «отменён», пока стол не закрыли: тоже «закрыть стол»
+    else if (orders.length || calls.length || voids.length) st = !s.restaurant?.pos && due > 0 ? 'pay' : 'close';
     let q = null;
     if ((st === 'call' || st === 'bill') && quick.ack) q = 'ack';
     else if (st === 'new' && quick.confirm) q = 'confirm';
@@ -115,7 +117,7 @@
     else if (st === 'cook' && !flow.kitchenScreen && quick.served) q = 'served'; // экрана кухни нет — «Подано» сразу
     else if (st === 'pay' && quick.paid && !many) q = 'paid';
     else if (st === 'close' && quick.close) q = 'close';
-    return { tb, st, since, who, due, total, q, pos: !!s.restaurant?.pos };
+    return { tb, st, since, who, due, total, q, pos: !!s.restaurant?.pos, voided: st === 'close' && !orders.length && !calls.length && voids.length > 0 };
   }
   function sub(x) {
     if (x.st === 'call' || x.st === 'bill' || x.st === 'new' || x.st === 'tokitchen') return `${{ call: '🔔', bill: '🧾', new: '🍽', tokitchen: '📋' }[x.st]} ${mins(x.since)}′`;
@@ -123,7 +125,7 @@
     if (x.st === 'callAck' || x.st === 'billAck') return `🤵 ${esc(String(x.who).split(' ')[0])}`;
     if (x.st === 'cook') return `🍳 ${mins(x.since)}′`;
     if (x.st === 'pay') return money(x.due);
-    if (x.st === 'close') return x.total && !x.pos ? `✓ ${t('paidAll')}` : '';
+    if (x.st === 'close') return x.voided ? `✕ ${t('voided')}` : x.total && !x.pos ? `✓ ${t('paidAll')}` : '';
     return '';
   }
   const statusText = (x) => t('lb_' + (x.st === 'billAck' || x.st === 'callAck' ? 'ack' : x.st)).replace('{m}', mins(x.since)).replace('{n}', String(x.who || '').split(' ')[0]);
@@ -155,8 +157,14 @@
   function attachZoom(root, key, maxH, opts = {}) {
     const wrap = root.querySelector('.fzwrap'), plan = wrap?.querySelector('.fplan');
     if (!plan) return;
-    // экран ещё скрыт (приложение открывается) — размеров нет; считаем, когда схема станет видна
-    if (!wrap.clientWidth || !plan.offsetWidth) { if ((opts.tries || 0) < 50) setTimeout(() => wrap.isConnected && attachZoom(root, key, maxH, { ...opts, tries: (opts.tries || 0) + 1 }), 150); return; }
+    // схема скрыта (другая вкладка ЛК, приложение открывается) — размеров нет; считаем, как только станет видна
+    if (!wrap.clientWidth || !plan.offsetWidth) {
+      if (window.ResizeObserver) {
+        const ro = new ResizeObserver(() => { if (!wrap.isConnected) return ro.disconnect(); if (wrap.clientWidth && plan.offsetWidth) { ro.disconnect(); attachZoom(root, key, maxH, opts); } });
+        ro.observe(wrap); ro.observe(plan);
+      } else setTimeout(() => wrap.isConnected && attachZoom(root, key, maxH, opts), 300);
+      return;
+    }
     const W = wrap.clientWidth, w = plan.offsetWidth, h = plan.offsetHeight;
     const fit = Math.min(1.3, W / w, Math.max(160, maxH) / h), st = zget(key);
     if (!st.z || Math.abs(st.z - (st.fit || fit)) < 0.01) st.z = fit; // был «вся зона» — остаётся «вся зона» при другом экране
@@ -295,8 +303,8 @@
         + cooking.map((x) => row(x, `${t('st_cook')} · ${mins(x.since)} ${t('min')}`, t(x.q === 'served' ? 'need_cookNoScreen' : 'need_cook'))).join('');
       // пока стол не освободился: взять оплату, закрыть стол
       if (later.length) html += `<div class="fqh"><b>${t('later')} · ${later.length}</b></div>`
-        + later.map((x) => row(x, x.st === 'pay' ? `${t('need_pay')} · ${money(x.due)}` : t(x.pos ? 'need_closePos' : 'need_close'),
-          x.st === 'pay' ? `${t('st_pay')} · ${t('due')} ${money(x.due)}` : t('st_close'))).join('');
+        + later.map((x) => row(x, x.st === 'pay' ? `${t('need_pay')} · ${money(x.due)}` : t(x.voided ? 'need_void' : x.pos ? 'need_closePos' : 'need_close'),
+          x.st === 'pay' ? `${t('st_pay')} · ${t('due')} ${money(x.due)}` : t(x.voided ? 'st_void' : 'st_close'))).join('');
     }
     html += '</div>';
     el.innerHTML = html;

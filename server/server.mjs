@@ -1991,8 +1991,9 @@ function staffUndo(b) {
   if (u.after.some((a) => JSON.stringify(find(a)) !== a.json)) throw fail(409, 'Отменить нельзя: после этого стол уже изменился');
   const changed = u.before.filter((a) => u.after.find((x) => x.id === a.id)?.json !== a.json);
   for (const a of changed) { const x = find(a); for (const k of Object.keys(x)) delete x[k]; Object.assign(x, JSON.parse(a.json)); }
-  // новый заказ официанта: отменяем (кухня увидит «отменён»), из статистики он уходит вместе с событиями
-  for (const id of u.created || []) Object.assign(find({ type: 'order', id }), { status: 'rejected', rejectedAt: Date.now(), cancelledAt: Date.now(), cancelledBy: member.name, cancelNote: '↩' });
+  // новый заказ официанта, созданный по ошибке: заказа как бы не было — со стола он уходит сразу (стол свободен, если на нём
+  // больше ничего); кухня, если уже видела его, — увидит «отменён»; из статистики он уходит вместе с событиями
+  for (const id of u.created || []) Object.assign(find({ type: 'order', id }), { status: 'rejected', rejectedAt: Date.now(), cancelledAt: Date.now(), cancelledBy: member.name, cancelNote: '↩', closed: Date.now() });
   if (u.act === 'order:remove') r.removedIds = (r.removedIds || []).filter((id) => !u.before.some((a) => a.id === id));
   for (const a of [...changed, ...(u.created || []).map((id) => ({ type: 'order', id }))]) if (a.type === 'order') hist(find(a), 'revert', member.name, { of: u.act });
   logEvent(r.id, 'undo', { by: member.id, bn: member.name, table: u.table, of: u.act, acts: u.events });
