@@ -13,7 +13,7 @@ import { fetchMenu, POS_VENDORS } from './menu-sources.mjs';
 import { tgApi, tgSend, tgFindChats } from './telegram.mjs';
 import { THEMES, themeOf } from './themes.mjs';
 import { ELEVEN_MODELS, elevenVoices, elevenUsage, cachedTts, synthesize } from './eleven.mjs';
-import { eventLog, thDay, restaurantReport, networkReport } from './stats.mjs';
+import { eventLog, thDay, restaurantReport, networkReport, unmergeMarks } from './stats.mjs';
 import { countRequest, selfStats, hostStats } from './sysinfo.mjs';
 import { DISTRICTS, DISTRICT_IDS, OUTLINE, cleanGeo, resolveMapLink } from './geo.mjs';
 import { writeZip } from './zip.mjs';
@@ -466,7 +466,7 @@ function auditText(method, p, b) {
   const dev = (x) => decodeURIComponent(x);
   if (p === '/api/restaurants') return [`Ресторан сохранён: ${b.name || ''}`, b.id];
   if ((m = p.match(/^\/api\/restaurants\/([^/]+)\/sync$/))) return [b.once ? 'Меню загружено из источника один раз, дальше — вручную' : 'Синхронизация меню', m[1]];
-  if ((m = p.match(/^\/api\/restaurants\/([^/]+)\/test-visit$/))) return [`Статистика: визит ${b.test ? 'помечен тестовым' : 'снова учитывается'}`, m[1]];
+  if ((m = p.match(/^\/api\/restaurants\/([^/]+)\/test-visit$/))) return [`Статистика: ${b.test ? 'помечено тестовым' : 'снова учитывается'} — ${visitLabel(b.label) || 'визит'}`, m[1]];
   if ((m = p.match(/^\/api\/restaurants\/([^/]+)$/))) return [`Ресторан удалён: ${m[1]}`, m[1]];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/command$/))) return [`Команда «${b.type}» устройству ${dev(m[1])}`, db.devices[dev(m[1])]?.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/wifi$/))) return [`Wi-Fi устройства ${dev(m[1])}: ${(b.list || []).map((n) => n.ssid + (n.primary ? ' (основная)' : '')).join(', ') || 'своих сетей нет'}`, db.devices[dev(m[1])]?.restaurantId];
@@ -1007,6 +1007,8 @@ function hoursOf(r) {
   return Number.isFinite(h.from) && Number.isFinite(h.to) ? { from: h.from, to: h.to, src: 'manual' } : null;
 }
 // Время ts — в часы работы (с запасом margin минут до и после)? Часов нет — считаем, что работает всегда
+// Начало рабочего дня ресторана для статистики (визит не переходит через него): открытие по часам работы
+const dayFrom = (r) => hoursOf(r)?.from ?? null;
 function isWorking(r, ts = Date.now(), margin = 30) {
   const h = hoursOf(r);
   if (!h) return true;
@@ -1223,6 +1225,38 @@ function cleanUploads() {
 }
 setTimeout(cleanUploads, 10 * 60_000).unref();
 setInterval(cleanUploads, 864e5).unref();
+
+// Забытые столы: не закрыли до конца рабочего дня — к открытию следующего закрываем сами (планшет гостя не показывает
+// вчерашние вызовы и заказы, официанту не закрывать их утром). Стол без действий меньше 3 часов не трогаем (ранние гости).
+// Часов работы нет (демо) — закрываем после 12 часов без действий. Проверка раз в 5 минут
+const lastActAt = (x) => Math.max(x.at || 0, ...Object.entries(x).filter(([k, v]) => /At$/.test(k) && typeof v === 'number').map(([, v]) => v));
+function autoCloseTables(now = Date.now()) {
+  let changed = false;
+  for (const r of Object.values(db.restaurants)) {
+    const last = {};
+    for (const x of [...db.calls, ...db.orders]) if (x.restaurantId === r.id && !x.closed && x.table) last[x.table] = Math.max(last[x.table] || 0, lastActAt(x));
+    const h = hoursOf(r);
+    // последнее открытие ресторана (по Пхукету), не позже сейчас
+    const opened = h ? now - ((((bkkMin(now) - h.from) % 1440) + 1440) % 1440) * 60_000 : 0;
+    const done = [];
+    for (const [tb, at] of Object.entries(last)) {
+      const stale = h ? isWorking(r, now, 0) && at < opened && now - at > 3 * 3600_000 : now - at > 12 * 3600_000;
+      if (!stale) continue;
+      for (const x of [...db.calls, ...db.orders]) if (x.restaurantId === r.id && x.table === tb && !x.closed) { x.closed = now; x.autoClosed = now; }
+      dropTableKey(r, tb);
+      (r.visits ??= {})[tb] = now;
+      logEvent(r.id, 'close', { table: tb, auto: 1 });
+      done.push(tb);
+    }
+    if (done.length) {
+      changed = true;
+      audit('система', `Столы закрыты автоматически — остались открытыми с прошлого рабочего дня: ${done.join(', ')}`, r.id);
+    }
+  }
+  if (changed) save();
+}
+setTimeout(() => autoCloseTables(), 60_000).unref();
+setInterval(() => autoCloseTables(), 5 * 60_000).unref();
 
 // Садится аккумулятор: 15% и меньше, не заряжается, экран включён — пишем в Telegram одним сообщением на ресторан,
 // только в часы работы и не чаще раза в 4 часа на планшет; поставили на зарядку или заряд вырос до 25% — отметка снимается
@@ -2127,9 +2161,12 @@ function staffActionDo(b) {
   } else if (b.kind === 'order' && (b.action === 'test' || b.action === 'untest')) {
     // «Тестовый заказ» — только менеджер: весь визит стола с этим заказом не идёт в статистику
     if (member.role !== 'manager') throw fail(403, 'managers only');
-    if (!db.orders.some((y) => y.id === b.id && y.restaurantId === r.id)) throw fail(400, 'bad action');
-    markTest(r, [b.id], b.action === 'test');
-    audit(`${member.name} (менеджер)`, `Заказ ${b.action === 'test' ? 'помечен тестовым' : 'снова учитывается'}`, r.id);
+    const o = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id);
+    if (!o) throw fail(400, 'bad action');
+    // весь визит стола, какой он сейчас (вызовы и заказы); новые заказы после этого — настоящие
+    const ids = o.closed ? [o.id] : [...openAt(db.calls, r, o.table), ...openAt(db.orders, r, o.table)].map((x) => x.id);
+    markTest(r, ids, b.action === 'test', member.name);
+    audit(`${member.name} (менеджер)`, `Заказ ${b.action === 'test' ? 'помечен тестовым' : 'снова учитывается'} — ${o.table}`, r.id);
   } else if (b.kind === 'order' && b.action === 'served') {
     // «🍽 Подано»: официант принёс заказ. Кухня «Готово» не отмечала (экран не работает, кухня на бумаге) — отмечаем и её
     const x = db.orders.find((y) => y.id === b.id && y.restaurantId === r.id && y.status === 'confirmed' && !y.servedAt);
@@ -2528,11 +2565,12 @@ function managerSave(b) {
     const foreign = b.staff.find((m) => m.id && !mine.has(m.id) && Object.values(db.restaurants).some((o) => o.id !== r.id && (o.staff || []).some((x) => x.id === m.id)));
     if (foreign) throw fail(409, 'В списке персонала сотрудники другого ресторана — обновите страницу и повторите');
   }
-  const changed = Object.keys(SECTIONS).filter((k) => b[k] !== undefined).map((k) => SECTIONS[k]);
+  const changed = Object.keys(SECTIONS).filter((k) => b[k] !== undefined && k !== 'testVisit').map((k) => SECTIONS[k]);
+  if (b.testVisit) audit(`${member.name} (менеджер)`, `Статистика: ${b.testVisit.test ? 'помечено тестовым' : 'снова учитывается'} — ${visitLabel(b.testVisit.label) || 'визит'}`, r.id);
   if (changed.length) audit(`${member.name} (менеджер)`, `ЛК: сохранено — ${changed.join(', ')}`, r.id);
   if (Array.isArray(b.staff)) setStaff(r, b.staff, b.fired || {});
   if (Array.isArray(b.staffArchive)) setArchive(r, b.staffArchive);
-  if (b.testVisit) markTest(r, b.testVisit.ids, b.testVisit.test);
+  if (b.testVisit) markTest(r, b.testVisit.ids, b.testVisit.test, member.name);
   // Меню из ЛК: при синхронизации — только ★ блюдо дня, 📣 в показе акций, ⦸ скрыть (хештеги и настройки синхронизации — в админке)
   if (Array.isArray(b.menu)) setMenu(r, b.menu, undefined, false);
   if (Array.isArray(b.promos)) r.promos = cleanPromos(b.promos);
@@ -2618,7 +2656,7 @@ function cleanFloor(f, r) {
 function managerStats(b, q) {
   const { r } = managerSession(q.token);
   const { from, to } = period(q);
-  return restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r), tests: q.tests === '1' });
+  return restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r), tests: q.tests === '1', dayFrom });
 }
 
 async function managerSync(b) {
@@ -3442,14 +3480,22 @@ function setArchive(r, list) {
   for (const x of list || []) { const a = (r.staffArchive || []).find((y) => y.id === x.id); if (a) a.test = !!x.test; }
 }
 // Пометка визита стола «тест»: его заказы и вызовы (ids) — в r.testIds
-function markTest(r, ids, test) {
+// «Тест» в статистике: помечаем вызовы и заказы визита, какие есть сейчас (новые, пришедшие позже, — настоящие);
+// who — кто пометил: видно в журнале визитов
+function markTest(r, ids, test, who = '') {
   const set = new Set(r.testIds || []);
   // весь период разом — до 10 000 заказов за раз
   const list = new Set((Array.isArray(ids) ? ids : []).map(String).slice(0, 10000));
-  for (const id of list) test ? set.add(id) : set.delete(id);
+  r.testBy ??= {};
+  for (const id of list) {
+    if (test) { set.add(id); r.testBy[id] = [String(who).slice(0, 60), Date.now()]; } else { set.delete(id); delete r.testBy[id]; }
+  }
   r.testIds = [...set].slice(-20000);
+  if (Object.keys(r.testBy).length > r.testIds.length) { const keep = new Set(r.testIds); for (const id of Object.keys(r.testBy)) if (!keep.has(id)) delete r.testBy[id]; }
   for (const o of db.orders) if (o.restaurantId === r.id && list.has(o.id)) o.test = !!test;
 }
+// подпись визита для журнала админки: «Стол 24, визит 08.11 12:07»
+const visitLabel = (l) => cut(l, 80);
 const period = (q) => {
   const now = Date.now(), to = Math.min(Number(q.to) || now, now + 864e5);
   return { to, from: Math.max(Number(q.from) || to - 7 * 864e5, to - 400 * 864e5) };
@@ -3479,8 +3525,8 @@ function admin(method, p, b, me, q) {
     const r = q.r && rids.has(q.r) ? db.restaurants[q.r] : null;
     return {
       restaurants: [...rids].map((id) => ({ id, name: db.restaurants[id].name })),
-      network: networkReport({ log: events, db, rids: r ? new Set([r.id]) : rids, from, to, tests: q.tests === '1' }),
-      restaurant: r ? restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r), tests: q.tests === '1' }) : null,
+      network: networkReport({ log: events, db, rids: r ? new Set([r.id]) : rids, from, to, tests: q.tests === '1', dayFrom }),
+      restaurant: r ? restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r), tests: q.tests === '1', dayFrom }) : null,
     };
   }
   if (p.startsWith('/api/telegram')) return telegramAdmin(method, p, b);
@@ -3676,7 +3722,7 @@ function admin(method, p, b, me, q) {
   m = p.match(/^\/api\/restaurants\/([^/]+)\/test-visit$/);
   if (m && method === 'POST' && db.restaurants[m[1]]) {
     if (scope && !scope.has(m[1])) throw fail(403, 'Нет доступа к этому ресторану');
-    markTest(db.restaurants[m[1]], b.ids, b.test);
+    markTest(db.restaurants[m[1]], b.ids, b.test, me.name || me.email);
     save();
     return {};
   }
@@ -4092,6 +4138,22 @@ if (!db.migrations.menuOff) {
 if (INSTANCE === 'test' && !db.migrations.testInstance) {
   for (const x of Object.values(db.sessions)) x.subs = [];
   db.migrations.testInstance = Date.now();
+  save();
+}
+
+// Однократно: раньше визит шёл до «Закрыть стол», и забытый стол склеивал вчерашнее с сегодняшним — «Тест» на таком
+// визите метил и настоящие заказы следующих дней. Их возвращаем в статистику (последние 30 дней)
+if (!db.migrations.unmergeMarks) {
+  const to = Date.now(), from = to - 30 * 864e5;
+  for (const r of Object.values(db.restaurants)) {
+    if (!(r.testIds || []).length) continue;
+    const back = unmergeMarks({ log: events, r, from, to, dayFrom: dayFrom(r) });
+    if (!back.length) continue;
+    markTest(r, back, false);
+    audit('система', `Статистика: ${back.length} заказов и вызовов снова учитываются — были помечены «Тест» вместе с незакрытым столом прошлого дня`, r.id);
+    console.log(`${r.name}: вернули в статистику ${back.length} заказов и вызовов из склеенных визитов`);
+  }
+  db.migrations.unmergeMarks = Date.now();
   save();
 }
 

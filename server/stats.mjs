@@ -273,22 +273,30 @@ function promoStats(ev, r, stats, days) {
 // Тестовое: всё раньше r.testBefore; действия тестовых сотрудников (галочка в «Персонале», в т. ч. уволенных
 // с «убрать статистику»); заказы и визиты, помеченные «тест». Визит стола (от «стол открыт» до «закрыть стол»),
 // где есть тестовое, выпадает целиком: заказы, вызовы, реакции, действия гостя.
-export function testCtx(r) {
+// dayFrom — начало рабочего дня ресторана (минуты от полуночи по Пхукету; нет часов — 6:00): визит не переходит через него
+export function testCtx(r, dayFrom) {
   const staff = [...(r.staff || []), ...(r.staffArchive || [])].filter((m) => m.test);
   return { ids: new Set(staff.map((m) => m.id)), names: new Set(staff.map((m) => m.name)), marks: new Set(r.testIds || []), before: r.testBefore || 0,
-    removed: new Set(r.removedIds || []) }; // заказы, удалённые менеджером как дубль
+    removed: new Set(r.removedIds || []), // заказы, удалённые менеджером как дубль
+    by: r.testBy || {}, dayFrom: Number.isFinite(dayFrom) ? dayFrom : 360 }; // кто и когда пометил «Тест»
 }
 const isTestStaff = (c, e) => !!e.by && (c.ids.has(e.by) || (e.by.startsWith('name:') && c.names.has(e.by.slice(5))));
 
-// Визиты столов и почему визит тестовый: 'before' — прошлые данные, 'staff' — тестовый сотрудник, 'mark' — помечен
-function visitsOf(ev, ctxs) {
+// Визиты столов и почему визит тестовый: 'before' — прошлые данные, 'staff' — тестовый сотрудник, 'mark' — помечен весь;
+// part — помечена часть (новые заказы, пришедшие в визит после пометки, — настоящие).
+// Визит заканчивается «Закрыть стол», а если стол забыли закрыть — после 3 часов без действий или с началом нового рабочего дня
+// (split: false — как было раньше, только «Закрыть стол»: для однократного пересчёта старых пометок)
+const VISIT_GAP_MS = 3 * 3600e3;
+const workDay = (c, t) => Math.floor((t + 7 * 3600e3 - c.dayFrom * 60e3) / 864e5);
+function visitsOf(ev, ctxs, { split = true } = {}) {
   const out = [], open = {};
   for (const e of ev) {
     const c = ctxs[e.r];
     if (!c || !e.table) continue;
-    const key = `${e.r}|${e.table}`;
+    const key = `${e.r}|${e.table}`, v0 = open[key];
     // Стол, оставшийся открытым с прошлых (тестовых) данных: после отметки начинается новый визит
-    if (e.k === 'open' || !open[key] || (open[key].from < c.before && e.t >= c.before)) {
+    if (e.k === 'open' || !v0 || (v0.from < c.before && e.t >= c.before)
+      || (split && (e.t - v0.to > VISIT_GAP_MS || workDay(c, e.t) !== workDay(c, v0.to)))) {
       if (open[key]) out.push(open[key]);
       open[key] = { r: e.r, table: e.table, from: e.t, to: e.t, ids: [], orders: 0, total: 0, staff: new Set(), events: [], why: null };
     }
@@ -298,16 +306,47 @@ function visitsOf(ev, ctxs) {
     if (e.id && !v.ids.includes(e.id)) v.ids.push(e.id);
     if (e.k === 'order') { v.orders++; v.total += e.total || 0; }
     if (e.bn) v.staff.add(e.bn);
-    v.why ||= e.t < c.before ? 'before' : isTestStaff(c, e) ? 'staff' : e.id && c.marks.has(e.id) ? 'mark' : null;
+    v.why ||= e.t < c.before ? 'before' : isTestStaff(c, e) ? 'staff' : null;
     if (e.k === 'close') { out.push(v); delete open[key]; }
   }
-  return out.concat(Object.values(open));
+  const all = out.concat(Object.values(open));
+  // «Тест» поставлен вручную: весь визит или его часть; кто и когда пометил — по последней пометке
+  for (const v of all) {
+    const c = ctxs[v.r], marked = v.ids.filter((id) => c.marks.has(id));
+    if (!marked.length) continue;
+    const by = marked.map((id) => c.by[id]).filter(Array.isArray).sort((a, b) => (b[1] || 0) - (a[1] || 0))[0];
+    if (by) { v.markBy = by[0]; v.markAt = by[1]; }
+    if (v.why) continue;
+    if (marked.length === v.ids.length) v.why = 'mark';
+    else v.part = { marked: marked.length, total: v.ids.length };
+  }
+  return all;
+}
+
+// Однократно: раньше визит шёл до «Закрыть стол», и забытый стол склеивал вчерашнее с сегодняшним — галочка «Тест»
+// на таком визите метила и настоящие заказы следующих дней. Части склеенного визита после первой, где были заказы,
+// возвращаем в статистику: отдаём их номера, чтобы снять пометку
+export function unmergeMarks({ log, r, from, to, dayFrom }) {
+  const ctxs = { [r.id]: testCtx(r, dayFrom) };
+  const ev = finalOrders(log.read(from, to, new Set([r.id])));
+  const next = visitsOf(ev, ctxs), whereOf = new Map();
+  next.forEach((v) => v.events.forEach((e) => whereOf.set(e, v)));
+  const back = new Set();
+  for (const old of visitsOf(ev, ctxs, { split: false })) {
+    if (old.events.some((e) => e.t < ctxs[r.id].before || isTestStaff(ctxs[r.id], e)) || !old.ids.some((id) => ctxs[r.id].marks.has(id))) continue;
+    const parts = [...new Set(old.events.map((e) => whereOf.get(e)))].sort((a, b) => a.from - b.from);
+    for (const v of parts.slice(1)) if (v.events.some((e) => e.k === 'order')) v.ids.forEach((id) => back.add(id));
+  }
+  return [...back].filter((id) => ctxs[r.id].marks.has(id));
 }
 
 // Только «боевые» события
 function realOnly(ev, ctxs) {
   const drop = new Set();
-  for (const v of visitsOf(ev, ctxs)) if (v.why) v.events.forEach((e) => drop.add(e));
+  for (const v of visitsOf(ev, ctxs)) {
+    if (v.why) v.events.forEach((e) => drop.add(e));
+    else if (v.part) v.events.forEach((e) => { if (e.id && ctxs[v.r].marks.has(e.id)) drop.add(e); }); // только помеченное
+  }
   return ev.filter((e) => {
     const c = ctxs[e.r];
     return !drop.has(e) && (!c || (e.t >= c.before && !isTestStaff(c, e) && !(e.id && c.removed?.has(e.id))));
@@ -317,19 +356,22 @@ function realOnly(ev, ctxs) {
 const realDays = (days, c) => (c?.before ? days.filter((d) => d > thDay(c.before)) : days);
 
 // Отчёт ресторана (ЛК менеджера и портал при выборе одного ресторана); tests — показать вместе с тестовыми
-export function restaurantReport({ log, db, r, from, to, staffNames, tests }) {
+export function restaurantReport({ log, db, r, from, to, staffNames, tests, dayFrom = () => null }) {
   const rids = new Set([r.id]);
-  const ctxs = { [r.id]: testCtx(r) };
+  const ctxs = { [r.id]: testCtx(r, dayFrom(r)) };
   const raw = finalOrders(log.read(from, to, rids));
   const ev = tests ? raw : realOnly(raw, ctxs);
   const prevRaw = finalOrders(log.read(from - (to - from), from, rids));
   const prev = tests ? prevRaw : realOnly(prevRaw, ctxs);
   const days = tests ? daysIn(from, to) : realDays(daysIn(from, to), ctxs[r.id]);
   const all = visitsOf(raw, ctxs).filter((v) => v.ids.length);
-  const testVisits = all.filter((v) => v.why);
+  const testVisits = all.filter((v) => v.why), partVisits = all.filter((v) => v.part);
+  // из частично помеченных — только помеченные заказы
+  const partOrders = partVisits.flatMap((v) => v.events.filter((e) => e.k === 'order' && ctxs[r.id].marks.has(e.id)));
   return {
     from, to, tests: !!tests, summary: summary(ev), prev: summary(prev), reaction: reaction(ev),
-    excluded: { visits: testVisits.length, orders: testVisits.reduce((s, v) => s + v.orders, 0), total: testVisits.reduce((s, v) => s + v.total, 0) },
+    excluded: { visits: testVisits.length + partVisits.length, orders: testVisits.reduce((s, v) => s + v.orders, 0) + partOrders.length,
+      total: testVisits.reduce((s, v) => s + v.total, 0) + partOrders.reduce((s, e) => s + (e.total || 0), 0) },
     // журнал визитов: последние 300, у каждого — тестовый ли и почему
     // «Тест» для всех визитов периода разом: визиты, которые можно отметить (не прошлые данные и не тестовый сотрудник)
     markAll: (() => { const m = all.filter((v) => !v.why || v.why === 'mark'); return { n: m.length, marked: m.filter((v) => v.why).length, ids: m.flatMap((v) => v.ids) }; })(),
@@ -340,10 +382,10 @@ export function restaurantReport({ log, db, r, from, to, staffNames, tests }) {
 }
 
 // Сеть (портал): по ресторанам, реклама, устройства, расход голоса ElevenLabs
-export function networkReport({ log, db, rids, from, to, tests }) {
+export function networkReport({ log, db, rids, from, to, tests, dayFrom = () => null }) {
   const days = daysIn(from, to);
   const rests = [...rids].map((id) => db.restaurants[id]).filter(Boolean);
-  const ctxs = Object.fromEntries(rests.map((r) => [r.id, testCtx(r)]));
+  const ctxs = Object.fromEntries(rests.map((r) => [r.id, testCtx(r, dayFrom(r))]));
   const raw = finalOrders(log.read(from, to, rids)), prevRaw = finalOrders(log.read(from - (to - from), from, rids));
   const ev = tests ? raw : realOnly(raw, ctxs);
   const prev = tests ? prevRaw : realOnly(prevRaw, ctxs);

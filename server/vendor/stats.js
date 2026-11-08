@@ -21,7 +21,7 @@
       hoursOn: 'Часов на связи', adImps: 'Показов рекламы', adScans: 'Сканов рекламы', leads: 'Заявок', online: 'онлайн', offlineNow: 'офлайн', byRest: 'По ресторанам: показы / сканы / заявки', tts: 'Озвучка ElevenLabs, символов', sec: 'с', min: 'мин',
       wd: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], hint: 'Время — тайское. Выручка — только заказы через планшет.',
       withTests: 'С тестовыми', recalc: 'Пересчитать', excluded: 'Не учтено как тестовое', visitsN: 'визитов', ordersN: 'заказов',
-      visits: 'Журнал визитов столов', when: 'Когда', test: 'Тест', whyBefore: 'прошлые данные', allPeriod: 'все за период', markAllQ: 'Пометить тестовыми все визиты за выбранный период ({n})? Они не войдут в статистику.', unmarkAllQ: 'Снять «Тест» со всех визитов за период ({n})? Они снова войдут в статистику.', whyStaff: 'тестовый сотрудник',
+      visits: 'Журнал визитов столов', when: 'Когда', test: 'Тест', whyBefore: 'прошлые данные', partly: 'частично: {m} из {n}', allPeriod: 'все за период', markAllQ: 'Пометить тестовыми все визиты за выбранный период ({n})? Они не войдут в статистику.', unmarkAllQ: 'Снять «Тест» со всех визитов за период ({n})? Они снова войдут в статистику.', whyStaff: 'тестовый сотрудник',
       visitsHint: 'Визит — от первого вызова или заказа до «Закрыть стол». Отметьте «Тест», чтобы визит не шёл в статистику.',
       manager: 'менеджер', waiter: 'официант',
     },
@@ -44,7 +44,7 @@
       hoursOn: 'Hours online', adImps: 'Ad impressions', adScans: 'Ad scans', leads: 'Leads', online: 'online', offlineNow: 'offline', byRest: 'By restaurant: impressions / scans / leads', tts: 'ElevenLabs voice, characters', sec: 's', min: 'min',
       wd: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], hint: 'Thailand time. Revenue counts tablet orders only.',
       withTests: 'Include test data', recalc: 'Recalculate', excluded: 'Left out as test', visitsN: 'visits', ordersN: 'orders',
-      visits: 'Table visits log', when: 'When', test: 'Test', whyBefore: 'earlier data', allPeriod: 'all in period', markAllQ: 'Mark all visits in the selected period as test ({n})? They will not count in statistics.', unmarkAllQ: 'Unmark all visits in the period ({n})? They will count in statistics again.', whyStaff: 'test staff',
+      visits: 'Table visits log', when: 'When', test: 'Test', whyBefore: 'earlier data', partly: 'partly: {m} of {n}', allPeriod: 'all in period', markAllQ: 'Mark all visits in the selected period as test ({n})? They will not count in statistics.', unmarkAllQ: 'Unmark all visits in the period ({n})? They will count in statistics again.', whyStaff: 'test staff',
       visitsHint: 'A visit lasts from the first call or order until “Close table”. Tick “Test” to keep a visit out of the statistics.',
       manager: 'manager', waiter: 'waiter',
     },
@@ -67,7 +67,7 @@
       hoursOn: 'ชั่วโมงออนไลน์', adImps: 'แสดงโฆษณา', adScans: 'สแกนโฆษณา', leads: 'คำขอ', online: 'ออนไลน์', offlineNow: 'ออฟไลน์', byRest: 'ตามร้าน: แสดง / สแกน / คำขอ', tts: 'เสียง ElevenLabs ตัวอักษร', sec: 'วิ', min: 'นาที',
       wd: ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'], hint: 'เวลาประเทศไทย ยอดขายนับเฉพาะออร์เดอร์ผ่านแท็บเล็ต',
       withTests: 'รวมข้อมูลทดสอบ', recalc: 'คำนวณใหม่', excluded: 'ไม่นับ (ทดสอบ)', visitsN: 'ครั้ง', ordersN: 'ออร์เดอร์',
-      visits: 'บันทึกการใช้โต๊ะ', when: 'เวลา', test: 'ทดสอบ', allPeriod: 'ทั้งหมดในช่วงนี้', markAllQ: 'ทำเครื่องหมายทุกการใช้โต๊ะในช่วงนี้เป็นการทดสอบ ({n})? จะไม่นับในสถิติ', unmarkAllQ: 'ยกเลิกเครื่องหมายทดสอบทั้งหมดในช่วงนี้ ({n})? จะกลับมานับในสถิติ', whyBefore: 'ข้อมูลเก่า', whyStaff: 'พนักงานทดสอบ',
+      visits: 'บันทึกการใช้โต๊ะ', when: 'เวลา', test: 'ทดสอบ', allPeriod: 'ทั้งหมดในช่วงนี้', markAllQ: 'ทำเครื่องหมายทุกการใช้โต๊ะในช่วงนี้เป็นการทดสอบ ({n})? จะไม่นับในสถิติ', unmarkAllQ: 'ยกเลิกเครื่องหมายทดสอบทั้งหมดในช่วงนี้ ({n})? จะกลับมานับในสถิติ', partly: 'บางส่วน: {m} จาก {n}', whyBefore: 'ข้อมูลเก่า', whyStaff: 'พนักงานทดสอบ',
       visitsHint: 'การใช้โต๊ะ: ตั้งแต่การเรียกหรือออร์เดอร์แรกจนถึง “ปิดโต๊ะ” ติ๊ก “ทดสอบ” เพื่อไม่นับในสถิติ',
       manager: 'ผู้จัดการ', waiter: 'พนักงาน',
     },
@@ -149,12 +149,17 @@
       visits = d.visits || [];
       markAll = d.markAll || null;
       if (!visits.length) return '';
-      const when = (v) => new Date(v.from + TZ).toISOString().slice(5, 16).replace('T', ' ') + '–' + new Date(v.to + TZ).toISOString().slice(11, 16);
+      // конец в другой день — с датой: «11-07 18:34–11-08 18:02»
+      const when = (v) => { const a = new Date(v.from + TZ).toISOString(), b = new Date(v.to + TZ).toISOString();
+        return a.slice(5, 16).replace('T', ' ') + '–' + (a.slice(0, 10) === b.slice(0, 10) ? b.slice(11, 16) : b.slice(5, 16).replace('T', ' ')); };
+      // кто и когда поставил «Тест»: «Николай, 08.11 13:05»
+      const byText = (v) => (v.markBy ? `<br><small class="js-hint">${esc(v.markBy)}${v.markAt ? ', ' + new Date(v.markAt + TZ).toISOString().slice(8, 10) + '.' + new Date(v.markAt + TZ).toISOString().slice(5, 7) + ' ' + new Date(v.markAt + TZ).toISOString().slice(11, 16) : ''}</small>` : '');
       return `<details class="js-ex"><summary>${t.visits} (${visits.length})</summary><p class="js-hint">${t.visitsHint} ${t.vlogHint}</p>
         <div class="js-wrap"><table class="js-tbl"><thead><tr><th>${t.when}</th><th>${t.table}</th><th>${t.orders}</th><th>${t.sum}</th><th>${t.staff}</th><th>${t.test}${opt.markVisit && markAll?.n ? `<br><label class="js-all"><input type="checkbox" data-visitall="1" ${markAll.marked === markAll.n ? 'checked' : ''}> ${t.allPeriod}</label>` : ''}</th></tr></thead>
         <tbody>${visits.map((v, i) => `<tr class="${v.why ? 'js-test' : ''}"><td>${(v.log || []).length ? `<button class="js-vbtn" data-vlog="${i}">▸</button> ` : ''}${when(v)}</td><td>${esc(v.table)}</td><td>${v.orders}</td><td>${money(v.total)}</td>
           <td>${esc(v.staff.join(', '))}</td><td>${v.why === 'before' ? t.whyBefore : v.why === 'staff' ? t.whyStaff
-            : opt.markVisit ? `<input type="checkbox" data-visit="${i}" ${v.why === 'mark' ? 'checked' : ''}>` : v.why ? '✓' : ''}</td></tr>`).join('')}</tbody></table></div></details>`;
+            : (opt.markVisit ? `<input type="checkbox" data-visit="${i}" ${v.why === 'mark' ? 'checked' : ''}>` : v.why ? '✓' : '')
+              + (v.part ? ` <small>${t.partly.replace('{m}', v.part.marked).replace('{n}', v.part.total)}</small>` : '') + (v.why === 'mark' || v.part ? byText(v) : '')}</td></tr>`).join('')}</tbody></table></div></details>`;
     }
     // Журнал визита: «14:05 · #a1b2 · Boss: изменил: +1 × Салат, −2 × Хлеб · ฿1,250»
     function visitLogHtml(v) {
@@ -258,14 +263,16 @@
       if (e.target.id === 'jsRest') { st.r = e.target.value; load(); }
       if (e.target.id === 'jsTests') { st.tests = e.target.checked; load(); }
       if (e.target.dataset.visit !== undefined) {
-        await opt.markVisit(visits[Number(e.target.dataset.visit)].ids, e.target.checked, st.r);
+        const v = visits[Number(e.target.dataset.visit)], at = new Date(v.from + TZ).toISOString();
+        await opt.markVisit(v.ids, e.target.checked, st.r, `${v.table}, визит ${at.slice(8, 10)}.${at.slice(5, 7)} ${at.slice(11, 16)}`);
         load(true);
       }
       // все визиты периода разом (не только 300 последних в журнале)
       if (e.target.dataset.visitall && markAll) {
         const on = e.target.checked;
         if (!confirm((on ? t.markAllQ : t.unmarkAllQ).replace('{n}', markAll.n))) { e.target.checked = !on; return; }
-        await opt.markVisit(markAll.ids, on, st.r);
+        const d1 = new Date(st.from + TZ).toISOString(), d2 = new Date(st.to - 1 + TZ).toISOString(), dm = (x) => `${x.slice(8, 10)}.${x.slice(5, 7)}`;
+        await opt.markVisit(markAll.ids, on, st.r, `все визиты за ${dm(d1)}${dm(d1) === dm(d2) ? '' : '–' + dm(d2)} (${markAll.n})`);
         load(true);
       }
     };
