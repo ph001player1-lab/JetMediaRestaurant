@@ -138,8 +138,9 @@ function staffStats(ev, staffNames, to) {
     if (e.k === 'order_ack' || e.k === 'order') { s.orders++; s.ordersSum += e.total || 0; } // подтвердил или сам открыл
     if (e.k === 'paid') { s.paid++; s.paidSum += e.total || 0; }
     if (e.k === 'shift') {
-      if (e.on) shiftOn[e.by] ??= e.t;
-      else if (shiftOn[e.by] != null) { s.shiftMs += Math.min(e.t - shiftOn[e.by], 14 * 3600e3); delete shiftOn[e.by]; }
+      // когда за период впервые встал на смену и когда последний раз закончил её
+      if (e.on) { shiftOn[e.by] ??= e.t; s.shiftFrom ??= e.t; }
+      else { s.shiftTo = e.t; if (shiftOn[e.by] != null) { s.shiftMs += Math.min(e.t - shiftOn[e.by], 14 * 3600e3); delete shiftOn[e.by]; } }
     }
     if (ACTIONS.includes(e.k)) {
       const d = thDay(e.t);
@@ -151,11 +152,16 @@ function staffStats(ev, staffNames, to) {
   for (const [id, start] of Object.entries(shiftOn)) {
     const s = st[id], last = Math.max(start, ...Object.values(s.act).map((x) => x[1]));
     s.shiftMs += Math.min(Math.max(last, Math.min(to, Date.now())) - start, 14 * 3600e3);
+    s.shiftOpen = true; // ещё на смене (или смену не закрыли кнопкой)
   }
   return Object.values(st).map((s) => ({
     id: s.id, name: s.name, calls: s.calls, callMed: median(s.callMs), orders: s.orders, ordersSum: s.ordersSum,
     paid: s.paid, paidSum: s.paidSum, shiftH: +(s.shiftMs / 3600e3).toFixed(1),
     activeH: +(Object.values(s.act).reduce((x, [a, b]) => x + (b - a), 0) / 3600e3).toFixed(1),
+    // первое и последнее действие за период; смена — с первого «На смене» до последнего конца смены
+    firstAct: Object.values(s.act).length ? Math.min(...Object.values(s.act).map((x) => x[0])) : null,
+    lastAct: Object.values(s.act).length ? Math.max(...Object.values(s.act).map((x) => x[1])) : null,
+    shiftFrom: s.shiftFrom ?? null, shiftTo: s.shiftOpen ? null : s.shiftTo ?? null, shiftOpen: !!s.shiftOpen,
     days: Object.keys(s.act).length,
   })).sort((a, b) => b.calls + b.orders - (a.calls + a.orders));
 }
