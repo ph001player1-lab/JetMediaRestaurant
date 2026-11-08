@@ -14,7 +14,7 @@
   table { border-collapse: collapse; width: 100%; background: #fff; }
   td, th { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; vertical-align: top; }
   small, .hint { color: #777; }
-  .online { color: #1a7f37; } .offline { color: #c62828; }
+  .online { color: #1a7f37; } .offline { color: #c62828; } .warn { color: #b26a00; }
   button { margin: 2px; padding: 4px 8px; cursor: pointer; }
   input, select, textarea { font: inherit; padding: 4px 6px; }
   #menu input:not([type]) { width: 100%; min-width: 110px; box-sizing: border-box; }
@@ -560,14 +560,29 @@ function scanBox(d) {
   return `<details class="dlog" data-k="scan-${esc(d.id)}" ${openLogs.has('scan-' + d.id) ? 'open' : ''}><summary>📡 Сети рядом: ${sc.list.length} · ${new Date(sc.at).toLocaleString()}</summary>
     ${sc.list.map((n) => `<div>${n.current ? '✅ ' : ''}${esc(n.ssid)} · ${n.level} dBm (${q(n.level)}) · ${n.freq < 3000 ? '2.4' : '5'} ГГц · ${n.open ? '<b>открытая</b>' : 'с паролем'}${n.saved ? ' · сохранена' : ''}</div>`).join('')}</details>`;
 }
+// Сбои приложения на планшете (упало, зависло, не хватило памяти — сторож перезапустил): сколько без сбоев и сколько
+// за 30 дней; по нажатию — история (сервер хранит последние 30, не старше 60 дней). Сбой сегодня — красный, за неделю — жёлтый
+function crashesBox(d) {
+  const list = d.events || [], now = Date.now(), last = list[0]?.at || 0, since = last || d.firstSeen || 0;
+  const span = (ms) => (ms >= 2 * 864e5 ? `${Math.floor(ms / 864e5)} дн.` : `${Math.max(1, Math.floor(ms / 3600e3))} ч`);
+  const day = (ts) => new Date(ts + 7 * 3600e3).toISOString().slice(0, 10);
+  const n30 = list.filter((e) => now - e.at < 30 * 864e5).length;
+  const cls = last && day(last) === day(now) ? 'offline' : last && now - last < 7 * 864e5 ? 'warn' : 'online';
+  const head = `${cls === 'offline' ? '💥' : '🛡'} Без сбоев ${since ? span(now - since) : '—'}${list.length ? ` · за 30 дней: ${n30}` : ''}`;
+  if (!list.length) return `<div class="dlog"><small class="online">${head}</small></div>`;
+  return `<details class="dlog" data-k="crash-${esc(d.id)}" ${openLogs.has('crash-' + d.id) ? 'open' : ''}><summary class="${cls}">${head}</summary>
+    ${list.map((e) => `<div>${new Date(e.at).toLocaleString()} — ${esc(e.text)}</div>`).join('')}</details>`;
+}
 // Обрывы связи (агент 0.1.14+): за сутки в часы работы ресторана — сколько, сколько всего и доля времени на связи
 // (ночью закрытый зал не в счёт — такие обрывы отдельно, «🌙 вне часов работы»); по нажатию — каждый с причиной
 function outagesBox(d) {
   const list = d.outages || [];
-  if (!list.length) return '';
   const w = d.work || { n: list.filter((o) => Date.now() - o.end < 864e5).length, ms: 0, off: 0 };
+  // на связи 100% — зелёный, от 99% — жёлтый, меньше 99% — красный
+  const cls = !w.n || w.avail >= 100 ? 'online' : w.avail >= 99 ? 'warn' : 'offline';
+  if (!list.length) return d.telemetry?.version ? `<div class="dlog"><small class="online">📶 Обрывов за сутки${w.hours ? ' в часы работы' : ''}: 0 · на связи 100%</small></div>` : '';
   const sec = (ms) => (ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} с` : `${Math.round(ms / 60_000)} мин`);
-  return `<details class="dlog" data-k="out-${esc(d.id)}" ${openLogs.has('out-' + d.id) ? 'open' : ''}><summary class="${w.n ? 'offline' : ''}">⚠️ Обрывы за сутки${w.hours ? ' в часы работы' : ''}: ${w.n}${w.n ? `, всего ${sec(w.ms)}` : ''}${w.avail != null ? ` · на связи ${w.avail}%` : ''}${w.off ? ` · 🌙 вне часов работы: ${w.off}` : ''}</summary>
+  return `<details class="dlog" data-k="out-${esc(d.id)}" ${openLogs.has('out-' + d.id) ? 'open' : ''}><summary class="${cls}">${w.n ? '⚠️' : '📶'} Обрывы за сутки${w.hours ? ' в часы работы' : ''}: ${w.n}${w.n ? `, всего ${sec(w.ms)}` : ''}${w.avail != null ? ` · на связи ${w.avail}%` : ''}${w.off ? ` · 🌙 вне часов работы: ${w.off}` : ''}</summary>
     ${list.map((o) => `<div${o.off ? ' class="hint"' : ''}><b>${o.off ? '🌙 ' : ''}${new Date(o.start).toLocaleString()} · ${sec(o.dur)}</b>${o.off ? ' — вне часов работы' : ''}<br>${esc(o.why).replace(/\n/g, '<br>')}</div>`).join('')}</details>`;
 }
 
@@ -575,17 +590,18 @@ function deviceRow(d, i) {
     const t = d.telemetry || {};
     return `<tr>
       <td>${esc(t.model)}<br><small>${esc(d.id)}</small></td>
-      <td class="${d.online && t.screen !== false ? 'online' : 'offline'}">${d.online && t.screen === false ? '😴 экран погашен' : d.online ? 'онлайн'
-        : d.offAt && d.offAt >= d.lastSeen ? (d.offReason === 'battery' ? '🪫 выключился — сел аккумулятор' : d.offReason === 'screen' ? '😴 экран погашен' : '⏻ выключен кнопкой') : 'офлайн'}${d.pending ? ` · в очереди: ${d.pending}` : ''}
+      <td><b class="${d.online && t.screen !== false ? 'online' : 'offline'}">${d.online && t.screen === false ? '😴 экран погашен' : d.online ? '🟢 онлайн'
+        : d.offAt && d.offAt >= d.lastSeen ? (d.offReason === 'battery' ? '🪫 выключился — сел аккумулятор' : d.offReason === 'screen' ? '😴 экран погашен' : '⏻ выключен кнопкой') : '🔴 офлайн'}</b>${d.pending ? ` · в очереди: ${d.pending}` : ''}
         ${t.wifi ? `<br><small>Wi-Fi: ${esc(t.wifi)} · ${esc(t.rssi)} dBm${t.freq ? ` · ${t.freq < 3000 ? '2.4' : '5'} ГГц` : ''}</small>` : ''}
         ${t.authFail?.ssid ? `<br><small class="offline">🔑 сеть «${esc(t.authFail.ssid)}» не пускает — похоже, сменили пароль</small>` : ''}
         ${t.backup?.ssid ? `<br><small class="offline">📶 через открытую сеть «${esc(t.backup.ssid)}» с ${new Date(t.backup.since).toLocaleTimeString().slice(0, 5)}</small>` : ''}
         ${t.pin?.bssid ? `<br><small class="hint" title="Агент 0.1.19+: на прежней точке было 3 обрыва за 15 минут — планшет привязался к другой точке или диапазону этой же сети">📌 точка …${esc(t.pin.bssid.slice(-5))} (${esc(t.pin.band)}) до ${new Date(t.pin.until).toLocaleTimeString().slice(0, 5)} — частые обрывы были на …${esc(String(t.pin.from || '').slice(-5))} (${esc(t.pin.fromBand)})</small>` : ''}
         ${outagesBox(d)}
+        ${crashesBox(d)}
         ${scanBox(d)}
-        ${d.netlog?.length ? `<details class="dlog" data-k="net-${esc(d.id)}" ${openLogs.has('net-' + d.id) ? 'open' : ''}><summary>📶 Журнал сети: ${new Date(d.netlog[0].at).toLocaleString()} · ${esc(d.netlog[0].why.slice(0, 40))}…</summary>
+        ${d.netlog?.length ? `<details class="dlog" data-k="net-${esc(d.id)}" ${openLogs.has('net-' + d.id) ? 'open' : ''}><summary class="hint">📶 Журнал сети: ${new Date(d.netlog[0].at).toLocaleString()} · ${esc(d.netlog[0].why.slice(0, 40))}…</summary>
           ${d.netlog.map((n) => `<div>${new Date(n.at).toLocaleString()} — ${esc(n.from || '?')} → ${esc(n.to || '?')}: ${esc(n.why)}</div>`).join('')}</details>` : ''}
-        ${d.events?.length ? `<br><small class="offline" title="${esc(d.events.map((e) => new Date(e.at).toLocaleString() + ' — ' + e.text).join('\n'))}">сбой ${new Date(d.events[0].at).toLocaleString()}: ${esc(d.events[0].text.slice(0, 60))}</small>` : ''}</td>
+</td>
       <td${t.battery <= 15 && !t.charging ? ' class="offline" title="Садится аккумулятор и планшет не заряжается — проверьте зарядку"' : ''}>${t.battery <= 15 && !t.charging ? '🪫 ' : ''}${t.battery ?? '—'}%${t.charging ? ' ⚡' : ''}${t.freeMb >= 0 ? `<br><small class="${t.freeMb < 300 ? 'offline' : 'hint'}" title="Свободная память планшета">💾 ${t.freeMb >= 1024 ? (t.freeMb / 1024).toFixed(1) + ' ГБ' : t.freeMb + ' МБ'}</small>` : ''}</td>
       <td>${esc(t.version)}${updLine(d)}</td>
       <td>${verCell(d, i)}</td>

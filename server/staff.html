@@ -192,6 +192,9 @@
   .card { background: #fff; border-radius: 12px; padding: 12px; margin: 8px 0; border-left: 6px solid #c8553d; }
   .card.ack, .card.confirmed { border-color: #2e7d32; }
   .card.rejected { border-color: #999; opacity: .6; }
+  /* ЛК → Устройства: онлайн — зелёный, офлайн — красный (раньше серый и бледный — плохо видно) */
+  .card.devon { border-color: #2e7d32; } .card.devoff { border-color: #c62828; background: #fff4f4; }
+  b.devon { color: #2e7d32; } b.devoff { color: #c62828; }
   .card.paid { border-color: #9e9e9e; background: #f4f2ef; }
   .tgroup { margin: 14px 0; }
   .thead { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 4px 2px; }
@@ -1774,12 +1777,12 @@ function renderManager() {
     ${rows.map((x, i) => {
       const d = devAt(x.from);
       return `<div class="line"><input data-tbl="${i}" value="${esc(x.to)}" style="width:130px">
-        <span class="empty" style="flex:1">${d ? `📱 ${esc(d.id)} · ${t(d.online ? 'online' : 'offline')}` : t('noDevice')}</span>
+        <span class="empty" style="flex:1">${d ? `📱 ${esc(d.id)} · <b class="${d.online ? 'devon' : 'devoff'}">${t(d.online ? 'online' : 'offline')}</b>` : t('noDevice')}</span>
         <button class="del" data-deltbl="${i}">✕</button></div>`;
     }).join('')}
     <div class="bar"><button class="ghostbtn" data-addtbl="1">+ ${t('addTable')}</button><button data-savetbl="1">${t('save')}</button></div></div>`
-    + mgr.devices.map((d) => `<div class="card ${d.online ? 'ack' : 'rejected'}">
-      <b>${d.entrance ? t('entrance') : `${esc(tbl(d.table))}`}</b> · ${t(d.online ? 'online' : 'offline')}
+    + mgr.devices.map((d) => `<div class="card ${d.online ? 'devon' : 'devoff'}">
+      <b>${d.entrance ? t('entrance') : `${esc(tbl(d.table))}`}</b> · <b class="${d.online ? 'devon' : 'devoff'}">${d.online ? '🟢' : '🔴'} ${t(d.online ? 'online' : 'offline')}</b>
       · ${d.battery ?? '—'}%${d.charging ? ' ⚡' : ''}${d.wifi ? ` · Wi-Fi ${esc(d.wifi)} (${esc(d.rssi)} dBm)` : ''}
       <br><small class="empty">${esc(d.id)} · ${esc(d.version || '')} · ${new Date(d.lastSeen).toLocaleString()}</small></div>`).join('')
     || `<p class="empty">${t('none')}</p>`;

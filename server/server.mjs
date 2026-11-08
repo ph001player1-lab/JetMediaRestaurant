@@ -770,7 +770,8 @@ function devicePoll(b, q, req) {
   // Сбои, после которых агент перезапустился сам: падение, зависание, нехватка памяти
   for (const e of (Array.isArray(b.events) ? b.events : []).slice(0, 5)) {
     const text = String(e).slice(0, 300);
-    d.events = [{ at: Date.now(), text }, ...(d.events || [])].slice(0, 10);
+    // история сбоев — последние 30 и не старше 60 дней (портал: «без сбоев N дней», по нажатию — список)
+    d.events = [{ at: Date.now(), text }, ...(d.events || [])].filter((x) => Date.now() - x.at < 60 * 864e5).slice(0, 30);
     tgAlert(`⚠️ ${deviceName(d)}: ${text}`);
     if (d.restaurantId) logEvent(d.restaurantId, 'dev_crash', { dev: d.id });
   }
