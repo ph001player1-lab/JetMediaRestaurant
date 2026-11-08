@@ -117,8 +117,8 @@
     else if (st === 'cook' && !flow.kitchenScreen && quick.served) q = 'served'; // экрана кухни нет — «Подано» сразу
     else if (st === 'pay' && quick.paid && !many) q = 'paid';
     else if (st === 'close' && quick.close) q = 'close';
-    // планшет стола: не на связи — «включить», заряд меньше 10% и не заряжается — «на зарядку» (стол чёрный)
-    const tab = s.tablets?.[tb], dev = !tab ? null : tab.off ? 'off' : tab.bat !== null && tab.bat < 10 && !tab.chg ? 'bat' : null;
+    // планшет стола: не на связи — «включить», заряд 10% и меньше и не заряжается — «на зарядку» (стол чёрный)
+    const tab = s.tablets?.[tb], dev = !tab ? null : tab.off ? 'off' : tab.bat !== null && tab.bat <= 10 && !tab.chg ? 'bat' : null;
     return { tb, st, since, who, due, total, q, pos: !!s.restaurant?.pos, voided: st === 'close' && !orders.length && !calls.length && voids.length > 0,
       dev, devBat: tab?.bat, devSince: tab?.since || 0 };
   }
