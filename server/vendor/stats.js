@@ -8,7 +8,7 @@
       summary: 'Сводка', orders: 'Заказы', revenue: 'Выручка через планшет', avg: 'Средний чек', calls: 'Вызовы официанта', bills: 'Просили счёт',
       opens: 'Столы открывались', conversion: 'С заказом', reaction: 'Скорость персонала', callMed: 'Реакция на вызов (обычно)',
       callP90: 'Реакция на вызов (худшие 10%)', orderMed: 'Подтверждение заказа (обычно)', orderP90: 'Подтверждение заказа (худшие 10%)',
-      reminders: 'Понадобилось напоминание', kitchenMed: 'От заказа до кухни (обычно)', readyMed: 'Кухня готовит (обычно)', servedMed: 'От подтверждения до «Подано» (обычно)', servedP90: 'Подача: 9 из 10 быстрее', servedNoKitchen: 'Подано без отметки кухни', redoN: 'Переделано (вернули блюдо)', cancelledN: 'Отменено заказов', vlogHint: 'Нажмите ▸ у визита — заказы и всё, что с ними делали.', guestW: 'Гость', phoneW: 'с телефона', tabletW: 'с планшета', noKitchenW: 'без отметки кухни', lg: { order: 'заказ', order_void: 'заказ (потом отменён)', order_ack: 'принял заказ', order_edit: 'изменил', order_kitchen: 'отдал на кухню', order_ready: 'кухня: готово', order_served: '🍽 подано', order_redo: '🔁 переделать', order_cancel: '✕ отменил заказ', order_reject: 'отклонил заказ', order_remove: 'удалил (дубль)', paid: 'оплачено', close: 'стол закрыт', undo: '↩ отменил' }, of: { 'call:ack': 'Иду', 'table:ack': 'Иду', 'order:ack': 'Иду', 'call:done': 'Готово', 'order:confirm': 'Подтвердить', 'order:reject': 'Отклонить', 'order:kitchen': 'На кухню', 'order:served': 'Подано', 'order:paid': 'Счёт оплачен', 'guestpaid:': 'Оплачен', 'order:edit': 'Изменить', 'order:redo': 'Переделать', 'order:cancel': 'Отменить заказ', 'order:remove': 'Удалить (дубль)', 'order:move': 'Перенос блюда', 'order:new': 'Новый заказ' }, phoneOrders: 'Заказов с телефонов', unanswered: 'Вызовы без реакции', staff: 'Официанты и менеджеры', name: 'Имя',
+      reminders: 'Понадобилось напоминание', kitchenMed: 'От заказа до кухни (обычно)', readyMed: 'Кухня готовит (обычно)', servedMed: 'От подтверждения до «Подано» (обычно)', servedP90: 'Подача: 9 из 10 быстрее', servedNoKitchen: 'Подано без отметки кухни', redoN: 'Переделано (вернули блюдо)', cancelledN: 'Все отмены заказов (и гостей, и персонала)', vlogHint: 'Нажмите ▸ у визита — заказы и всё, что с ними делали.', guestW: 'Гость', phoneW: 'с телефона', tabletW: 'с планшета', noKitchenW: 'без отметки кухни', lg: { order: 'заказ', order_void: 'заказ (потом отменён)', order_ack: 'принял заказ', order_edit: 'изменил', order_kitchen: 'отдал на кухню', order_ready: 'кухня: готово', order_served: '🍽 подано', order_redo: '🔁 переделать', order_cancel: '✕ отменил заказ', order_reject: 'отклонил заказ', order_remove: 'удалил (дубль)', paid: 'оплачено', close: 'стол закрыт', undo: '↩ отменил' }, of: { 'call:ack': 'Иду', 'table:ack': 'Иду', 'order:ack': 'Иду', 'call:done': 'Готово', 'order:confirm': 'Подтвердить', 'order:reject': 'Отклонить', 'order:kitchen': 'На кухню', 'order:served': 'Подано', 'order:paid': 'Счёт оплачен', 'guestpaid:': 'Оплачен', 'order:edit': 'Изменить', 'order:redo': 'Переделать', 'order:cancel': 'Отменить заказ', 'order:remove': 'Удалить (дубль)', 'order:move': 'Перенос блюда', 'order:new': 'Новый заказ' }, phoneOrders: 'Заказов с телефонов', unanswered: 'Вызовы без реакции', staff: 'Официанты и менеджеры', name: 'Имя',
       callsAcked: 'Вызовов принято', react: 'Реакция', ordersAcked: 'Заказов принял или открыл', sum: 'Сумма', paid: 'Счетов закрыл',
       shiftH: 'Часов на смене (кнопка)', activeH: 'Часов работы (1-е–посл. действие)', days: 'Дней', tables: 'Столы', table: 'Стол',
       dishes: 'Блюда', topQty: 'Чаще всего заказывают', topRev: 'Больше всего выручки', qty: 'Порций', dish: 'Блюдо',
@@ -21,7 +21,7 @@
       hoursOn: 'Часов на связи', adImps: 'Показов рекламы', adScans: 'Сканов рекламы', leads: 'Заявок', online: 'онлайн', offlineNow: 'офлайн', byRest: 'По ресторанам: показы / сканы / заявки', tts: 'Озвучка ElevenLabs, символов', sec: 'с', min: 'мин',
       wd: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], hint: 'Время — тайское. Выручка — только заказы через планшет.',
       withTests: 'С тестовыми', recalc: 'Пересчитать', excluded: 'Не учтено как тестовое', visitsN: 'визитов', ordersN: 'заказов',
-      visits: 'Журнал визитов столов', when: 'Когда', test: 'Тест', whyBefore: 'прошлые данные', errTitle: 'Ошибки процесса', errHint: 'Стремимся к нулю: заказ гостя не должен отменяться сотрудником, а настоящий заказ — помечаться тестовым. Нажмите, чтобы увидеть каждый.', errCancel: 'Заказы гостей, отменённые сотрудниками', errMarked: 'Заказы, помеченные тестовыми', errCancelled: 'отменил', errRejected: 'отклонил', errMarkedBy: 'пометил', errStaffOrder: 'заказ сотрудника', errCancelCol: 'Отменено заказов гостей', errMarkedCol: 'Помечено тестовыми', partly: 'частично: {m} из {n}', allPeriod: 'все за период', markAllQ: 'Пометить тестовыми все визиты за выбранный период ({n})? Они не войдут в статистику.', unmarkAllQ: 'Снять «Тест» со всех визитов за период ({n})? Они снова войдут в статистику.', whyStaff: 'тестовый сотрудник',
+      visits: 'Журнал визитов столов', when: 'Когда', test: 'Тест', whyBefore: 'прошлые данные', errTitle: 'Ошибки процесса', errAll: 'все рестораны', vAll: 'Все', vMoney: 'С деньгами', vEmpty: 'Без денег', vCancel: 'С отменой', vTest: 'Тестовые', vByTime: 'по времени', vByColor: 'по цвету', vOrder: 'Порядок', errHint: 'Стремимся к нулю: заказ гостя не должен отменяться сотрудником, а настоящий заказ — помечаться тестовым. Нажмите, чтобы увидеть каждый.', errCancel: 'Заказы гостей, отменённые сотрудниками', errMarked: 'Заказы, помеченные тестовыми', errCancelled: 'отменил', errRejected: 'отклонил', errMarkedBy: 'пометил', errStaffOrder: 'заказ сотрудника', errCancelCol: 'Отменено заказов гостей', errMarkedCol: 'Помечено тестовыми', partly: 'частично: {m} из {n}', allPeriod: 'все за период', markAllQ: 'Пометить тестовыми все визиты за выбранный период ({n})? Они не войдут в статистику.', unmarkAllQ: 'Снять «Тест» со всех визитов за период ({n})? Они снова войдут в статистику.', whyStaff: 'тестовый сотрудник',
       visitsHint: 'Визит — от первого вызова или заказа до «Закрыть стол». Отметьте «Тест», чтобы визит не шёл в статистику.',
       manager: 'менеджер', waiter: 'официант',
     },
@@ -31,7 +31,7 @@
       summary: 'Summary', orders: 'Orders', revenue: 'Revenue via tablets', avg: 'Average check', calls: 'Waiter calls', bills: 'Bill requests',
       opens: 'Tables opened', conversion: 'With an order', reaction: 'Staff speed', callMed: 'Call response (typical)',
       callP90: 'Call response (worst 10%)', orderMed: 'Order confirmation (typical)', orderP90: 'Order confirmation (worst 10%)',
-      reminders: 'Reminders needed', kitchenMed: 'Order to kitchen (typical)', readyMed: 'Kitchen cooking time (typical)', servedMed: 'Confirmation to “Served” (typical)', servedP90: 'Serving: 9 of 10 faster', servedNoKitchen: 'Served without kitchen mark', redoN: 'Remade (dish sent back)', cancelledN: 'Orders cancelled', vlogHint: 'Tap ▸ next to a visit to see its orders and everything done with them.', guestW: 'Guest', phoneW: 'from phone', tabletW: 'from tablet', noKitchenW: 'no kitchen mark', lg: { order: 'order', order_void: 'order (cancelled later)', order_ack: 'accepted the order', order_edit: 'changed', order_kitchen: 'passed to the kitchen', order_ready: 'kitchen: ready', order_served: '🍽 served', order_redo: '🔁 remake', order_cancel: '✕ cancelled the order', order_reject: 'rejected the order', order_remove: 'deleted (duplicate)', paid: 'paid', close: 'table closed', undo: '↩ undid' }, of: { 'call:ack': 'Going', 'table:ack': 'Going', 'order:ack': 'Going', 'call:done': 'Done', 'order:confirm': 'Confirm', 'order:reject': 'Reject', 'order:kitchen': 'To kitchen', 'order:served': 'Served', 'order:paid': 'Bill paid', 'guestpaid:': 'Paid', 'order:edit': 'Edit', 'order:redo': 'Remake', 'order:cancel': 'Cancel order', 'order:remove': 'Delete (duplicate)', 'order:move': 'Move dish', 'order:new': 'New order' }, phoneOrders: 'Orders from phones', unanswered: 'Calls without response', staff: 'Waiters and managers', name: 'Name',
+      reminders: 'Reminders needed', kitchenMed: 'Order to kitchen (typical)', readyMed: 'Kitchen cooking time (typical)', servedMed: 'Confirmation to “Served” (typical)', servedP90: 'Serving: 9 of 10 faster', servedNoKitchen: 'Served without kitchen mark', redoN: 'Remade (dish sent back)', cancelledN: 'All order cancellations (guests’ and staff’s orders)', vlogHint: 'Tap ▸ next to a visit to see its orders and everything done with them.', guestW: 'Guest', phoneW: 'from phone', tabletW: 'from tablet', noKitchenW: 'no kitchen mark', lg: { order: 'order', order_void: 'order (cancelled later)', order_ack: 'accepted the order', order_edit: 'changed', order_kitchen: 'passed to the kitchen', order_ready: 'kitchen: ready', order_served: '🍽 served', order_redo: '🔁 remake', order_cancel: '✕ cancelled the order', order_reject: 'rejected the order', order_remove: 'deleted (duplicate)', paid: 'paid', close: 'table closed', undo: '↩ undid' }, of: { 'call:ack': 'Going', 'table:ack': 'Going', 'order:ack': 'Going', 'call:done': 'Done', 'order:confirm': 'Confirm', 'order:reject': 'Reject', 'order:kitchen': 'To kitchen', 'order:served': 'Served', 'order:paid': 'Bill paid', 'guestpaid:': 'Paid', 'order:edit': 'Edit', 'order:redo': 'Remake', 'order:cancel': 'Cancel order', 'order:remove': 'Delete (duplicate)', 'order:move': 'Move dish', 'order:new': 'New order' }, phoneOrders: 'Orders from phones', unanswered: 'Calls without response', staff: 'Waiters and managers', name: 'Name',
       callsAcked: 'Calls taken', react: 'Response', ordersAcked: 'Orders taken or opened', sum: 'Amount', paid: 'Bills closed',
       shiftH: 'Hours on shift (button)', activeH: 'Hours worked (first–last action)', days: 'Days', tables: 'Tables', table: 'Table',
       dishes: 'Dishes', topQty: 'Ordered most often', topRev: 'Most revenue', qty: 'Portions', dish: 'Dish',
@@ -44,7 +44,7 @@
       hoursOn: 'Hours online', adImps: 'Ad impressions', adScans: 'Ad scans', leads: 'Leads', online: 'online', offlineNow: 'offline', byRest: 'By restaurant: impressions / scans / leads', tts: 'ElevenLabs voice, characters', sec: 's', min: 'min',
       wd: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], hint: 'Thailand time. Revenue counts tablet orders only.',
       withTests: 'Include test data', recalc: 'Recalculate', excluded: 'Left out as test', visitsN: 'visits', ordersN: 'orders',
-      visits: 'Table visits log', when: 'When', test: 'Test', whyBefore: 'earlier data', errTitle: 'Process errors', errHint: 'Aim for zero: a guest order should not be cancelled by staff, and a real order should not be marked as test. Tap to see each one.', errCancel: 'Guest orders cancelled by staff', errMarked: 'Orders marked as test', errCancelled: 'cancelled', errRejected: 'rejected', errMarkedBy: 'marked by', errStaffOrder: 'staff order', errCancelCol: 'Guest orders cancelled', errMarkedCol: 'Marked as test', partly: 'partly: {m} of {n}', allPeriod: 'all in period', markAllQ: 'Mark all visits in the selected period as test ({n})? They will not count in statistics.', unmarkAllQ: 'Unmark all visits in the period ({n})? They will count in statistics again.', whyStaff: 'test staff',
+      visits: 'Table visits log', when: 'When', test: 'Test', whyBefore: 'earlier data', errTitle: 'Process errors', errAll: 'all restaurants', vAll: 'All', vMoney: 'With money', vEmpty: 'No money', vCancel: 'With cancellation', vTest: 'Test', vByTime: 'by time', vByColor: 'by colour', vOrder: 'Order', errHint: 'Aim for zero: a guest order should not be cancelled by staff, and a real order should not be marked as test. Tap to see each one.', errCancel: 'Guest orders cancelled by staff', errMarked: 'Orders marked as test', errCancelled: 'cancelled', errRejected: 'rejected', errMarkedBy: 'marked by', errStaffOrder: 'staff order', errCancelCol: 'Guest orders cancelled', errMarkedCol: 'Marked as test', partly: 'partly: {m} of {n}', allPeriod: 'all in period', markAllQ: 'Mark all visits in the selected period as test ({n})? They will not count in statistics.', unmarkAllQ: 'Unmark all visits in the period ({n})? They will count in statistics again.', whyStaff: 'test staff',
       visitsHint: 'A visit lasts from the first call or order until “Close table”. Tick “Test” to keep a visit out of the statistics.',
       manager: 'manager', waiter: 'waiter',
     },
@@ -54,7 +54,7 @@
       summary: 'สรุป', orders: 'ออร์เดอร์', revenue: 'ยอดขายผ่านแท็บเล็ต', avg: 'ยอดเฉลี่ยต่อบิล', calls: 'เรียกพนักงาน', bills: 'ขอเช็คบิล',
       opens: 'โต๊ะที่เปิด', conversion: 'มีการสั่ง', reaction: 'ความเร็วพนักงาน', callMed: 'ตอบรับการเรียก (ปกติ)',
       callP90: 'ตอบรับการเรียก (ช้าสุด 10%)', orderMed: 'ยืนยันออร์เดอร์ (ปกติ)', orderP90: 'ยืนยันออร์เดอร์ (ช้าสุด 10%)',
-      reminders: 'ต้องเตือนซ้ำ', kitchenMed: 'จากสั่งถึงครัว (ปกติ)', readyMed: 'ครัวทำอาหาร (ปกติ)', servedMed: 'จากยืนยันถึงเสิร์ฟ (ปกติ)', servedP90: 'เสิร์ฟ: 9 ใน 10 เร็วกว่า', servedNoKitchen: 'เสิร์ฟโดยครัวไม่ได้กด', redoN: 'ทำใหม่ (ลูกค้าส่งคืน)', cancelledN: 'ออร์เดอร์ที่ยกเลิก', vlogHint: 'แตะ ▸ ที่การใช้โต๊ะ เพื่อดูออร์เดอร์และทุกการกระทำ', guestW: 'แขก', phoneW: 'จากมือถือ', tabletW: 'จากแท็บเล็ต', noKitchenW: 'ครัวไม่ได้กด', lg: { order: 'ออร์เดอร์', order_void: 'ออร์เดอร์ (ยกเลิกภายหลัง)', order_ack: 'รับออร์เดอร์', order_edit: 'แก้ไข', order_kitchen: 'ส่งเข้าครัว', order_ready: 'ครัว: พร้อม', order_served: '🍽 เสิร์ฟแล้ว', order_redo: '🔁 ทำใหม่', order_cancel: '✕ ยกเลิกออร์เดอร์', order_reject: 'ปฏิเสธออร์เดอร์', order_remove: 'ลบ (ซ้ำ)', paid: 'ชำระแล้ว', close: 'ปิดโต๊ะ', undo: '↩ ยกเลิก' }, phoneOrders: 'สั่งจากมือถือ', unanswered: 'การเรียกที่ไม่มีคนรับ', staff: 'พนักงานและผู้จัดการ', name: 'ชื่อ',
+      reminders: 'ต้องเตือนซ้ำ', kitchenMed: 'จากสั่งถึงครัว (ปกติ)', readyMed: 'ครัวทำอาหาร (ปกติ)', servedMed: 'จากยืนยันถึงเสิร์ฟ (ปกติ)', servedP90: 'เสิร์ฟ: 9 ใน 10 เร็วกว่า', servedNoKitchen: 'เสิร์ฟโดยครัวไม่ได้กด', redoN: 'ทำใหม่ (ลูกค้าส่งคืน)', cancelledN: 'ยกเลิกออเดอร์ทั้งหมด (แขกและพนักงาน)', vlogHint: 'แตะ ▸ ที่การใช้โต๊ะ เพื่อดูออร์เดอร์และทุกการกระทำ', guestW: 'แขก', phoneW: 'จากมือถือ', tabletW: 'จากแท็บเล็ต', noKitchenW: 'ครัวไม่ได้กด', lg: { order: 'ออร์เดอร์', order_void: 'ออร์เดอร์ (ยกเลิกภายหลัง)', order_ack: 'รับออร์เดอร์', order_edit: 'แก้ไข', order_kitchen: 'ส่งเข้าครัว', order_ready: 'ครัว: พร้อม', order_served: '🍽 เสิร์ฟแล้ว', order_redo: '🔁 ทำใหม่', order_cancel: '✕ ยกเลิกออร์เดอร์', order_reject: 'ปฏิเสธออร์เดอร์', order_remove: 'ลบ (ซ้ำ)', paid: 'ชำระแล้ว', close: 'ปิดโต๊ะ', undo: '↩ ยกเลิก' }, phoneOrders: 'สั่งจากมือถือ', unanswered: 'การเรียกที่ไม่มีคนรับ', staff: 'พนักงานและผู้จัดการ', name: 'ชื่อ',
       callsAcked: 'รับการเรียก', react: 'เวลาตอบรับ', ordersAcked: 'รับหรือเปิดออร์เดอร์', sum: 'ยอดรวม', paid: 'ปิดบิล',
       shiftH: 'ชั่วโมงเข้ากะ (ปุ่ม)', activeH: 'ชั่วโมงทำงาน (แรก–สุดท้าย)', days: 'วัน', tables: 'โต๊ะ', table: 'โต๊ะ',
       dishes: 'เมนู', topQty: 'สั่งบ่อยที่สุด', topRev: 'ยอดขายสูงสุด', qty: 'จำนวน', dish: 'เมนู',
@@ -67,7 +67,7 @@
       hoursOn: 'ชั่วโมงออนไลน์', adImps: 'แสดงโฆษณา', adScans: 'สแกนโฆษณา', leads: 'คำขอ', online: 'ออนไลน์', offlineNow: 'ออฟไลน์', byRest: 'ตามร้าน: แสดง / สแกน / คำขอ', tts: 'เสียง ElevenLabs ตัวอักษร', sec: 'วิ', min: 'นาที',
       wd: ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'], hint: 'เวลาประเทศไทย ยอดขายนับเฉพาะออร์เดอร์ผ่านแท็บเล็ต',
       withTests: 'รวมข้อมูลทดสอบ', recalc: 'คำนวณใหม่', excluded: 'ไม่นับ (ทดสอบ)', visitsN: 'ครั้ง', ordersN: 'ออร์เดอร์',
-      visits: 'บันทึกการใช้โต๊ะ', when: 'เวลา', test: 'ทดสอบ', allPeriod: 'ทั้งหมดในช่วงนี้', markAllQ: 'ทำเครื่องหมายทุกการใช้โต๊ะในช่วงนี้เป็นการทดสอบ ({n})? จะไม่นับในสถิติ', unmarkAllQ: 'ยกเลิกเครื่องหมายทดสอบทั้งหมดในช่วงนี้ ({n})? จะกลับมานับในสถิติ', partly: 'บางส่วน: {m} จาก {n}', errTitle: 'ข้อผิดพลาดของกระบวนการ', errHint: 'เป้าหมายคือศูนย์: ออเดอร์ของแขกไม่ควรถูกพนักงานยกเลิก และออเดอร์จริงไม่ควรถูกทำเครื่องหมายว่าทดสอบ แตะเพื่อดูแต่ละรายการ', errCancel: 'ออเดอร์แขกที่พนักงานยกเลิก', errMarked: 'ออเดอร์ที่ทำเครื่องหมายว่าทดสอบ', errCancelled: 'ยกเลิก', errRejected: 'ปฏิเสธ', errMarkedBy: 'ทำเครื่องหมายโดย', errStaffOrder: 'ออเดอร์พนักงาน', errCancelCol: 'ออเดอร์แขกที่ถูกยกเลิก', errMarkedCol: 'ทำเครื่องหมายทดสอบ', whyBefore: 'ข้อมูลเก่า', whyStaff: 'พนักงานทดสอบ',
+      visits: 'บันทึกการใช้โต๊ะ', when: 'เวลา', test: 'ทดสอบ', allPeriod: 'ทั้งหมดในช่วงนี้', markAllQ: 'ทำเครื่องหมายทุกการใช้โต๊ะในช่วงนี้เป็นการทดสอบ ({n})? จะไม่นับในสถิติ', unmarkAllQ: 'ยกเลิกเครื่องหมายทดสอบทั้งหมดในช่วงนี้ ({n})? จะกลับมานับในสถิติ', partly: 'บางส่วน: {m} จาก {n}', errTitle: 'ข้อผิดพลาดของกระบวนการ', errAll: 'ทุกร้าน', vAll: 'ทั้งหมด', vMoney: 'มียอดเงิน', vEmpty: 'ไม่มียอดเงิน', vCancel: 'มีการยกเลิก', vTest: 'ทดสอบ', vByTime: 'ตามเวลา', vByColor: 'ตามสี', vOrder: 'เรียง', errHint: 'เป้าหมายคือศูนย์: ออเดอร์ของแขกไม่ควรถูกพนักงานยกเลิก และออเดอร์จริงไม่ควรถูกทำเครื่องหมายว่าทดสอบ แตะเพื่อดูแต่ละรายการ', errCancel: 'ออเดอร์แขกที่พนักงานยกเลิก', errMarked: 'ออเดอร์ที่ทำเครื่องหมายว่าทดสอบ', errCancelled: 'ยกเลิก', errRejected: 'ปฏิเสธ', errMarkedBy: 'ทำเครื่องหมายโดย', errStaffOrder: 'ออเดอร์พนักงาน', errCancelCol: 'ออเดอร์แขกที่ถูกยกเลิก', errMarkedCol: 'ทำเครื่องหมายทดสอบ', whyBefore: 'ข้อมูลเก่า', whyStaff: 'พนักงานทดสอบ',
       visitsHint: 'การใช้โต๊ะ: ตั้งแต่การเรียกหรือออร์เดอร์แรกจนถึง “ปิดโต๊ะ” ติ๊ก “ทดสอบ” เพื่อไม่นับในสถิติ',
       manager: 'ผู้จัดการ', waiter: 'พนักงาน',
     },
@@ -145,6 +145,20 @@
     const excludedHtml = (d) => (!d.tests && d.excluded?.visits ? `<p class="js-hint">🧪 ${t.excluded}: ${d.excluded.visits} ${t.visitsN}, ${d.excluded.orders} ${t.ordersN}, ${money(d.excluded.total)}</p>` : '');
     // Журнал визитов: у каждого — «Тест» (прошлые данные и тестовые сотрудники — без галочки, с причиной)
     let visits = [], markAll = null;
+    // Цвет визита: тестовый — серый, с отменой заказа — красный, с деньгами — зелёный, без денег — чёрный.
+    // Над журналом — фильтр по цвету и порядок: по времени или группами по цвету (внутри группы — по времени)
+    const VCATS = ['money', 'cancel', 'empty', 'test'];
+    const vcat = (v) => (v.why ? 'test' : v.cancelled ? 'cancel' : v.total > 0 ? 'money' : 'empty');
+    const shownVisits = () => {
+      const l = visits.map((v, i) => [v, i]).filter(([v]) => !st.vcat || vcat(v) === st.vcat);
+      return st.vsort === 'color' ? l.sort((a, b) => VCATS.indexOf(vcat(a[0])) - VCATS.indexOf(vcat(b[0])) || a[1] - b[1]) : l;
+    };
+    const vFilterHtml = () => {
+      const n = (c) => visits.filter((v) => vcat(v) === c).length, lab = { money: t.vMoney, cancel: t.vCancel, empty: t.vEmpty, test: t.vTest };
+      return `<div class="js-vfilt"><button data-vcat="" class="${st.vcat ? '' : 'on'}">${t.vAll} ${visits.length}</button>`
+        + VCATS.map((c) => `<button data-vcat="${c}" class="js-vc-${c}${st.vcat === c ? ' on' : ''}"><i></i>${lab[c]} ${n(c)}</button>`).join('')
+        + `<span class="js-hint">${t.vOrder}:</span><button data-vsort="time" class="${st.vsort === 'color' ? '' : 'on'}">${t.vByTime}</button><button data-vsort="color" class="${st.vsort === 'color' ? 'on' : ''}">${t.vByColor}</button></div>`;
+    };
     function visitsHtml(d) {
       visits = d.visits || [];
       markAll = d.markAll || null;
@@ -155,8 +169,9 @@
       // кто и когда поставил «Тест»: «Николай, 08.11 13:05»
       const byText = (v) => (v.markBy ? `<br><small class="js-hint">${esc(v.markBy)}${v.markAt ? ', ' + new Date(v.markAt + TZ).toISOString().slice(8, 10) + '.' + new Date(v.markAt + TZ).toISOString().slice(5, 7) + ' ' + new Date(v.markAt + TZ).toISOString().slice(11, 16) : ''}</small>` : '');
       return `<details class="js-ex"><summary>${t.visits} (${visits.length})</summary><p class="js-hint">${t.visitsHint} ${t.vlogHint}</p>
+        ${vFilterHtml()}
         <div class="js-wrap"><table class="js-tbl"><thead><tr><th>${t.when}</th><th>${t.table}</th><th>${t.orders}</th><th>${t.sum}</th><th>${t.staff}</th><th>${t.test}${opt.markVisit && markAll?.n ? `<br><label class="js-all"><input type="checkbox" data-visitall="1" ${markAll.marked === markAll.n ? 'checked' : ''}> ${t.allPeriod}</label>` : ''}</th></tr></thead>
-        <tbody>${visits.map((v, i) => `<tr class="${v.why ? 'js-test' : ''}"><td>${(v.log || []).length ? `<button class="js-vbtn" data-vlog="${i}">▸</button> ` : ''}${when(v)}</td><td>${esc(v.table)}</td><td>${v.orders}</td><td>${money(v.total)}</td>
+        <tbody>${shownVisits().map(([v, i]) => `<tr class="js-c-${vcat(v)}${v.why ? ' js-test' : ''}"><td>${(v.log || []).length ? `<button class="js-vbtn" data-vlog="${i}">▸</button> ` : ''}${when(v)}</td><td>${esc(v.table)}</td><td>${v.orders}</td><td>${money(v.total)}</td>
           <td>${esc(v.staff.join(', '))}</td><td>${v.why === 'before' ? t.whyBefore : v.why === 'staff' ? t.whyStaff
             : (opt.markVisit ? `<input type="checkbox" data-visit="${i}" ${v.why === 'mark' ? 'checked' : ''}>` : v.why ? '✓' : '')
               + (v.part ? ` <small>${t.partly.replace('{m}', v.part.marked).replace('{n}', v.part.total)}</small>` : '') + (v.why === 'mark' || v.part ? byText(v) : '')}</td></tr>`).join('')}</tbody></table></div></details>`;
@@ -175,18 +190,24 @@
       }).join('')}</ul>`;
     }
     // Ошибки процесса — на самом видном месте: больше нуля — красные, ноль — зелёные; по нажатию — каждый заказ
-    function errorsHtml(er) {
+    // scope — ресторан или «все рестораны»; за выбранный период. Каждый заказ — по нажатию: блюда, количество, цена, итог
+    const nmOf = (n) => (typeof n === 'string' ? n : (n && (n[opt.lang] || n.en || n.ru || Object.values(n)[0])) || '');
+    const period = () => { const a = new Date(st.from + TZ).toISOString(), b = new Date(st.to - 1 + TZ).toISOString(), dm = (x) => `${x.slice(8, 10)}.${x.slice(5, 7)}`;
+      return dm(a) === dm(b) ? dm(a) : `${dm(a)}–${dm(b)}`; };
+    function errorsHtml(er, scope) {
       if (!er) return '';
       const hm = (ts) => new Date(ts + TZ).toISOString().slice(5, 16).replace('T', ' ');
-      const box = (label, x, rows) => `<details class="js-err ${x.n ? 'bad' : 'ok'}"><summary><span>${esc(label)}</span><b>${x.n ? `${x.n} · ${money(x.sum)}` : '0 ✓'}</b></summary>${x.n ? `<ul class="js-vlog">${rows}</ul>` : ''}</details>`;
+      const box = (label, x, rows) => `<details class="js-err ${x.n ? 'bad' : 'ok'}"><summary><span>${esc(label)}</span><b>${x.n ? `${x.n} · ${money(x.sum)}` : '0 ✓'}</b></summary>${x.n ? `<ul class="js-elist">${rows}</ul>` : ''}</details>`;
       const who = (x) => (x.src === 'staff' ? t.errStaffOrder : `${t.guestW} ${x.g || 1}, ${x.src === 'phone' ? t.phoneW : t.tabletW}`);
-      return `<h3 class="js-errh">⚠️ ${t.errTitle}</h3><p class="js-hint">${t.errHint}</p><div class="js-errs">`
-        + box(t.errCancel, er.cancelled, er.cancelled.list.map((x) => `<li>${hm(x.t)} · ${esc(x.table)} · ${who(x)} · ${money(x.total)} — ${x.k === 'order_reject' ? t.errRejected : t.errCancelled}${x.bn ? `: ${esc(x.bn)}` : ''}${x.note ? ` — «${esc(x.note)}»` : ''}</li>`).join(''))
-        + box(t.errMarked, er.marked, er.marked.list.map((x) => `<li>${hm(x.t)} · ${esc(x.table)} · ${who({ ...x, g: 1 })} · ${money(x.total)}${x.by ? ` — ${t.errMarkedBy} ${esc(x.by)}${x.at ? `, ${hm(x.at)}` : ''}` : ''}</li>`).join(''))
+      const dishes = (x) => `<div class="js-edish">${(x.items || []).map(([n, q, p]) => `<div><span>${q} × ${esc(nmOf(n))}</span><span>${p != null ? money(p * q) : ''}</span></div>`).join('')}<div class="js-etot"><span></span><b>${money(x.total)}</b></div></div>`;
+      const item = (x, tail) => `<li><details><summary>${hm(x.t)} · ${x.rest ? esc(x.rest) + ' · ' : ''}${esc(x.table)} · ${who(x)} · <b>${money(x.total)}</b>${tail}</summary>${dishes(x)}</details></li>`;
+      return `<h3 class="js-errh">⚠️ ${t.errTitle} <small class="js-hint">· ${esc(scope || '')} · ${period()}</small></h3><p class="js-hint">${t.errHint}</p><div class="js-errs">`
+        + box(t.errCancel, er.cancelled, er.cancelled.list.map((x) => item(x, ` — ${x.k === 'order_reject' ? t.errRejected : t.errCancelled}${x.bn ? `: ${esc(x.bn)}` : ''}${x.note ? ` — «${esc(x.note)}»` : ''}`)).join(''))
+        + box(t.errMarked, er.marked, er.marked.list.map((x) => item(x, x.by ? ` — ${t.errMarkedBy} ${esc(x.by)}${x.at ? `, ${hm(x.at)}` : ''}` : '')).join(''))
         + '</div>';
     }
     function restaurantHtml(d) {
-      return errorsHtml(d.errors) + visitsHtml(d) + summaryHtml(d.summary, d.prev, d.reaction) + excludedHtml(d)
+      return errorsHtml(d.errors, d.name || '') + visitsHtml(d) + summaryHtml(d.summary, d.prev, d.reaction) + excludedHtml(d)
         + table('staff', t.staff, [[t.name, 'name'], [t.callsAcked, 'calls'], [t.react, 'callMed', dur, durCsv], [t.ordersAcked, 'orders'],
           [t.sum, 'ordersSum', money, (v) => v], [t.paid, 'paid'], [t.shiftH, 'shiftH'], [t.activeH, 'activeH'], [t.days, 'days']], d.staff)
         + table('tables', t.tables, [[t.table, 'table'], [t.opens, 'opens'], [t.orders, 'orders'], [t.revenue, 'revenue', money, (v) => v],
@@ -198,13 +219,14 @@
         + table('promos', t.promos, [[t.promo, 'name'], [t.imps, 'imps'], [t.scans, 'scans'], [t.qty, 'qty'], [t.revenue, 'revenue', money, (v) => v]], d.promos)
         + avatarHtml(d.avatar) + timeHtml(d);
     }
-    const errCell = (v) => (v ? `<b class="js-down">${v}</b>` : '<span class="js-up">0</span>');
+    // столбцы ошибок в таблице ресторанов: сколько и на какую сумму; больше нуля — красным
+    const errCell = (v) => (v?.n ? `<b class="js-down">${v.n} · ${money(v.sum)}</b>` : '<span class="js-up">0</span>');
     function adminHtml(d) {
       const n = d.network;
-      return (d.restaurant ? '' : summaryHtml(n.summary, n.prev, n.reaction))
+      return (d.restaurant ? '' : errorsHtml(n.errors, t.errAll) + summaryHtml(n.summary, n.prev, n.reaction))
         + table('network', t.network, [[t.rest, 'name'], [t.orders, 'orders'], [t.revenue, 'revenue', money, (v) => v], [t.avg, 'avg', money, (v) => v],
           [t.calls, 'calls'], [t.react, 'callMed', dur, durCsv], [t.conversion, 'conversion', (v) => (v == null ? '—' : `${v}%`)],
-          [t.errCancelCol, 'errCancel', errCell, (v) => v || 0], [t.errMarkedCol, 'errMarked', errCell, (v) => v || 0],
+          [t.errCancelCol, 'errCancel', errCell, (v) => (v?.n ? `${v.n} / ${v.sum}` : 0)], [t.errMarkedCol, 'errMarked', errCell, (v) => (v?.n ? `${v.n} / ${v.sum}` : 0)],
           [t.devices, 'devices'], [t.uptime, 'uptimeH'], [t.offline, 'offline'], [t.crashes, 'crashes'], [t.adScans, 'adScans'], [t.leads, 'leads']], n.network)
         + table('devices', t.devicesT, [[t.device, 'id'], [t.rest, 'rest'], [t.place, 'place'], [t.now, 'online', (v) => (v ? `<span class="js-up">${t.online}</span>` : `<span class="js-down">${t.offlineNow}</span>`), (v) => (v ? t.online : t.offlineNow)],
           [t.hoursOn, 'hours'], [t.orders, 'orders'], [t.revenue, 'revenue', money, (v) => v], [t.calls, 'calls'], [t.talks, 'talks'],
@@ -258,6 +280,9 @@
         return;
       }
       if (b.dataset.recalc) return load();
+      // журнал визитов: фильтр по цвету и порядок — без сворачивания журнала
+      if (b.dataset.vcat !== undefined) { st.vcat = b.dataset.vcat; return load(true); }
+      if (b.dataset.vsort) { st.vsort = b.dataset.vsort; return load(true); }
       if (b.dataset.pre) {
         st.preset = b.dataset.pre;
         if (st.preset === 'month') { const n = new Date(Date.now() + TZ); st.from = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), 1) - TZ; st.to = dayStart(1); }
@@ -303,8 +328,15 @@
 .js-chart h4{margin:0 0 8px;font-size:13px}.js-bars{display:flex;align-items:flex-end;gap:2px;height:120px}.js-bars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
 .js-test td{color:#b0a69c}.js-ex{background:#fff;border-radius:12px;padding:8px 12px;margin:0 0 10px}.js-ex summary{cursor:pointer;font-weight:600}.js-ex label{display:inline-block;margin:4px 14px 4px 0;white-space:nowrap}
 .js-ex .js-all{font-weight:400;white-space:nowrap;color:#222;display:inline-flex;align-items:center;gap:4px;margin-top:2px}.js-errh{color:#c62828}.js-errs{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}.js-err{flex:1 1 300px;background:#fff;border-radius:12px;padding:10px 14px;border-left:6px solid #2e7d32;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.js-err.bad{border-color:#c62828;background:#fff5f5}.js-err summary{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;font-size:14px}.js-err summary b{font-size:22px;white-space:nowrap}
-.js-err.bad summary b{color:#c62828}.js-err.ok summary b{color:#2e7d32}.js-err.ok summary{cursor:default}.js-vbtn{padding:0 6px!important;margin:0!important;border:1px solid #ddd;border-radius:6px;background:#fff;color:#222;cursor:pointer;font-size:12px}
+.js-err.bad{border-color:#c62828;background:#fff5f5}.js-err>summary{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;font-size:14px}.js-err>summary b{font-size:22px;white-space:nowrap}
+.js-err.bad>summary b{color:#c62828}.js-err.ok>summary b{color:#2e7d32}.js-err.ok>summary{cursor:default}
+.js-elist{margin:6px 0 2px;padding-left:16px;font-size:13px;line-height:1.5}.js-elist summary{cursor:pointer}.js-edish{margin:4px 0 8px;padding:6px 10px;background:#fff;border-radius:8px;max-width:420px}
+.js-edish div{display:flex;justify-content:space-between;gap:12px}.js-etot{border-top:1px solid #eee;margin-top:3px;padding-top:3px}
+.js-vfilt{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 8px}.js-vfilt button{padding:4px 10px;border-radius:999px;border:1px solid #ddd;background:#fff;color:#222;cursor:pointer;font-size:13px;margin:0}
+.js-vfilt button.on{background:#222;color:#fff;border-color:#222}.js-vfilt i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.js-vc-money i{background:#2e7d32}.js-vc-cancel i{background:#c62828}.js-vc-empty i{background:#1f1a17}.js-vc-test i{background:#b0a69c}.js-vfilt .js-hint{margin-left:8px}
+.js-c-money td{color:#1a7f37}.js-c-cancel td{color:#c62828}.js-c-empty td{color:#1f1a17}.js-c-money td:first-child{box-shadow:inset 4px 0 #2e7d32}.js-c-cancel td:first-child{box-shadow:inset 4px 0 #c62828}
+.js-c-empty td:first-child{box-shadow:inset 4px 0 #1f1a17}.js-c-test td:first-child{box-shadow:inset 4px 0 #d8d0c8}.js-vbtn{padding:0 6px!important;margin:0!important;border:1px solid #ddd;border-radius:6px;background:#fff;color:#222;cursor:pointer;font-size:12px}
 .js-vlog{margin:2px 0 6px;padding-left:18px;font-size:13px;line-height:1.5}.js-vlog .js-warn{color:#c62828}.js-vrow td{background:#faf7f4}
 .js-bars i{display:block;width:100%;background:#c8553d;border-radius:3px 3px 0 0;min-height:1px}.js-bars span{font-size:9px;color:#8a7f76;margin-top:2px}.js-body h3{margin:18px 0 6px}`;
   const s = document.createElement('style');
