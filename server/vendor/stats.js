@@ -177,14 +177,14 @@
       if (!visits.length) return '';
       // конец в другой день — с датой: «11-07 18:34–11-08 18:02»
       const when = (v) => { const a = new Date(v.from + TZ).toISOString(), b = new Date(v.to + TZ).toISOString();
-        return a.slice(5, 16).replace('T', ' ') + '–' + (a.slice(0, 10) === b.slice(0, 10) ? b.slice(11, 16) : b.slice(5, 16).replace('T', ' ')); };
+        return `<span class="js-nw">${a.slice(5, 16).replace('T', ' ')}–</span><span class="js-nw">${a.slice(0, 10) === b.slice(0, 10) ? b.slice(11, 16) : b.slice(5, 16).replace('T', ' ')}</span>`; };
       // кто и когда поставил «Тест»: «Николай, 08.11 13:05»
       const byText = (v) => (v.markBy ? `<br><small class="js-hint">${esc(v.markBy)}${v.markAt ? ', ' + new Date(v.markAt + TZ).toISOString().slice(8, 10) + '.' + new Date(v.markAt + TZ).toISOString().slice(5, 7) + ' ' + new Date(v.markAt + TZ).toISOString().slice(11, 16) : ''}</small>` : '');
       return `<details class="js-ex"><summary>${t.visits} (${visits.length})</summary><p class="js-hint">${t.visitsHint} ${t.vlogHint}</p>
         ${vFilterHtml()}
-        <div class="js-wrap"><table class="js-tbl"><thead><tr><th>${t.when}</th><th>${t.table}</th><th>${t.orders}</th><th>${t.sum}</th><th>${t.staff}</th><th>${t.callsCol}</th><th>${t.test}${opt.markVisit && markAll?.n ? `<br><label class="js-all"><input type="checkbox" data-visitall="1" ${markAll.marked === markAll.n ? 'checked' : ''}> ${t.allPeriod}</label>` : ''}</th></tr></thead>
-        <tbody>${shownVisits().map(([v, i]) => `<tr class="js-c-${vcat(v)}${v.why ? ' js-test' : ''}"><td data-l="${esc(t.when)}">${(v.log || []).length ? `<button class="js-vbtn" data-vlog="${i}">▸</button> ` : ''}${when(v)}</td><td data-l="${esc(t.table)}">${esc(v.table)}</td><td data-l="${esc(t.orders)}">${v.orders}</td><td data-l="${esc(t.sum)}">${money(v.total)}</td>
-          <td data-l="${esc(t.staff)}">${esc(v.staff.join(', '))}</td><td data-l="${esc(t.callsCol)}">${callsCell(v.calls)}</td><td data-l="${esc(t.test)}">${v.why === 'before' ? t.whyBefore : v.why === 'staff' ? t.whyStaff
+        <div class="js-wrap"><table class="js-tbl"><thead><tr><th class="js-when">${t.when}</th><th class="js-nw">${t.table}</th><th class="js-nw">${t.orders}</th><th class="js-nw">${t.sum}</th><th>${t.staff}</th><th>${t.callsCol}</th><th class="js-tc">${t.test}${opt.markVisit && markAll?.n ? `<br><label class="js-all"><input type="checkbox" data-visitall="1" ${markAll.marked === markAll.n ? 'checked' : ''}> ${t.allPeriod}</label>` : ''}</th></tr></thead>
+        <tbody>${shownVisits().map(([v, i]) => `<tr class="js-c-${vcat(v)}${v.why ? ' js-test' : ''}"><td class="js-when" data-l="${esc(t.when)}">${(v.log || []).length ? `<button class="js-vbtn" data-vlog="${i}">▸</button> ` : ''}${when(v)}</td><td class="js-nw" data-l="${esc(t.table)}">${esc(v.table)}</td><td class="js-nw" data-l="${esc(t.orders)}">${v.orders}</td><td class="js-nw" data-l="${esc(t.sum)}">${money(v.total)}</td>
+          <td data-l="${esc(t.staff)}">${esc(v.staff.join(', '))}</td><td data-l="${esc(t.callsCol)}">${callsCell(v.calls)}</td><td class="js-tc" data-l="${esc(t.test)}">${v.why === 'before' ? t.whyBefore : v.why === 'staff' ? t.whyStaff
             : (opt.markVisit ? `<input type="checkbox" data-visit="${i}" ${v.why === 'mark' ? 'checked' : ''}>` : v.why ? '✓' : '')
               + (v.part ? ` <small>${t.partly.replace('{m}', v.part.marked).replace('{n}', v.part.total)}</small>` : '') + (v.why === 'mark' || v.part ? byText(v) : '')}</td></tr>`).join('')}</tbody></table></div></details>`;
     }
@@ -356,7 +356,8 @@
 .js-cards{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 10px}.js-card{background:#fff;border-radius:12px;padding:10px 14px;min-width:150px;flex:1 1 150px;display:flex;flex-direction:column;gap:2px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .js-card span{font-size:12px;color:#8a7f76}.js-card b{font-size:22px}.js-up{color:#1a7f37}.js-down{color:#c62828}.js-hint,.js-none{color:#8a7f76;font-size:13px}
 .js-th{display:flex;align-items:center;gap:10px}.js-th button{padding:4px 10px;border-radius:8px;border:1px solid #ddd;background:#fff;color:#222;cursor:pointer;font-size:12px;margin:0}
-.js-wrap{overflow-x:visible}.js-tbl{border-collapse:collapse;width:100%;background:#fff;border-radius:10px;font-size:14px}.js-tbl th,.js-tbl td{padding:6px 8px;border-bottom:1px solid #eee;text-align:left;white-space:normal;overflow-wrap:anywhere;vertical-align:top}
+.js-wrap{overflow-x:visible}.js-tbl{border-collapse:collapse;width:100%;background:#fff;border-radius:10px;font-size:14px}.js-tbl th,.js-tbl td{padding:6px 8px;border-bottom:1px solid #eee;text-align:left;white-space:normal;overflow-wrap:break-word;vertical-align:top}
+.js-tbl .js-nw{white-space:nowrap}.js-tbl .js-tc{width:1%}.js-tbl th.js-tc .js-all{white-space:normal;font-size:12px}.js-tbl .js-when{width:150px;min-width:150px}
 @media (max-width:760px){.js-tbl thead{display:none}.js-tbl,.js-tbl tbody,.js-tbl tr,.js-tbl td{display:block;width:auto}.js-tbl tr{border-bottom:1px solid #e6dfd8;padding:6px 10px}
 .js-tbl td{border:0;padding:2px 0}.js-tbl td[data-l]:not(:empty)::before{content:attr(data-l) ': ';color:#8a7f76;font-size:12px}.js-tbl tr.js-vrow td::before{content:none}}
 .js-tbl th{font-size:12px;color:#8a7f76;white-space:normal}.js-charts{display:flex;flex-wrap:wrap;gap:12px}.js-chart{background:#fff;border-radius:12px;padding:10px;flex:1 1 320px}
