@@ -423,6 +423,7 @@ const ago = (ms) => `${Math.max(0, Math.floor((Date.now() - ms) / 60000))} ${t('
 const itemName = (n) => (typeof n === 'string' ? n : n[lang] || n.en || n.th || Object.values(n)[0] || '');
 // История заказа раскрыта у этих заказов (переживает обновление списка); окно «Переделать» / «Отменить заказ»
 const openHist = new Set();
+let sheetHtml = '', sheetFor = ''; // что сейчас нарисовано в карточке стола (со схемы зала) и для какого стола
 let voidSt = null;
 const hhmm = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 const hms = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -849,10 +850,19 @@ function render(s, force) {
   if (sheetTable && !(s.restaurant.tables || []).includes(sheetTable)) sheetTable = null;
   if (sheetTable) {
     const calls = s.calls.filter((c) => c.table === sheetTable), has = s.orders.some((o) => o.table === sheetTable);
-    $('tsheet').innerHTML = `<div class="tshade" data-tsclose="1"></div><div class="tpanel" role="dialog" aria-label="${esc(tbl(sheetTable))}">
+    const html = `<div class="tshade" data-tsclose="1"></div><div class="tpanel" role="dialog" aria-label="${esc(tbl(sheetTable))}">
       <div class="thead2"><b>${esc(tbl(sheetTable))}</b><button class="ghostbtn" data-tsclose="1" aria-label="${esc(t('cancel'))}">✕</button></div>
       ${ghosts(sheetTable)}${calls.map(callHtml).join('')}${has ? orderBlock(sheetTable) : ''}${tableLine(sheetTable)}</div>`;
-  }
+    // Карточка стола: в ней ничего не поменялось (новое — за другим столом) — не перерисовываем, ничего не мелькает и не
+    // пропадает из-под пальца; поменялась — рисуем заново, но прокрутка остаётся на месте (длинный заказ, раскрытая история)
+    if (html !== sheetHtml) {
+      const y = sheetFor === sheetTable ? $('tsheet').querySelector('.tpanel')?.scrollTop || 0 : 0; // другой стол — сверху
+      sheetFor = sheetTable;
+      $('tsheet').innerHTML = sheetHtml = html;
+      const p = $('tsheet').querySelector('.tpanel');
+      if (p && y) p.scrollTop = y;
+    }
+  } else sheetHtml = sheetFor = '';
   $('tsheet').hidden = !sheetTable;
 }
 
