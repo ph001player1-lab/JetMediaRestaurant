@@ -105,7 +105,7 @@
   .pvbar select, .pvbar button { font-size: 13px; padding: 4px 8px; margin: 0; }
   .pvframe { width: 288px; height: 461px; overflow: hidden; border-radius: 10px; background: #000; }
   .pvframe iframe { width: 800px; height: 1280px; border: 0; transform: scale(.36); transform-origin: 0 0; }
-  .tabs { display: flex; gap: 4px; overflow-x: auto; padding: 0 16px; border-top: 1px solid #eee; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 0 4px; padding: 0 16px; border-top: 1px solid #eee; }
   .line { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #eee; }
   .line span { flex: 1; }
   .line button { width: 40px; padding: 8px 0; }
@@ -120,7 +120,7 @@
   .ed input[type=color] { width: 96px; height: 48px; padding: 3px; }
   .ed .del { background: #efe7df; color: #c62828; justify-self: start; font-size: 15px; padding: 8px 12px; }
   .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 12px 0; }
-  .chips { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 10px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 10px; }
   .chips button { background: #fff; color: inherit; border: 1px solid #ddd; font-size: 14px; padding: 8px 12px; white-space: nowrap; }
   .chips button.on { background: #1f1a17; color: #fff; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }

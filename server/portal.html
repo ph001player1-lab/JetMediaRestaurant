@@ -10,9 +10,9 @@
   nav { display: flex; flex-wrap: wrap; align-items: center; }
   nav button { font-size: 16px; padding: 8px 14px; border: 0; background: none; border-bottom: 2px solid transparent; cursor: pointer; }
   nav button.on { border-color: #222; font-weight: 600; }
-  .wrap { overflow-x: auto; }
+  .wrap { overflow-x: visible; } /* без прокрутки вбок: текст в ячейках переносится */
   table { border-collapse: collapse; width: 100%; background: #fff; }
-  td, th { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; vertical-align: top; }
+  td, th { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; vertical-align: top; overflow-wrap: anywhere; }
   small, .hint { color: #777; }
   .online { color: #1a7f37; } .offline { color: #c62828; } .warn { color: #b26a00; }
   button { margin: 2px; padding: 4px 8px; cursor: pointer; }
