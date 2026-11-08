@@ -375,7 +375,8 @@ export function restaurantReport({ log, db, r, from, to, staffNames, tests, dayF
     // журнал визитов: последние 300, у каждого — тестовый ли и почему
     // «Тест» для всех визитов периода разом: визиты, которые можно отметить (не прошлые данные и не тестовый сотрудник)
     markAll: (() => { const m = all.filter((v) => !v.why || v.why === 'mark'); return { n: m.length, marked: m.filter((v) => v.why).length, ids: m.flatMap((v) => v.ids) }; })(),
-    visits: all.reverse().slice(0, 300).map(({ events, staff, r: rid, ...v }) => ({ ...v, staff: [...staff], log: visitLog(events, dishName(r, true)) })),
+    // по времени начала, новые сверху (в списке визиты идут в порядке завершения — забытый стол завершается позже)
+    visits: [...all].sort((a, b) => b.from - a.from).slice(0, 300).map(({ events, staff, r: rid, ...v }) => ({ ...v, staff: [...staff], log: visitLog(events, dishName(r, true)) })),
     staff: staffStats(ev, staffNames, to), tables: tableStats(ev), dishes: dishStats(ev, r),
     promos: promoStats(ev, r, db.stats, days), avatar: avatarStats(ev, db.stats, rids, () => days), ...timeStats(ev),
   };
