@@ -182,11 +182,20 @@ const dishName = (r, all = false) => {
 };
 // Журнал визита: заказы и всё, что с ними делали (кто, когда, что добавили/убрали, переделка, отмена с причиной)
 const LOG_KINDS = new Set(['order', 'order_void', 'order_ack', 'order_edit', 'order_kitchen', 'order_ready', 'order_served', 'order_redo',
-  'order_cancel', 'order_reject', 'order_remove', 'paid', 'close', 'undo']);
+  'order_cancel', 'order_reject', 'order_remove', 'paid', 'close', 'undo', 'call', 'call_ack', 'call_done', 'call_cancel', 'remind', 'forgotten']);
 function visitLog(events, name) {
   const lines = (list) => (list || []).map(([id, qty]) => [name(id), qty]);
-  return events.filter((e) => LOG_KINDS.has(e.k)).slice(0, 120).map((e) => {
+  const out = [];
+  for (const e of events) {
+    if (!LOG_KINDS.has(e.k) || out.length >= 150) continue;
+    // напоминания подряд — одной строкой «напоминание ×3»
+    const prev = out[out.length - 1];
+    if (e.k === 'remind' && prev?.k === 'remind' && prev.kind === e.kind) { prev.n++; continue; }
     const x = { t: e.t, k: e.k };
+    out.push(x);
+    if (e.k === 'remind') { Object.assign(x, { kind: e.kind, n: 1 }); continue; }
+    if (e.k === 'forgotten') { x.kind = e.kind; if (e.type) x.type = e.type; continue; }
+    if (e.k.startsWith('call')) { if (e.type) x.type = e.type; if (e.guest) x.g = e.guest; if (e.ms != null && e.k !== 'call_done') x.ms = e.ms; }
     if (e.id) x.id = String(e.id).slice(-4);
     if (e.bn) x.bn = e.bn;
     if (e.k === 'order' || e.k === 'order_void') Object.assign(x, { items: lines(e._items || e.items), total: e._total ?? e.total, src: e.src || (e.phone ? 'phone' : 'tablet'), g: e.guest });
@@ -197,8 +206,36 @@ function visitLog(events, name) {
     if (e.k === 'order_edit' || e.k === 'order_cancel' || e.k === 'paid') x.total = e.total;
     if (e.noKitchen) x.noKitchen = 1;
     if (e.k === 'undo') x.of = e.of;
-    return x;
-  });
+  }
+  return out;
+}
+
+// Вызовы визита: сколько вызовов официанта и просьб счёта, через сколько обычно отвечали; «не дождался» — никто не нажал
+// «Иду», и гость отменил сам через минуту и больше, или вызов сняли по времени без ответа (отмена быстрее — нажал по ошибке)
+function callsOf(events) {
+  const calls = new Map();
+  for (const e of events) {
+    if (e.k === 'call' && e.id) calls.set(e.id, { type: e.type === 'bill' ? 'bill' : 'waiter', t: e.t, g: e.guest || 1 });
+    else if (e.k === 'call_ack' && calls.has(e.id)) Object.assign(calls.get(e.id), { ack: e.ms ?? 0, by: e.bn || '' });
+    else if (e.k === 'call_cancel' && calls.has(e.id) && calls.get(e.id).ack == null) calls.get(e.id).cancel = e.ms ?? 0;
+  }
+  const list = [...calls.values()];
+  const missed = [];
+  for (const c of list) {
+    if (c.ack != null || c.cancel == null || c.cancel < 60e3) continue;
+    const reminds = events.filter((e) => e.k === 'remind' && e.kind === c.type && e.t >= c.t && e.t <= c.t + c.cancel).length;
+    missed.push({ t: c.t, type: c.type, wait: c.cancel, reminds, how: 'cancel' });
+  }
+  // снят по времени без ответа (старые записи — без номера вызова: по столу и времени)
+  for (const e of events.filter((x) => x.k === 'forgotten' && x.kind === 'call')) {
+    const c = e.id ? calls.get(e.id) : list.filter((x) => x.ack == null && x.t <= e.t).pop();
+    if (c && missed.some((m) => m.t === c.t)) continue;
+    const t0 = c?.t ?? e.t;
+    missed.push({ t: t0, type: c?.type || e.type || 'waiter', wait: e.t - t0, reminds: events.filter((x) => x.k === 'remind' && x.t >= t0 && x.t <= e.t).length, how: 'expired' });
+  }
+  const acks = list.filter((c) => c.ack != null).map((c) => c.ack);
+  return { w: list.filter((c) => c.type === 'waiter').length, b: list.filter((c) => c.type === 'bill').length, ack: acks.length ? median(acks) : null,
+    missed: missed.sort((a, b) => a.t - b.t) };
 }
 
 function dishStats(ev, r) {
@@ -357,7 +394,7 @@ const realDays = (days, c) => (c?.before ? days.filter((d) => d > thDay(c.before
 
 // Ошибки процесса (стремимся к нулю): заказ гостя с планшета или телефона отменили или отклонили сотрудники;
 // заказы, помеченные «Тест» вручную (не прошлые данные и не тестовый сотрудник). По каждому — когда, стол, сумма, кто
-function processErrors(ev, visits, ctxs, names = {}, rests = {}) {
+function processErrors(ev, visits, ctxs, names = {}, rests = {}, tests = false) {
   // блюда заказа — коротко: название, сколько, цена (по нажатию в статистике)
   const lines = (e) => (e._items || e.items || []).map(([id, qty, price]) => [(names[e.r] || ((x) => x))(id), qty, price]);
   const why = {};
@@ -375,8 +412,10 @@ function processErrors(ev, visits, ctxs, names = {}, rests = {}) {
         g: e.guest || 1, items: lines(e), rest: rests[e.r] || '' });
     }
   }
+  // гость не дождался официанта (тестовые визиты — только «с тестовыми»)
+  const missed = visits.filter((v) => tests || !v.why).flatMap((v) => callsOf(v.events).missed.map((m) => ({ ...m, table: v.table, rest: rests[v.r] || '' })));
   const pack = (l) => ({ n: l.length, sum: l.reduce((a, x) => a + (x.total || 0), 0), list: l.sort((a, b) => b.t - a.t).slice(0, 50) });
-  return { cancelled: pack(cancelled), marked: pack(marked) };
+  return { cancelled: pack(cancelled), marked: pack(marked), missed: pack(missed) };
 }
 
 // Отчёт ресторана (ЛК менеджера и портал при выборе одного ресторана); tests — показать вместе с тестовыми
@@ -393,7 +432,7 @@ export function restaurantReport({ log, db, r, from, to, staffNames, tests, dayF
   // из частично помеченных — только помеченные заказы
   const partOrders = partVisits.flatMap((v) => v.events.filter((e) => e.k === 'order' && ctxs[r.id].marks.has(e.id)));
   return {
-    name: r.name, from, to, tests: !!tests, summary: summary(ev), prev: summary(prev), reaction: reaction(ev), errors: processErrors(ev, all, ctxs, { [r.id]: dishName(r, true) }),
+    name: r.name, from, to, tests: !!tests, summary: summary(ev), prev: summary(prev), reaction: reaction(ev), errors: processErrors(ev, all, ctxs, { [r.id]: dishName(r, true) }, {}, tests),
     excluded: { visits: testVisits.length + partVisits.length, orders: testVisits.reduce((s, v) => s + v.orders, 0) + partOrders.length,
       total: testVisits.reduce((s, v) => s + v.total, 0) + partOrders.reduce((s, e) => s + (e.total || 0), 0) },
     // журнал визитов: последние 300, у каждого — тестовый ли и почему
@@ -401,7 +440,7 @@ export function restaurantReport({ log, db, r, from, to, staffNames, tests, dayF
     markAll: (() => { const m = all.filter((v) => !v.why || v.why === 'mark'); return { n: m.length, marked: m.filter((v) => v.why).length, ids: m.flatMap((v) => v.ids) }; })(),
     // по времени начала, новые сверху (в списке визиты идут в порядке завершения — забытый стол завершается позже)
     visits: [...all].sort((a, b) => b.from - a.from).slice(0, 300).map(({ events, staff, r: rid, ...v }) => ({ ...v, staff: [...staff],
-      cancelled: events.filter((e) => e.k === 'order_void').length, log: visitLog(events, dishName(r, true)) })),
+      cancelled: events.filter((e) => e.k === 'order_void').length, calls: callsOf(events), log: visitLog(events, dishName(r, true)) })),
     staff: staffStats(ev, staffNames, to), tables: tableStats(ev), dishes: dishStats(ev, r),
     promos: promoStats(ev, r, db.stats, days), avatar: avatarStats(ev, db.stats, rids, () => days), ...timeStats(ev),
   };
@@ -417,8 +456,9 @@ export function networkReport({ log, db, rids, from, to, tests, dayFrom = () => 
   const prev = tests ? prevRaw : realOnly(prevRaw, ctxs);
   const allVisits = visitsOf(raw, ctxs), errAll = [];
   const network = rests.map((r) => {
-    const mine = ev.filter((e) => e.r === r.id), er = processErrors(mine, allVisits.filter((v) => v.r === r.id), ctxs);
-    errAll.push(processErrors(mine, allVisits.filter((v) => v.r === r.id), ctxs, { [r.id]: dishName(r, true) }, { [r.id]: r.name }));
+    const er = processErrors(ev.filter((e) => e.r === r.id), allVisits.filter((v) => v.r === r.id), ctxs, { [r.id]: dishName(r, true) }, { [r.id]: r.name }, tests);
+    const mine = ev.filter((e) => e.r === r.id);
+    errAll.push(er);
     const devices = Object.values(db.devices).filter((d) => d.restaurantId === r.id).length;
     const polls = sumCounter(db.stats, `up|${r.id}`, days);
     return {
@@ -427,7 +467,7 @@ export function networkReport({ log, db, rids, from, to, tests, dayFrom = () => 
       // Часов на связи в среднем на одно устройство в день (опрос раз в 15 секунд)
       uptimeH: devices ? +((polls * 15) / 3600 / devices / days.length).toFixed(1) : null,
       offline: mine.filter((e) => e.k === 'dev_offline').length, crashes: mine.filter((e) => e.k === 'dev_crash').length,
-      errCancel: { n: er.cancelled.n, sum: er.cancelled.sum }, errMarked: { n: er.marked.n, sum: er.marked.sum },
+      errCancel: { n: er.cancelled.n, sum: er.cancelled.sum }, errMarked: { n: er.marked.n, sum: er.marked.sum }, errMissed: { n: er.missed.n },
     };
   }).sort((a, b) => b.revenue - a.revenue);
   const ads = db.ads.map((a) => {
@@ -465,7 +505,7 @@ export function networkReport({ log, db, rids, from, to, tests, dayFrom = () => 
     // ошибки процесса по всем ресторанам: сколько и на какую сумму, по нажатию — каждый заказ с рестораном
     errors: (() => { const pack = (k) => { const l = errAll.flatMap((x) => x[k].list).sort((a, b) => b.t - a.t);
       return { n: errAll.reduce((a, x) => a + x[k].n, 0), sum: errAll.reduce((a, x) => a + x[k].sum, 0), list: l.slice(0, 80) }; };
-    return { cancelled: pack('cancelled'), marked: pack('marked') }; })(),
+    return { cancelled: pack('cancelled'), marked: pack('marked'), missed: pack('missed') }; })(),
     avatar: avatarStats(ev, db.stats, rids, (rid) => (tests ? days : realDays(days, ctxs[rid]))), ...timeStats(ev),
     tts: { chars: ev.filter((e) => e.k === 'tts').reduce((s, e) => s + (e.chars || 0), 0) },
   };

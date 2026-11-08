@@ -2507,7 +2507,7 @@ function sweepForgotten() {
         c.forgot = now;
         f = { id: c.id, kind: 'call', type: c.type, r: c.restaurantId, table: c.table, at: c.at, when: now, removed: false, after: timersOf(r).callMin };
         db.forgotten.unshift(f);
-        logEvent(c.restaurantId, 'forgotten', { kind: 'call', table: c.table });
+        logEvent(c.restaurantId, 'forgotten', { kind: 'call', table: c.table, id: c.id, type: c.type });
         changed = true;
       }
       // за столом нет заказа — снимаем (и тот, что держали из-за заказа, когда заказ закрыли)
