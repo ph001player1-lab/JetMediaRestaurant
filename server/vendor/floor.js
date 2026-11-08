@@ -122,8 +122,9 @@
     return { tb, st, since, who, due, total, q, pos: !!s.restaurant?.pos, voided: st === 'close' && !orders.length && !calls.length && voids.length > 0,
       dev, devBat: tab?.bat, devSince: tab?.since || 0 };
   }
-  // планшет не в порядке, а срочного по гостям нет — на плитке про планшет
-  const devFirst = (x) => x.dev && !URGENT.has(x.st);
+  // планшет не в порядке: не на связи — чёрный, на зарядку — тёмно-серый. Стол свободен — весь этого цвета, на плитке
+  // про планшет; за столом гости (вызов, готовится, оплата…) — цвет их состояния и рамка этого цвета; в «Нужно сделать» → «Планшеты»
+  const devFirst = (x) => x.dev && x.st === 'free';
   const devText = (x) => (x.dev === 'off' ? `⏻ ${t('devOffS')}` : `🪫 ${x.devBat}%`);
   function sub(x) {
     if (devFirst(x)) return devText(x);
@@ -244,7 +245,7 @@
     const z = zones.find((x) => x.id === ui.zone);
     const urgent = (tb) => st[tb] && URGENT.has(st[tb].st);
     const late = (x) => ['call', 'bill', 'new', 'tokitchen'].includes(x.st) && mins(x.since) >= 5;
-    const tileCls = (x) => `ftile ${x.st}${late(x) ? ' late' : ''}${x.dev ? (devFirst(x) ? ' fdev' : ' fdevmark') : ''}${ui.mine && showMine ? (mineSet.has(x.tb) ? ' fmine' : ' fdim') : ''}`;
+    const tileCls = (x) => `ftile ${x.st}${late(x) ? ' late' : ''}${x.dev ? (devFirst(x) ? ` fdev fdev-${x.dev}` : ` fdevmark fdevmark-${x.dev}`) : ''}${ui.mine && showMine ? (mineSet.has(x.tb) ? ' fmine' : ' fdim') : ''}`;
     const qbtn = (x, cls, style = '') => `<button class="${cls} q-${x.st}" style="${style}" data-fq="${x.q}" data-ftab="${esc(x.tb)}">${t('q_' + x.q)}</button>`;
     const tile = (p, style) => {
       const x = st[p.t] || stateOf(p.t, s, flow, quick, false);
@@ -283,7 +284,7 @@
         const h = Math.min(cell - gap, 36), pos = `left:${cx * cell + gap / 2}px;top:${cy * cell + (cell - h) / 2}px;width:${cell - gap}px;height:${h}px`;
         // кнопка — по ширине текста, с центром в своей клетке (не меньше клетки)
         const bpos = `left:${cx * cell + cell / 2}px;top:${cy * cell + (cell - h) / 2}px;min-width:${cell - gap}px;height:${h}px;transform:translateX(-50%)`;
-        return label ? `<span class="fstat s-${devFirst(x) ? 'dev' : x.st} fs-${side}" style="${pos}">${esc(statusText(x))}</span>` : qbtn(x, `fqn fq-${side}`, bpos);
+        return label ? `<span class="fstat s-${devFirst(x) ? 'dev' + x.dev : x.st} fs-${side}" style="${pos}">${esc(statusText(x))}</span>` : qbtn(x, `fqn fq-${side}`, bpos);
       }).join('');
       const W = Math.min(el.clientWidth || 360, 560);
       html += zoomWrap(planHtml(z, W, 1, tile, decorDef, Math.max(0, extra), '', overlay));
@@ -308,7 +309,7 @@
         `${t('st_' + x.st)}${x.since && x.st !== 'ready' ? ` · ${mins(x.since)} ${t('min')}` : ''}`)).join('')
         : !later.length && !cooking.length && !devs.length ? `<p class="empty">${t('allFree')}</p>` : '';
       // планшеты столов: включить, поставить на зарядку
-      if (devs.length) html += `<div class="fqh"><b>${t('tabletsQ')} · ${devs.length}</b></div>` + devs.map((x) => `<div class="frow r-dev" data-ftab="${esc(x.tb)}"><span class="fdot" style="background:#111">${esc(short(x.tb))}</span>
+      if (devs.length) html += `<div class="fqh"><b>${t('tabletsQ')} · ${devs.length}</b></div>` + devs.map((x) => `<div class="frow r-dev" data-ftab="${esc(x.tb)}"><span class="fdot" style="background:${x.dev === 'off' ? '#111' : '#555'}">${esc(short(x.tb))}</span>
         <span class="ftx"><b>${esc(t(x.dev === 'off' ? 'need_devoff' : 'need_devbat'))}</b><small>${esc(x.dev === 'off' ? (x.devSince ? t('devSince').replace('{t}', new Date(x.devSince).toTimeString().slice(0, 5)) : t('devOffS')) : t('devBat').replace('{p}', x.devBat))} · ${where(x)}</small></span></div>`).join('');
       if (cooking.length) html += `<div class="fqh"><b>${t('atKitchen')} · ${cooking.length}</b></div>`
         + cooking.map((x) => row(x, `${t('st_cook')} · ${mins(x.since)} ${t('min')}`, t(x.q === 'served' ? 'need_cookNoScreen' : 'need_cook'))).join('');
@@ -463,7 +464,7 @@
 .ftile{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;border:2px solid #d9cdc1;background:#fff;color:#1f1a17;padding:0;line-height:1.1;cursor:pointer;touch-action:manipulation;font:inherit;user-select:none;-webkit-user-select:none}
 .ftile.rd{border-radius:50%}.ftile .fn{font-size:17px;font-weight:800}.ftile .fn.sm{font-size:13px}.ftile .fs{font-size:11px;font-weight:600;margin-top:2px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .compact .ftile .fs{display:none}.compact .ftile .fn{font-size:15px}
-.ftile.free{background:#fff;border-color:#d9cdc1;color:#1f1a17}.ftile.ftile.fdev,.fgrid .ftile.ftile.fdev{background:#111;border-color:#111;color:#fff}.ftile.fdevmark{box-shadow:0 0 0 3px #111}.fstat.s-dev{color:#111;font-weight:800}.ftile.cook{background:var(--f-cook);border-color:var(--f-cook);color:#fff}
+.ftile.free{background:#fff;border-color:#d9cdc1;color:#1f1a17}.ftile.ftile.fdev-off,.fgrid .ftile.ftile.fdev-off{background:#111;border-color:#111;color:#fff}.ftile.ftile.fdev-bat,.fgrid .ftile.ftile.fdev-bat{background:#555;border-color:#555;color:#fff}.ftile.fdevmark-off{box-shadow:0 0 0 3px #111}.ftile.fdevmark-bat{box-shadow:0 0 0 3px #555}.fstat.s-devoff{color:#111;font-weight:800}.fstat.s-devbat{color:#555;font-weight:800}.ftile.cook{background:var(--f-cook);border-color:var(--f-cook);color:#fff}
 .ftile.call,.ftile.bill,.ftile.ready{color:#fff}.ftile.new{color:#1f1a17}.ftile.call{background:var(--f-call);border-color:var(--f-call)}.ftile.bill{background:var(--f-bill);border-color:var(--f-bill)}
 .ftile.new{background:var(--f-new);border-color:var(--f-new)}.ftile.tokitchen{background:var(--f-kit);border-color:var(--f-kit);color:#fff}.ftile.ready{background:var(--f-ready);border-color:var(--f-ready)}
 .ftile.pay{background:var(--f-pay);border-color:var(--f-pay);color:#fff}.ftile.close{background:var(--f-close);border-color:var(--f-close);color:#fff}
