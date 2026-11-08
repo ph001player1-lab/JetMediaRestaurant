@@ -129,7 +129,8 @@
   .tile > div, .tile > b, .tile > span { padding: 0 8px; }
   .tile.off { opacity: .45; }
   .msearch { width: 100%; font-size: 16px; padding: 10px; border-radius: 10px; border: 1px solid #ddd; box-sizing: border-box; }
-  .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.4); display: flex; align-items: flex-end; justify-content: center; z-index: 20; }
+  /* окна (изменить заказ, причина, подтверждение) — поверх карточки стола со схемы зала (#tsheet, 30) */
+  .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.4); display: flex; align-items: flex-end; justify-content: center; z-index: 40; }
   .modal .ed { width: 100%; max-width: 560px; max-height: 92vh; overflow: auto; margin: 0; border-radius: 16px 16px 0 0; }
   .ghostbtn { background: #efe7df; color: #1f1a17; }
   main { padding: 0 16px 32px; max-width: 1100px; margin: auto; }
