@@ -331,10 +331,12 @@ const isTestStaff = (c, e) => !!e.by && (c.ids.has(e.by) || (e.by.startsWith('na
 const VISIT_GAP_MS = 3 * 3600e3;
 const workDay = (c, t) => Math.floor((t + 7 * 3600e3 - c.dayFrom * 60e3) / 864e5);
 function visitsOf(ev, ctxs, { split = true } = {}) {
-  const out = [], open = {};
+  const out = [], open = {}, byId = new Map();
   for (const e of ev) {
     const c = ctxs[e.r];
     if (!c || !e.table) continue;
+    // причина отмены вызова приходит после отмены, а стол к этому времени уже мог закрыться — к визиту этого вызова
+    if (e.k === 'call_why' && byId.has(e.id)) { byId.get(e.id).events.push(e); continue; }
     const key = `${e.r}|${e.table}`, v0 = open[key];
     // Стол, оставшийся открытым с прошлых (тестовых) данных: после отметки начинается новый визит
     if (e.k === 'open' || !v0 || (v0.from < c.before && e.t >= c.before)
@@ -345,7 +347,7 @@ function visitsOf(ev, ctxs, { split = true } = {}) {
     const v = open[key];
     v.events.push(e);
     v.to = e.t;
-    if (e.id && !v.ids.includes(e.id)) v.ids.push(e.id);
+    if (e.id && !v.ids.includes(e.id)) { v.ids.push(e.id); byId.set(e.id, v); }
     if (e.k === 'order') { v.orders++; v.total += e.total || 0; }
     if (e.bn) v.staff.add(e.bn);
     v.why ||= e.t < c.before ? 'before' : isTestStaff(c, e) ? 'staff' : null;
