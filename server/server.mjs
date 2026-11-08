@@ -1619,6 +1619,19 @@ function guestCall(b) {
   return c;
 }
 
+// Почему гость отменил вызов (спрашиваем на планшете, если вызову больше 15 с): официант подошёл, но не нажал «Иду»;
+// не дождались; уже не нужно; нажали случайно — для статистики ресторана
+const CANCEL_WHY = new Set(['came', 'waited', 'notneeded', 'mistake']);
+function guestCancelWhy(b) {
+  const t = guestOf(b);
+  if (!t) throw fail(400, 'device is not assigned');
+  const c = db.calls.find((x) => x.id === b.id && x.restaurantId === t.r.id && x.table === t.table && x.cancelled && Date.now() - x.cancelled < 10 * 60_000);
+  if (!c || !CANCEL_WHY.has(b.why) || c.cancelWhy) return {};
+  c.cancelWhy = b.why;
+  logEvent(t.r.id, 'call_why', { id: c.id, table: t.table, type: c.type, why: b.why });
+  save();
+  return {};
+}
 // Гость отменил вызов (нажал по ошибке): вызов пропадает у официантов. Случайный вызов за свободным
 // столом — стол снова свободен
 function guestCancel(b) {
@@ -2620,6 +2633,8 @@ const tableLabel = (n, word = 'Стол') => {
   return /^\d+$/.test(String(n)) ? `${word} ${n}` : m ? `${word} ${m[1]}` : String(n);
 };
 // Официант с отметкой «1-5, B1» обслуживает «Стол 1»…«Стол 5» и «Стол B1»: сравниваем и целиком, и по последнему слову
+// Кто из официантов закреплён за столом (в ЛК у сотрудника указаны столы); у кого столы не указаны — не называем
+const waitersOf = (r, table) => (r.staff || []).filter((m) => m.role !== 'manager' && m.tables?.length && servesTable(m.tables, table)).map((m) => m.name);
 const servesTable = (list, table) => list.includes(table) || list.includes(String(table).split(/\s+/).pop());
 
 // Столы из ЛК менеджера: [{ from: 'старое имя' или '' для нового, to: 'новое имя' }].
@@ -2672,7 +2687,7 @@ function cleanFloor(f, r) {
 function managerStats(b, q) {
   const { r } = managerSession(q.token);
   const { from, to } = period(q);
-  return restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r), tests: q.tests === '1', dayFrom });
+  return restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r), tests: q.tests === '1', dayFrom, waitersOf });
 }
 
 async function managerSync(b) {
@@ -3541,8 +3556,8 @@ function admin(method, p, b, me, q) {
     const r = q.r && rids.has(q.r) ? db.restaurants[q.r] : null;
     return {
       restaurants: [...rids].map((id) => ({ id, name: db.restaurants[id].name })),
-      network: networkReport({ log: events, db, rids: r ? new Set([r.id]) : rids, from, to, tests: q.tests === '1', dayFrom }),
-      restaurant: r ? restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r), tests: q.tests === '1', dayFrom }) : null,
+      network: networkReport({ log: events, db, rids: r ? new Set([r.id]) : rids, from, to, tests: q.tests === '1', dayFrom, waitersOf }),
+      restaurant: r ? restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r), tests: q.tests === '1', dayFrom, waitersOf }) : null,
     };
   }
   if (p.startsWith('/api/telegram')) return telegramAdmin(method, p, b);
@@ -3863,6 +3878,7 @@ const PUBLIC = {
   'GET /api/guest/state': guestState,
   'POST /api/guest/call': guestCall,
   'POST /api/guest/cancel': guestCancel,
+  'POST /api/guest/cancel-why': guestCancelWhy,
   'POST /api/guest/join': guestJoin,
   'GET /api/version': () => ({ version: VERSION, instance: INSTANCE }),
   'GET /api/internal/device': internalDevice,
