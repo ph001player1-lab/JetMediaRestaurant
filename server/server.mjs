@@ -830,6 +830,20 @@ function wifiText(w) {
   if (w.internet === false) parts.push('Android: интернета нет');
   return 'Wi-Fi: ' + parts.join(', ');
 }
+// Где рвётся (агент 0.1.19+ в начале обрыва проверяет роутер и интернет): точка Wi-Fi, интернет ресторана или путь до сервера
+const WHERE = { ap: 'точка Wi-Fi', isp: 'интернет ресторана', path: 'путь до сервера', portal: 'страница входа сети' };
+function probeOf(pr) {
+  if (!pr || typeof pr !== 'object') return null;
+  const gw = pr.gw === true ? true : pr.gw === false ? false : null, net = pr.net === true ? true : pr.net === 'portal' ? 'portal' : pr.net === false ? false : null;
+  const where = gw === false ? 'ap' : net === 'portal' ? 'portal' : net === false ? 'isp' : net === true ? 'path' : null;
+  return { gw, net, where };
+}
+const PROBE_TEXT = {
+  ap: 'Где: роутер не отвечает — точка Wi-Fi не пропускает данные к планшету',
+  isp: 'Где: роутер отвечает, интернета нет — пропал интернет ресторана',
+  path: 'Где: роутер и интернет в порядке — не отвечал только путь до нашего сервера',
+  portal: 'Где: сеть требует входа (страница входа)',
+};
 function outageRecord(d, o) {
   const now = Date.now();
   const dur = Math.min(7 * 864e5, Math.max(0, Number(o.dur) || 0));
@@ -841,13 +855,25 @@ function outageRecord(d, o) {
   };
   const steps = cut(o.steps, 400);
   const fix = steps ? steps.split('; ').pop().replace(/ на .*$/, '') : '';
-  const why = [`Причина: ${cut(o.err) || 'неизвестна'}`, wifiText(wifi),
+  const probe = probeOf(o.probe);
+  const why = [`Причина: ${cut(o.err) || 'неизвестна'}`, probe?.where ? PROBE_TEXT[probe.where] : '', wifiText(wifi),
     steps ? `Что делал планшет: ${steps}. Помогло: ${fix}` : 'Связь вернулась сама'].filter(Boolean).join('\n');
-  const rec = { key, start: now - dur, end: now, dur, fails: Math.min(9999, Number(o.fails) || 0), err: cut(o.err), lastErr: cut(o.lastErr), wifi, steps, why };
+  const rec = { key, start: now - dur, end: now, dur, fails: Math.min(9999, Number(o.fails) || 0), err: cut(o.err), lastErr: cut(o.lastErr), wifi, steps, why,
+    ...(probe ? { probe } : {}) };
   const list = (d.outages || []).filter((x) => x.key !== key);
   d.outages = [rec, ...list].slice(0, 100);
   if (d.restaurantId) logEvent(d.restaurantId, 'dev_outage', { dev: d.id, dur });
   return rec;
+}
+
+// Связь за сутки — только в часы работы ресторана (ночью закрытый зал не в счёт): обрывы, сколько без связи, доля времени на связи
+function workStats(d, now = Date.now()) {
+  const r = db.restaurants[d.restaurantId], from = now - 864e5;
+  const list = (d.outages || []).filter((x) => x.end >= from);
+  const inWork = list.filter((x) => !r || isWorking(r, x.start, 0));
+  const h = r ? hoursOf(r) : null, len = h ? ((((h.to - h.from + 1440) % 1440) || 1440) * 60_000) : 864e5;
+  const ms = inWork.reduce((a, x) => a + x.dur, 0);
+  return { n: inWork.length, ms, off: list.length - inWork.length, avail: Math.max(0, Math.round(1000 - (ms / len) * 1000) / 10), hours: !!h };
 }
 
 // Раз в день, в 9 утра по Пхукету: сводка обрывов за вчера по каждому устройству (короткие в Telegram не пишем)
@@ -868,7 +894,10 @@ setInterval(() => {
     const total = list.reduce((a, x) => a + x.dur, 0), max = Math.max(...list.map((x) => x.dur));
     const rs = list.map((x) => x.wifi?.rssi).filter((v) => v < 0);
     const rssi = rs.length ? Math.round(rs.reduce((a, v) => a + v, 0) / rs.length) : null;
-    rows.push({ total, text: `• ${deviceName(d)} — обрывов: ${list.length}, всего ${fmtSec(total)}, самый долгий ${fmtSec(max)}${rssi ? `, сигнал около ${rssi} dBm` : ''}` });
+    const wh = {};
+    for (const x of list) if (x.probe?.where) wh[x.probe.where] = (wh[x.probe.where] || 0) + 1;
+    const whText = Object.keys(wh).length ? ` (${Object.entries(wh).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${WHERE[k]}: ${n}`).join(', ')})` : '';
+    rows.push({ total, text: `• ${deviceName(d)} — обрывов: ${list.length}${whText}, всего ${fmtSec(total)}, самый долгий ${fmtSec(max)}${rssi ? `, сигнал около ${rssi} dBm` : ''}` });
   }
   if (!rows.length) return;
   rows.sort((a, b) => b.total - a.total);
@@ -1194,6 +1223,26 @@ function cleanUploads() {
 }
 setTimeout(cleanUploads, 10 * 60_000).unref();
 setInterval(cleanUploads, 864e5).unref();
+
+// Садится аккумулятор: 15% и меньше, не заряжается, экран включён — пишем в Telegram одним сообщением на ресторан,
+// только в часы работы и не чаще раза в 4 часа на планшет; поставили на зарядку или заряд вырос до 25% — отметка снимается
+setInterval(() => {
+  const now = Date.now(), byR = {};
+  for (const d of Object.values(db.devices)) {
+    const t = d.telemetry || {}, r = db.restaurants[d.restaurantId], bat = Number(t.battery);
+    if (!r || now - (d.lastSeen || 0) > ONLINE_MS || !Number.isFinite(bat) || bat < 0) continue;
+    if (bat > 15 || t.charging || t.screen === false) { if (d.lowBat && (t.charging || bat >= 25)) d.lowBat = 0; continue; }
+    d.lowBat ||= now;
+    if (now - d.lowBat < 2 * 60_000 || now - (d.lowBatAlert || 0) < 4 * 3600_000 || !isWorking(r, now, 0)) continue;
+    d.lowBatAlert = now;
+    (byR[r.id] ??= []).push(d);
+  }
+  for (const [rid, list] of Object.entries(byR)) {
+    tgAlert(`🪫 ${db.restaurants[rid].name}: садится аккумулятор, планшет не заряжается — проверьте зарядку:\n`
+      + list.map((d) => `• ${deviceName(d)} — ${d.telemetry.battery}%`).join('\n'));
+  }
+  if (Object.keys(byR).length) save();
+}, 60_000).unref();
 
 // Раз в минуту: устройства, пропавшие больше чем на 3 минуты, — одним сообщением
 setInterval(() => {
@@ -3464,8 +3513,11 @@ function admin(method, p, b, me, q) {
   if (method === 'GET' && p === '/api/devices') {
     const list = () => {
       const now = Date.now();
-      return Object.values(db.devices).filter((d) => !scope || scope.has(d.restaurantId)).map(({ queue, wifiList, ...d }) =>
-        ({ ...d, online: now - d.lastSeen < ONLINE_MS, pending: (queue || []).length, outages: (d.outages || []).slice(0, 30) }));
+      return Object.values(db.devices).filter((d) => !scope || scope.has(d.restaurantId)).map(({ queue, wifiList, ...d }) => {
+        const r = db.restaurants[d.restaurantId];
+        return { ...d, online: now - d.lastSeen < ONLINE_MS, pending: (queue || []).length, work: workStats(d, now),
+          outages: (d.outages || []).slice(0, 30).map((x) => (r && !isWorking(r, x.start, 0) ? { ...x, off: true } : x)) };
+      });
     };
     return INSTANCE === 'test' ? pullAllDevices().then(list) : list();
   }

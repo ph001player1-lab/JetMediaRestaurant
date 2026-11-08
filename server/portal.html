@@ -560,14 +560,15 @@ function scanBox(d) {
   return `<details class="dlog" data-k="scan-${esc(d.id)}" ${openLogs.has('scan-' + d.id) ? 'open' : ''}><summary>📡 Сети рядом: ${sc.list.length} · ${new Date(sc.at).toLocaleString()}</summary>
     ${sc.list.map((n) => `<div>${n.current ? '✅ ' : ''}${esc(n.ssid)} · ${n.level} dBm (${q(n.level)}) · ${n.freq < 3000 ? '2.4' : '5'} ГГц · ${n.open ? '<b>открытая</b>' : 'с паролем'}${n.saved ? ' · сохранена' : ''}</div>`).join('')}</details>`;
 }
-// Обрывы связи (агент 0.1.14+): за сутки — сколько и сколько всего; по нажатию — каждый с причиной
+// Обрывы связи (агент 0.1.14+): за сутки в часы работы ресторана — сколько, сколько всего и доля времени на связи
+// (ночью закрытый зал не в счёт — такие обрывы отдельно, «🌙 вне часов работы»); по нажатию — каждый с причиной
 function outagesBox(d) {
   const list = d.outages || [];
   if (!list.length) return '';
-  const day = list.filter((o) => Date.now() - o.end < 864e5);
+  const w = d.work || { n: list.filter((o) => Date.now() - o.end < 864e5).length, ms: 0, off: 0 };
   const sec = (ms) => (ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} с` : `${Math.round(ms / 60_000)} мин`);
-  return `<details class="dlog" data-k="out-${esc(d.id)}" ${openLogs.has('out-' + d.id) ? 'open' : ''}><summary class="${day.length ? 'offline' : ''}">⚠️ Обрывы за сутки: ${day.length}${day.length ? `, всего ${sec(day.reduce((a, o) => a + o.dur, 0))}` : ''}</summary>
-    ${list.map((o) => `<div><b>${new Date(o.start).toLocaleString()} · ${sec(o.dur)}</b><br>${esc(o.why).replace(/\n/g, '<br>')}</div>`).join('')}</details>`;
+  return `<details class="dlog" data-k="out-${esc(d.id)}" ${openLogs.has('out-' + d.id) ? 'open' : ''}><summary class="${w.n ? 'offline' : ''}">⚠️ Обрывы за сутки${w.hours ? ' в часы работы' : ''}: ${w.n}${w.n ? `, всего ${sec(w.ms)}` : ''}${w.avail != null ? ` · на связи ${w.avail}%` : ''}${w.off ? ` · 🌙 вне часов работы: ${w.off}` : ''}</summary>
+    ${list.map((o) => `<div${o.off ? ' class="hint"' : ''}><b>${o.off ? '🌙 ' : ''}${new Date(o.start).toLocaleString()} · ${sec(o.dur)}</b>${o.off ? ' — вне часов работы' : ''}<br>${esc(o.why).replace(/\n/g, '<br>')}</div>`).join('')}</details>`;
 }
 
 function deviceRow(d, i) {
@@ -579,12 +580,13 @@ function deviceRow(d, i) {
         ${t.wifi ? `<br><small>Wi-Fi: ${esc(t.wifi)} · ${esc(t.rssi)} dBm${t.freq ? ` · ${t.freq < 3000 ? '2.4' : '5'} ГГц` : ''}</small>` : ''}
         ${t.authFail?.ssid ? `<br><small class="offline">🔑 сеть «${esc(t.authFail.ssid)}» не пускает — похоже, сменили пароль</small>` : ''}
         ${t.backup?.ssid ? `<br><small class="offline">📶 через открытую сеть «${esc(t.backup.ssid)}» с ${new Date(t.backup.since).toLocaleTimeString().slice(0, 5)}</small>` : ''}
+        ${t.pin?.bssid ? `<br><small class="hint" title="Агент 0.1.19+: на прежней точке было 3 обрыва за 15 минут — планшет привязался к другой точке или диапазону этой же сети">📌 точка …${esc(t.pin.bssid.slice(-5))} (${esc(t.pin.band)}) до ${new Date(t.pin.until).toLocaleTimeString().slice(0, 5)} — частые обрывы были на …${esc(String(t.pin.from || '').slice(-5))} (${esc(t.pin.fromBand)})</small>` : ''}
         ${outagesBox(d)}
         ${scanBox(d)}
         ${d.netlog?.length ? `<details class="dlog" data-k="net-${esc(d.id)}" ${openLogs.has('net-' + d.id) ? 'open' : ''}><summary>📶 Журнал сети: ${new Date(d.netlog[0].at).toLocaleString()} · ${esc(d.netlog[0].why.slice(0, 40))}…</summary>
           ${d.netlog.map((n) => `<div>${new Date(n.at).toLocaleString()} — ${esc(n.from || '?')} → ${esc(n.to || '?')}: ${esc(n.why)}</div>`).join('')}</details>` : ''}
         ${d.events?.length ? `<br><small class="offline" title="${esc(d.events.map((e) => new Date(e.at).toLocaleString() + ' — ' + e.text).join('\n'))}">сбой ${new Date(d.events[0].at).toLocaleString()}: ${esc(d.events[0].text.slice(0, 60))}</small>` : ''}</td>
-      <td>${t.battery ?? '—'}%${t.charging ? ' ⚡' : ''}${t.freeMb >= 0 ? `<br><small class="${t.freeMb < 300 ? 'offline' : 'hint'}" title="Свободная память планшета">💾 ${t.freeMb >= 1024 ? (t.freeMb / 1024).toFixed(1) + ' ГБ' : t.freeMb + ' МБ'}</small>` : ''}</td>
+      <td${t.battery <= 15 && !t.charging ? ' class="offline" title="Садится аккумулятор и планшет не заряжается — проверьте зарядку"' : ''}>${t.battery <= 15 && !t.charging ? '🪫 ' : ''}${t.battery ?? '—'}%${t.charging ? ' ⚡' : ''}${t.freeMb >= 0 ? `<br><small class="${t.freeMb < 300 ? 'offline' : 'hint'}" title="Свободная память планшета">💾 ${t.freeMb >= 1024 ? (t.freeMb / 1024).toFixed(1) + ' ГБ' : t.freeMb + ' МБ'}</small>` : ''}</td>
       <td>${esc(t.version)}${updLine(d)}</td>
       <td>${verCell(d, i)}</td>
       <td><select onchange="assign(${i}, this.value)">${placeOptions(d)}</select><br><small>${esc(t.url || 'экран статуса')}</small></td>

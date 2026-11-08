@@ -90,13 +90,16 @@ public class MainActivity extends Activity {
     private static final String DEFAULT_SERVER = "https://api.jetmedia.dev";
     private static final String DEFAULT_APK =
             "https://github.com/ph001player1-lab/JetMediaRestaurant/releases/download/agent-latest/jet-agent.apk";
-    private static final long POLL_MS = 15000;
+    // опрос сервера — раз в 15 с; сервер не ответил — через 5 с (обрыв замечаем и чиним быстрее)
+    private static final long POLL_MS = 15000, FAST_POLL_MS = 5000, TICK_MS = 5000;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Runnable retryLoad = this::load;
     private long lastServerOk = System.currentTimeMillis();
     private boolean showingOffline, resumed, ttsReady;
+    private volatile boolean polling, fastPoll;
+    private volatile long lastPollEnd;
     private TextToSpeech tts;
     private DevicePolicyManager dpm;
     private ComponentName admin;
@@ -173,6 +176,8 @@ public class MainActivity extends Activity {
         Watchdog.schedule(this, 60_000);
         load();
         schedulePoll();
+        // агент перезапустился, стоя на точке, к которой привязался из-за обрывов, — привязку снимаем: Android выбирает сам
+        if (isOwner()) io.execute(() -> { if (pinned()) unpin(false, "агент перезапустился — снимаю привязку к точке, Android выбирает сам"); });
         // Сеть появилась, а на экране заглушка «Нет связи» — сразу загружаем страницу, не ждём повтора
         ((ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE)).registerDefaultNetworkCallback(
                 new ConnectivityManager.NetworkCallback() {
@@ -459,16 +464,24 @@ public class MainActivity extends Activity {
         }
     }
 
-    // Раз в 15 секунд: отправить телеметрию, получить и выполнить команды
+    // Каждые 5 с — отметка для сторожа; опрос сервера (телеметрия, команды) — раз в 15 с, а когда сервер не ответил —
+    // через 5 с. Опросы не наслаиваются: следующий — только после окончания предыдущего
     private void schedulePoll() {
         if (resumed) Watchdog.beat(this); // отметка для сторожа: киоск на экране и главный поток жив
-        io.execute(this::pollServer);
-        handler.postDelayed(this::schedulePoll, POLL_MS);
+        long now = SystemClock.elapsedRealtime();
+        if (!polling && now - lastPollEnd >= (fastPoll ? FAST_POLL_MS : POLL_MS)) {
+            polling = true;
+            io.execute(() -> {
+                try { pollServer(); } finally { lastPollEnd = SystemClock.elapsedRealtime(); polling = false; }
+            });
+        }
+        handler.postDelayed(this::schedulePoll, TICK_MS);
     }
 
     private void pollServer() {
         boolean ok = false, reached = false;
         String err = "";
+        final int to = fastPoll ? 6000 : 10000; // во время обрыва ждём ответа меньше — проверяем чаще
         try {
             JSONObject t = new JSONObject();
             WifiInfo wifiInfo = wifi().getConnectionInfo();
@@ -491,6 +504,7 @@ public class MainActivity extends Activity {
                     .put("backup", backupId != -1 && curId() == backupId
                             ? new JSONObject().put("ssid", curSsid()).put("since", backupSince) : JSONObject.NULL)
                     .put("url", prefs.getString("url", "")).put("voices", voiceList())
+                    .put("pin", pinned() ? pinTelemetry() : JSONObject.NULL)
                     // какой PIN сервисного меню у планшета (первые 8 знаков отпечатка) — портал показывает, кто уже получил новый
                     .put("pin", prefs.getString("pinHash", "").length() >= 8 ? prefs.getString("pinHash", "").substring(0, 8) : "");
             String events = prefs.getString("events", "[]");
@@ -513,8 +527,8 @@ public class MainActivity extends Activity {
             if (!upd.isEmpty()) body.put("update", new JSONObject(upd));
 
             HttpURLConnection c = (HttpURLConnection) new URL(server() + "/api/device/poll").openConnection();
-            c.setConnectTimeout(10000);
-            c.setReadTimeout(10000);
+            c.setConnectTimeout(to);
+            c.setReadTimeout(to);
             c.setDoOutput(true);
             c.setRequestProperty("Content-Type", "application/json");
             c.getOutputStream().write(body.toString().getBytes(StandardCharsets.UTF_8));
@@ -546,7 +560,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> execute(cmd));
             }
         } catch (Exception e) {
-            err = reached ? "сервер ответил ошибкой (" + e.getMessage() + ")" : describe(e);
+            err = reached ? "сервер ответил ошибкой (" + e.getMessage() + ")" : describe(e, to);
         }
         network(ok, reached, err);
     }
@@ -564,7 +578,8 @@ public class MainActivity extends Activity {
     //   переподключение и выкл/вкл Wi-Fi каждые 3 минуты.
     // На проверенной запасной сети стоим минимум 25 минут (без «пинг-понга»), потом пробуем основную: не ответила
     // за минуту — назад на запасную. Сеть, добавленную людьми, не удаляем никогда; каждое действие — в журнал.
-    private static final long STEP1_MS = 25_000, STEP2_MS = 90_000, STEP3_MS = 180_000, STEP_GAP_MS = 40_000;
+    // шаг 1 — через 8 с после первого неудачного опроса (и второй неудачный), шаг 2 — минута без связи
+    private static final long STEP1_MS = 8_000, STEP2_MS = 60_000, STEP3_MS = 180_000, STEP_GAP_MS = 30_000;
     private static final long TRIAL_MS = 40_000, MAIN_TRIAL_MS = 60_000, BACKUP_STAY_MS = 25 * 60_000, BAN_MS = 60 * 60_000;
     private WifiManager.WifiLock wifiLock, wifiLockFast;
     private int step, outageFails, trialId = -1, backupId = -1, mainTrialBack = -1, trialLevel;
@@ -575,7 +590,8 @@ public class MainActivity extends Activity {
     private long lastStepAt, outageStart, trialUntil, backupSince, mainTrialUntil;
     private boolean trialOurs;
     private String outageErr = "", outageLastErr = "", outageSteps = "", trialSsid = "";
-    private JSONObject outageWifi;
+    private JSONObject outageWifi, outageProbe;
+    private long lastFailStat;
     private final Map<String, Long> banned = new HashMap<>();
 
     private static final class Candidate {
@@ -602,9 +618,15 @@ public class MainActivity extends Activity {
         }
     }
 
-    private static String describe(Exception e) {
+    private static String describe(Exception e) { return describe(e, 0); }
+
+    // Почему не дошли до сервера; соединение не установилось и «соединились, но ответа нет» — разные причины
+    private static String describe(Exception e, int timeoutMs) {
         if (e instanceof UnknownHostException) return "не находится адрес сервера (DNS)";
-        if (e instanceof SocketTimeoutException) return "сервер не ответил за 10 с";
+        if (e instanceof SocketTimeoutException) {
+            String in = timeoutMs > 0 ? " за " + timeoutMs / 1000 + " с" : "";
+            return String.valueOf(e.getMessage()).toLowerCase(Locale.ROOT).contains("connect") ? "не соединился с сервером" + in : "сервер не ответил" + in;
+        }
         if (e instanceof ConnectException || e instanceof NoRouteToHostException) return "нет пути до сервера";
         if (e instanceof SSLException) return "соединение подменено (страница входа сети?)";
         return e.getClass().getSimpleName();
@@ -653,7 +675,8 @@ public class MainActivity extends Activity {
     private JSONObject outageJson() throws Exception {
         return new JSONObject().put("start", outageStart).put("dur", System.currentTimeMillis() - outageStart)
                 .put("fails", outageFails).put("err", outageErr).put("lastErr", outageLastErr)
-                .put("wifi", outageWifi == null ? new JSONObject() : outageWifi).put("steps", outageSteps);
+                .put("wifi", outageWifi == null ? new JSONObject() : outageWifi).put("steps", outageSteps)
+                .put("probe", outageProbe == null ? JSONObject.NULL : outageProbe);
     }
 
     private boolean isOurs(int id) {
@@ -704,7 +727,11 @@ public class MainActivity extends Activity {
                 boolean counted = everOk && outageFails >= 2 && outageWifi != null; // обрыв (не подъём сети после включения)
                 lastServerOk = now;
                 everOk = true;
-                if (counted) recordOutage(outageWifi.optString("ssid"), outageStart); // — на счёт той сети
+                fastPoll = false;
+                if (counted) {
+                    recordOutage(outageWifi.optString("ssid"), outageStart); // — на счёт той сети
+                    noteApOutage(outageWifi.optString("bssid"), now); // и той точки доступа
+                }
                 outageStart = 0;
                 outageFails = 0;
                 outageSteps = "";
@@ -742,6 +769,7 @@ public class MainActivity extends Activity {
                         switchTo(main.ssid, main.id, now, "25 мин на запасной сети — пробую вернуться на «" + main.ssid + "»");
                     }
                 }
+                checkPin(now);
                 steer(now);
                 return;
             }
@@ -757,7 +785,9 @@ public class MainActivity extends Activity {
                 outageStart = now;
                 outageErr = err;
                 outageWifi = wifiState();
+                outageProbe = reached ? null : probe(); // где рвётся: точка Wi-Fi, интернет ресторана или путь до сервера
             }
+            fastPoll = true;
             outageFails++;
             outageLastErr = err;
             if (!isOwner()) return;
@@ -809,9 +839,11 @@ public class MainActivity extends Activity {
             }
             if (reached) return; // сервер ответил ошибкой — Wi-Fi тут ни при чём
             long down = now - lastServerOk;
-            if (now - lastStepAt < STEP_GAP_MS) return;
+            if (step > 0 && now - lastStepAt < STEP_GAP_MS) return; // новый обрыв — первый шаг сразу, без паузы
             String did;
-            if (step == 0 && down >= STEP1_MS && outageFails >= 2) did = reconnect(down);
+            // стоим на точке, к которой привязались из-за частых обрывов, — и тут нет связи: сначала снимаем привязку
+            if (step == 0 && outageFails >= 2 && now - outageStart >= STEP1_MS) did = pinned()
+                    ? unpin(true, "нет связи на точке …" + tail(prefs.getString("pinBssid", "")) + " — снимаю привязку, 2 ч её не пробую") : reconnect(down);
             else if (step == 1 && down >= STEP2_MS) did = toggle(down);
             else if (step >= 2 && down >= STEP3_MS * (step - 1)) {
                 did = tryBackup(now);
@@ -855,6 +887,188 @@ public class MainActivity extends Activity {
         }
         netLog(ssid, ssid, "нет связи с сервером " + fmtDown(down) + " — выключил и включил Wi-Fi" + (off && on ? "" : " (Android не дал)"));
         return "Wi-Fi выкл/вкл";
+    }
+
+    // ---------- Где рвётся связь: один раз в начале обрыва — отвечает ли роутер (шлюз сети) и есть ли интернет
+    // (страница проверки Google). Роутер молчит — точка Wi-Fi не пропускает данные к планшету; роутер отвечает, интернета
+    // нет — пропал интернет ресторана; всё есть — не отвечает только путь до нашего сервера
+    private JSONObject probe() {
+        JSONObject p = new JSONObject();
+        long t0 = System.currentTimeMillis();
+        try {
+            int gw = wifi().getDhcpInfo().gateway;
+            if (gw != 0) {
+                String ip = (gw & 0xff) + "." + ((gw >> 8) & 0xff) + "." + ((gw >> 16) & 0xff) + "." + ((gw >>> 24) & 0xff);
+                p.put("gw", reach(ip, 53, 2000) || reach(ip, 80, 1500));
+            }
+            p.put("net", internetCheck());
+            p.put("ms", System.currentTimeMillis() - t0);
+        } catch (Exception ignored) { }
+        return p;
+    }
+
+    // Роутер на связи: соединение с ним установилось или он сам отказал (тоже ответ); молчание — не на связи
+    private static boolean reach(String ip, int port, int ms) {
+        try (java.net.Socket s = new java.net.Socket()) {
+            s.connect(new java.net.InetSocketAddress(ip, port), ms);
+            return true;
+        } catch (ConnectException e) {
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // Интернет есть: страница проверки Google ответила «204». Другой ответ — сеть подменяет страницы (страница входа)
+    private static Object internetCheck() {
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL("http://connectivitycheck.gstatic.com/generate_204").openConnection();
+            c.setConnectTimeout(3000);
+            c.setReadTimeout(3000);
+            c.setInstanceFollowRedirects(false);
+            c.setUseCaches(false);
+            return c.getResponseCode() == 204 ? (Object) Boolean.TRUE : "portal";
+        } catch (Exception e) {
+            return Boolean.FALSE;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    // ---------- Частые обрывы на одной точке доступа: другая точка или диапазон той же сети (2,4 / 5 ГГц).
+    // 3 обрыва за 15 минут на точке — привязываемся к другой точке этой же сети (сначала — другой диапазон) на 30 минут.
+    // Там спокойно (не больше одного обрыва) — остаёмся ещё на 2 часа, потом Android снова выбирает сам. Там тоже обрывы
+    // или нет связи — привязку снимаем сразу, эту точку 2 часа не пробуем. Перезапуск агента — привязку снимаем
+    private static final long AP_WINDOW_MS = 15 * 60_000, PIN_MS = 30 * 60_000, PIN_LONG_MS = 2 * 3_600_000L, AP_BAN_MS = 2 * 3_600_000L;
+    private final Map<String, java.util.ArrayList<Long>> apOutages = new HashMap<>();
+    private final Map<String, Long> apBan = new HashMap<>();
+
+    private static String tail(String bssid) {
+        return bssid == null || bssid.length() < 5 ? String.valueOf(bssid) : bssid.substring(bssid.length() - 5);
+    }
+
+    private static String band(int freq) {
+        return freq <= 0 ? "?" : freq < 3000 ? "2.4 ГГц" : freq < 5925 ? "5 ГГц" : "6 ГГц";
+    }
+
+    private void noteApOutage(String bssid, long at) {
+        if (bssid == null || bssid.isEmpty() || "null".equals(bssid)) return;
+        String b = bssid.toLowerCase(Locale.ROOT);
+        java.util.ArrayList<Long> l = apOutages.get(b);
+        if (l == null) { l = new java.util.ArrayList<>(); apOutages.put(b, l); }
+        l.add(at);
+        while (!l.isEmpty() && l.get(0) < at - PIN_LONG_MS) l.remove(0);
+    }
+
+    private int apCount(String bssid, long since) {
+        java.util.ArrayList<Long> l = apOutages.get(String.valueOf(bssid).toLowerCase(Locale.ROOT));
+        int n = 0;
+        if (l != null) for (long t : l) if (t >= since) n++;
+        return n;
+    }
+
+    private boolean pinned() { return !prefs.getString("pinBssid", "").isEmpty(); }
+
+    private WifiConfiguration configOf(int id) {
+        List<WifiConfiguration> saved = wifi().getConfiguredNetworks();
+        if (saved != null) for (WifiConfiguration w : saved) if (w.networkId == id) return w;
+        return null;
+    }
+
+    private JSONObject pinTelemetry() {
+        try {
+            return new JSONObject().put("bssid", prefs.getString("pinBssid", "")).put("band", prefs.getString("pinBand", ""))
+                    .put("from", prefs.getString("pinFrom", "")).put("fromBand", prefs.getString("pinFromBand", ""))
+                    .put("since", prefs.getLong("pinSince", 0)).put("until", prefs.getLong("pinUntil", 0));
+        } catch (Exception e) {
+            return new JSONObject();
+        }
+    }
+
+    private void checkPin(long now) {
+        try {
+            if (!isOwner() || !screenOn()) return;
+            WifiManager wm = wifi();
+            WifiInfo i = wm.getConnectionInfo();
+            if (i == null || i.getNetworkId() == -1) return;
+            String ssid = curSsid(), bssid = String.valueOf(i.getBSSID()).toLowerCase(Locale.ROOT);
+            String pin = prefs.getString("pinBssid", "");
+            if (!pin.isEmpty()) {
+                if (i.getNetworkId() != prefs.getInt("pinId", -1)) { unpin(false, "планшет перешёл на другую сеть — снимаю привязку к точке …" + tail(pin)); return; }
+                if (now < prefs.getLong("pinUntil", 0)) return;
+                int n = apCount(pin, prefs.getLong("pinSince", now));
+                if (n <= 1 && !prefs.getBoolean("pinLong", false)) {
+                    prefs.edit().putLong("pinUntil", now + PIN_LONG_MS).putBoolean("pinLong", true).apply();
+                    netLog(ssid, ssid, "точка …" + tail(pin) + " (" + prefs.getString("pinBand", "") + "): за 30 мин обрывов " + n + " — устойчивее, остаюсь на ней ещё 2 ч");
+                    return;
+                }
+                unpin(false, n <= 1 ? "2 ч на точке …" + tail(pin) + " без частых обрывов — снимаю привязку, Android выбирает сам"
+                        : "на точке …" + tail(pin) + " тоже обрывы (" + n + ") — снимаю привязку");
+                return;
+            }
+            int n = apCount(bssid, now - AP_WINDOW_MS);
+            if (n < 3 || now - prefs.getLong("pinTriedAt", 0) < AP_WINDOW_MS) return;
+            prefs.edit().putLong("pinTriedAt", now).apply();
+            int freq = i.getFrequency();
+            boolean five = freq >= 4000;
+            ScanResult best = null;
+            long nowUs = SystemClock.elapsedRealtime() * 1000;
+            List<ScanResult> scan = wm.getScanResults();
+            if (scan != null) for (ScanResult s : scan) {
+                String b = String.valueOf(s.BSSID).toLowerCase(Locale.ROOT);
+                if (!ssid.equals(s.SSID) || b.equals(bssid) || s.level < -72 || nowUs - s.timestamp > 10 * 60_000_000L) continue;
+                Long ban = apBan.get(b);
+                if (ban != null && ban > now) continue;
+                boolean other = (s.frequency >= 4000) != five, bestOther = best != null && (best.frequency >= 4000) != five;
+                if (best == null || (other && !bestOther) || (other == bestOther && s.level > best.level)) best = s;
+            }
+            wm.startScan(); // на следующий раз — свежий список сетей
+            String here = "частые обрывы на точке …" + tail(bssid) + " (" + band(freq) + "): " + n + " за 15 мин";
+            if (best == null) { netLog(ssid, ssid, here + "; другой точки или диапазона этой сети рядом нет (сигнал от -72 dBm)"); return; }
+            WifiConfiguration conf = configOf(i.getNetworkId());
+            if (conf == null) return;
+            String to = String.valueOf(best.BSSID).toLowerCase(Locale.ROOT);
+            conf.BSSID = to;
+            if (wm.updateNetwork(conf) == -1) { netLog(ssid, ssid, here + "; привязаться к точке …" + tail(to) + " Android не дал"); return; }
+            prefs.edit().putString("pinBssid", to).putString("pinBand", band(best.frequency)).putString("pinFrom", bssid).putString("pinFromBand", band(freq))
+                    .putInt("pinId", i.getNetworkId()).putLong("pinSince", now).putLong("pinUntil", now + PIN_MS).putBoolean("pinLong", false).apply();
+            wm.enableNetwork(i.getNetworkId(), true);
+            wm.disconnect();
+            SystemClock.sleep(500);
+            wm.reconnect();
+            netLog(ssid, ssid, here + " → точка …" + tail(to) + " (" + band(best.frequency) + ", сигнал " + best.level + " dBm) на 30 мин");
+        } catch (Exception ignored) { }
+    }
+
+    // Снять привязку к точке: Android снова выбирает точку и диапазон сам. bad — точка не помогла: 2 часа её не пробуем
+    private String unpin(boolean bad, String why) {
+        WifiManager wm = wifi();
+        String pin = prefs.getString("pinBssid", "");
+        int id = prefs.getInt("pinId", -1);
+        prefs.edit().remove("pinBssid").remove("pinBand").remove("pinFrom").remove("pinFromBand").remove("pinId")
+                .remove("pinSince").remove("pinUntil").remove("pinLong").apply();
+        if (bad && !pin.isEmpty()) apBan.put(pin, System.currentTimeMillis() + AP_BAN_MS);
+        boolean done = false;
+        String ssid = curSsid();
+        try {
+            WifiConfiguration conf = configOf(id);
+            if (conf == null) done = true; // сети уже нет — и привязки нет
+            else {
+                String name = String.valueOf(conf.SSID).replace("\"", "");
+                conf.BSSID = "any"; // «любая точка» — так Android снимает привязку
+                done = wm.updateNetwork(conf) != -1;
+                JSONObject an = done ? null : adminNet(name);
+                if (an != null) { // не дал снять — сеть из админки сохраняем заново, уже без привязки
+                    wm.removeNetwork(id);
+                    id = writeNet(an, 0);
+                    done = id != -1;
+                }
+                if (bad || an != null) { if (id != -1) wm.enableNetwork(id, true); wm.disconnect(); SystemClock.sleep(500); wm.reconnect(); }
+            }
+        } catch (Exception ignored) { }
+        netLog(ssid, ssid, why + (done ? "" : " (Android не дал снять привязку)"));
+        return "снял привязку к точке …" + tail(pin);
     }
 
     // Другая сеть рядом: сохранённая, или чужая открытая (если разрешено в админке). Подключаемся на проверку
@@ -1131,6 +1345,8 @@ public class MainActivity extends Activity {
     private void recordStat(boolean ok, long now) {
         try {
             if (!screenOn()) return;
+            // во время обрыва опрос идёт каждые 5 с — неудачи считаем не чаще раза в 15 с, как и удачные опросы
+            if (!ok) { if (now - lastFailStat < 14_000) return; lastFailStat = now; }
             String ssid = curSsid();
             if (ssid.isEmpty()) return;
             JSONObject x = statOf(ssid);
