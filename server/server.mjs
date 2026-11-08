@@ -13,7 +13,7 @@ import { fetchMenu, POS_VENDORS } from './menu-sources.mjs';
 import { tgApi, tgSend, tgFindChats } from './telegram.mjs';
 import { THEMES, themeOf } from './themes.mjs';
 import { ELEVEN_MODELS, elevenVoices, elevenUsage, cachedTts, synthesize } from './eleven.mjs';
-import { eventLog, thDay, restaurantReport, networkReport, unmergeMarks } from './stats.mjs';
+import { eventLog, thDay, restaurantReport, networkReport, unmergeMarks, setWhySince } from './stats.mjs';
 import { countRequest, selfStats, hostStats } from './sysinfo.mjs';
 import { DISTRICTS, DISTRICT_IDS, OUTLINE, cleanGeo, resolveMapLink } from './geo.mjs';
 import { writeZip } from './zip.mjs';
@@ -4188,6 +4188,14 @@ if (!db.migrations.unmergeMarks) {
   db.migrations.unmergeMarks = Date.now();
   save();
 }
+
+// С какого времени планшет спрашивает причину отмены вызова (по первому ответу гостя): раньше — «причину не спрашивали»
+if (!db.migrations.cancelWhy) {
+  const first = events.read(Date.now() - 14 * 864e5, Date.now(), null).find((e) => e.k === 'call_why');
+  db.migrations.cancelWhy = first ? first.t : Date.now();
+  save();
+}
+setWhySince(db.migrations.cancelWhy);
 
 // Однократно: в ресторан DEMO — копии всех акций Чехова (у копий свои номера, статистика раздельная)
 if (!db.migrations.demoPromos) {

@@ -210,6 +210,10 @@ function visitLog(events, name) {
   return out;
 }
 
+// С какого времени планшет спрашивает причину отмены вызова: раньше причина — «не спрашивали (до обновления)»,
+// позже и гость ничего не выбрал — «не выбрана». Задаёт сервер при запуске
+let WHY_SINCE = 0;
+export const setWhySince = (t) => { WHY_SINCE = Number(t) || 0; };
 // Вызовы визита: сколько вызовов официанта и просьб счёта, через сколько обычно отвечали; «не дождался» — никто не нажал
 // «Иду», и гость отменил сам через минуту и больше, или вызов сняли по времени без ответа (отмена быстрее — нажал по ошибке)
 function callsOf(events) {
@@ -229,7 +233,7 @@ function callsOf(events) {
     const reminds = events.filter((e) => e.k === 'remind' && e.kind === c.type && e.t >= c.t && e.t <= c.t + c.cancel).length;
     if (c.why === 'came') { came.push({ t: c.t, type: c.type, wait: c.cancel }); continue; }
     if (c.why === 'notneeded' || c.why === 'mistake' || (c.why !== 'waited' && c.cancel < 60e3)) continue;
-    missed.push({ t: c.t, type: c.type, wait: c.cancel, reminds, how: 'cancel', why: c.why || '' });
+    missed.push({ t: c.t, type: c.type, wait: c.cancel, reminds, how: 'cancel', why: c.why || (c.t < WHY_SINCE ? 'old' : 'none') });
   }
   // снят по времени без ответа (старые записи — без номера вызова: по столу и времени)
   for (const e of events.filter((x) => x.k === 'forgotten' && x.kind === 'call')) {
