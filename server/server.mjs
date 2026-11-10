@@ -1541,7 +1541,7 @@ async function guestState(b, q) {
     restaurant: { name: r.name, langs: r.langs, address: r.address || '', district: DISTRICTS.find((x) => x.id === r.district) || null },
     build: BUILD, instance: INSTANCE, version: VERSION,
     timers: pick(timersOf(r), ['cartMin', 'langMin']), visit: r.visits?.[d.table] || 0,
-    menu: (r.menu || []).filter(onMenu), tags: r.customTags || [],
+    menu: guestMenuOf(r), tags: r.customTags || [],
     slides: slidesFor(r, d.id),
     display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) }, menuCats: r.menuCats || {},
     avatar: avatarFor(r),
@@ -1598,11 +1598,15 @@ function guestCall(b) {
   // Счёт: «мой» (scope — номер гостя) или всего стола (0). Повторное нажатие не создаёт второй вызов
   const scope = b.type === 'bill' && b.scope === 'me' ? t.n : 0;
   let c = openAt(db.calls, t.r, t.table).find((x) => x.type === b.type && x.status !== 'done' && (x.scope || 0) === scope);
+  // «Спросить официанта» у блюда с заказом через официанта: в вызове — какое блюдо
+  const m = b.type === 'waiter' && b.item ? (t.r.menu || []).find((x) => x.id === b.item && onMenu(x)) : null;
+  const about = m ? { id: m.id, name: m.name } : null;
+  if (c && about) { c.about = about; c.notifiedAt = 0; }
   if (!c) {
     if (tableIsFree(t.r, t.table)) logEvent(t.r.id, 'open', { table: t.table });
-    c = { id: uid(), restaurantId: t.r.id, table: t.table, type: b.type, status: 'new', at: Date.now(), guest: t.n, guestName: t.name, scope, ...(rid ? { rid } : {}) };
+    c = { id: uid(), restaurantId: t.r.id, table: t.table, type: b.type, status: 'new', at: Date.now(), guest: t.n, guestName: t.name, scope, ...(rid ? { rid } : {}), ...(about ? { about } : {}) };
     db.calls.push(c);
-    logEvent(t.r.id, 'call', { id: c.id, table: t.table, dev: t.dev || undefined, type: b.type, lang: b.lang, guest: t.n, phone: t.phone ? 1 : undefined });
+    logEvent(t.r.id, 'call', { id: c.id, table: t.table, dev: t.dev || undefined, type: b.type, lang: b.lang, guest: t.n, phone: t.phone ? 1 : undefined, ...(about ? { item: about.id } : {}) });
   }
   touchTable(t.r, t.table);
   // Гость нажал ещё раз — напоминаем, но не чаще раза в 20 секунд
@@ -1613,7 +1617,7 @@ function guestCall(b) {
       const due = openAt(db.orders, t.r, t.table).filter((o) => o.status !== 'rejected').reduce((a, o) => a + o.items
         .filter((i) => !i.paidAt && !o.paidAt && (!scope || (i.g || o.guest || 1) === scope)).reduce((x, i) => x + i.price * i.qty, 0), 0);
       notify(t.r.id, t.table, 'bill', ` · ฿${due.toLocaleString('en')}`, false, scope ? t : 'table', c.id);
-    } else notify(t.r.id, t.table, b.type, '', false, t.n > 1 ? t : null, c.id);
+    } else notify(t.r.id, t.table, b.type, c.about ? ` · 🙋 ${c.about.name.en || c.about.name.ru || Object.values(c.about.name)[0] || ''}` : '', false, t.n > 1 ? t : null, c.id);
   }
   save();
   return c;
@@ -1657,7 +1661,7 @@ function guestOrder(b) {
   const rid = ridOf(b), dup = byRid(db.orders, rid, t.r.id);
   if (dup) return dup;
   // каждая строка — гостя, который заказал (официант потом может перенести её на другого гостя)
-  const items = buildItems(t.r, b.items).map((i) => ({ ...i, g: t.n }));
+  const items = buildItems(t.r, b.items, true).map((i) => ({ ...i, g: t.n }));
   if (!items.length) throw fail(400, 'empty order');
   if (tableIsFree(t.r, t.table)) logEvent(t.r.id, 'open', { table: t.table });
   const o = {
@@ -1675,10 +1679,15 @@ function guestOrder(b) {
 }
 
 // Строки заказа по меню: цены и названия берём из меню, а не из запроса
-function buildItems(r, list) {
+// «Заказ через официанта»: включено в ЛК или цена ฿0 (вино в ассортименте, рыба по весу) — гость видит «Цена у официанта»
+// и «Спросить официанта» вместо «Добавить». Бесплатные акции и блюда с платными вариантами — как обычно
+const askOf = (i) => !!i.askWaiter || (!i.fromPromo && !(Number(i.price) > 0) && !(i.options || []).some((o) => Number(o.price) > 0)
+  && !(i.groups || []).some((g) => g.opts.some((o) => Number(o.price) > 0)));
+const guestMenuOf = (r) => (r.menu || []).filter(onMenu).map((i) => (askOf(i) ? { ...i, ask: true } : i));
+function buildItems(r, list, guest = false) {
   const menu = new Map((r.menu || []).filter(onMenu).map((i) => [i.id, i]));
   return (list || [])
-    .filter((x) => menu.has(x.id) && x.qty > 0)
+    .filter((x) => menu.has(x.id) && x.qty > 0 && !(guest && askOf(menu.get(x.id))))
     .slice(0, 50)
     .map((x) => {
       const m = menu.get(x.id);
@@ -3205,7 +3214,7 @@ function setMenu(r, list, synced = !!r.menuSource && r.menuSource.type !== 'manu
       const n = by.get(it.id);
       // блюда, добавленные вручную до синхронизации, остаются скрытыми — на планшетах меню из источника
       if (!n || (!it.extId && !it.fromPromo)) continue;
-      Object.assign(it, { dayDish: !!n.dayDish, promo: !!n.promo, hidden: !!n.hidden });
+      Object.assign(it, { dayDish: !!n.dayDish, promo: !!n.promo, hidden: !!n.hidden, askWaiter: !!n.askWaiter });
       if (own) it.tags = (Array.isArray(n.tags) ? n.tags : []).filter((x) => tagKeys(r).includes(x));
     }
   } else r.menu = cleanMenu(list, r);
@@ -3229,7 +3238,7 @@ function cleanMenu(menu, r = {}) {
       price: Number(i.price) || 0, photo: String(i.photo || ''), promo: !!i.promo, dayDish: !!i.dayDish,
       extId: i.extId || undefined, sku: String(i.sku || ''), options: Array.isArray(i.options) ? i.options : [],
       groups: Array.isArray(i.groups) ? i.groups : [],
-      hidden: !!i.hidden, off: !!i.off, photoManual: !!i.photoManual, fromPromo: i.fromPromo ? String(i.fromPromo) : undefined,
+      hidden: !!i.hidden, off: !!i.off, photoManual: !!i.photoManual, askWaiter: !!i.askWaiter, fromPromo: i.fromPromo ? String(i.fromPromo) : undefined,
       tags: (Array.isArray(i.tags) ? i.tags : []).filter((x) => tagKeys(r).includes(x)),
     }));
 }
