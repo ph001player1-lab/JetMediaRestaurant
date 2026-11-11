@@ -4535,7 +4535,7 @@ function verandaPresets(r) {
       add: { groups: [{ id: 'sauce', name: L('Соус', 'Sauce', 'ซอส', '酱料'), type: 'many', req: false, opts: [
         { id: 'sc', name: L('Сметана', 'Sour cream', 'ซาวร์ครีม', '酸奶油'), price: 25 }, { id: 'my', name: L('Майонез', 'Mayonnaise', 'มายองเนส', '蛋黄酱'), price: 25 }] }] } },
     { id: 'vr-spicy', name: 'Острота — все блюда Том Ям', match: { words: ['том ям', 'tom yum', 'tom yam'] },
-      add: { groups: [{ id: 'spicy', name: L('Острота', 'Spiciness', 'ความเผ็ด', '辣度'), type: 'one', req: true, opts: [
+      add: { tags: ['spicy', 'mild'], groups: [{ id: 'spicy', name: L('Острота', 'Spiciness', 'ความเผ็ด', '辣度'), type: 'one', req: true, opts: [
         { id: 'hot', name: L('Острый', 'Spicy', 'เผ็ด', '辣') }, { id: 'mild', name: L('Не острый', 'Not spicy', 'ไม่เผ็ด', '不辣') }] }] } },
     { id: 'vr-lemonade', name: 'Лимонады: 0,3 л и 1 л', match: { words: ['lemonade', 'лимонад'] }, add: { options: [{ label: V03, price: 0 }, { label: V1, price: 200 }] } },
     { id: 'vr-mors', name: 'Морс: 0,3 л и 1 л', match: { words: ['морс', 'mors'] }, add: { options: [{ label: V03, price: 0 }, { label: V1, price: 200 }] } },
@@ -4583,13 +4583,14 @@ function verandaPresets(r) {
       text: L('Не забыли напитки?', 'Don’t forget a drink!', 'อย่าลืมเครื่องดื่มนะ!', '别忘了饮料！') },
   ] });
 }
-// Однократно: у Том Яма острота — выбор гостя, а не отметка «острое» (иначе в ЛК и фильтре «Острое» блюдо выглядело просто острым)
-if (!db.migrations.verandaSpicyChoice) {
+// Однократно: у Том Яма острота — на выбор гостя (обязательно при заказе), поэтому обе отметки — «острое» и «не острое»:
+// ИИ-персонаж находит блюдо в обеих подборках
+if (!db.migrations.verandaSpicyBoth) {
   for (const r of Object.values(db.restaurants)) {
     const x = (r.menuRules || []).find((y) => y.id === 'vr-spicy');
-    if (x?.add?.tags?.includes('spicy')) { x.add.tags = x.add.tags.filter((t) => t !== 'spicy'); applyRules(r); }
+    if (x?.add) { x.add.tags = ['spicy', 'mild']; applyRules(r); }
   }
-  db.migrations.verandaSpicyChoice = Date.now();
+  db.migrations.verandaSpicyBoth = Date.now();
 }
 if (!db.migrations.verandaPresets) {
   for (const r of Object.values(db.restaurants)) {
