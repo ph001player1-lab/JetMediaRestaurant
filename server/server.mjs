@@ -1885,7 +1885,7 @@ function buildItems(r, list, guest = false) {
         let sel = gr.opts.filter((o) => (want ? want.has(o.id) : o.def));
         if (gr.type === 'one') sel = sel.slice(0, 1);
         else if (gr.max) sel = sel.slice(0, gr.max); // «от 2 до 3» — не больше 3
-        if (gr.req && !sel.length && gr.opts.length) sel = [gr.opts.find((o) => o.def) || gr.opts[0]];
+        if (gr.req && !sel.length && gr.opts.length && !gr.nodef) sel = [gr.opts.find((o) => o.def) || gr.opts[0]];
         picked.push(...sel);
       }
       const ml = picked.length ? Object.fromEntries([...new Set(picked.flatMap((o) => Object.keys(o.name)))].map((l) => [l,
@@ -3018,6 +3018,8 @@ const cleanGroups = (list) => (Array.isArray(list) ? list : []).map((g) => ({
   // «несколько»: сколько выбрать — от min до max («Выберите 2–3 фрукта»)
   ...(g?.type === 'many' && Number(g?.min) > 0 ? { min: Math.min(20, Math.round(Number(g.min))) } : {}),
   ...(g?.type === 'many' && Number(g?.max) > 0 ? { max: Math.min(20, Math.round(Number(g.max))) } : {}),
+  // «без выбора по умолчанию»: заранее ничего не отмечено — гость (и официант) выбирает сам (острота у Том Яма)
+  ...(g?.nodef ? { nodef: true } : {}),
   opts: (Array.isArray(g?.opts) ? g.opts : []).map((o) => ({
     id: String(o?.id ?? '').slice(0, 80) || uid(), name: trText(o?.name, 120), price: Math.max(0, Number(o?.price) || 0), def: !!o?.def,
   })).filter((o) => Object.keys(o.name).length).slice(0, 80),
@@ -3889,7 +3891,8 @@ async function elevenAdmin(method, p, b) {
 // Планшет просит фразу голосом персонажа: готовый файл — сразу, новый — синтез (не больше 60 новых фраз в час на планшет)
 const ttsBudget = new Map();
 async function guestTts(q) {
-  const d = db.devices[q.d], r = d && db.restaurants[d.restaurantId];
+  // режим просмотра (демо-планшет показывает Veranda) — голос персонажа показываемого ресторана, а не своего
+  const d = db.devices[q.d], r = d && db.restaurants[d.showRest || d.restaurantId];
   const c = r && avatarFor(r);
   let text = String(q.t || '').trim().slice(0, 400);
   // теги [..] понимает только eleven_v3 — для других моделей убираем, иначе их прочитают вслух
@@ -4534,8 +4537,8 @@ function verandaPresets(r) {
       match: { cats: ['Пельмени, вареники, хинкали'], skus: ['M15S', 'M17S', 'M16S', 'M19S', 'M18S', 'M20S', 'M21S'] },
       add: { groups: [{ id: 'sauce', name: L('Соус', 'Sauce', 'ซอส', '酱料'), type: 'many', req: false, opts: [
         { id: 'sc', name: L('Сметана', 'Sour cream', 'ซาวร์ครีม', '酸奶油'), price: 25 }, { id: 'my', name: L('Майонез', 'Mayonnaise', 'มายองเนส', '蛋黄酱'), price: 25 }] }] } },
-    { id: 'vr-spicy', name: 'Острота — все блюда Том Ям', match: { words: ['том ям', 'tom yum', 'tom yam'] },
-      add: { tags: ['spicy', 'mild'], groups: [{ id: 'spicy', name: L('Острота', 'Spiciness', 'ความเผ็ด', '辣度'), type: 'one', req: true, opts: [
+    { id: 'vr-spicy', name: 'Острота — Том Ям и Том Ка', match: { words: ['том ям', 'tom yum', 'tom yam', 'том ка', 'tom kha'] },
+      add: { tags: ['spicy', 'mild'], groups: [{ id: 'spicy', name: L('Острота', 'Spiciness', 'ความเผ็ด', '辣度'), type: 'one', req: true, nodef: true, opts: [
         { id: 'hot', name: L('Острый', 'Spicy', 'เผ็ด', '辣') }, { id: 'mild', name: L('Не острый', 'Not spicy', 'ไม่เผ็ด', '不辣') }] }] } },
     { id: 'vr-lemonade', name: 'Лимонады: 0,3 л и 1 л', match: { words: ['lemonade', 'лимонад'] }, add: { options: [{ label: V03, price: 0 }, { label: V1, price: 200 }] } },
     { id: 'vr-mors', name: 'Морс: 0,3 л и 1 л', match: { words: ['морс', 'mors'] }, add: { options: [{ label: V03, price: 0 }, { label: V1, price: 200 }] } },
@@ -4600,6 +4603,26 @@ if (!db.migrations.verandaPresets) {
     audit('сервер', 'Veranda: массовые правила меню (соус, острота, объёмы, кофе), названия лимонадов, микс-фреш, подсказки к заказу', r.id);
   }
   db.migrations.verandaPresets = Date.now();
+}
+// Однократно: Том Ям и Том Ка — одинаково: острота обязательна и без выбора по умолчанию (гость выбирает сам);
+// у «Том Ям с кокосовым молоком» (TS1) нет начинки «С курицей» (Том Ям с курицей — отдельное блюдо) — правка поверх источника
+if (!db.migrations.verandaTomYum) {
+  for (const r of Object.values(db.restaurants)) {
+    const x = (r.menuRules || []).find((y) => y.id === 'vr-spicy');
+    if (!x) continue;
+    if (x.name === 'Острота — все блюда Том Ям') x.name = 'Острота — Том Ям и Том Ка';
+    x.match.words = [...new Set([...(x.match.words || []), 'том ка', 'tom kha'])];
+    for (const g of x.add?.groups || []) if (g.type === 'one') g.nodef = true;
+    const ts1 = (r.menu || []).find((i) => i.sku === 'TS1' && /том ям/i.test(i.name?.ru || ''));
+    const fill = ts1 && (ts1.groups || []).find((g) => g.id === 'filling');
+    if (fill?.opts.some((o) => o.id === 'chicken')) {
+      const groups = ts1.groups.filter((g) => !isRuleId(g.id)).map((g) => (g === fill ? { ...g, opts: g.opts.filter((o) => o.id !== 'chicken') } : g));
+      applyMenuEdits(ts1, { ...ts1, groups, _ed: { groups: 1 } }, r);
+    }
+    applyRules(r);
+    audit('сервер', 'Меню: острота у Том Яма и Том Ка — обязательный выбор без выбора по умолчанию; у «Том Ям с кокосовым молоком» без курицы', r.id);
+  }
+  db.migrations.verandaTomYum = Date.now();
 }
 // Однократно: меню из источника пересобрать по-новому (правки менеджера поверх источника) при следующей проверке
 if (!db.migrations.menuOvr) {
