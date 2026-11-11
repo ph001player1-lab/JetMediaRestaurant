@@ -1454,7 +1454,7 @@ function orderStatus(o) {
 // Не навязываемся: одна подсказка на блюдо, не больше N за визит (настройка ресторана), не предлагаем то, что уже в
 // корзине или заказано; «Нет, спасибо» — это правило больше не показываем; два отказа — дальше только тихий блок в корзине
 var UP = upFresh(), upTimer = null;
-function upFresh() { return { shown: 0, seen: {}, no: {}, noCount: 0, turn: {}, logged: {}, asked: {}, sheetDone: false, open: null }; }
+function upFresh() { return { shown: 0, seen: {}, no: {}, noCount: 0, turn: {}, logged: {}, asked: {}, sheetDone: false, open: null, pop: null }; }
 function upCfg() { return (state && state.upsell) || null; }
 function upEvent(k, rule, dish, mode, price) {
   if (PREVIEW || MPREVIEW || VIEW || PHONE || isEntrance()) return;
@@ -1498,15 +1498,25 @@ function upAfterAdd(id) {
     return;
   }
 }
-function upPopup(r, offer) {
+// pop — последняя всплывашка: открыли из неё блюдо и закрыли или добавили — показываем её снова на том же месте карусели
+function upPopup(r, offer, left) {
   var el = $('upPop');
+  UP.pop = { r: r, offer: offer, left: left || 0 };
   el.innerHTML = '<div class="uphead">' + upAvatar() + '<div class="upbub">' + esc(tr(r.text) || t('upDefault')) + '</div>' +
     '<button class="upx" data-upno="' + esc(r.id) + '" aria-label="✕">✕</button></div>' +
     '<div class="uprow">' + offer.map(function (id) { return upCard(r.id, id, 'popup'); }).join('') + '</div>' +
     '<button class="upno" data-upno="' + esc(r.id) + '">' + esc(t('upNo')) + '</button>';
   el.className = 'show';
+  if (left) el.querySelector('.uprow').scrollLeft = left;
   upArm();
 }
+// уходим из всплывашки в карточку блюда — запоминаем, докуда пролистали
+function upLeave() {
+  var row = $('upPop').querySelector('.uprow');
+  if (UP.pop && row) UP.pop.left = row.scrollLeft;
+  upHide();
+}
+function upBack() { if (UP.pop) upPopup(UP.pop.r, UP.pop.offer, UP.pop.left); }
 function upArm() { clearTimeout(upTimer); upTimer = setTimeout(upHide, 9000); }
 function upHide() { clearTimeout(upTimer); if ($('upPop')) $('upPop').className = ''; }
 $('upPop').addEventListener('pointerdown', upArm);
@@ -1519,7 +1529,7 @@ function upAdd(v) {
   var p = v.split('|'), rid = p[0], id = p[1], mode = p[2], i = MENU[id];
   if (!i) return;
   // с выбором (объём, допы) — сначала окно выбора; засчитаем, когда добавят
-  if (hasChoice(i)) { UP.open = { rule: rid, mode: mode, id: id }; upHide(); openOptions(id); return; }
+  if (hasChoice(i)) { UP.open = { rule: rid, mode: mode, id: id }; if (mode === 'popup') upLeave(); openOptions(id); return; }
   upEvent('up_add', rid, id, mode, Number(i.price) || 0);
   cart[id] = (cart[id] || 0) + 1;
   toast(t('added'));
@@ -2327,7 +2337,7 @@ document.addEventListener('click', function (e) {
   var dish = e.target.closest('[data-dish]');
   if (dish && !e.target.closest('button')) {
     // карточка из подсказки: открываем блюдо, как из меню; добавят — засчитаем подсказке и вернём в корзину / «Дополнить заказ?»
-    if (dish.dataset.up) { var up = dish.dataset.up.split('|'); UP.open = { rule: up[0], mode: up[1], id: dish.dataset.dish }; if (up[1] === 'popup') upHide(); }
+    if (dish.dataset.up) { var up = dish.dataset.up.split('|'); UP.open = { rule: up[0], mode: up[1], id: dish.dataset.dish }; if (up[1] === 'popup') upLeave(); }
     else UP.open = null;
     openOptions(dish.dataset.dish, true);
     return;
@@ -2384,6 +2394,7 @@ document.addEventListener('click', function (e) {
       upEvent('up_add', from.rule, pick.id, from.mode, pl ? pl.price : mi.price);
       if (from.mode === 'sheet') upSheet(true);
       else if (from.mode === 'cart') { renderCart(); $('cart').className = 'overlay show'; }
+      else if (from.mode === 'popup') upBack(); // снова всплывашка — добавленное отмечено ✓
     } else upAfterAdd(pick.id);
   }
   else if (d.pmore) pickScrollTo(Number(b.dataset.gi));
@@ -2393,10 +2404,11 @@ document.addEventListener('click', function (e) {
   else if (d.why) sendWhy(d.why);
   else if (d.askw) { $('cart').className = 'overlay'; call('waiter', '', d.askw); toast(t('askSent')); }
   else if (d.close) {
-    // закрыли карточку блюда, открытую из корзины или «Дополнить заказ?», — возвращаемся туда
-    var back = sheetMode === 'opts' && UP.open && UP.open.mode !== 'popup' ? UP.open.mode : '';
+    // закрыли карточку блюда, открытую из всплывашки, корзины или «Дополнить заказ?», — возвращаемся туда
+    var back = sheetMode === 'opts' && UP.open ? UP.open.mode : '';
     UP.open = null;
-    if (back === 'sheet') upSheet(true); else if (back === 'cart') renderCart(); else $('cart').className = 'overlay';
+    if (back === 'sheet') upSheet(true); else if (back === 'cart') renderCart();
+    else { $('cart').className = 'overlay'; if (back === 'popup') upBack(); }
   }
   else if (b.id === 'cartBtn') { renderCart(); $('cart').className = 'overlay show'; }
   else if (b.id === 'callBtn') { if (activeCall('waiter')) cancelCall('waiter'); else call('waiter'); }
