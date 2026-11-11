@@ -27,9 +27,10 @@ const PUBLIC_URL = process.env.PUBLIC_URL || 'https://app.jetmedia.dev';
 const ONLINE_MS = 45_000;
 const OFFLINE_ALERT_MS = 5 * 60_000; // столько минут без связи — пишем администратору в Telegram (короткие обрывы — в сводке за день)
 const KEEP_MS = 7 * 24 * 3600_000;
-// Напоминания, пока никто не нажал «Иду» / «Подтвердить»: вызов, счёт и новый заказ — каждую минуту,
-// пока вызов не приняли или не сняли как забытый (срок — ЛК → «Устройства»); заказ — не дольше 30 минут
-const REMIND_MS = 60_000, ORDER_REMIND_MAX_MS = 30 * 60_000;
+// Напоминания, пока никто не нажал «Иду» / «Подтвердить» (вызов, счёт и новый заказ — одинаково): первое — через 5 секунд,
+// дальше каждую минуту, после 5 минут ожидания — раз в 2 минуты; пока вызов не приняли или не сняли как забытый
+// (срок — ЛК → «Устройства»); заказ — не дольше 30 минут
+const REMIND_FIRST_MS = 5_000, REMIND_MS = 60_000, REMIND_SLOW_MS = 120_000, REMIND_SLOW_AFTER = 5 * 60_000, ORDER_REMIND_MAX_MS = 30 * 60_000;
 const COMMANDS = ['url', 'reload', 'reboot', 'update', 'say', 'scan'];
 const STATIC = {
   '/': 'portal.html',
@@ -2466,7 +2467,8 @@ function notify(restaurantId, table, kind, extra = '', reminder = false, guest =
   }
 }
 
-// Никто не нажал «Иду» или «Подтвердить» — напоминаем каждую минуту (вызов, счёт, новый заказ — одинаково)
+// Никто не нажал «Иду» или «Подтвердить» — напоминаем: через 5 секунд, потом каждую минуту, после 5 минут — раз в 2 минуты.
+// Проверяем каждую секунду, чтобы напоминание приходило вовремя, а не с опозданием до 15 секунд
 setInterval(() => {
   const now = Date.now();
   const waiting = [
@@ -2474,13 +2476,19 @@ setInterval(() => {
     ...db.orders.filter((o) => o.status === 'pending' && !o.ackAt).map((o) => [o, 'order']),
   ];
   for (const [x, kind] of waiting) {
-    if (x.closed || now - (x.notifiedAt || x.at) < REMIND_MS - 5_000) continue; // проверка раз в 15 с — без сдвига на лишние 15 с
+    const gap = !x.reminders ? REMIND_FIRST_MS : now - x.at < REMIND_SLOW_AFTER ? REMIND_MS : REMIND_SLOW_MS;
+    if (x.closed || now - (x.notifiedAt || x.at) < gap) continue;
     if (kind === 'order' && now - x.at > ORDER_REMIND_MAX_MS) continue;
     x.reminders = (x.reminders || 0) + 1;
     x.notifiedAt = now;
-    notify(x.restaurantId, x.table, kind, '', Math.max(1, Math.round((now - x.at) / 60_000)), null, x.id);
+    // «ждёт N мин» — с первой полной минуты (у напоминания через 5 секунд — без времени)
+    notify(x.restaurantId, x.table, kind, '', Math.floor((now - x.at) / 60_000) || true, null, x.id);
     logEvent(x.restaurantId, 'remind', { table: x.table, kind });
   }
+}, 1_000);
+
+setInterval(() => {
+  const now = Date.now();
   // Заказ подтверждён, а «Заказ отправлен на кухню» не нажали (экрана кухни нет): через 5 минут — напоминание
   // официантам стола и менеджерам, потом каждые 5 минут, до 3 раз. Только свежие заказы (последний час)
   for (const o of db.orders) {
