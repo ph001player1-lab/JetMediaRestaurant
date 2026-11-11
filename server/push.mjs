@@ -49,7 +49,8 @@ export async function sendPush(sub, data, vapid, subject = 'mailto:contact@jetme
       headers: {
         'content-encoding': 'aes128gcm',
         'content-type': 'application/octet-stream',
-        ttl: '120',
+        // сколько служба уведомлений держит сообщение для спящего телефона: проснулся за 10 минут — получит
+        ttl: '600',
         urgency: 'high',
         authorization: vapidAuth(sub.endpoint, vapid, subject),
       },

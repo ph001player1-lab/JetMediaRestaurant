@@ -27,9 +27,9 @@ const PUBLIC_URL = process.env.PUBLIC_URL || 'https://app.jetmedia.dev';
 const ONLINE_MS = 45_000;
 const OFFLINE_ALERT_MS = 5 * 60_000; // столько минут без связи — пишем администратору в Telegram (короткие обрывы — в сводке за день)
 const KEEP_MS = 7 * 24 * 3600_000;
-// Напоминания, пока никто не нажал «Иду» / «Подтвердить»: первые 5 — каждые 45 секунд, дальше — каждые 2 минуты,
-// пока вызов не приняли или не сняли как забытый; заказ — не дольше 30 минут
-const REMIND_MS = 45_000, REMIND_SLOW_MS = 120_000, FAST_REMINDERS = 5, ORDER_REMIND_MAX_MS = 30 * 60_000;
+// Напоминания, пока никто не нажал «Иду» / «Подтвердить»: вызов, счёт и новый заказ — каждую минуту,
+// пока вызов не приняли или не сняли как забытый (срок — ЛК → «Устройства»); заказ — не дольше 30 минут
+const REMIND_MS = 60_000, ORDER_REMIND_MAX_MS = 30 * 60_000;
 const COMMANDS = ['url', 'reload', 'reboot', 'update', 'say', 'scan'];
 const STATIC = {
   '/': 'portal.html',
@@ -1720,10 +1720,10 @@ function buildItems(r, list, guest = false) {
 // ---------- Персонал: вход по коду ресторана + личному PIN, уведомления через Web Push
 
 const PUSH_TEXT = {
-  en: { kitchen: 'Send the order to the kitchen', check: '✅ You are on shift — notifications work', lost: 'not delivered to {n}', table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready', wholeTable: 'whole table', test: 'Test: notifications work' },
-  th: { kitchen: 'ส่งออร์เดอร์เข้าครัว', check: '✅ คุณเข้ากะแล้ว — การแจ้งเตือนใช้งานได้', lost: 'ส่งไม่ถึง {n}', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ', wholeTable: 'ทั้งโต๊ะ', test: 'ทดสอบ: การแจ้งเตือนใช้งานได้' },
-  ru: { kitchen: 'Отправьте заказ на кухню', check: '✅ Вы на смене — уведомления работают', lost: 'не дошло до {n}', table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов', wholeTable: 'весь стол', test: 'Проверка: уведомления приходят' },
-  my: { kitchen: 'အော်ဒါကို မီးဖိုချောင်သို့ ပို့ပါ', check: '✅ သင် တာဝန်ချိန်ရောက်ပြီ — အသိပေးချက်များ အလုပ်လုပ်သည်', lost: '{n} ထံ မရောက်ပါ', table: 'စားပွဲ', waiter: 'စားပွဲထိုး ခေါ်နေသည်', bill: 'ဘေလ် တောင်းနေသည်', order: 'အော်ဒါ အသစ်', again: 'သတိပေးချက်', guest: 'ဧည့်သည်', ready: 'အော်ဒါ အဆင်သင့် ဖြစ်ပြီ', wholeTable: 'စားပွဲတစ်ခုလုံး', test: 'စမ်းသပ်: အသိပေးချက်များ အလုပ်လုပ်သည်' },
+  en: { kitchen: 'Send the order to the kitchen', kitchenLate: 'Order confirmed {m} min ago — tap “✓ Order sent to the kitchen”', waits: 'waiting {m} min', check: '✅ You are on shift — notifications work', lost: 'not delivered to {n}', table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready', wholeTable: 'whole table', test: 'Test: notifications work' },
+  th: { kitchen: 'ส่งออร์เดอร์เข้าครัว', kitchenLate: 'ยืนยันออร์เดอร์แล้ว {m} นาทีก่อน — กด “✓ ส่งออร์เดอร์เข้าครัวแล้ว”', waits: 'รอ {m} นาที', check: '✅ คุณเข้ากะแล้ว — การแจ้งเตือนใช้งานได้', lost: 'ส่งไม่ถึง {n}', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ', wholeTable: 'ทั้งโต๊ะ', test: 'ทดสอบ: การแจ้งเตือนใช้งานได้' },
+  ru: { kitchen: 'Отправьте заказ на кухню', kitchenLate: 'Заказ подтверждён {m} мин назад — нажмите «✓ Заказ отправлен на кухню»', waits: 'ждёт {m} мин', check: '✅ Вы на смене — уведомления работают', lost: 'не дошло до {n}', table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов', wholeTable: 'весь стол', test: 'Проверка: уведомления приходят' },
+  my: { kitchen: 'အော်ဒါကို မီးဖိုချောင်သို့ ပို့ပါ', kitchenLate: 'အော်ဒါ အတည်ပြုပြီး {m} မိနစ် ကြာပြီ — “✓ အော်ဒါကို မီးဖိုချောင်သို့ ပို့ပြီး” ကို နှိပ်ပါ', waits: '{m} မိနစ် စောင့်နေသည်', check: '✅ သင် တာဝန်ချိန်ရောက်ပြီ — အသိပေးချက်များ အလုပ်လုပ်သည်', lost: '{n} ထံ မရောက်ပါ', table: 'စားပွဲ', waiter: 'စားပွဲထိုး ခေါ်နေသည်', bill: 'ဘေလ် တောင်းနေသည်', order: 'အော်ဒါ အသစ်', again: 'သတိပေးချက်', guest: 'ဧည့်သည်', ready: 'အော်ဒါ အဆင်သင့် ဖြစ်ပြီ', wholeTable: 'စားပွဲတစ်ခုလုံး', test: 'စမ်းသပ်: အသိပေးချက်များ အလုပ်လုပ်သည်' },
 };
 
 function session(token) {
@@ -2425,9 +2425,9 @@ setInterval(() => {
 // Старые сессии «на смене» до этой версии: начало смены — сейчас (иначе автоконец закрыл бы их сразу)
 for (const s of Object.values(db.sessions)) if (s.onShift && !s.shiftAt) s.shiftAt = Date.now();
 
-// Пуш всем сотрудникам ресторана, которые на смене и включили уведомления
-// Официантам этого стола (без назначенных столов — всех столов); менеджерам — напоминания
-// и вызовы, которые некому отправить
+// Пуш всем сотрудникам ресторана, которые на смене и включили уведомления:
+// официантам этого стола (без назначенных столов — всех столов) и менеджерам на смене — всё то же и сразу.
+// reminder — напоминание; число — сколько минут уже ждут («⏰ Напоминание: Новый заказ · ждёт 3 мин»)
 function notify(restaurantId, table, kind, extra = '', reminder = false, guest = null, ref = '') {
   const r = db.restaurants[restaurantId];
   if (!r) return;
@@ -2435,14 +2435,17 @@ function notify(restaurantId, table, kind, extra = '', reminder = false, guest =
   const active = Object.values(db.sessions).filter((s) => s.restaurantId === restaurantId && s.onShift && s.subs.length && member(s));
   const waiters = active.filter((s) => member(s).role === 'waiter' && (!member(s).tables?.length || servesTable(member(s).tables, table)));
   const managers = active.filter((s) => member(s).role === 'manager');
-  const sent = new Set([...waiters, ...(reminder || !waiters.length ? managers : [])]);
+  const sent = new Set([...waiters, ...managers]);
+  const mins = typeof reminder === 'number' && reminder > 0 ? reminder : 0;
   for (const s of sent) {
     const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en;
     const who = guest === 'table' ? ` · ${L.wholeTable}` : guest ? ` · ${guest.name || `${L.guest} ${guest.n}`}` : '';
+    // напоминание о кухне — своим текстом, чтобы не путать с вызовом: «🍳 Заказ подтверждён 5 мин назад — нажмите …»
+    const body = kind === 'kitchen' && mins ? `🍳 ${L.kitchenLate.replace('{m}', mins)}`
+      : (reminder ? `⏰ ${L.again}: ` : '') + L[kind] + who + extra + (mins ? ` · ${L.waits.replace('{m}', mins)}` : '');
     // каждое напоминание — новое уведомление (у обновлённого старого Android часто не включает звук);
     // предыдущее того же стола и вида приложение убирает само (group)
-    const data = { title: tableLabel(table, L.table), body: (reminder ? `${L.again}: ` : '') + L[kind] + who + extra,
-      group: `${kind}-${table}`, tag: `${kind}-${table}-${Date.now()}` };
+    const data = { title: tableLabel(table, L.table), body, group: `${kind}-${table}`, tag: `${kind}-${table}-${Date.now()}` };
     for (const sub of s.subs) {
       const ack = pushAckId(s);
       sendPush(sub, { ...data, ack }, db.vapid).then((res) => {
@@ -2463,7 +2466,7 @@ function notify(restaurantId, table, kind, extra = '', reminder = false, guest =
   }
 }
 
-// Никто не нажал «Иду» или «Подтвердить» — напоминаем каждые 45 секунд, до 5 раз
+// Никто не нажал «Иду» или «Подтвердить» — напоминаем каждую минуту (вызов, счёт, новый заказ — одинаково)
 setInterval(() => {
   const now = Date.now();
   const waiting = [
@@ -2471,12 +2474,11 @@ setInterval(() => {
     ...db.orders.filter((o) => o.status === 'pending' && !o.ackAt).map((o) => [o, 'order']),
   ];
   for (const [x, kind] of waiting) {
-    const n = x.reminders || 0;
-    if (x.closed || now - (x.notifiedAt || x.at) < (n < FAST_REMINDERS ? REMIND_MS : REMIND_SLOW_MS)) continue;
+    if (x.closed || now - (x.notifiedAt || x.at) < REMIND_MS - 5_000) continue; // проверка раз в 15 с — без сдвига на лишние 15 с
     if (kind === 'order' && now - x.at > ORDER_REMIND_MAX_MS) continue;
     x.reminders = (x.reminders || 0) + 1;
     x.notifiedAt = now;
-    notify(x.restaurantId, x.table, kind, '', true, null, x.id);
+    notify(x.restaurantId, x.table, kind, '', Math.max(1, Math.round((now - x.at) / 60_000)), null, x.id);
     logEvent(x.restaurantId, 'remind', { table: x.table, kind });
   }
   // Заказ подтверждён, а «Заказ отправлен на кухню» не нажали (экрана кухни нет): через 5 минут — напоминание
@@ -2487,7 +2489,7 @@ setInterval(() => {
     if (!f || !f.kitchenBtn || f.kitchenScreen || (o.kitchenReminds || 0) >= 3 || now - (o.kitchenRemindAt || o.confirmedAt || o.at) < 5 * 60e3) continue;
     o.kitchenReminds = (o.kitchenReminds || 0) + 1;
     o.kitchenRemindAt = now;
-    notify(o.restaurantId, o.table, 'kitchen', '', true, null, o.id);
+    notify(o.restaurantId, o.table, 'kitchen', '', Math.max(1, Math.round((now - (o.confirmedAt || o.at)) / 60_000)), null, o.id);
     logEvent(o.restaurantId, 'remind', { table: o.table, kind: 'kitchen' });
   }
 }, 15_000);
