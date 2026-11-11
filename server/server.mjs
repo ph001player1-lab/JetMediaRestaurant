@@ -1570,7 +1570,7 @@ function phoneState(q) {
   let w;
   try { w = guestOf(q); } catch (e) { return { ended: e.message === 'phone disconnected' ? 'off' : 'expired' }; }
   return {
-    ...base, menu: (r.menu || []).filter(onMenu), tags: r.customTags || [], slides: [], avatar: null,
+    ...base, menu: (r.menu || []).filter(onMenu).map(pubItem), tags: r.customTags || [], slides: [], avatar: null,
     me: { n: w.n, name: w.name }, guests: guestNames(r, s.table), kitchen: flowOf(r).kitchenScreen,
     calls: openAt(db.calls, r, s.table).filter((c) => c.status !== 'done'),
     orders: openAt(db.orders, r, s.table),
@@ -1683,7 +1683,7 @@ function guestOrder(b) {
 // и «Спросить официанта» вместо «Добавить». Бесплатные акции и блюда с платными вариантами — как обычно
 const askOf = (i) => !!i.askWaiter || (!i.fromPromo && !(Number(i.price) > 0) && !(i.options || []).some((o) => Number(o.price) > 0)
   && !(i.groups || []).some((g) => g.opts.some((o) => Number(o.price) > 0)));
-const guestMenuOf = (r) => (r.menu || []).filter(onMenu).map((i) => (askOf(i) ? { ...i, ask: true } : i));
+const guestMenuOf = (r) => (r.menu || []).filter(onMenu).map((i) => (askOf(i) ? { ...pubItem(i), ask: true } : pubItem(i)));
 // Блюда заказа в журнале событий: [id, порций, цена] и выбор в группах (для статистики вариантов акций)
 const evItems = (items) => items.map((i) => [i.id, i.qty, i.price, ...(i.mods?.length ? [i.mods] : [])]);
 function buildItems(r, list, guest = false) {
@@ -2797,6 +2797,51 @@ function translateMenu(r) {
   return n;
 }
 
+// ---------- Правки менеджера поверх синхронизации
+// Поле блюда, которое менеджер изменил в ЛК (название / описание / раздел — по языкам, цена, фото, варианты, допы),
+// синхронизация не трогает: ovr[поле] — что было в источнике, когда его правили, src[поле] — что в источнике сейчас.
+// Разошлись — «⚠ в источнике изменилось» (взять из источника или оставить своё). Остальные поля — из источника.
+const MLANGS = ['ru', 'en', 'th', 'zh'], OVR_TEXT = ['name', 'desc', 'cat'];
+const OVR_KEYS = [...OVR_TEXT.flatMap((f) => MLANGS.map((l) => `${f}.${l}`)), 'price', 'photo', 'options', 'groups'];
+const jclone = (x) => (x === undefined ? x : JSON.parse(JSON.stringify(x)));
+const sameVal = (a, b) => JSON.stringify(a ?? '') === JSON.stringify(b ?? '');
+// текст по языкам в одном порядке ключей (чтобы сравнивать)
+// (в описании переносы строк сохраняем)
+const normText = (v, max) => (max > 300 ? String(v ?? '').replace(/[ \t]+/g, ' ') : String(v ?? '').replace(/\s+/g, ' ')).trim().slice(0, max);
+const ltext = (o, max = 200) => Object.fromEntries(MLANGS.map((l) => [l, normText(o?.[l], max)]).filter(([, v]) => v));
+const trText = (o, max) => { const x = ltext(o, max); fillTr(x); return ltext(x, max); };
+// варианты (цена вместо основной: 0,33 л / 0,5 л) и допы (группы выбора с доплатой) — одинаковый вид из источника и из ЛК
+const cleanOptions = (list) => (Array.isArray(list) ? list : []).map((o) => ({
+  key: String(o?.key ?? '').slice(0, 60) || uid(), label: trText(o?.label, 120), price: Math.max(0, Number(o?.price) || 0),
+})).filter((o) => Object.keys(o.label).length).slice(0, 50);
+const cleanGroups = (list) => (Array.isArray(list) ? list : []).map((g) => ({
+  id: String(g?.id ?? '').slice(0, 60) || uid(), name: trText(g?.name, 120), type: g?.type === 'many' ? 'many' : 'one', req: !!g?.req,
+  opts: (Array.isArray(g?.opts) ? g.opts : []).map((o) => ({
+    id: String(o?.id ?? '').slice(0, 80) || uid(), name: trText(o?.name, 120), price: Math.max(0, Number(o?.price) || 0), def: !!o?.def,
+  })).filter((o) => Object.keys(o.name).length).slice(0, 80),
+})).filter((g) => g.opts.length).slice(0, 30);
+const getField = (it, k) => { const [f, l] = k.split('.'); return l ? String(it[f]?.[l] || '') : it[f]; };
+function setField(it, k, v) {
+  const [f, l] = k.split('.');
+  if (!l) { it[f] = v; return; }
+  const o = { ...(it[f] || {}) };
+  if (v) o[l] = v; else delete o[l];
+  it[f] = o;
+}
+const cleanField = (k, v) => (k === 'price' ? Math.max(0, Number(v) || 0) : k === 'photo' ? String(v || '').slice(0, 500)
+  : k === 'options' ? cleanOptions(v) : k === 'groups' ? cleanGroups(v)
+  : normText(v, k.startsWith('desc.') ? 2000 : 200));
+// Блюдо, как его даёт источник: пустые языки — из словаря переводов меню
+function srcView(s) {
+  const v = {};
+  for (const f of OVR_TEXT) { const x = trText(s[f], f === 'desc' ? 2000 : 200); for (const l of MLANGS) v[`${f}.${l}`] = x[l] || ''; }
+  return Object.assign(v, { price: Number(s.price) || 0, photo: String(s.photo || ''), options: cleanOptions(s.options), groups: cleanGroups(s.groups) });
+}
+// у блюда расхождение с источником: поле правили, а источник его потом изменил
+const menuConflicts = (it) => Object.keys(it.ovr || {}).filter((k) => !sameVal(it.ovr[k], it.src?.[k]));
+// без служебных полей правок — для планшетов и официантов
+const pubItem = ({ ovr, src, ...i }) => i;
+
 function mergeMenu(r, items) {
   const old = new Map((r.menu || []).filter((i) => i.extId).map((i) => [i.extId, i]));
   const seen = new Set();
@@ -2804,23 +2849,56 @@ function mergeMenu(r, items) {
   const synced = items.filter((s) => s.extId && Object.values(s.name || {}).some(Boolean)).map((s) => {
     seen.add(s.extId);
     const o = old.get(s.extId) || { id: uid(), cat: {}, name: {}, desc: {} };
-    return {
+    const sv = srcView(s), ovr = { ...(o.ovr || {}) }, src = {};
+    // своё фото из прежней версии ЛК — теперь правка поля «фото»
+    if (o.photoManual && o.photo && !('photo' in ovr)) ovr.photo = sv.photo;
+    const it = {
       ...o, extId: s.extId, sku: s.sku || o.sku || '',
-      cat: { ...o.cat, ...nonEmpty(s.cat) }, name: { ...o.name, ...nonEmpty(s.name) }, desc: { ...o.desc, ...nonEmpty(s.desc) },
-      price: Number(s.price) || 0, options: s.options || [], groups: s.groups || [],
-      photo: o.photoManual ? o.photo : s.photo || o.photo || '',
       // «нет в наличии» — из источника; «скрыть с планшетов» (hidden) — решение менеджера, синхронизация его не трогает
       off: s.available === false, srcKey: key, offAt: undefined,
       tags: own ? o.tags || [] : autoTags(r, s),
     };
+    delete it.photoManual;
+    for (const k of OVR_KEYS) {
+      if (k in ovr) { src[k] = sv[k]; continue; } // правка менеджера остаётся
+      // язык или фото, которых нет в источнике, не стираем
+      if ((k.includes('.') || k === 'photo') && !sv[k]) continue;
+      setField(it, k, jclone(sv[k]));
+    }
+    if (Object.keys(ovr).length) Object.assign(it, { ovr, src }); else { delete it.ovr; delete it.src; }
+    return it;
   });
-  // при синхронизации на планшетах — только меню источника: блюда, добавленные вручную, скрыты (строки акций остаются)
-  const manual = (r.menu || []).filter((i) => !i.extId).map((i) => (i.fromPromo ? i : { ...i, hidden: true }));
+  // блюда, добавленные в ЛК, и строки акций остаются как есть (на планшетах — вместе с меню источника)
+  const manual = (r.menu || []).filter((i) => !i.extId);
   // пропавшие из этого же источника — «нет в наличии» (вернутся сами); оставшиеся от прежнего источника — убираем
   // пропавшие больше 30 дней назад — удаляем совсем
   const gone = [...old.values()].filter((i) => !seen.has(i.extId) && i.srcKey === key)
     .map((i) => ({ ...i, off: true, offAt: i.offAt || Date.now() })).filter((i) => Date.now() - i.offAt < 30 * 864e5);
   r.menu = [...synced, ...manual, ...gone];
+}
+
+// Правки из ЛК у блюда из источника. _ed — какие поля менеджер трогал (остальные не смотрим: страница могла устареть),
+// _reset — «↩ как в источнике» / «Взять из источника», _keep — «Оставить моё»
+function applyMenuEdits(it, n) {
+  const ed = n._ed && typeof n._ed === 'object' ? n._ed : {};
+  const reset = new Set(Array.isArray(n._reset) ? n._reset : []), keep = new Set(Array.isArray(n._keep) ? n._keep : []);
+  const ovr = { ...(it.ovr || {}) }, src = { ...(it.src || {}) };
+  for (const k of OVR_KEYS) {
+    if (reset.has(k) && k in ovr) {
+      setField(it, k, jclone(src[k]));
+      delete ovr[k]; delete src[k];
+      continue;
+    }
+    if (keep.has(k) && k in ovr) ovr[k] = jclone(src[k]);
+    if (!ed[k]) continue;
+    const v = cleanField(k, getField(n, k));
+    if (sameVal(v, cleanField(k, getField(it, k)))) continue;
+    const now = k in ovr ? src[k] : getField(it, k); // что сейчас в источнике
+    if (sameVal(v, now)) { delete ovr[k]; delete src[k]; } // вернули как в источнике
+    else if (!(k in ovr)) { ovr[k] = jclone(now); src[k] = jclone(now); }
+    setField(it, k, v);
+  }
+  if (Object.keys(ovr).length) Object.assign(it, { ovr, src }); else { delete it.ovr; delete it.src; }
 }
 
 // Отметки блюда при синхронизации: из источника (известные — к нашим, новые — свои отметки ресторана)
@@ -3213,14 +3291,27 @@ if (!db.migrations.expSeed) {
 // иначе страница, открытая до синхронизации, вернула бы старое меню
 function setMenu(r, list, synced = !!r.menuSource && r.menuSource.type !== 'manual', tagsAllowed = true) {
   if (synced) {
-    const own = tagsAllowed && !!r.menuSource.ownTags, by = new Map(list.map((i) => [i?.id, i]));
+    // меню из источника: у блюд источника — отметки и правки менеджера поверх источника; блюда, добавленные в ЛК (➕), —
+    // целиком из ЛК (новые добавляются, удалённые в ЛК убираются); строки акций — только отметки
+    const own = tagsAllowed && !!r.menuSource.ownTags, by = new Map(list.filter((i) => i?.id).map((i) => [i.id, i]));
+    const mine = new Set((r.menu || []).map((i) => i.id));
+    const out = [];
     for (const it of r.menu || []) {
       const n = by.get(it.id);
-      // блюда, добавленные вручную до синхронизации, остаются скрытыми — на планшетах меню из источника
-      if (!n || (!it.extId && !it.fromPromo)) continue;
+      if (!it.extId && !it.fromPromo) {
+        const c = n && cleanMenu([n], r)[0];
+        if (c) out.push({ ...c, extId: undefined, fromPromo: undefined });
+        continue;
+      }
+      out.push(it);
+      if (!n) continue;
       Object.assign(it, { dayDish: !!n.dayDish, promo: !!n.promo, hidden: !!n.hidden, askWaiter: !!n.askWaiter });
       if (own) it.tags = (Array.isArray(n.tags) ? n.tags : []).filter((x) => tagKeys(r).includes(x));
+      if (it.extId) applyMenuEdits(it, n);
     }
+    const added = list.filter((n) => n && !n.extId && !n.fromPromo && !(n.id && mine.has(n.id)));
+    out.push(...cleanMenu(added, r).map((c) => ({ ...c, extId: undefined, fromPromo: undefined })));
+    r.menu = out;
   } else r.menu = cleanMenu(list, r);
 }
 
@@ -3240,8 +3331,9 @@ function cleanMenu(menu, r = {}) {
     .map((i) => ({
       id: i.id || uid(), cat: i.cat || {}, name: i.name, desc: i.desc || {},
       price: Number(i.price) || 0, photo: String(i.photo || ''), promo: !!i.promo, dayDish: !!i.dayDish,
-      extId: i.extId || undefined, sku: String(i.sku || ''), options: Array.isArray(i.options) ? i.options : [],
-      groups: Array.isArray(i.groups) ? i.groups : [],
+      extId: i.extId || undefined, sku: String(i.sku || '').trim().slice(0, 40),
+      // строки акций: варианты акции задаёт сама акция
+      options: cleanOptions(i.options), groups: i.fromPromo ? (Array.isArray(i.groups) ? i.groups : []) : cleanGroups(i.groups),
       hidden: !!i.hidden, off: !!i.off, photoManual: !!i.photoManual, askWaiter: !!i.askWaiter, fromPromo: i.fromPromo ? String(i.fromPromo) : undefined,
       tags: (Array.isArray(i.tags) ? i.tags : []).filter((x) => tagKeys(r).includes(x)),
     }));
@@ -4004,6 +4096,11 @@ for (const r of Object.values(db.restaurants)) {
 
 // Однократно: всё, что было до этого обновления (пилотные тесты), и все нынешние сотрудники — тестовые
 db.migrations ??= {};
+// Однократно: меню из источника пересобрать по-новому (правки менеджера поверх источника) при следующей проверке
+if (!db.migrations.menuOvr) {
+  for (const r of Object.values(db.restaurants)) if (r.menuSource && r.menuSource.type !== 'manual') delete r.menuSource.lastHash;
+  db.migrations.menuOvr = Date.now();
+}
 if (!db.migrations.hours) {
   for (const r of Object.values(db.restaurants)) {
     if (r.hours) continue;
