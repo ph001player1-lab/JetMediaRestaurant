@@ -295,6 +295,20 @@ function dishStats(ev, r) {
   };
 }
 
+// Подсказки к заказу («всплывашки»): по правилу — сколько раз показали (А — после «Добавить», Б — в корзине,
+// В — перед отправкой), сколько блюд добавили из подсказки, отказов и выручка добавленного
+function upsellStats(ev, r) {
+  const names = new Map((r?.upsell?.rules || []).map((x) => [x.id, x.name || x.id])), by = {};
+  for (const e of ev) {
+    if (!['up_show', 'up_add', 'up_no'].includes(e.k) || !e.rule) continue;
+    const x = (by[e.rule] ??= { name: names.get(e.rule) || e.rule, shown: 0, added: 0, no: 0, revenue: 0 });
+    if (e.k === 'up_show') x.shown++;
+    else if (e.k === 'up_no') x.no++;
+    else { x.added++; x.revenue += e.price || 0; }
+  }
+  return Object.values(by).map((x) => ({ ...x, conv: x.shown ? Math.round((100 * x.added) / x.shown) : 0 })).sort((a, b) => b.revenue - a.revenue || b.added - a.added);
+}
+
 function avatarStats(ev, stats, rids, daysOf) {
   const recDish = {};
   for (const e of ev) if (e.k === 'av_rec' || e.k === 'av_add') recDish[`${e.r}|${e.table}|${e.dish}`] = e.t;
@@ -482,7 +496,7 @@ export function restaurantReport({ log, db, r, from, to, staffNames, tests, dayF
     // по времени начала, новые сверху (в списке визиты идут в порядке завершения — забытый стол завершается позже)
     visits: [...all].sort((a, b) => b.from - a.from).slice(0, 300).map(({ events, staff, r: rid, ...v }) => ({ ...v, staff: [...staff],
       cancelled: events.filter((e) => e.k === 'order_void').length, calls: callsOf(events), log: visitLog(events, dishName(r, true), modsOf(r)) })),
-    staff: staffStats(ev, staffNames, to), tables: tableStats(ev), dishes: dishStats(ev, r),
+    staff: staffStats(ev, staffNames, to), tables: tableStats(ev), dishes: dishStats(ev, r), upsell: upsellStats(ev, r),
     promos: promoStats(ev, r, db.stats, days), avatar: avatarStats(ev, db.stats, rids, () => days), ...timeStats(ev),
   };
 }

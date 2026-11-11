@@ -1634,7 +1634,9 @@ function avatarFor(r) {
   const L = a.lines?.[c.id] || {}, own = (k, def) => (L[k]?.length ? L[k] : def || []);
   const { restaurants, ...pack } = c;
   return {
-    ...pack, tts: !!(db.eleven.key && c.voice?.eleven), ...pick(a, ['speak', 'everyMin', 'durationSec', 'startWith', 'filters']),
+    ...pack, tts: !!(db.eleven.key && c.voice?.eleven), ...pick(a, ['speak', 'everyMin', 'durationSec', 'startWith']),
+    // кнопки особых пожеланий — сами из меню: отметки, которые стоят хотя бы у одного блюда на планшетах
+    filters: [...new Set((r.menu || []).filter(onMenu).flatMap((i) => i.tags || []))].filter((k) => tagKeys(r).includes(k)),
     greetings: own('greetings', c.greetings),
     phrases: { recommend: own('recommend', c.phrases?.recommend), dayDish: own('dayDish', c.phrases?.dayDish) },
   };
@@ -1657,12 +1659,17 @@ function guestImpression(b) {
 const guestEventBudget = new Map();
 function guestEvent(b) {
   const t = tableOf(b.d);
-  if (!t || !['av_talk', 'av_rec', 'av_dish', 'av_add'].includes(b.k)) throw fail(400, 'bad event');
+  if (!t || !['av_talk', 'av_rec', 'av_dish', 'av_add', 'up_show', 'up_add', 'up_no'].includes(b.k)) throw fail(400, 'bad event');
   const hour = Math.floor(Date.now() / 3600e3), bud = guestEventBudget.get(b.d);
   const n = bud?.hour === hour ? bud.n : 0;
   if (n >= 200) return {};
   guestEventBudget.set(b.d, { hour, n: n + 1 });
-  logEvent(t.r.id, b.k, { table: t.table, dev: b.d, dish: String(b.dish || '').slice(0, 40) || undefined, lang: b.lang });
+  logEvent(t.r.id, b.k, {
+    table: t.table, dev: b.d, dish: String(b.dish || '').slice(0, 40) || undefined, lang: b.lang,
+    // подсказки к заказу: правило, где показали (popup / cart / sheet), цена добавленного
+    ...(b.k.startsWith('up_') ? { rule: String(b.rule || '').slice(0, 40), mode: ['popup', 'cart', 'sheet'].includes(b.mode) ? b.mode : undefined,
+      price: Number(b.price) > 0 ? Math.round(Number(b.price)) : undefined } : {}),
+  });
   return {};
 }
 
@@ -1677,12 +1684,12 @@ const menuPacks = new Map();
 function menuPack(r) {
   const p = menuPacks.get(r.id);
   if (p && Date.now() - p.at < 2000) return p;
-  const menu = guestMenuOf(r), np = { at: Date.now(), menu, mv: verOf(menu) };
+  const menu = guestMenuOf(r), np = { at: Date.now(), menu, mv: verOf(menu), upsell: upsellFor(r) };
   menuPacks.set(r.id, np);
   return np;
 }
-function packed(q, r, content) {
-  const m = menuPack(r), cv = verOf(content);
+function packed(q, r, content0) {
+  const m = menuPack(r), content = { ...content0, upsell: m.upsell }, cv = verOf(content);
   return { mv: m.mv, ...(q.mv === m.mv ? {} : { menu: m.menu }), cv, ...(q.cv === cv ? {} : content) };
 }
 
@@ -1867,6 +1874,7 @@ function buildItems(r, list, guest = false) {
       for (const gr of m.groups || []) {
         let sel = gr.opts.filter((o) => (want ? want.has(o.id) : o.def));
         if (gr.type === 'one') sel = sel.slice(0, 1);
+        else if (gr.max) sel = sel.slice(0, gr.max); // «от 2 до 3» — не больше 3
         if (gr.req && !sel.length && gr.opts.length) sel = [gr.opts.find((o) => o.def) || gr.opts[0]];
         picked.push(...sel);
       }
@@ -2756,6 +2764,7 @@ function managerGet(b, q) {
       id: r.id, name: r.name, staffCode: r.staffCode || '', langs: r.langs || [], tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
       floor: floorOf(r), menuCats: r.menuCats || {},
       menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [], staffArchive: r.staffArchive || [],
+      menuRules: r.menuRules || [], upsell: upsellCfg(r),
       menuSource: publicSource(r.menuSource), menuIssues: menuIssues(r), timers: timersOf(r),
       display: { ...DISPLAY, ...r.display },
       avatar: { ...AVATAR, ...r.avatar },
@@ -2774,7 +2783,7 @@ function managerGet(b, q) {
   };
 }
 
-const SECTIONS = { testVisit: 'пометка тестового визита', staffArchive: 'уволенные', staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', customTags: 'особые пожелания', tagRules: 'правила отметок', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы', flow: 'заказы и кухня', timers: 'сроки сбросов' };
+const SECTIONS = { menuRules: 'массовые правила меню', upsell: 'подсказки к заказу', testVisit: 'пометка тестового визита', staffArchive: 'уволенные', staff: 'персонал', menu: 'меню', promos: 'акции', blockedAds: 'блокировка рекламы', menuSource: 'источник меню', customTags: 'особые пожелания', tagRules: 'правила отметок', display: 'показ и дизайн', avatar: 'ИИ-персонаж', tables: 'столы', flow: 'заказы и кухня', timers: 'сроки сбросов' };
 function managerSave(b) {
   const { r, member } = managerSession(b.token);
   // Страница ЛК открыта с данными другого ресторана (вышли и вошли другим кодом без перезагрузки) — не сохраняем,
@@ -2794,7 +2803,9 @@ function managerSave(b) {
   // Меню из ЛК: при синхронизации — только ★ блюдо дня, 📣 в показе акций, ⦸ скрыть (хештеги и настройки синхронизации — в админке)
   if (Array.isArray(b.menu)) setMenu(r, b.menu, undefined, false);
   if (Array.isArray(b.promos)) r.promos = cleanPromos(b.promos);
-  if (Array.isArray(b.promos) || Array.isArray(b.menu)) syncPromoItems(r);
+  if (Array.isArray(b.menuRules)) r.menuRules = cleanMenuRules(b.menuRules, r);
+  if (b.upsell && typeof b.upsell === 'object') r.upsell = cleanUpsell(b.upsell);
+  if (Array.isArray(b.promos) || Array.isArray(b.menu) || Array.isArray(b.menuRules)) syncPromoItems(r);
   // «реклама после каждых N слайдов» задаёт админка — из ЛК не меняется
   if (b.timers) r.timers = cleanTimers(b.timers);
   if (b.floor) r.floor = cleanFloor(b.floor, r);
@@ -2980,7 +2991,7 @@ function translateMenu(r) {
 // синхронизация не трогает: ovr[поле] — что было в источнике, когда его правили, src[поле] — что в источнике сейчас.
 // Разошлись — «⚠ в источнике изменилось» (взять из источника или оставить своё). Остальные поля — из источника.
 const MLANGS = ['ru', 'en', 'th', 'zh'], OVR_TEXT = ['name', 'desc', 'cat'];
-const OVR_KEYS = [...OVR_TEXT.flatMap((f) => MLANGS.map((l) => `${f}.${l}`)), 'price', 'photo', 'options', 'groups'];
+const OVR_KEYS = [...OVR_TEXT.flatMap((f) => MLANGS.map((l) => `${f}.${l}`)), 'price', 'photo', 'options', 'groups', 'tags'];
 const jclone = (x) => (x === undefined ? x : JSON.parse(JSON.stringify(x)));
 const sameVal = (a, b) => JSON.stringify(a ?? '') === JSON.stringify(b ?? '');
 // текст по языкам в одном порядке ключей (чтобы сравнивать)
@@ -2994,6 +3005,9 @@ const cleanOptions = (list) => (Array.isArray(list) ? list : []).map((o) => ({
 })).filter((o) => Object.keys(o.label).length).slice(0, 50);
 const cleanGroups = (list) => (Array.isArray(list) ? list : []).map((g) => ({
   id: String(g?.id ?? '').slice(0, 60) || uid(), name: trText(g?.name, 120), type: g?.type === 'many' ? 'many' : 'one', req: !!g?.req,
+  // «несколько»: сколько выбрать — от min до max («Выберите 2–3 фрукта»)
+  ...(g?.type === 'many' && Number(g?.min) > 0 ? { min: Math.min(20, Math.round(Number(g.min))) } : {}),
+  ...(g?.type === 'many' && Number(g?.max) > 0 ? { max: Math.min(20, Math.round(Number(g.max))) } : {}),
   opts: (Array.isArray(g?.opts) ? g.opts : []).map((o) => ({
     id: String(o?.id ?? '').slice(0, 80) || uid(), name: trText(o?.name, 120), price: Math.max(0, Number(o?.price) || 0), def: !!o?.def,
   })).filter((o) => Object.keys(o.name).length).slice(0, 80),
@@ -3006,8 +3020,11 @@ function setField(it, k, v) {
   if (v) o[l] = v; else delete o[l];
   it[f] = o;
 }
+// (добавленное массовыми правилами — группы и варианты «r:…» — в правки блюда не входит)
 const cleanField = (k, v) => (k === 'price' ? Math.max(0, Number(v) || 0) : k === 'photo' ? String(v || '').slice(0, 500)
-  : k === 'options' ? cleanOptions(v) : k === 'groups' ? cleanGroups(v)
+  : k === 'options' ? cleanOptions((Array.isArray(v) ? v : []).filter((o) => !isRuleId(o?.key)))
+  : k === 'groups' ? cleanGroups((Array.isArray(v) ? v : []).filter((g) => !isRuleId(g?.id)))
+  : k === 'tags' ? [...new Set(strList(v, 30, 40))].sort()
   : normText(v, k.startsWith('desc.') ? 2000 : 200));
 // Блюдо, как его даёт источник: пустые языки — из словаря переводов меню
 function srcView(s) {
@@ -3018,27 +3035,142 @@ function srcView(s) {
 // у блюда расхождение с источником: поле правили, а источник его потом изменил
 const menuConflicts = (it) => Object.keys(it.ovr || {}).filter((k) => !sameVal(it.ovr[k], it.src?.[k]));
 // без служебных полей правок — для планшетов и официантов
-const pubItem = ({ ovr, src, ...i }) => i;
+const pubItem = ({ ovr, src, rtags, ...i }) => i;
+
+// ---------- Массовые правила меню (ЛК → «Меню» → «Массовые правила»). «Кому»: разделы, слова в названии («пельмен*» —
+// слова, начинающиеся на «пельмен»; без звёздочки — слово или фраза целиком), коды, отдельные блюда; кроме исключённых.
+// «Что»: допы (группа выбора), варианты (0,3 л / 1 л; пустая цена — цена блюда), отметки. Ставятся после каждой
+// синхронизации и сохранения ЛК — достаются и новым блюдам из источника. Добавленное правилом помечено (группы и
+// варианты — «r:…», отметки — rtags): перед синхронизацией и правками снимаем, после — ставим заново
+const lc = (x) => String(x ?? '').trim().toLowerCase();
+const escRe = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const strList = (a, n, len) => (Array.isArray(a) ? a : []).map((x) => String(x ?? '').trim().slice(0, len)).filter(Boolean).slice(0, n);
+const isRuleId = (x) => String(x ?? '').startsWith('r:');
+function wordRe(w) {
+  w = lc(w);
+  const pre = w.endsWith('*');
+  w = w.replace(/\*+$/, '').trim();
+  return w ? new RegExp(`(^|[^\\p{L}\\p{N}])${escRe(w)}${pre ? '' : '(?![\\p{L}\\p{N}])'}`, 'iu') : null;
+}
+function matchItems(r, m = {}, exclude = []) {
+  const cats = new Set((m.cats || []).map(lc)), skus = new Set((m.skus || []).map(lc)), ids = new Set(m.ids || []), ex = new Set(exclude || []);
+  const words = (m.words || []).map(wordRe).filter(Boolean);
+  if (!cats.size && !skus.size && !ids.size && !words.length) return [];
+  return (r.menu || []).filter((i) => !i.fromPromo && !ex.has(i.id) && (ids.has(i.id) || (i.sku && skus.has(lc(i.sku)))
+    || Object.values(i.cat || {}).some((c) => cats.has(lc(c))) || words.some((re) => Object.values(i.name || {}).some((x) => re.test(x)))));
+}
+function stripRules(it) {
+  if ((it.groups || []).some((g) => isRuleId(g.id))) it.groups = it.groups.filter((g) => !isRuleId(g.id));
+  if ((it.options || []).some((o) => isRuleId(o.key))) it.options = it.options.filter((o) => !isRuleId(o.key));
+  if (it.rtags) { it.tags = (it.tags || []).filter((t) => !it.rtags.includes(t)); delete it.rtags; }
+}
+const groupKey = (g) => lc(g?.name?.ru || g?.name?.en || Object.values(g?.name || {})[0]);
+function applyRules(r) {
+  for (const it of r.menu || []) stripRules(it);
+  const keys = tagKeys(r);
+  for (const rule of r.menuRules || []) {
+    if (!rule.on) continue;
+    const a = rule.add || {};
+    for (const it of matchItems(r, rule.match, rule.exclude)) {
+      (a.groups || []).forEach((g, n) => {
+        if ((it.groups || []).some((x) => groupKey(x) === groupKey(g))) return; // такая группа у блюда уже есть — не дублируем
+        const gid = `r:${rule.id}:${n}`;
+        it.groups = [...(it.groups || []), { ...jclone(g), id: gid, opts: g.opts.map((o, k) => ({ ...jclone(o), id: `${gid}:${k}` })) }];
+      });
+      // варианты — только блюдам без своих вариантов
+      if ((a.options || []).length && !(it.options || []).length) {
+        it.options = a.options.map((o, n) => ({ key: `r:${rule.id}:${n}`, label: { ...o.label }, price: o.price > 0 ? o.price : Number(it.price) || 0 }));
+      }
+      for (const t of a.tags || []) {
+        if (!keys.includes(t) || (it.tags || []).includes(t)) continue;
+        it.tags = [...(it.tags || []), t];
+        it.rtags = [...(it.rtags || []), t];
+      }
+    }
+  }
+}
+const cleanMatch = (m) => ({ cats: strList(m?.cats, 40, 80), words: strList(m?.words, 40, 60), skus: strList(m?.skus, 300, 40), ids: strList(m?.ids, 500, 40) });
+function cleanMenuRules(list, r) {
+  const keys = tagKeys(r);
+  return (Array.isArray(list) ? list : []).slice(0, 60).map((x) => ({
+    id: /^[\w-]{1,40}$/.test(x?.id || '') ? x.id : uid(), name: String(x?.name || '').trim().slice(0, 80), on: x?.on !== false,
+    match: cleanMatch(x?.match), exclude: strList(x?.exclude, 500, 40),
+    add: {
+      groups: cleanGroups(x?.add?.groups),
+      options: (Array.isArray(x?.add?.options) ? x.add.options : []).map((o) => ({ label: trText(o?.label, 60), price: Math.max(0, Number(o?.price) || 0) }))
+        .filter((o) => Object.keys(o.label).length).slice(0, 10),
+      tags: strList(x?.add?.tags, 20, 40).filter((t) => keys.includes(t)),
+    },
+  }));
+}
+
+// ---------- Подсказки к заказу («всплывашки»): заказали блюдо из «когда» — предлагаем блюда из «что предложить».
+// А — подсказка персонажа после «Добавить», Б — «Часто берут вместе» в корзине, В — «Дополнить заказ?» перед отправкой.
+// «Не забыли напитки?» (nodrink) — в корзине есть еда из «когда» и нет напитков из «напитки». Планшет получает правила уже
+// разложенными по блюдам; ограничения показа (раз на блюдо, N за визит, отказы) — на планшете
+const UPSELL = { on: true, popup: true, cart: true, sheet: true, perVisit: 3 };
+function cleanUpsell(u) {
+  return {
+    on: u?.on !== false, popup: u?.popup !== false, cart: u?.cart !== false, sheet: u?.sheet !== false,
+    perVisit: Math.min(10, Math.max(1, Math.round(Number(u?.perVisit)) || 3)),
+    rules: (Array.isArray(u?.rules) ? u.rules : []).slice(0, 60).map((x) => ({
+      id: /^[\w-]{1,40}$/.test(x?.id || '') ? x.id : uid(), name: String(x?.name || '').trim().slice(0, 80), on: x?.on !== false,
+      nodrink: !!x?.nodrink, when: cleanMatch(x?.when), exclude: strList(x?.exclude, 500, 40), drinks: cleanMatch(x?.drinks),
+      offer: cleanMatch(x?.offer), text: ltext(x?.text, 120),
+    })),
+  };
+}
+const upsellCfg = (r) => ({ ...UPSELL, rules: [], ...(r.upsell || {}) });
+function upsellFor(r) {
+  const u = upsellCfg(r);
+  if (!u.on || !(u.popup || u.cart || u.sheet)) return null;
+  const vis = new Set((r.menu || []).filter((i) => onMenu(i) && !askOf(i)).map((i) => i.id));
+  const ids = (m, ex) => matchItems(r, m, ex).map((i) => i.id).filter((id) => vis.has(id));
+  // одно и то же блюдо в двух разделах («Картошка фри» в гарнирах и в детском меню) предлагаем один раз — не из детского
+  const kids = (i) => /дет|kid/i.test(`${i.cat?.ru || ''} ${i.cat?.en || ''}`);
+  const offerOf = (m) => {
+    const by = new Map();
+    for (const i of matchItems(r, m).filter((x) => vis.has(x.id))) {
+      const k = lc(i.name?.ru || i.name?.en), was = by.get(k);
+      if (!was || (kids(was) && !kids(i))) by.set(k, i);
+    }
+    // по очереди из разных разделов: лимонад, фреш, морс… — а не шесть лимонадов подряд
+    const cats = new Map();
+    for (const i of by.values()) { const c = lc(i.cat?.ru || i.cat?.en); if (!cats.has(c)) cats.set(c, []); cats.get(c).push(i.id); }
+    const out = [], lists = [...cats.values()];
+    for (let k = 0; out.length < by.size; k++) for (const l of lists) if (l[k]) out.push(l[k]);
+    return out;
+  };
+  const rules = [];
+  for (const x of u.rules) {
+    if (!x.on) continue;
+    const offer = offerOf(x.offer).slice(0, 40), when = ids(x.when, x.exclude);
+    if (!offer.length || !when.length) continue;
+    rules.push({ id: x.id, when, offer, text: x.text, ...(x.nodrink ? { nodrink: true, drinks: ids(x.drinks) } : {}) });
+  }
+  return rules.length ? { popup: u.popup, cart: u.cart, sheet: u.sheet, perVisit: u.perVisit, rules } : null;
+}
 
 function mergeMenu(r, items) {
+  for (const i of r.menu || []) stripRules(i); // правила поставим заново (syncPromoItems → applyRules)
   const old = new Map((r.menu || []).filter((i) => i.extId).map((i) => [i.extId, i]));
   const seen = new Set();
   const own = !!r.menuSource?.ownTags, key = srcKey(r.menuSource);
   const synced = items.filter((s) => s.extId && Object.values(s.name || {}).some(Boolean)).map((s) => {
     seen.add(s.extId);
     const o = old.get(s.extId) || { id: uid(), cat: {}, name: {}, desc: {} };
-    const sv = srcView(s), ovr = { ...(o.ovr || {}) }, src = {};
+    const sv = { ...srcView(s), tags: cleanField('tags', autoTags(r, s)) }, ovr = { ...(o.ovr || {}) }, src = {};
     // своё фото из прежней версии ЛК — теперь правка поля «фото»
     if (o.photoManual && o.photo && !('photo' in ovr)) ovr.photo = sv.photo;
     const it = {
       ...o, extId: s.extId, sku: s.sku || o.sku || '',
       // «нет в наличии» — из источника; «скрыть с планшетов» (hidden) — решение менеджера, синхронизация его не трогает
-      off: s.available === false, srcKey: key, offAt: undefined,
-      tags: own ? o.tags || [] : autoTags(r, s),
+      off: s.available === false, srcKey: key, offAt: undefined, tags: o.tags || [],
     };
     delete it.photoManual;
     for (const k of OVR_KEYS) {
       if (k in ovr) { src[k] = sv[k]; continue; } // правка менеджера остаётся
+      if (k === 'tags' && own) continue; // «свои хештеги» (админка): отметки только из ЛК
       // язык или фото, которых нет в источнике, не стираем
       if ((k.includes('.') || k === 'photo') && !sv[k]) continue;
       setField(it, k, jclone(sv[k]));
@@ -3057,7 +3189,7 @@ function mergeMenu(r, items) {
 
 // Правки из ЛК у блюда из источника. _ed — какие поля менеджер трогал (остальные не смотрим: страница могла устареть),
 // _reset — «↩ как в источнике» / «Взять из источника», _keep — «Оставить моё»
-function applyMenuEdits(it, n) {
+function applyMenuEdits(it, n, r) {
   const ed = n._ed && typeof n._ed === 'object' ? n._ed : {};
   const reset = new Set(Array.isArray(n._reset) ? n._reset : []), keep = new Set(Array.isArray(n._keep) ? n._keep : []);
   const ovr = { ...(it.ovr || {}) }, src = { ...(it.src || {}) };
@@ -3071,12 +3203,13 @@ function applyMenuEdits(it, n) {
     if (!ed[k]) continue;
     const v = cleanField(k, getField(n, k));
     if (sameVal(v, cleanField(k, getField(it, k)))) continue;
-    const now = k in ovr ? src[k] : getField(it, k); // что сейчас в источнике
+    const now = k in ovr ? src[k] : cleanField(k, getField(it, k)); // что сейчас в источнике
     if (sameVal(v, now)) { delete ovr[k]; delete src[k]; } // вернули как в источнике
     else if (!(k in ovr)) { ovr[k] = jclone(now); src[k] = jclone(now); }
     setField(it, k, v);
   }
   if (Object.keys(ovr).length) Object.assign(it, { ovr, src }); else { delete it.ovr; delete it.src; }
+  if (r) it.tags = (it.tags || []).filter((t) => tagKeys(r).includes(t));
 }
 
 // Отметки блюда при синхронизации: из источника (известные — к нашим, новые — свои отметки ресторана)
@@ -3532,9 +3665,12 @@ function setMenu(r, list, synced = !!r.menuSource && r.menuSource.type !== 'manu
     // целиком из ЛК (новые добавляются, удалённые в ЛК убираются); строки акций — только отметки
     const own = tagsAllowed && !!r.menuSource.ownTags, by = new Map(list.filter((i) => i?.id).map((i) => [i.id, i]));
     const mine = new Set((r.menu || []).map((i) => i.id));
+    // добавленное массовыми правилами снимаем (из ЛК оно приходит вместе с блюдом) — правила поставим заново
+    const rtags = new Map((r.menu || []).map((i) => [i.id, i.rtags || []]));
+    for (const i of r.menu || []) stripRules(i);
     const out = [];
     for (const it of r.menu || []) {
-      const n = by.get(it.id);
+      const n0 = by.get(it.id), n = n0 && { ...n0, tags: (n0.tags || []).filter((t) => !rtags.get(it.id).includes(t)) };
       if (!it.extId && !it.fromPromo) {
         const c = n && cleanMenu([n], r)[0];
         if (c) out.push({ ...c, extId: undefined, fromPromo: undefined });
@@ -3543,13 +3679,15 @@ function setMenu(r, list, synced = !!r.menuSource && r.menuSource.type !== 'manu
       out.push(it);
       if (!n) continue;
       Object.assign(it, { dayDish: !!n.dayDish, promo: !!n.promo, hidden: !!n.hidden, askWaiter: !!n.askWaiter });
-      if (own) it.tags = (Array.isArray(n.tags) ? n.tags : []).filter((x) => tagKeys(r).includes(x));
-      if (it.extId) applyMenuEdits(it, n);
+      // отметки блюда из источника — правка поверх источника (как цена); у строк акций — просто из ЛК
+      if (it.extId) applyMenuEdits(it, n, r);
+      else it.tags = (Array.isArray(n.tags) ? n.tags : []).filter((x) => tagKeys(r).includes(x));
     }
     const added = list.filter((n) => n && !n.extId && !n.fromPromo && !(n.id && mine.has(n.id)));
     out.push(...cleanMenu(added, r).map((c) => ({ ...c, extId: undefined, fromPromo: undefined })));
     r.menu = out;
   } else r.menu = cleanMenu(list, r);
+  applyRules(r);
 }
 
 const cleanRules = (list, r) => list.filter((x) => x && String(x.text || '').trim() && tagKeys(r).includes(x.tag))
@@ -3569,10 +3707,10 @@ function cleanMenu(menu, r = {}) {
       id: i.id || uid(), cat: i.cat || {}, name: i.name, desc: i.desc || {},
       price: Number(i.price) || 0, photo: String(i.photo || ''), promo: !!i.promo, dayDish: !!i.dayDish,
       extId: i.extId || undefined, sku: String(i.sku || '').trim().slice(0, 40),
-      // строки акций: варианты акции задаёт сама акция
-      options: cleanOptions(i.options), groups: i.fromPromo ? (Array.isArray(i.groups) ? i.groups : []) : cleanGroups(i.groups),
+      // строки акций: варианты акции задаёт сама акция; добавленное массовыми правилами («r:…») не храним — правила поставят заново
+      options: cleanField('options', i.options), groups: i.fromPromo ? (Array.isArray(i.groups) ? i.groups : []) : cleanField('groups', i.groups),
       hidden: !!i.hidden, off: !!i.off, photoManual: !!i.photoManual, askWaiter: !!i.askWaiter, fromPromo: i.fromPromo ? String(i.fromPromo) : undefined,
-      tags: (Array.isArray(i.tags) ? i.tags : []).filter((x) => tagKeys(r).includes(x)),
+      tags: (Array.isArray(i.tags) ? i.tags : []).filter((x) => tagKeys(r).includes(x) && !(i.rtags || []).includes(x)),
     }));
 }
 
@@ -3679,6 +3817,7 @@ function syncPromoItems(r) {
     });
   }
   r.menu = menu;
+  applyRules(r); // массовые правила меню — после любых изменений меню
 }
 
 // Название акции — строка; если пришёл объект { ru: … } (старая ошибка ЛК) — берём его текст
@@ -4345,6 +4484,93 @@ db.migrations ??= {};
 if (!db.migrations.tgServer) {
   for (const bt of db.tgBots || []) if ((bt.kinds || []).includes('devices') && !bt.kinds.includes('server')) bt.kinds.push('server');
   db.migrations.tgServer = Date.now();
+}
+// Однократно: Veranda — массовые правила меню, русские названия лимонадов, микс-фреш и подсказки к заказу
+// (заполнено по просьбе ресторана; дальше всё правится в ЛК)
+function verandaPresets(r) {
+  const L = (ru, en, th, zh) => ({ ru, en, th, zh });
+  const V03 = L('0,3 л', '0.3 L', '0.3 ลิตร', '0.3升'), V1 = L('1 л', '1 L', '1 ลิตร', '1升');
+  const ofCat = (...cats) => (r.menu || []).filter((i) => cats.includes(i.cat?.ru));
+  const coconut = ofCat('Соки', 'Свежевыжатые соки').filter((i) => /кокос|coconut/i.test(`${i.name?.ru} ${i.name?.en}`)).map((i) => i.id);
+  // хинкали с телятиной: соус, добавленный вручную (только по-русски), — теперь из правила, с переводами
+  for (const it of r.menu || []) {
+    if (it.sku === 'M51' && it.ovr && 'groups' in it.ovr) { it.groups = jclone(it.src?.groups || []); delete it.ovr.groups; delete it.src?.groups; }
+  }
+  // микс-фреш: 2–3 фрукта на выбор (без киви)
+  const freshCat = ofCat('Свежевыжатые соки')[0]?.cat || L('Свежевыжатые соки', 'Fresh juices', 'น้ำผลไม้คั้นสด', '鲜榨果汁');
+  if (!(r.menu || []).some((i) => i.id === 'vr-mixfresh')) {
+    const fruit = (id, ...n) => ({ id, name: L(...n), price: 0, def: false });
+    r.menu.push({
+      id: 'vr-mixfresh', cat: { ...freshCat }, name: L('Микс-фреш (2–3 фрукта)', 'Mix fresh (2–3 fruits)', 'น้ำผลไม้คั้นสดรวม (2–3 ชนิด)', '混合鲜榨果汁（2–3种水果）'),
+      desc: L('Свежевыжатый сок из 2–3 фруктов на ваш выбор', 'Freshly squeezed juice from 2–3 fruits of your choice', 'น้ำผลไม้คั้นสดจากผลไม้ 2–3 ชนิดตามที่คุณเลือก', '自选2–3种水果的鲜榨果汁'),
+      price: 140, photo: '', sku: '', promo: false, dayDish: false, hidden: false, off: false, options: [], tags: [],
+      groups: [{ id: 'mixfruits', name: L('Выберите фрукты', 'Choose fruits', 'เลือกผลไม้', '选择水果'), type: 'many', req: true, min: 2, max: 3, opts: [
+        fruit('apple', 'Яблоко', 'Apple', 'แอปเปิ้ล', '苹果'), fruit('carrot', 'Морковь', 'Carrot', 'แครอท', '胡萝卜'), fruit('mango', 'Манго', 'Mango', 'มะม่วง', '芒果'),
+        fruit('pineapple', 'Ананас', 'Pineapple', 'สับปะรด', '菠萝'), fruit('watermelon', 'Арбуз', 'Watermelon', 'แตงโม', '西瓜')] }],
+    });
+  }
+  r.menuRules = cleanMenuRules([
+    { id: 'vr-sauce', name: 'Соус к пельменям, вареникам и хинкали',
+      match: { cats: ['Пельмени, вареники, хинкали'], skus: ['M15S', 'M17S', 'M16S', 'M19S', 'M18S', 'M20S', 'M21S'] },
+      add: { groups: [{ id: 'sauce', name: L('Соус', 'Sauce', 'ซอส', '酱料'), type: 'many', req: false, opts: [
+        { id: 'sc', name: L('Сметана', 'Sour cream', 'ซาวร์ครีม', '酸奶油'), price: 25 }, { id: 'my', name: L('Майонез', 'Mayonnaise', 'มายองเนส', '蛋黄酱'), price: 25 }] }] } },
+    { id: 'vr-spicy', name: 'Острота — все блюда Том Ям', match: { words: ['том ям', 'tom yum', 'tom yam'] },
+      add: { tags: ['spicy'], groups: [{ id: 'spicy', name: L('Острота', 'Spiciness', 'ความเผ็ด', '辣度'), type: 'one', req: true, opts: [
+        { id: 'hot', name: L('Острый', 'Spicy', 'เผ็ด', '辣') }, { id: 'mild', name: L('Не острый', 'Not spicy', 'ไม่เผ็ด', '不辣') }] }] } },
+    { id: 'vr-lemonade', name: 'Лимонады: 0,3 л и 1 л', match: { words: ['lemonade', 'лимонад'] }, add: { options: [{ label: V03, price: 0 }, { label: V1, price: 200 }] } },
+    { id: 'vr-mors', name: 'Морс: 0,3 л и 1 л', match: { words: ['морс', 'mors'] }, add: { options: [{ label: V03, price: 0 }, { label: V1, price: 200 }] } },
+    { id: 'vr-juice', name: 'Соки и фреши: 0,3 л и 1 л', match: { cats: ['Соки', 'Свежевыжатые соки'] }, exclude: coconut,
+      add: { options: [{ label: V03, price: 0 }, { label: V1, price: 180 }] } },
+    { id: 'vr-coffee', name: 'Кофе: горячий или холодный', match: { words: ['американо', 'americano', 'капучино', 'cappuccino', 'латте', 'latte'] },
+      add: { groups: [{ id: 'temp', name: L('Температура', 'Temperature', 'อุณหภูมิ', '温度'), type: 'one', req: true, opts: [
+        { id: 'hot', name: L('Горячий', 'Hot', 'ร้อน', '热') }, { id: 'iced', name: L('Холодный', 'Iced', 'เย็น', '冰') }] }] } },
+  ], r);
+  // лимонады: русские названия — чтобы находились по-русски
+  const RU = { 'Berry Mix–Rosemary Lemonade': 'Лимонад ягодный микс с розмарином', 'Mango–Passion Fruit Lemonade': 'Лимонад манго–маракуйя',
+    'Strawberry Mojito Lemonade': 'Лимонад клубничный мохито', 'Cucumber Mojito Lemonade': 'Лимонад огуречный мохито',
+    'Lemon–Lime Lemonade': 'Лимонад лимон–лайм', 'Original Lemonade': 'Лимонад классический' };
+  for (const it of r.menu || []) {
+    const ru = RU[it.name?.en];
+    if (ru && it.name.ru !== ru) {
+      if (it.extId) applyMenuEdits(it, { ...it, name: { ...it.name, ru }, _ed: { 'name.ru': 1 } }, r);
+      else it.name = { ...it.name, ru };
+    }
+  }
+  const rice = (r.menu || []).find((i) => i.sku === 'H8' && i.cat?.ru === 'Гарниры');
+  const FOOD = ['Блюда из мяса и птицы', 'Блюда на огне', 'Домашние супы', 'Закуски', 'Морепродукты', 'Пельмени, вареники, хинкали', 'Роллы', 'Салаты',
+    'Тайские блюда', 'Тайские салаты', 'Тайские супы', 'Тайский рис и лапша', 'Детское меню'];
+  const DRINKS = ['Алкогольные коктейли', 'Безалкогольные коктейли', 'Безалкогольные напитки', 'Бутылочное пиво', 'Вино', 'Крепкие алкогольные напитки',
+    'Разливное пиво', 'Свежевыжатые соки', 'Соки', 'Чайная карта'];
+  r.upsell = cleanUpsell({ on: true, popup: true, cart: true, sheet: true, perVisit: 3, rules: [
+    { id: 'vu-beer', name: 'Закуски к пиву', when: { cats: ['Бутылочное пиво', 'Разливное пиво'] },
+      offer: { skus: ['B15', 'H6', 'C20', 'H2', 'C17', 'M15', 'R2', 'R1', 'B17', 'B18', 'B13', 'T7', 'M31', 'M10', 'R31', 'R4', 'R12', 'F2', 'F5', 'F7', 'F4', 'F6'] },
+      text: L('К пиву — хрустящие закуски?', 'Something crunchy with your beer?', 'ของทานเล่นกับเบียร์ไหม?', '来点下酒小吃？') },
+    ...(rice ? [{ id: 'vu-rice', name: 'Рис к Том Яму', when: { skus: ['TS1', 'TS11', 'TS7'] }, offer: { ids: [rice.id] },
+      text: L('Добавить рис к супу? Всего ฿20', 'Add rice to your soup? Only ฿20', 'เพิ่มข้าวกับซุปไหม? แค่ ฿20', '汤配米饭？只要฿20') }] : []),
+    { id: 'vu-dessert', name: 'Чай или кофе к десерту', when: { cats: ['Десерты'] },
+      offer: { words: ['американо', 'капучино', 'латте', 'черный чай', 'чёрный чай', 'зелёный чай', 'зеленый чай'] },
+      text: L('К десерту — чай или кофе?', 'Tea or coffee with your dessert?', 'ชาหรือกาแฟกับของหวานไหม?', '甜点配茶还是咖啡？') },
+    { id: 'vu-coffee', name: 'Десерт к кофе', when: { words: ['американо', 'капучино', 'латте'] }, offer: { cats: ['Десерты'] },
+      text: L('К кофе — что-нибудь сладкое?', 'Something sweet with your coffee?', 'ของหวานกับกาแฟไหม?', '咖啡配点甜品？') },
+    { id: 'vu-fries', name: 'Картошка фри к горячему', when: { cats: ['Блюда из мяса и птицы', 'Блюда на огне'] }, offer: { skus: ['H6'] },
+      text: L('Картошку фри к горячему?', 'Fries on the side?', 'เฟรนช์ฟรายส์เป็นเครื่องเคียงไหม?', '配份薯条？') },
+    { id: 'vu-salad', name: 'Гренки к салату', when: { cats: ['Салаты'] }, offer: { skus: ['H2', 'C20'] },
+      text: L('Чесночные гренки к салату?', 'Garlic croutons with your salad?', 'ขนมปังกระเทียมกับสลัดไหม?', '沙拉配蒜香面包？') },
+    { id: 'vu-kids', name: 'Сок или морс к детскому блюду', when: { cats: ['Детское меню'] }, offer: { words: ['морс'], cats: ['Соки'] },
+      text: L('Сок или морс для ребёнка?', 'A juice for the little one?', 'น้ำผลไม้สำหรับเด็กไหม?', '给孩子来杯果汁？') },
+    { id: 'vu-drink', name: 'Не забыли напитки?', nodrink: true, when: { cats: FOOD }, drinks: { cats: DRINKS },
+      offer: { words: ['lemonade', 'лимонад', 'морс'], cats: ['Свежевыжатые соки'] },
+      text: L('Не забыли напитки?', 'Don’t forget a drink!', 'อย่าลืมเครื่องดื่มนะ!', '别忘了饮料！') },
+  ] });
+}
+if (!db.migrations.verandaPresets) {
+  for (const r of Object.values(db.restaurants)) {
+    if (!/veranda/i.test(r.name || '')) continue;
+    verandaPresets(r);
+    syncPromoItems(r);
+    audit('сервер', 'Veranda: массовые правила меню (соус, острота, объёмы, кофе), названия лимонадов, микс-фреш, подсказки к заказу', r.id);
+  }
+  db.migrations.verandaPresets = Date.now();
 }
 // Однократно: меню из источника пересобрать по-новому (правки менеджера поверх источника) при следующей проверке
 if (!db.migrations.menuOvr) {
