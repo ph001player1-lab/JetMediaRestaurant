@@ -310,7 +310,8 @@ function trafficReport() {
     days: Object.keys(T.days).sort().slice(-31).map((d) => ({ d, tx: T.days[d].tx || 0, rx: T.days[d].rx || 0 })),
     cats: TRAFFIC_CATS.map(([k, name]) => ({ k, name, b: cats[k] || 0 })).concat([{ k: 'other', name: 'Прочее', b: cats.other || 0 }]).filter((x) => x.b),
     rest: Object.entries(rest).map(([id, b]) => ({ name: db.restaurants[id]?.name || id, b })).sort((a, b) => b.b - a.b),
-    offline: !db.settings.guestOfflineOff, mirror: { done: Object.values(db.photoMirror).filter((x) => x.f).length, total: Object.keys(db.photoMirror).length },
+    offline: !db.settings.guestOfflineOff, mirror: { done: Object.values(db.photoMirror).filter((x) => x.f).length, total: mirrorWanted().size,
+      failed: Object.values(db.photoMirror).filter((x) => x.err).length },
   };
 }
 setTimeout(trafficTick, 5000);
@@ -3182,13 +3183,18 @@ async function fetchPhoto(u) {
   }
   throw new Error('много перенаправлений');
 }
+// все фото меню с чужих сайтов (что нужно скопировать)
+function mirrorWanted() {
+  const want = new Set();
+  for (const r of Object.values(db.restaurants)) for (const i of r.menu || []) if (onMenu(i) && /^https:\/\//.test(i.photo || '')) want.add(i.photo);
+  return want;
+}
 let mirroring = false;
 async function mirrorPhotos() {
   if (mirroring) return;
   mirroring = true;
   try {
-    const want = new Set();
-    for (const r of Object.values(db.restaurants)) for (const i of r.menu || []) if (onMenu(i) && /^https:\/\//.test(i.photo || '')) want.add(i.photo);
+    const want = mirrorWanted();
     // фото больше нет в меню — забываем (файл уберёт обычная уборка uploads через неделю)
     for (const u of Object.keys(db.photoMirror)) if (!want.has(u)) delete db.photoMirror[u];
     const todo = [...want].filter((u) => !db.photoMirror[u] || (!db.photoMirror[u].f && Date.now() - db.photoMirror[u].at > 3600e3)).slice(0, 150);

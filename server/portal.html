@@ -1286,6 +1286,7 @@ function renderServer() {
 // Трафик VPS за месяц: прибор (доля лимита), табло, столбики по дням, на что ушёл и по ресторанам
 function trafficPlate(t, pct, here) {
   const dd = (ts) => new Date(ts).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+  const dt = (ts) => new Date(ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   const st = pct >= 90 ? 'w' : pct >= 70 ? 'c' : '';
   const max = Math.max(1, ...t.days.map((x) => x.tx)), today = new Date().toISOString().slice(0, 10);
   const share = (list) => { const sum = list.reduce((a, x) => a + x.b, 0) || 1; return list.map((x) => `<div class="trow"><span>${esc(x.name)}</span><b>${fmtB(x.b)}</b><i style="width:${Math.max(1, (100 * x.b) / sum).toFixed(1)}%"></i></div>`).join(''); };
@@ -1303,10 +1304,10 @@ function trafficPlate(t, pct, here) {
       ${t.over ? `<div style="grid-column:1/-1"><small>ЛИМИТ ЗАКОНЧИТСЯ</small><b class="w">≈ ${dd(t.over)} — дальше скорость 10 Мбит/с</b></div>` : ''}</div></div>
     <div class="tdays" role="img" aria-label="Исходящий трафик по дням">${t.days.map((x) => `<span class="${x.d === today ? 'now' : ''}" style="height:${((100 * x.tx) / max).toFixed(1)}%" title="${x.d}: исходящий ${fmtB(x.tx)}, входящий ${fmtB(x.rx)}"></span>`).join('')}</div>
     <div class="tdl"><span>${t.days[0] ? dd(t.days[0].d) : ''}</span><span>исходящий по дням (UTC), наведите на столбик</span><span>${t.days.length ? 'сегодня' : ''}</span></div>
-    <div class="tsplit"><div><h4>НА ЧТО УШЁЛ (${here === 'test' ? 'ТЕСТОВАЯ' : 'РАБОЧАЯ'} ВЕРСИЯ, С ${t.since ? dd(t.since) : '—'})</h4>${share(t.cats) || '<small>данных пока нет</small>'}</div>
+    <div class="tsplit"><div><h4>НА ЧТО УШЁЛ (${here === 'test' ? 'ТЕСТОВАЯ' : 'РАБОЧАЯ'} ВЕРСИЯ, С ${t.since ? dt(t.since) : '—'})</h4>${share(t.cats) || '<small>данных пока нет</small>'}</div>
       <div><h4>ПО РЕСТОРАНАМ (ОПРОСЫ ПЛАНШЕТОВ, ТЕЛЕФОНОВ, ПЕРСОНАЛА)</h4>${share(t.rest) || '<small>данных пока нет</small>'}</div></div>
-    <div class="tdet">Источник: ${src}.${t.pre ? ` До начала учёта (${dd(t.pre.at)}) — ${fmtB(t.pre.tx)} исходящего${t.pre.part ? ', оценка: VPS работает с ' + dd(t.pre.boot) + ', взята доля дней этого месяца' : ''}.` : ''}
-      Фото блюд с сайтов ресторанов скопировано к нам: ${t.mirror.done} из ${t.mirror.total}. Офлайн-запас на планшетах: ${t.offline ? 'включён' : 'выключен'}.</div></div></div>`;
+    <div class="tdet">Источник: ${src}.${t.pre ? ` До начала учёта (${dt(t.pre.at)}) — ${fmtB(t.pre.tx)} исходящего${t.pre.part ? ', оценка: VPS работает с ' + dd(t.pre.boot) + ', взята доля дней этого месяца' : ''}.` : ''}
+      Фото блюд с сайтов ресторанов скопировано к нам: ${t.mirror.done} из ${t.mirror.total}${t.mirror.done < t.mirror.total ? ' (по 150 каждые 10 минут)' : ''}${t.mirror.failed ? `, не скачалось ${t.mirror.failed} — повтор через час, планшет пока берёт их с сайта` : ''}. Офлайн-запас на планшетах: ${t.offline ? 'включён' : 'выключен'}.</div></div></div>`;
 }
 // Настройки под панелью (не перерисовываются каждые 5 секунд — поле ввода не сбрасывается)
 function renderSrvSet(t) {
