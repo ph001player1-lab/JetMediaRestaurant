@@ -3294,7 +3294,7 @@ const PROMO_CAT = { ru: 'Акции', en: 'Promotions', th: 'โปรโมช�
 const promoMode = (p) => (p.orderMode === 'none' ? 'none'
   : p.orderMode === 'price' && (p.price > 0 || (p.variants || []).some((v) => v.price > 0)) ? 'price' : 'free');
 // Варианты акции («Выберите пирожное»: Наполеон ฿120, Чизкейк ฿150) — группа выбора у строки меню акции.
-// У каждого варианта своя полная цена (в режиме «Заказать по акции» — ฿0); выбрать одно или несколько.
+// У каждого варианта своя полная цена (не указана — цена акции; в режиме «Заказать по акции» — ฿0); выбрать одно или несколько.
 // Заголовок, не написанный на языке гостя, — общий «Выберите вариант»
 const VAR_TITLE = {
   one: { ru: 'Выберите вариант', en: 'Choose an option', th: 'เลือกตัวเลือก', zh: '请选择' },
@@ -3303,7 +3303,7 @@ const VAR_TITLE = {
 // Цена на кнопке слайда и в меню: самая низкая из вариантов; «от», если варианты стоят по-разному или можно выбрать несколько
 function promoPrice(p) {
   if (promoMode(p) !== 'price') return { price: 0 };
-  const ps = (p.variants || []).map((v) => v.price).filter((x) => x > 0);
+  const ps = (p.variants || []).map((v) => v.price || p.price).filter((x) => x > 0);
   if (!ps.length) return { price: p.price };
   const min = Math.min(...ps);
   return { price: min, ...(Math.max(...ps) > min || p.vMany ? { from: true } : {}) };
@@ -3323,7 +3323,8 @@ function promoGroup(p) {
   const priced = promoMode(p) === 'price', type = p.vMany ? 'many' : 'one';
   return {
     id: 'pv', name: { ...VAR_TITLE[type], ...nonEmpty(p.vTitle) }, type, req: priced || p.vReq !== false,
-    opts: p.variants.map((v) => ({ id: v.id, name: { ...v.name }, price: priced ? v.price : 0 })),
+    // цена варианта не указана — цена акции
+    opts: p.variants.map((v) => ({ id: v.id, name: { ...v.name }, price: priced ? v.price || p.price : 0 })),
   };
 }
 // Строка меню новой акции: «Акция N: название» на языке гостя (N — номер акции в списке); менеджер может переименовать
