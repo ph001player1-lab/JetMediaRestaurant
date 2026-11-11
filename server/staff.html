@@ -169,7 +169,8 @@
   .vseg button { background: transparent; color: #8a7f76; padding: 6px 12px; font-size: 14px; border-radius: 8px; }
   .vseg button.on { background: #fff; color: #1f1a17; font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
   #tsheet { position: fixed; inset: 0; z-index: 30; }
-  #firedBox summary { cursor: pointer; } #firedBox[open] .fshow { display: none; }
+  #firedBox summary { cursor: pointer; }
+  code.sku { font: 600 12px ui-monospace, Menlo, Consolas, monospace; color: #8a7f76; background: #f3eee8; border-radius: 4px; padding: 0 4px; } #firedBox[open] .fshow { display: none; }
   #toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 50; background: #1f1a17; color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 14px; max-width: calc(100% - 48px); text-align: center; }
   .undobtn { background: #ffd54f !important; color: #1f1a17 !important; }
   .card.ghost { opacity: .85; border-style: dashed; }
@@ -509,7 +510,7 @@ function renderVoid() {
     ${redo ? `<p class="empty">${t('redoHint')}</p>` : `<p class="knote">${t('cancelHint')}</p>`}
     ${Object.entries(v.lines).map(([k, i]) => (redo ? `<div class="rqline${v.qty[k] ? ' on' : ''}"><span>${esc(itemName(i.name))} <small>× ${i.qty}</small>${modsHtml(i)}</span>
       <span class="rq"><button class="ghostbtn" data-rq="${esc(k)}" data-d="-1">−</button><b>${v.qty[k]}</b><button class="ghostbtn" data-rq="${esc(k)}" data-d="1">+</button></span></div>`
-      : `<div class="rqline"><span>${i.qty} × ${esc(itemName(i.name))}${modsHtml(i)}</span></div>`)).join('')}
+      : `<div class="rqline"><span>${i.qty} × ${skuHtml(i)}${esc(itemName(i.name))}${modsHtml(i)}</span></div>`)).join('')}
     <div class="whys">${t(redo ? 'redoWhy' : 'cancelWhy').split('|').map((w) => `<button class="ghostbtn" data-why="${esc(w)}">${esc(w)}</button>`).join('')}</div>
     <input id="voidNote" maxlength="200" placeholder="${esc(t('reasonPh'))}" value="${esc(note)}">
     <div class="bar"><button class="${redo ? '' : 'danger'}" data-voidgo="1">${t(redo ? 'redoGo' : 'cancelGo')}</button><button class="ghostbtn" data-oclose="1">${t('back')}</button></div></div>`;
@@ -783,7 +784,7 @@ function render(s, force) {
         ${o.test ? ` <span class="due">🧪 ${t('testMark')}</span>` : ''}${o.status === 'pending' && o.ackBy ? ` · ${t('going')}: ${esc(o.ackBy)}` : ''}${o.editedBy ? ` · ${t('editedBy')}: ${esc(o.editedBy)}` : ''}</div>
       ${o.cancelledAt ? `<div class="voidnote">✕ ${t('st_cancelled')} · ${esc(o.cancelledBy || '')}${o.cancelNote ? ` — «${esc(o.cancelNote)}»` : ''}</div>` : ''}
       ${o.redo && o.redo.at === o.cookFrom && !o.servedAt && o.status === 'confirmed' ? `<div class="redonote">🔁 ${t('redoNow')}: ${histLines(Object.values(o.redo.items).map((v) => [v.name, v.qty, v.ml]))}${o.redo.note ? ` — «${esc(o.redo.note)}»` : ''}</div>` : ''}
-      <ul>${dishes(o.items).map((i) => `<li>${i.qty} × ${esc(itemName(i.name))}${tagsOf(i)}${modsHtml(i)}</li>`).join('')}</ul>
+      <ul>${dishes(o.items).map((i) => `<li>${i.qty} × ${skuHtml(i)}${esc(itemName(i.name))}${tagsOf(i)}${modsHtml(i)}</li>`).join('')}</ul>
       <b>฿${o.total.toLocaleString('en')}</b>
       ${o.status === 'confirmed' && flow.kitchenBtn && !o.kitchenAt && !o.paidAt ? `<div class="knote">${t('kitchenRemind')}</div>` : ''}
       <div>
@@ -817,7 +818,7 @@ function render(s, force) {
         <div class="gh"><b>${esc(gname(tb, Number(n)))} · ${money(per[n].sum)}</b>
           ${per[n].due ? `<button class="ghostbtn" data-gpay="${esc(tb)}|${n}">${t('guestPaid')}</button>` : ''}</div>
         <div class="gpay">${payInfo({ paid: per[n].sum - per[n].due, due: per[n].due })}</div>
-        ${Object.values(per[n].lines).map((i) => `<div class="gl${i.paidAt ? ' paidl' : ''}"><span>${i.qty} × ${esc(itemName(i.name))}${modsHtml(i)}</span><span>${money(i.price * i.qty)}</span></div>`).join('')}
+        ${Object.values(per[n].lines).map((i) => `<div class="gl${i.paidAt ? ' paidl' : ''}"><span>${i.qty} × ${skuHtml(i)}${esc(itemName(i.name))}${modsHtml(i)}</span><span>${money(i.price * i.qty)}</span></div>`).join('')}
       </div>`).join('')}</div>`;
   };
   // Планшет стола (как на схеме): не на связи — чёрный «Включить», заряд 10% и меньше и не заряжается — тёмно-серый «На зарядку»
@@ -1281,7 +1282,7 @@ function renderOrderEditor() {
       `<option value="${esc(x)}" ${x === oedit.table ? 'selected' : ''}>${esc(tbl(x))}</option>`).join('')}</select>${guestSelect()}`;
   $('modal').innerHTML = `<div class="ed">
       <b>${title}</b>
-      ${oedit.lines.map((l, i) => `<div class="line"><span>${esc(l.name)}${modsHtml(l)}</span>
+      ${oedit.lines.map((l, i) => `<div class="line"><span>${skuHtml(l)}${esc(l.name)}${modsHtml(l)}</span>
         <button data-odec="${i}">−</button><b>${l.qty}</b><button data-oinc="${i}">+</button></div>`).join('')}
       <b>${t('total')}: ฿${total.toLocaleString('en')}</b>
       ${oedit.pick ? pickHtml() : `<input class="osearch msearch" placeholder="${t('addDish')}" value="${esc(oedit.q)}">`}
@@ -1386,10 +1387,12 @@ function renderOrderResults() {
   const q = oedit.q.trim().toLowerCase();
   const found = !q ? [] : staffMenuCache.filter((m) => `${m.sku || ''} ${Object.values(m.name || {}).join(' ')}`.toLowerCase().includes(q)).slice(0, 8);
   $('ores').innerHTML = found.flatMap((m) => ((m.options || []).length
-    ? m.options.map((o) => `<button data-oadd="${esc(m.id)}|${esc(o.key)}">${esc(itemName(m.name))} · ${esc(itemName(o.label))} · ฿${o.price}</button>`)
-    : [`<button data-oadd="${esc(m.id)}|">${esc(itemName(m.name))} · ฿${m.price}</button>`])).join('');
+    ? m.options.map((o) => `<button data-oadd="${esc(m.id)}|${esc(o.key)}">${skuHtml(m)}${esc(itemName(m.name))} · ${esc(itemName(o.label))} · ฿${o.price}</button>`)
+    : [`<button data-oadd="${esc(m.id)}|">${skuHtml(m)}${esc(itemName(m.name))} · ฿${m.price}</button>`])).join('');
 }
 
+// Код блюда из меню ресторана (у Veranda — KD1, M15S…): мелко перед названием
+const skuHtml = (i) => { const k = i?.sku || last?.skus?.[i?.id]; return k ? `<code class="sku">${esc(k)}</code> ` : ''; };
 const newRid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 // Обязательные группы выбора, в которых ничего не выбрано
 const missingGroups = (m, mods) => (m.groups || []).map((g, gi) => ({ g, gi })).filter(({ g }) => g.req && !g.opts.some((o) => mods.includes(o.id)));

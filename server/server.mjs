@@ -1709,7 +1709,7 @@ function buildItems(r, list, guest = false) {
         picked.map((o) => o.name[l] || Object.values(o.name)[0] || '').join(' · ')])) : undefined;
       const price = (Number(opt ? opt.price : m.price) || 0) + picked.reduce((a, o) => a + (Number(o.price) || 0), 0);
       return {
-        id: m.id, opt: opt?.key || '', name, price, qty: Math.min(99, x.qty | 0), ...(g >= 1 && g <= 99 ? { g } : {}),
+        id: m.id, opt: opt?.key || '', name, price, qty: Math.min(99, x.qty | 0), ...(g >= 1 && g <= 99 ? { g } : {}), ...(m.sku ? { sku: m.sku } : {}),
         ...(picked.length ? { mods: picked.map((o) => o.id), ml } : {}),
       };
     });
@@ -1773,6 +1773,7 @@ function staffState(b, q) {
     },
     team: teamOf(r),
     floor: floorOf(r),
+    skus: Object.fromEntries((r.menu || []).filter((i) => i.sku).map((i) => [i.id, i.sku])),
     tablets: tabletsOf(r),
     // «Столы» официанта: его столы из ЛК менеджера, а если не назначены — все столы ресторана
     myTables: (r.tables || []).filter((tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb)),
@@ -1863,7 +1864,7 @@ function kitchenSnap(o) {
   const out = {};
   for (const i of o.items) {
     const k = lineKey(i);
-    out[k] = { name: i.name, ml: i.ml, qty: (out[k]?.qty || 0) + i.qty };
+    out[k] = { name: i.name, ml: i.ml, qty: (out[k]?.qty || 0) + i.qty, ...(i.sku ? { sku: i.sku } : {}) };
   }
   return out;
 }
@@ -1913,6 +1914,7 @@ setInterval(() => {
 }, 30_000).unref();
 function kitchenState(b, q) {
   const r = kitchenRest(q.k), now = Date.now(), tags = new Map((r.menu || []).map((m) => [m.id, m.tags || []]));
+  const skus = new Map((r.menu || []).filter((m) => m.sku).map((m) => [m.id, m.sku]));
   if (kitchenDown[r.id]) {
     if (kitchenAlerted[r.id]) tgAlert(`🟢 ${r.name}: экран кухни снова на связи (не было ${fmtDur(now - kitchenDown[r.id])})`);
     delete kitchenDown[r.id];
@@ -1932,7 +1934,7 @@ function kitchenState(b, q) {
       const cur = voidAt(o) ? {} : kitchenSnap(o), was = voidAt(o) ? { ...kitchenSnap(o), ...o.kitchenItems } : o.kitchenItems || kitchenSnap(o);
       // «Переделать»: на карточке — только то, что вернули, плюс правки официанта после этого
       const redo = o.redo && o.redo.at === o.cookFrom && !voidAt(o) ? o.redo : null;
-      const line = (k, src) => ({ name: src.name, ml: src.ml, tags: tags.get(k.split('|')[0]) || [] });
+      const line = (k, src) => ({ name: src.name, ml: src.ml, tags: tags.get(k.split('|')[0]) || [], sku: src.sku || skus.get(k.split('|')[0]) || '' });
       const keys = [...new Set([...Object.keys(was), ...Object.keys(cur)])];
       let items = keys.map((k) => ({ ...line(k, cur[k] || was[k]), qty: cur[k]?.qty || 0, was: was[k]?.qty || 0 }));
       const changed = items.some((i) => i.qty !== i.was);

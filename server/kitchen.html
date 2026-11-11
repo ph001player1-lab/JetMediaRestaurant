@@ -41,6 +41,8 @@
   h2 { font-size: 18px; color: #a39e93; margin: 22px 4px 8px; }
   .empty { color: #a39e93; font-size: 22px; padding: 40px; text-align: center; }
   #err { color: #ff8a65; padding: 40px; font-size: 22px; text-align: center; display: none; }
+  /* код блюда из меню ресторана — мелко перед названием */
+  code.sku { font: 700 .8em ui-monospace, Menlo, Consolas, monospace; opacity: .7; margin-right: 2px; }
 </style>
 </head>
 <body>
@@ -125,7 +127,7 @@ function card(o) {
       else if (!i.was) { cls = 'new'; mark = t('added'); }
       else if (!i.qty) { cls = 'gone'; mark = t('removed'); }
       else if (i.qty !== i.was) { cls = 'mod'; mark = i.was + ' → ' + i.qty; }
-      return '<li class="' + cls + '"><b>' + (i.qty || i.was) + ' ×</b>' + esc(tr(i.name)) + (mark ? '<span class="chg">' + esc(mark) + '</span>' : '') +
+      return '<li class="' + cls + '"><b>' + (i.qty || i.was) + ' ×</b>' + (i.sku ? '<code class="sku">' + esc(i.sku) + '</code> ' : '') + esc(tr(i.name)) + (mark ? '<span class="chg">' + esc(mark) + '</span>' : '') +
         (i.ml ? '<span class="mods">' + esc(tr(i.ml)) + '</span>' : '') +
         (tg ? '<span class="tags">' + esc(tg) + '</span>' : '') + '</li>';
     }).join('') + '</ul>' +
