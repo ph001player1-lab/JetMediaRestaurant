@@ -105,6 +105,25 @@
   .tleg small { color: var(--dim); }
   .tdet { margin-top: 8px; font-size: 12px; color: var(--dim); line-height: 1.6; }
   .cp-foot { font-size: 12px; color: var(--dim); margin-top: 4px; }
+  /* трафик VPS: прибор, табло, столбики по дням, разбивка */
+  .traf { flex: 1; min-width: 330px; }
+  .traf .tw { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+  .traf .eicas { flex: 1; min-width: 260px; grid-template-columns: repeat(2, 1fr); margin-top: 0; }
+  .tdays { display: flex; align-items: flex-end; gap: 2px; height: 64px; background: #050607; border: 1px solid #2e343b; border-radius: 4px; padding: 4px; margin-top: 10px; }
+  .tdays span { flex: 1; max-width: 28px; background: var(--prod); border-radius: 1px; min-height: 1px; }
+  .tdays span.now { background: var(--amber); }
+  .tdl { display: flex; justify-content: space-between; font: 600 10px ui-monospace, Menlo, Consolas, monospace; color: var(--dim); margin-top: 2px; }
+  .tsplit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 10px; }
+  @media (max-width: 700px) { .tsplit { grid-template-columns: 1fr; } }
+  .tsplit h4 { margin: 0 0 6px; font: 700 11px system-ui; letter-spacing: .1em; color: var(--dim); }
+  .trow { display: grid; grid-template-columns: minmax(0, 1fr) 70px; gap: 2px 8px; font-size: 13px; margin-bottom: 5px; align-items: center; }
+  .trow b { font: 700 12px ui-monospace, Menlo, Consolas, monospace; text-align: right; }
+  .trow i { grid-column: 1 / -1; display: block; height: 4px; background: var(--prod); border-radius: 2px; }
+  #srvSet { margin-top: 14px; padding: 14px 18px; }
+  #srvSet label { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+  #srvSet input[type=number] { width: 90px; font-size: 15px; padding: 6px; border-radius: 6px; border: 1px solid #2e343b; background: #050607; color: var(--ink); }
+  #srvSet button { padding: 6px 12px; border-radius: 6px; border: 0; background: var(--amber); color: #1a1200; font-weight: 700; }
+  #srvSet small { color: var(--dim); }
   /* схема Пхукета */
   .pmap { display: block; height: auto; user-select: none; }
   .pmap .sea { fill: #dceaf5; } .pmap .seat { fill: #9fb8cc; font: 700 9px system-ui; letter-spacing: .3em; text-anchor: middle; }
@@ -402,7 +421,7 @@
   <p><button onclick="addTgBot()">+ Бот</button></p>
 </section>
 
-<section id="srvTab" hidden><div id="srvPanel"><p class="hint">Загрузка приборов…</p></div></section>
+<section id="srvTab" hidden><div id="srvPanel"><p class="hint">Загрузка приборов…</p></div><div id="srvSet" class="cockpit" hidden></div></section>
 
 <section id="joinTab" hidden>
   <p class="hint">Заявки с планшетов: гость нажал на номер стола вверху слева → «Подключить свой ресторан» и оставил имя и телефон.
@@ -1181,6 +1200,7 @@ function renderServer() {
   const loadPc = h.load[0] / h.cores;
   const lagMax = Math.max(P?.lagMs || 0, T?.lagMs || 0);
   const offline = P ? P.devices.total - P.devices.online : 0;
+  const tr = d.traffic, trPct = tr && tr.quota ? (100 * tr.tx) / tr.quota : 0;
   const lamps = [
     ['disk', 'МАЛО МЕСТА', freePct < 5 ? 'w' : freePct < 15 ? 'c' : ''],
     ['cpu', 'ПРОЦЕССОР', lvl(h.cpu, 70, 90)],
@@ -1193,6 +1213,7 @@ function renderServer() {
     ['tg', 'НЕТ TELEGRAM', d.telegram ? '' : 'adv'],
     ['pin', d.pinAt ? 'СМЕНИТЬ PIN' : 'PIN 1234', !d.pinAt ? 'c' : Date.now() - d.pinAt > 30 * 864e5 ? 'adv' : ''],
     ['tabs', `ПЛАНШЕТЫ OFF${offline ? ` · ${offline}` : ''}`, offline ? 'adv' : ''],
+    ['traffic', 'ТРАФИК VPS', !tr ? '' : trPct >= 90 ? 'w' : trPct >= 70 || tr.over ? 'c' : ''],
     ['run1', 'ДВИГ 1 РАБОТАЕТ', P ? 'ok' : ''],
     ['run2', 'ДВИГ 2 РАБОТАЕТ', T ? 'ok' : ''],
   ];
@@ -1252,6 +1273,7 @@ function renderServer() {
       <div class="annun">${lamps.map(([k, t, c]) => `<div class="lamp ${c}" title="${c ? '' : 'в норме'}">${esc(t)}</div>`).join('')}</div></div>
     <div class="cp-row">${hostG.map(([id, o, sub]) => `<div class="plate"><h3>${id === 'fuel' ? 'ДИСК' : 'ВЕСЬ СЕРВЕР'}</h3>${gauge(id, o)}<div class="gsub">${esc(sub)}</div></div>`).join('')}</div>
     <div class="cp-row">${eng(1, 'РАБОЧАЯ', 'var(--prod)', P)}${eng(2, 'ТЕСТОВАЯ', 'var(--test)', T)}</div>
+    ${tr ? trafficPlate(tr, trPct, d.here) : ''}
     <div class="cp-row"><div class="plate tank"><h3>ТОПЛИВНЫЕ БАКИ · ДИСК ${fmtB(dk.total)}</h3>
       <div class="tbar" role="img" aria-label="Диск: рабочая ${fmtB(pd)}, тестовая ${fmtB(td)}, система ${fmtB(sys)}, свободно ${fmtB(dk.free)}">${seg(pd, 'var(--prod)')}${seg(td, 'var(--test)')}${seg(sys, '#5b6470')}<span style="flex:${dk.total ? dk.free / dk.total : 1}"></span></div>
       <div class="tleg"><span><i style="background:var(--prod)"></i>Рабочая <b>${fmtB(pd)}</b></span><span><i style="background:var(--test)"></i>Тестовая <b>${fmtB(td)}</b></span>
@@ -1261,9 +1283,46 @@ function renderServer() {
   // стрелки плавно доходят до нового значения
   requestAnimationFrame(() => requestAnimationFrame(() => document.querySelectorAll('#srvPanel .ndl').forEach((n) => { n.style.transform = `rotate(${n.dataset.to}deg)`; })));
 }
+// Трафик VPS за месяц: прибор (доля лимита), табло, столбики по дням, на что ушёл и по ресторанам
+function trafficPlate(t, pct, here) {
+  const dd = (ts) => new Date(ts).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+  const st = pct >= 90 ? 'w' : pct >= 70 ? 'c' : '';
+  const max = Math.max(1, ...t.days.map((x) => x.tx)), today = new Date().toISOString().slice(0, 10);
+  const share = (list) => { const sum = list.reduce((a, x) => a + x.b, 0) || 1; return list.map((x) => `<div class="trow"><span>${esc(x.name)}</span><b>${fmtB(x.b)}</b><i style="width:${Math.max(1, (100 * x.b) / sum).toFixed(1)}%"></i></div>`).join(''); };
+  const src = t.src === 'host' ? 'счётчики сетевой карты VPS — то же, что считает OVH'
+    : t.src === 'container' ? 'счётчики контейнера этой версии сервера — счётчики всего VPS появятся после выкатки' : 'счётчиков пока нет';
+  return `<div class="cp-row"><div class="plate traf"><h3>ТРАФИК VPS · ${esc(t.month)} · ЛИМИТ ${fmtB(t.quota)}</h3><div class="tw">
+    ${gauge('traf', { label: 'ИСХОДЯЩИЙ', unit: '% лимита за месяц', v: pct, max: 100, major: [0, 20, 40, 60, 80, 100], zones: [[0, 70, 'g'], [70, 90, 'c'], [90, 100, 'w']], text: `${num(pct)}%`, st })}
+    <div class="eicas">
+      <div><small>ИСХОДЯЩИЙ ЗА МЕСЯЦ</small><b class="${st}">${fmtB(t.tx)}</b></div>
+      <div><small>ВХОДЯЩИЙ ЗА МЕСЯЦ</small><b>${fmtB(t.rx)}</b></div>
+      <div><small>СЕГОДНЯ (UTC)</small><b>${fmtB(t.today?.tx || 0)}</b></div>
+      <div><small>ВЧЕРА</small><b>${t.yesterday ? fmtB(t.yesterday.tx) : '—'}</b></div>
+      <div><small>В СРЕДНЕМ ЗА ДЕНЬ</small><b>${t.perDay == null ? 'нужно 1–3 дня' : fmtB(t.perDay)}</b></div>
+      <div><small>ПРОГНОЗ К КОНЦУ МЕСЯЦА</small><b class="${t.forecast > t.quota ? 'w' : ''}">${t.forecast == null ? '—' : fmtB(t.forecast)}</b></div>
+      ${t.over ? `<div style="grid-column:1/-1"><small>ЛИМИТ ЗАКОНЧИТСЯ</small><b class="w">≈ ${dd(t.over)} — дальше скорость 10 Мбит/с</b></div>` : ''}</div></div>
+    <div class="tdays" role="img" aria-label="Исходящий трафик по дням">${t.days.map((x) => `<span class="${x.d === today ? 'now' : ''}" style="height:${((100 * x.tx) / max).toFixed(1)}%" title="${x.d}: исходящий ${fmtB(x.tx)}, входящий ${fmtB(x.rx)}"></span>`).join('')}</div>
+    <div class="tdl"><span>${t.days[0] ? dd(t.days[0].d) : ''}</span><span>исходящий по дням (UTC), наведите на столбик</span><span>${t.days.length ? 'сегодня' : ''}</span></div>
+    <div class="tsplit"><div><h4>НА ЧТО УШЁЛ (${here === 'test' ? 'ТЕСТОВАЯ' : 'РАБОЧАЯ'} ВЕРСИЯ, С ${t.since ? dd(t.since) : '—'})</h4>${share(t.cats) || '<small>данных пока нет</small>'}</div>
+      <div><h4>ПО РЕСТОРАНАМ (ОПРОСЫ ПЛАНШЕТОВ, ТЕЛЕФОНОВ, ПЕРСОНАЛА)</h4>${share(t.rest) || '<small>данных пока нет</small>'}</div></div>
+    <div class="tdet">Источник: ${src}.${t.pre ? ` До начала учёта (${dd(t.pre.at)}) — ${fmtB(t.pre.tx)} исходящего${t.pre.part ? ', оценка: VPS работает с ' + dd(t.pre.boot) + ', взята доля дней этого месяца' : ''}.` : ''}
+      Фото блюд с сайтов ресторанов скопировано к нам: ${t.mirror.done} из ${t.mirror.total}. Офлайн-запас на планшетах: ${t.offline ? 'включён' : 'выключен'}.</div></div></div>`;
+}
+// Настройки под панелью (не перерисовываются каждые 5 секунд — поле ввода не сбрасывается)
+function renderSrvSet(t) {
+  const el = $('srvSet');
+  if (!t || (el.dataset.done && !el.dataset.force)) return;
+  el.dataset.done = '1'; delete el.dataset.force; el.hidden = false;
+  el.innerHTML = `<b>НАСТРОЙКИ</b>
+    <label>Лимит исходящего трафика VPS, ГБ в месяц <input type="number" id="trQuota" min="10" value="${Math.round(t.quota / GB)}"> <button id="trSave">Сохранить</button>
+      <small>OVH, Сингапур: при превышении скорость падает до 10 Мбит/с. В Telegram — при 70% и 90% (бот с «Сервер: трафик VPS»).</small></label>
+    <label><input type="checkbox" id="trOffline" ${t.offline ? 'checked' : ''}> Офлайн-запас на планшетах <small>— страница, меню и фото хранятся на планшете и открываются без интернета. Выключить — если что-то пошло не так: планшеты уберут запас при следующем опросе.</small></label>`;
+  $('trSave').onclick = async () => { const r = await api('/api/server/settings', 'POST', { trafficQuotaGB: Number($('trQuota').value) }); if (r.error) return alert(r.error); el.dataset.force = '1'; loadServer(); };
+  $('trOffline').onchange = async (e) => { const r = await api('/api/server/settings', 'POST', { guestOffline: e.target.checked }); if (r.error) { alert(r.error); e.target.checked = !e.target.checked; } };
+}
 async function loadServer() {
   const d = await api('/api/server').catch(() => null);
-  if (d && !d.error) { srvData = d; renderServer(); }
+  if (d && !d.error) { srvData = d; renderServer(); renderSrvSet(d.traffic); }
   else if (!srvData) $('srvPanel').innerHTML = `<p class="hint">${esc(d?.error || 'Нет связи с сервером')}</p>`;
 }
 $('srvPanel').onclick = (e) => {

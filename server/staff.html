@@ -596,7 +596,8 @@ function refresh() {
   if (refreshing) { refreshAgain = true; return refreshing; }
   refreshing = (async () => {
     try {
-      render(await api(`/api/staff/state?token=${encodeURIComponent(token)}`));
+      // коды блюд сервер присылает, только когда они изменились (версия skusV)
+      render(await api(`/api/staff/state?token=${encodeURIComponent(token)}${last?.skusV ? `&sv=${encodeURIComponent(last.skusV)}` : ''}`));
       $('login').hidden = true;
       $('work').hidden = false;
     } catch (e) {
@@ -676,6 +677,7 @@ const dur = (ms) => {
 };
 setInterval(() => document.querySelectorAll('.ktimer:not([data-to])').forEach((e) => { e.textContent = dur(Date.now() - Number(e.dataset.from)); }), 1000);
 function render(s, force) {
+  if (!s.skus && s.skusV && s.skusV === last?.skusV) s.skus = last.skus;
   // Вышла новая версия приложения — перезагружаемся, если ничего не редактируется
   if (appBuild && s.build !== appBuild && !$('tWork').hidden && $('modal').hidden) return location.reload();
   appBuild ??= s.build;

@@ -6,6 +6,8 @@ services:
     volumes:
       - ../server:/app:ro
       - data:/data
+      # счётчики сетевой карты VPS (трафик за месяц, как у OVH) — только чтение
+      - /proc:/host/proc:ro
     environment:
       - DATA_DIR=/data
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}

@@ -8,6 +8,10 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
+import dns from 'node:dns/promises';
+import net from 'node:net';
+import os from 'node:os';
 import { createVapidKeys, sendPush } from './push.mjs';
 import { fetchMenu, POS_VENDORS } from './menu-sources.mjs';
 import { tgApi, tgSend, tgFindChats } from './telegram.mjs';
@@ -39,6 +43,8 @@ const STATIC = {
   '/kitchen/': 'kitchen.html',
   '/staff/manifest.json': 'manifest.json',
   '/staff/sw.js': 'sw.js',
+  // запас планшета стола: страница и картинки в памяти планшета (работает и без связи)
+  '/guest/sw.js': 'guest-sw.js',
   // Иконка приложения персонала (звонок вызова): Android, iPhone, вкладка браузера
   '/staff/icon.svg': 'icons/staff.svg',
   '/staff/icon-192.png': 'icons/staff-192.png',
@@ -196,6 +202,120 @@ function internalDevice(b, q, req) {
   const { queue, ...device } = d;
   return { device, restaurant: db.restaurants[d.restaurantId] || null };
 }
+// ---------- Трафик VPS. У OVH в Сингапуре исходящий трафик ограничен (по умолчанию 500 ГБ в месяц, дальше — 10 Мбит/с).
+// Считаем: 1) счётчики сетевой карты VPS — то же, что видит OVH (docker-compose подключает /proc хоста только на чтение;
+// без него — счётчики контейнера сервера, без тестовой копии); 2) разбивку внутри сервера — по видам запросов и ресторанам.
+// Раз в минуту прибавляем к дню (по UTC, как месяц у OVH); храним 70 дней. 70% и 90% лимита — сообщение в Telegram
+const GIB = 1024 ** 3;
+const tDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
+const monthStart = (t = Date.now()) => { const d = new Date(t); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); };
+const TRAFFIC_CATS = [
+  ['guest', 'Планшеты и телефоны гостей', /^\/(api\/guest\/|t\/)/], ['staff', 'Приложение персонала и ЛК', /^\/api\/(staff|manager)\//],
+  ['kitchen', 'Экран кухни', /^\/api\/kitchen\//], ['device', 'Агент планшетов', /^\/api\/device\//],
+  ['voice', 'Голос персонажей', /^\/(uploads\/[\w]+\.(mp3|ogg|wav)$|api\/tts)/], ['images', 'Картинки и фото', /^\/uploads\//],
+  ['pages', 'Страницы и скрипты', /^\/(guest|staff|kitchen|vendor|login|favicon)/], ['admin', 'Админка', /^\/(api\/|$)/],
+];
+let appBytes = { cats: {}, rest: {} };
+function netCounters() {
+  for (const [file, src] of [['/host/proc/1/net/dev', 'host'], ['/proc/net/dev', 'container']]) {
+    try {
+      let rx = 0, tx = 0;
+      for (const line of fs.readFileSync(file, 'utf8').split('\n').slice(2)) {
+        const m = line.match(/^\s*([^:]+):\s*(.*)$/);
+        if (!m || /^(lo|docker|br-|veth|virbr|tun|tap|wg)/.test(m[1].trim())) continue;
+        const f = m[2].trim().split(/\s+/).map(Number);
+        rx += f[0] || 0; tx += f[8] || 0;
+      }
+      return { src, rx, tx };
+    } catch { /* нет файла — следующий */ }
+  }
+  return null;
+}
+// ресторан запроса: планшет (?d=), телефон гостя (?k=), сотрудник (?token=) — в адресе или в адресе страницы (картинки)
+function ridOfUrl(u) {
+  const q = u.searchParams, k = q.get('k');
+  return (q.get('d') && db.devices[q.get('d')]?.restaurantId) || (q.get('token') && db.sessions[q.get('token')]?.restaurantId)
+    || (k && db.tableKeys[k]?.r) || '';
+}
+function countBytes(req, n) {
+  if (!(n > 0)) return;
+  const u = new URL(req.url, 'http://local'), cat = (TRAFFIC_CATS.find((c) => c[2].test(u.pathname)) || ['other'])[0];
+  appBytes.cats[cat] = (appBytes.cats[cat] || 0) + n;
+  let rid = ridOfUrl(u);
+  if (!rid && req.headers.referer) { try { rid = ridOfUrl(new URL(req.headers.referer)); } catch { /* чужой адрес */ } }
+  if (rid) appBytes.rest[rid] = (appBytes.rest[rid] || 0) + n;
+}
+let trafficSaves = 0;
+function trafficTick() {
+  const now = Date.now(), T = db.traffic, day = (T.days[tDay(now)] ??= { rx: 0, tx: 0, app: {}, rest: {} });
+  const c = netCounters();
+  if (c) {
+    const prev = T.last;
+    if (prev && prev.src === c.src) {
+      // счётчик меньше прежнего — VPS перезагрузился (или пересоздан контейнер): всё, что на счётчике, — новое
+      const back = c.tx < prev.tx || c.rx < prev.rx;
+      day.rx += back ? c.rx : c.rx - prev.rx;
+      day.tx += back ? c.tx : c.tx - prev.tx;
+    } else if (c.src === 'host') {
+      // первый замер: на счётчике всё с запуска VPS — в этот месяц берём долю дней этого месяца (оценка)
+      const boot = now - os.uptime() * 1000, ms = monthStart(now), k = boot >= ms ? 1 : (now - ms) / Math.max(1, now - boot);
+      T.pre = { month: tDay(now).slice(0, 7), rx: Math.round(c.rx * k), tx: Math.round(c.tx * k), boot, at: now, part: k < 1 };
+    }
+    T.last = { ...c, at: now };
+    T.src = c.src;
+    T.since ??= now;
+  }
+  for (const [k, v] of Object.entries(appBytes.cats)) day.app[k] = (day.app[k] || 0) + v;
+  for (const [k, v] of Object.entries(appBytes.rest)) day.rest[k] = (day.rest[k] || 0) + v;
+  appBytes = { cats: {}, rest: {} };
+  for (const d of Object.keys(T.days)) if (now - Date.parse(d) > 70 * 864e5) delete T.days[d];
+  trafficAlert();
+  if (++trafficSaves % 10 === 0) save();
+}
+// Месяц: сумма дней (UTC) + оценка до начала учёта; прогноз — по среднему за последние 3 полных дня
+function trafficMonth(now = Date.now()) {
+  const T = db.traffic, mon = tDay(now).slice(0, 7), quota = (Number(db.settings.trafficQuotaGB) || 500) * GIB;
+  const days = Object.entries(T.days).filter(([d]) => d.startsWith(mon));
+  const sum = (f) => days.reduce((a, [, x]) => a + (x[f] || 0), 0) + (T.pre?.month === mon ? T.pre[f] || 0 : 0);
+  const tx = sum('tx'), rx = sum('rx');
+  const full = [1, 2, 3].map((i) => T.days[tDay(now - i * 864e5)]?.tx).filter((x) => x != null);
+  const perDay = full.length ? full.reduce((a, b) => a + b, 0) / full.length : null;
+  const end = Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth() + 1, 1);
+  const forecast = perDay == null ? null : tx + (perDay * (end - now)) / 864e5;
+  const over = perDay && tx < quota && forecast > quota ? now + ((quota - tx) / perDay) * 864e5 : null;
+  return { month: mon, tx, rx, quota, perDay, forecast, over };
+}
+function trafficAlert() {
+  if (INSTANCE !== 'prod' || db.traffic.src !== 'host') return;
+  const m = trafficMonth(), sent = ((db.traffic.alerts ??= {})[m.month] ??= []);
+  for (const p of [70, 90]) {
+    if (m.tx < (m.quota * p) / 100 || sent.includes(p)) continue;
+    sent.push(p);
+    tgTo('server', `⚠️ Трафик VPS: исходящий за месяц — ${(m.tx / GIB).toFixed(0)} ГБ из ${(m.quota / GIB).toFixed(0)} ГБ (${p}%).`
+      + (m.over ? ` При нынешнем темпе лимит закончится ${clock(m.over).slice(0, 5)} — дальше скорость 10 Мбит/с.` : '')
+      + ' Подробно — админка → «Сервер».').catch(() => {});
+  }
+  for (const k of Object.keys(db.traffic.alerts)) if (k < m.month) delete db.traffic.alerts[k];
+}
+function trafficReport() {
+  const T = db.traffic, m = trafficMonth(), mon = m.month, cats = {}, rest = {};
+  for (const [d, x] of Object.entries(T.days)) {
+    if (!d.startsWith(mon)) continue;
+    for (const [k, v] of Object.entries(x.app || {})) cats[k] = (cats[k] || 0) + v;
+    for (const [k, v] of Object.entries(x.rest || {})) rest[k] = (rest[k] || 0) + v;
+  }
+  return {
+    ...m, src: T.src || '', since: T.since || 0, pre: T.pre?.month === mon ? T.pre : null,
+    today: T.days[tDay()] || null, yesterday: T.days[tDay(Date.now() - 864e5)] || null,
+    days: Object.keys(T.days).sort().slice(-31).map((d) => ({ d, tx: T.days[d].tx || 0, rx: T.days[d].rx || 0 })),
+    cats: TRAFFIC_CATS.map(([k, name]) => ({ k, name, b: cats[k] || 0 })).concat([{ k: 'other', name: 'Прочее', b: cats.other || 0 }]).filter((x) => x.b),
+    rest: Object.entries(rest).map(([id, b]) => ({ name: db.restaurants[id]?.name || id, b })).sort((a, b) => b.b - a.b),
+    offline: !db.settings.guestOfflineOff, mirror: { done: Object.values(db.photoMirror).filter((x) => x.f).length, total: Object.keys(db.photoMirror).length },
+  };
+}
+setTimeout(trafficTick, 5000);
+setInterval(trafficTick, 60_000);
+
 // Раздел «Сервер» в портале: показатели своей версии; вторую (рабочая ↔ тестовая) спрашиваем по внутренней сети
 function instanceStats() {
   const devs = Object.values(db.devices);
@@ -220,6 +340,7 @@ async function serverPanel() {
   const me = instanceStats();
   return {
     at: Date.now(), here: INSTANCE, host: hostStats(DATA_DIR), telegram: db.tgBots.some((x) => x.token && x.chats?.length), pinAt: db.servicePin?.at || 0,
+    traffic: trafficReport(),
     prod: INSTANCE === 'prod' ? me : peer, test: INSTANCE === 'test' ? me : peer,
   };
 }
@@ -410,6 +531,9 @@ function denyText(a, method, p) {
   if (sec && permOf(a, sec) === 'read' && method !== 'GET') return `Только просмотр раздела «${SECTION_NAME[sec]}» — изменения недоступны`;
   return sec ? `Нет доступа к разделу «${SECTION_NAME[sec]}»` : 'Нет доступа';
 }
+// Общие настройки системы (админка → «Сервер»): офлайн-запас на планшетах, лимит трафика VPS
+db.settings ??= {};
+db.traffic ??= { days: {} }; // трафик VPS по дням (админка → «Сервер»)
 // Однократно: прежние роли → доступы по разделам (админ — всё на редактирование, CRM — если была галочка; «только статистика» — статистика)
 db.migrations ??= {};
 if (!db.migrations.perms) {
@@ -716,9 +840,21 @@ function storeDataUri(uri) {
   return storeFile(Buffer.from(m[2], 'base64'), FILE_TYPES[m[1]]);
 }
 
+// Ответ: JSON и текст (страницы, скрипты) сжимаем, если браузер умеет (в 6–8 раз меньше трафика);
+// страницы одинаковые — сжатую копию держим в памяти
+const gzMemo = new WeakMap();
 function send(res, code, data, type = 'application/json') {
-  res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store' });
-  res.end(type === 'application/json' ? JSON.stringify(data) : data);
+  let body = type === 'application/json' ? JSON.stringify(data) : data;
+  const head = { 'content-type': type, 'cache-control': 'no-store' };
+  if (res.gzip && body != null && body.length > 1024 && /json|text|javascript|svg/.test(type)) {
+    const memo = typeof body === 'object' && gzMemo.get(body);
+    const z = memo || zlib.gzipSync(body, { level: 6 });
+    if (!memo && typeof body === 'object') gzMemo.set(body, z);
+    body = z;
+    Object.assign(head, { 'content-encoding': 'gzip', vary: 'Accept-Encoding' });
+  }
+  res.writeHead(code, head);
+  res.end(body);
 }
 
 // ---------- Планшет
@@ -1172,6 +1308,7 @@ function deviceAlert(b) {
 // ---------- Telegram: несколько ботов (вкладка «Telegram»), у каждого — что на него приходит
 const TG_KINDS = [
   ['devices', 'Сбои и связь планшетов'],
+  ['server', 'Сервер: трафик VPS'],
   ['leads', 'Заявки по рекламе'],
   ['join', 'Заявки «подключить ресторан»'],
   ['crm', 'Напоминания по клиентам'],
@@ -1432,7 +1569,7 @@ function slidesFor(r, dev) {
       qr: p.link ? `${PUBLIC_URL}/go/p/${p.id}?r=${r.id}` : '', ...qrPlace(p), ...framing(p),
     })),
     // блюдо — только с галочкой «В показе акций» (блюдо дня без неё остаётся в меню и в советах персонажа)
-    ...(r.menu || []).filter((i) => i.promo && i.photo && onMenu(i)).map((i) => ({ type: 'item', id: i.id, image: i.photo, title: i.name, price: i.price })),
+    ...(r.menu || []).filter((i) => i.promo && i.photo && onMenu(i)).map((i) => ({ type: 'item', id: i.id, image: mirrored(i.photo), title: i.name, price: i.price })),
   ];
   const ads = r.tariff === 'premium' ? [] : db.ads
     .filter((a) => a.active && a.image && adReaches(a, r) && !(r.blockedAds || []).includes(a.id)
@@ -1531,6 +1668,23 @@ function guestEvent(b) {
 // Первый вызов или заказ за свободным столом — «стол открыт» (до «Закрыть стол»)
 const tableIsFree = (r, table) => !openAt(db.calls, r, table).length && !openAt(db.orders, r, table).length;
 
+// Меню и оформление — тяжёлая часть ответа планшету (меню Чехова — 440 КБ), а меняются редко. Планшет хранит их у себя
+// и присылает версии: mv — меню, cv — слайды, персонаж, оформление, разделы, свои отметки. Совпали — не отправляем.
+// Меню ресторана собираем не чаще раза в 2 секунды — на все планшеты и телефоны сразу
+const verOf = (x) => crypto.createHash('sha1').update(JSON.stringify(x)).digest('base64url').slice(0, 12);
+const menuPacks = new Map();
+function menuPack(r) {
+  const p = menuPacks.get(r.id);
+  if (p && Date.now() - p.at < 2000) return p;
+  const menu = guestMenuOf(r), np = { at: Date.now(), menu, mv: verOf(menu) };
+  menuPacks.set(r.id, np);
+  return np;
+}
+function packed(q, r, content) {
+  const m = menuPack(r), cv = verOf(content);
+  return { mv: m.mv, ...(q.mv === m.mv ? {} : { menu: m.menu }), cv, ...(q.cv === cv ? {} : content) };
+}
+
 async function guestState(b, q) {
   if (q.k) return phoneState(q);
   await pullDevice(q.d);
@@ -1542,10 +1696,12 @@ async function guestState(b, q) {
     restaurant: { name: r.name, langs: r.langs, address: r.address || '', district: DISTRICTS.find((x) => x.id === r.district) || null },
     build: BUILD, instance: INSTANCE, version: VERSION,
     timers: pick(timersOf(r), ['cartMin', 'langMin']), visit: r.visits?.[d.table] || 0,
-    menu: guestMenuOf(r), tags: r.customTags || [],
-    slides: slidesFor(r, d.id),
-    display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) }, menuCats: r.menuCats || {},
-    avatar: avatarFor(r),
+    ...packed(q, r, {
+      tags: r.customTags || [], slides: slidesFor(r, d.id),
+      display: { ...DISPLAY, ...r.display, palette: themeOf(r.display?.theme) }, menuCats: r.menuCats || {},
+      avatar: avatarFor(r),
+    }),
+    offline: !db.settings?.guestOfflineOff, // запас на планшете (страница, меню, фото) — выключается в админке
   };
   // Планшет у входа: только витрина — карусель и просмотр меню, без заказов и вызовов
   if (d.role === 'entrance') return { ...base, mode: 'entrance' };
@@ -1570,8 +1726,10 @@ function phoneState(q) {
   if (!q.g) return { ...base, join: true };
   let w;
   try { w = guestOf(q); } catch (e) { return { ended: e.message === 'phone disconnected' ? 'off' : 'expired' }; }
+  // меню — как на планшете (с «Заказ через официанта»), тоже по версиям
+  const { display, menuCats, ...rest } = base;
   return {
-    ...base, menu: (r.menu || []).filter(onMenu).map(pubItem), tags: r.customTags || [], slides: [], avatar: null,
+    ...rest, ...packed(q, r, { tags: r.customTags || [], slides: [], avatar: null, display, menuCats }),
     me: { n: w.n, name: w.name }, guests: guestNames(r, s.table), kitchen: flowOf(r).kitchenScreen,
     calls: openAt(db.calls, r, s.table).filter((c) => c.status !== 'done'),
     orders: openAt(db.orders, r, s.table),
@@ -1684,7 +1842,10 @@ function guestOrder(b) {
 // и «Спросить официанта» вместо «Добавить». Бесплатные акции и блюда с платными вариантами — как обычно
 const askOf = (i) => !!i.askWaiter || (!i.fromPromo && !(Number(i.price) > 0) && !(i.options || []).some((o) => Number(o.price) > 0)
   && !(i.groups || []).some((g) => g.opts.some((o) => Number(o.price) > 0)));
-const guestMenuOf = (r) => (r.menu || []).filter(onMenu).map((i) => (askOf(i) ? { ...pubItem(i), ask: true } : pubItem(i)));
+// меню для планшетов и телефонов: без служебных полей, фото — наша копия (если уже скачана)
+const guestMenuOf = (r) => (r.menu || []).filter(onMenu).map((i) => ({
+  ...pubItem(i), ...(i.photo ? { photo: mirrored(i.photo) } : {}), ...(askOf(i) ? { ask: true } : {}),
+}));
 // Блюда заказа в журнале событий: [id, порций, цена] и выбор в группах (для статистики вариантов акций)
 const evItems = (items) => items.map((i) => [i.id, i.qty, i.price, ...(i.mods?.length ? [i.mods] : [])]);
 function buildItems(r, list, guest = false) {
@@ -1762,6 +1923,11 @@ function tabletsOf(r, now = Date.now()) {
   }
   return out;
 }
+function skusPack(r, sv) {
+  const skus = Object.fromEntries((r.menu || []).filter((i) => i.sku).map((i) => [i.id, i.sku])), v = verOf(skus);
+  return { skusV: v, ...(sv === v ? {} : { skus }) };
+}
+
 function staffState(b, q) {
   const { s, r, member } = session(q.token);
   s.seenAt = Date.now(); // приложение открыто — для автоконца смены без часов работы
@@ -1776,7 +1942,8 @@ function staffState(b, q) {
     },
     team: teamOf(r),
     floor: floorOf(r),
-    skus: Object.fromEntries((r.menu || []).filter((i) => i.sku).map((i) => [i.id, i.sku])),
+    // коды блюд — только когда изменились (приложение присылает версию sv)
+    ...skusPack(r, q.sv),
     tablets: tabletsOf(r),
     // «Столы» официанта: его столы из ЛК менеджера, а если не назначены — все столы ресторана
     myTables: (r.tables || []).filter((tb) => member.role === 'manager' || !member.tables?.length || servesTable(member.tables, tb)),
@@ -2982,6 +3149,60 @@ async function syncOnce(r, force) {
   }
 }
 
+// ---------- Фото блюд с сайтов ресторанов — копия на нашем сервере
+// Планшет хранит фото у себя (офлайн-запас), а картинки с чужого сайта сохранить не может (сайт не разрешает).
+// Поэтому фото меню один раз скачиваем к себе (имя — хэш, повторно не качается) и отдаём планшетам нашу копию.
+// Не скачалось — планшет показывает фото с сайта, как раньше; повтор через час
+db.photoMirror ??= {}; // адрес фото → { f: '/uploads/…' } или { err, at }
+const MIRROR_MAX = 6 * 1024 * 1024;
+const mirrored = (u) => (u && db.photoMirror[u]?.f) || u;
+// только https и только публичные адреса (не внутренняя сеть сервера)
+const privateIp = (ip) => net.isIPv4(ip)
+  ? /^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/.test(ip)
+  : /^(::1?$|f[cd]|fe[89ab]|::ffff:(10|127|192\.168|169\.254)\.)/i.test(ip);
+async function publicUrl(u) {
+  const x = new URL(u);
+  if (x.protocol !== 'https:' || net.isIP(x.hostname) || !x.hostname.includes('.')) return false;
+  const addrs = await dns.lookup(x.hostname, { all: true });
+  return addrs.length && !addrs.some((a) => privateIp(a.address));
+}
+async function fetchPhoto(u) {
+  let url = u;
+  for (let hop = 0; hop < 4; hop++) {
+    if (!(await publicUrl(url))) throw new Error('адрес не подходит');
+    const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(20000), headers: { 'user-agent': 'JET MEDIA menu photo mirror' } });
+    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) { url = new URL(res.headers.get('location'), url).href; continue; }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const ext = IMAGE_TYPES[(res.headers.get('content-type') || '').split(';')[0].trim()];
+    if (!ext) throw new Error('не картинка');
+    if (Number(res.headers.get('content-length')) > MIRROR_MAX) throw new Error('слишком большое');
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MIRROR_MAX) throw new Error('слишком большое');
+    return storeFile(buf, ext);
+  }
+  throw new Error('много перенаправлений');
+}
+let mirroring = false;
+async function mirrorPhotos() {
+  if (mirroring) return;
+  mirroring = true;
+  try {
+    const want = new Set();
+    for (const r of Object.values(db.restaurants)) for (const i of r.menu || []) if (onMenu(i) && /^https:\/\//.test(i.photo || '')) want.add(i.photo);
+    // фото больше нет в меню — забываем (файл уберёт обычная уборка uploads через неделю)
+    for (const u of Object.keys(db.photoMirror)) if (!want.has(u)) delete db.photoMirror[u];
+    const todo = [...want].filter((u) => !db.photoMirror[u] || (!db.photoMirror[u].f && Date.now() - db.photoMirror[u].at > 3600e3)).slice(0, 150);
+    const work = async () => {
+      for (let u; (u = todo.shift());) {
+        try { db.photoMirror[u] = { f: await fetchPhoto(u) }; } catch (e) { db.photoMirror[u] = { err: String(e.message).slice(0, 80), at: Date.now() }; }
+      }
+    };
+    if (todo.length) { await Promise.all([work(), work(), work()]); save(); }
+  } finally { mirroring = false; }
+}
+setTimeout(mirrorPhotos, 60_000);
+setInterval(mirrorPhotos, 10 * 60_000);
+
 // Постоянная синхронизация: каждый ресторан — раз в N минут (ЛК → «Меню»); проверка лёгкая, меню
 // перезаписывается, только если в источнике что-то изменилось
 setInterval(() => {
@@ -3824,6 +4045,14 @@ function admin(method, p, b, me, q) {
     if (scope) throw fail(403, 'Нет доступа');
     return serverPanel();
   }
+  // «Сервер»: лимит трафика VPS и офлайн-запас на планшетах
+  if (method === 'POST' && p === '/api/server/settings') {
+    if (scope) throw fail(403, 'Нет доступа');
+    if (b.trafficQuotaGB !== undefined) db.settings.trafficQuotaGB = Math.min(100000, Math.max(10, Math.round(Number(b.trafficQuotaGB)) || 500));
+    if (b.guestOffline !== undefined) db.settings.guestOfflineOff = !b.guestOffline;
+    save();
+    return { trafficQuotaGB: db.settings.trafficQuotaGB || 500, guestOffline: !db.settings.guestOfflineOff };
+  }
   if (method === 'POST' && p === '/api/export/link') {
     if (scope) throw fail(403, 'Нет доступа');
     for (const [k, l] of Object.entries(db.exportLinks)) if (l.until < Date.now()) delete db.exportLinks[k];
@@ -4106,6 +4335,11 @@ for (const r of Object.values(db.restaurants)) {
 
 // Однократно: всё, что было до этого обновления (пилотные тесты), и все нынешние сотрудники — тестовые
 db.migrations ??= {};
+// Однократно: сообщения о трафике VPS — тем ботам, которым приходят сбои планшетов
+if (!db.migrations.tgServer) {
+  for (const bt of db.tgBots || []) if ((bt.kinds || []).includes('devices') && !bt.kinds.includes('server')) bt.kinds.push('server');
+  db.migrations.tgServer = Date.now();
+}
 // Однократно: меню из источника пересобрать по-новому (правки менеджера поверх источника) при следующей проверке
 if (!db.migrations.menuOvr) {
   for (const r of Object.values(db.restaurants)) if (r.menuSource && r.menuSource.type !== 'manual') delete r.menuSource.lastHash;
@@ -4388,6 +4622,10 @@ save();
 
 const server = http.createServer(async (req, res) => {
   countRequest();
+  res.gzip = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+  // сколько байт ушло в ответ (с заголовками) — для разбивки трафика по видам запросов и ресторанам
+  const sock = req.socket, w0 = sock?.bytesWritten || 0;
+  res.on('finish', () => countBytes(req, (sock?.bytesWritten || 0) - w0));
   try {
     const url = new URL(req.url, 'http://local');
     // /staff и /guest без косой черты → на адрес с чертой

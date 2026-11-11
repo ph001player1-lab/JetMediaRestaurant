@@ -546,18 +546,102 @@ function flushOutbox() {
   }, function () { flushing = false; });
 }
 
+// ---------- Запас на планшете: меню и оформление (слайды, персонаж, цвета, разделы) сервер присылает, только когда
+// они изменились (версии mv и cv), — храним их у себя. Последнее состояние стола тоже храним: без связи при включении
+// планшет открывает меню из запаса, а вызовы и заказы уходят, когда связь вернётся
+var PACK_KEY = PHONE ? 'k:' + KEY : 'd:' + D, PACK_FIELDS = ['tags', 'slides', 'avatar', 'display', 'menuCats'];
+var PACK = (function () {
+  try { var p = JSON.parse(localStorage.jmPack || 'null'); if (p && p.key === PACK_KEY) return p; } catch (e) { /* нет хранилища */ }
+  return { key: PACK_KEY };
+})();
+var lastSaved = '';
+function packQuery() { return (PACK.mv ? '&mv=' + encodeURIComponent(PACK.mv) : '') + (PACK.cv ? '&cv=' + encodeURIComponent(PACK.cv) : ''); }
+function savePack() {
+  if (MPREVIEW) return;
+  try { localStorage.jmPack = JSON.stringify(PACK); } catch (e) { /* мало места — держим в памяти, после перезагрузки скачаем заново */ }
+}
+// дополняем ответ сервера из запаса; false — нужного в запасе нет: забываем версию, следующий опрос придёт целиком
+function unpack(s) {
+  var changed = false;
+  if (s.mv) {
+    if (s.menu) { PACK.mv = s.mv; PACK.menu = s.menu; changed = true; }
+    else if (PACK.mv === s.mv && PACK.menu) s.menu = PACK.menu;
+    else { PACK.mv = ''; return false; }
+  }
+  if (s.cv) {
+    if (s.slides !== undefined) {
+      PACK.cv = s.cv; PACK.content = {};
+      PACK_FIELDS.forEach(function (k) { PACK.content[k] = s[k]; });
+      changed = true;
+    } else if (PACK.cv === s.cv && PACK.content) PACK_FIELDS.forEach(function (k) { s[k] = PACK.content[k]; });
+    else { PACK.cv = ''; return false; }
+  }
+  if (changed && !s.cached) savePack();
+  return true;
+}
+// состояние стола без меню и оформления (они в запасе) — пишем, только если изменилось
+function saveLast(s) {
+  if (PHONE || MPREVIEW || s.cached) return;
+  var o = { key: PACK_KEY, at: Date.now() };
+  for (var k in s) if (k !== 'menu' && PACK_FIELDS.indexOf(k) < 0) o[k] = s[k];
+  var str = JSON.stringify(o);
+  if (str.length === lastSaved.length && str === lastSaved) return;
+  lastSaved = str;
+  try { localStorage.jmLast = str; } catch (e) { /* без хранилища */ }
+}
+function bootCached() {
+  if (PHONE || MPREVIEW || !PACK.menu || !PACK.content) return;
+  try {
+    var s = JSON.parse(localStorage.jmLast || 'null');
+    if (!s || s.key !== PACK_KEY) return;
+    s.cached = true; s.mv = PACK.mv; s.menu = PACK.menu; s.cv = PACK.cv;
+    PACK_FIELDS.forEach(function (k) { s[k] = PACK.content[k]; });
+    onState(s);
+  } catch (e) { /* запас испорчен — ждём связь */ }
+}
+
+// Запас страницы и картинок на планшете — сервис-воркер /guest/sw.js: страница открывается без связи, фото меню,
+// слайдов и персонажа берутся из памяти планшета. Список картинок присылаем ему, когда меню или слайды изменились.
+// Выключатель — в админке («Сервер»): выключили — убираем сервис-воркер и запас
+var swAsked = false, precacheSig = '', precacheAt = 0;
+function offlineSetup(s) {
+  if (PHONE || MPREVIEW || PREVIEW || s.cached || !('serviceWorker' in navigator)) return;
+  if (s.offline === false) {
+    if (precacheSig === 'off') return;
+    precacheSig = 'off';
+    navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); });
+    if (window.caches) caches.keys().then(function (ks) { ks.forEach(function (k) { if (k.indexOf('jm-guest') === 0) caches.delete(k); }); });
+    return;
+  }
+  if (!swAsked) { swAsked = true; navigator.serviceWorker.register('/guest/sw.js', { scope: '/guest/' }).catch(function () {}); }
+  var found = JSON.stringify([s.menu, s.slides, s.avatar]).match(/\/uploads\/[a-f0-9]+\.(jpg|png|webp|svg)/g) || [];
+  var urls = found.filter(function (u, i) { return found.indexOf(u) === i; }).sort(), sig = urls.join('|');
+  // тот же список — раз в 30 минут повторяем (докачать то, что не скачалось без связи)
+  if (sig === precacheSig && Date.now() - precacheAt < 30 * 60000) return;
+  navigator.serviceWorker.ready.then(function (reg) {
+    if (reg.active) { reg.active.postMessage({ type: 'precache', urls: urls }); precacheSig = sig; precacheAt = Date.now(); }
+  });
+}
+
 function load() {
   var q = PHONE ? 'k=' + encodeURIComponent(KEY) + (GT ? '&g=' + encodeURIComponent(GT) : '') : 'd=' + encodeURIComponent(D);
-  return request('/api/guest/state?' + q + (MPREVIEW ? '&preview=1' : '')).then(function (s) {
+  return request('/api/guest/state?' + q + (MPREVIEW ? '&preview=1' : '') + packQuery()).then(onState).catch(function () {
+    // нет связи при включении — открываем меню из запаса; пробуем снова через 5 с
+    if (!state) bootCached();
+  });
+}
+
+function onState(s) {
     if (PHONE && (s.ended || s.join)) return phoneGate(s);
     if (s.unassigned) {
       show('app', false); show('msg', true);
       $('msg').innerHTML = 'JET MEDIA<br>Устройство не привязано к столу<br>Device is not assigned to a table<br><small>' + esc(D) + '</small>';
       return;
     }
+    if (!unpack(s)) return;
     show('msg', false); show('app', true);
-    // Вышла новая версия интерфейса — перезагружаемся, но не посреди заказа
-    if (BUILD && s.build && s.build !== BUILD && !cartCount() && !outbox.length && Date.now() - lastTouch > 30000) { location.reload(); return; }
+    // Вышла новая версия интерфейса — перезагружаемся, но не посреди заказа (и не по сохранённому состоянию без связи)
+    if (!s.cached && BUILD && s.build && s.build !== BUILD && !cartCount() && !outbox.length && Date.now() - lastTouch > 30000) { location.reload(); return; }
     BUILD = BUILD || s.build;
     var first = !state;
     if (MPREVIEW) { s.calls = []; s.orders = []; } // предпросмотр в ЛК: без вызовов и заказов этого стола
@@ -591,7 +675,9 @@ function load() {
     state.orders = s.orders || [];
     if (!lang) lang = defLang();
     notifyChanges(first);
-    var sig = JSON.stringify(s.menu) + s.restaurant.name + s.mode + (s.table || '');
+    saveLast(s);
+    offlineSetup(s);
+    var sig = (s.mv || JSON.stringify(s.menu)) + s.restaurant.name + s.mode + (s.table || '');
     if (sig !== menuSig) {
       menuSig = sig;
       MENU = {};
@@ -601,7 +687,6 @@ function load() {
     } else renderFooter();
     if (sheetMode === 'cart' && $('cart').className.indexOf('show') >= 0) renderCart();
     if (first && isEntrance()) showAttract();
-  }).catch(function () { /* нет сети — пробуем снова через 5 с */ });
 }
 
 // Телефон: визит закончился / телефон отключили — сообщение; первый вход — «Как вас зовут?»
