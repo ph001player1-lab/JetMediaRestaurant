@@ -596,6 +596,7 @@ function auditText(method, p, b) {
   if ((m = p.match(/^\/api\/restaurants\/([^/]+)$/))) return [`Ресторан удалён: ${m[1]}`, m[1]];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/command$/))) return [`Команда «${b.type}» устройству ${dev(m[1])}`, db.devices[dev(m[1])]?.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/wifi$/))) return [`Wi-Fi устройства ${dev(m[1])}: ${(b.list || []).map((n) => n.ssid + (n.primary ? ' (основная)' : '')).join(', ') || 'своих сетей нет'}`, db.devices[dev(m[1])]?.restaurantId];
+  if ((m = p.match(/^\/api\/devices\/([^/]+)\/view$/))) return [`Устройство ${dev(m[1])}: ${b.restaurantId ? `показ ресторана «${db.restaurants[b.restaurantId]?.name || ''}» (просмотр)` : 'показ ресторана выключен'}`, db.devices[dev(m[1])]?.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/]+)\/assign$/))) return [`Устройство ${dev(m[1])} → ${db.restaurants[b.restaurantId]?.name || 'не привязано'}${b.table ? ` · ${b.table}` : ''}`, b.restaurantId];
   if ((m = p.match(/^\/api\/devices\/([^/_][^/]*)$/))) return [`Устройство удалено: ${dev(m[1])}`]; // _wifi, _channel — настройки, не устройства
   if (p === '/api/uploads/replace') return ['Картинка пережата и заменена'];
@@ -1487,6 +1488,7 @@ async function telegramAdmin(method, p, b) {
 // Устройство стоит либо на столе (table), либо у входа (role = 'entrance')
 function tableOf(deviceId) {
   const d = db.devices[deviceId];
+  if (d?.showRest) return null; // режим просмотра (показ чужого ресторана): заказы, вызовы и события не принимаем
   const r = d && db.restaurants[d.restaurantId];
   return r && d.table && d.role !== 'entrance' ? { r, table: d.table } : null;
 }
@@ -1645,6 +1647,7 @@ function avatarFor(r) {
 // Показ слайда: реклама (как раньше), акция ресторана или появление ИИ-персонажа
 function guestImpression(b) {
   const d = db.devices[b.d];
+  if (d?.showRest) return {}; // режим просмотра — показы рекламы и акций не считаем
   const rid = d?.restaurantId, r = db.restaurants[rid];
   if (!r) throw fail(400, 'bad impression');
   if (b.kind === 'avatar') bump(`avshow|${rid}|${day()}`);
@@ -1697,9 +1700,12 @@ async function guestState(b, q) {
   if (q.k) return phoneState(q);
   await pullDevice(q.d);
   const d = db.devices[q.d];
-  if (d && !q.preview) d.pageSeen = Date.now(); // страница планшета открыта (предпросмотр в ЛК — не считается)
-  const r = d && db.restaurants[d.restaurantId];
-  if (!r || (!d.table && d.role !== 'entrance')) return { unassigned: true };
+  // Режим просмотра: «?view=1» (планшет ресторана в браузере из админки) или устройство с «показом» чужого ресторана
+  // (демо-планшет показывает Veranda): всё как на планшете, но без заказов, вызовов, QR, счёта показов и «планшет включён»
+  const view = q.view === '1' || !!d?.showRest;
+  if (d && !q.preview && !view) d.pageSeen = Date.now(); // страница планшета открыта (предпросмотр в ЛК — не считается)
+  const r = d && db.restaurants[d.showRest || d.restaurantId];
+  if (!r || (!d.table && d.role !== 'entrance' && !d.showRest)) return { unassigned: true };
   const base = {
     restaurant: { name: r.name, langs: r.langs, address: r.address || '', district: DISTRICTS.find((x) => x.id === r.district) || null },
     build: BUILD, instance: INSTANCE, version: VERSION,
@@ -1712,7 +1718,11 @@ async function guestState(b, q) {
     offline: !db.settings?.guestOfflineOff, // запас на планшете (страница, меню, фото) — выключается в админке
   };
   // Планшет у входа: только витрина — карусель и просмотр меню, без заказов и вызовов
-  if (d.role === 'entrance') return { ...base, mode: 'entrance' };
+  if (d.role === 'entrance' && !d.showRest) return { ...base, mode: 'entrance', ...(view ? { view: true } : {}) };
+  if (view) {
+    return { ...base, mode: 'table', view: true, table: d.showRest ? `👁 ${r.name}` : d.table, me: { n: 1 }, guests: {},
+      kitchen: flowOf(r).kitchenScreen, calls: [], orders: [], join: null };
+  }
   const k = flowOf(r).phones && tableKey(r, d.table, true);
   return {
     ...base, mode: 'table', table: d.table, me: { n: 1 }, guests: guestNames(r, d.table), kitchen: flowOf(r).kitchenScreen,
@@ -3951,6 +3961,7 @@ db.leads ??= [];
 const leadBudget = new Map();
 async function guestLead(b) {
   const d = db.devices[b.d], r = d && db.restaurants[d.restaurantId];
+  if (d?.showRest) return {}; // режим просмотра — заявки не отправляем
   const a = db.ads.find((x) => x.id === b.ad);
   if (!r || !a?.cta?.enabled) throw fail(400, 'bad lead');
   const name = String(b.name || '').trim().slice(0, 60), phone = String(b.phone || '').trim().slice(0, 25);
@@ -3976,6 +3987,7 @@ const publicLeadTg = (t) => ({ connected: !!t?.token, bot: t?.bot || '', chats: 
 db.joinReqs ??= [];
 async function guestJoinRequest(b) {
   const d = db.devices[b.d], r = d && db.restaurants[d.restaurantId];
+  if (d?.showRest) return {}; // режим просмотра
   if (!d) throw fail(400, 'bad device');
   const name = String(b.name || '').trim().slice(0, 60), phone = String(b.phone || '').trim().slice(0, 25);
   if (!/^[+\d][\d\s()-]{4,}$/.test(phone)) throw fail(400, 'bad phone');
@@ -4356,7 +4368,7 @@ function admin(method, p, b, me, q) {
       return { n };
     });
   }
-  m = p.match(/^\/api\/devices\/([^/]+)(?:\/(command|assign|channel|wifi))?$/);
+  m = p.match(/^\/api\/devices\/([^/]+)(?:\/(command|assign|channel|wifi|view))?$/);
   const d = m && db.devices[decodeURIComponent(m[1])];
   if (!d) return undefined;
   if (m[2] === 'wifi') {
@@ -4392,6 +4404,14 @@ function admin(method, p, b, me, q) {
       save();
       return {};
     });
+  }
+  // Показ чужого ресторана (режим просмотра): демо-планшет остаётся в своём ресторане, а показывает выбранный
+  if (method === 'POST' && m[2] === 'view') {
+    if (b.restaurantId && !db.restaurants[b.restaurantId]) throw fail(400, 'нет такого ресторана');
+    if (b.restaurantId) d.showRest = b.restaurantId; else delete d.showRest;
+    d.queue.push({ type: 'reload' });
+    save();
+    return {};
   }
   if (method === 'POST' && m[2] === 'assign') {
     // Привязка к столу сразу переключает планшет на интерфейс стола
@@ -4515,7 +4535,7 @@ function verandaPresets(r) {
       add: { groups: [{ id: 'sauce', name: L('Соус', 'Sauce', 'ซอส', '酱料'), type: 'many', req: false, opts: [
         { id: 'sc', name: L('Сметана', 'Sour cream', 'ซาวร์ครีม', '酸奶油'), price: 25 }, { id: 'my', name: L('Майонез', 'Mayonnaise', 'มายองเนส', '蛋黄酱'), price: 25 }] }] } },
     { id: 'vr-spicy', name: 'Острота — все блюда Том Ям', match: { words: ['том ям', 'tom yum', 'tom yam'] },
-      add: { tags: ['spicy'], groups: [{ id: 'spicy', name: L('Острота', 'Spiciness', 'ความเผ็ด', '辣度'), type: 'one', req: true, opts: [
+      add: { groups: [{ id: 'spicy', name: L('Острота', 'Spiciness', 'ความเผ็ด', '辣度'), type: 'one', req: true, opts: [
         { id: 'hot', name: L('Острый', 'Spicy', 'เผ็ด', '辣') }, { id: 'mild', name: L('Не острый', 'Not spicy', 'ไม่เผ็ด', '不辣') }] }] } },
     { id: 'vr-lemonade', name: 'Лимонады: 0,3 л и 1 л', match: { words: ['lemonade', 'лимонад'] }, add: { options: [{ label: V03, price: 0 }, { label: V1, price: 200 }] } },
     { id: 'vr-mors', name: 'Морс: 0,3 л и 1 л', match: { words: ['морс', 'mors'] }, add: { options: [{ label: V03, price: 0 }, { label: V1, price: 200 }] } },
@@ -4562,6 +4582,14 @@ function verandaPresets(r) {
       offer: { words: ['lemonade', 'лимонад', 'морс'], cats: ['Свежевыжатые соки'] },
       text: L('Не забыли напитки?', 'Don’t forget a drink!', 'อย่าลืมเครื่องดื่มนะ!', '别忘了饮料！') },
   ] });
+}
+// Однократно: у Том Яма острота — выбор гостя, а не отметка «острое» (иначе в ЛК и фильтре «Острое» блюдо выглядело просто острым)
+if (!db.migrations.verandaSpicyChoice) {
+  for (const r of Object.values(db.restaurants)) {
+    const x = (r.menuRules || []).find((y) => y.id === 'vr-spicy');
+    if (x?.add?.tags?.includes('spicy')) { x.add.tags = x.add.tags.filter((t) => t !== 'spicy'); applyRules(r); }
+  }
+  db.migrations.verandaSpicyChoice = Date.now();
 }
 if (!db.migrations.verandaPresets) {
   for (const r of Object.values(db.restaurants)) {

@@ -624,9 +624,13 @@ function deviceRow(d, i) {
       <td${t.battery <= 15 && !t.charging ? ' class="offline" title="Садится аккумулятор и планшет не заряжается — проверьте зарядку"' : ''}>${t.battery <= 15 && !t.charging ? '🪫 ' : ''}${t.battery ?? '—'}%${t.charging ? ' ⚡' : ''}${t.freeMb >= 0 ? `<br><small class="${t.freeMb < 300 ? 'offline' : 'hint'}" title="Свободная память планшета">💾 ${t.freeMb >= 1024 ? (t.freeMb / 1024).toFixed(1) + ' ГБ' : t.freeMb + ' МБ'}</small>` : ''}</td>
       <td>${esc(t.version)}${updLine(d)}</td>
       <td>${verCell(d, i)}</td>
-      <td><select onchange="assign(${i}, this.value)">${placeOptions(d)}</select><br><small>${esc(t.url || 'экран статуса')}</small></td>
+      <td><select onchange="assign(${i}, this.value)">${placeOptions(d)}</select><br><small>${esc(t.url || 'экран статуса')}</small>
+        <br><label class="hint" title="Режим просмотра: планшет остаётся в своём ресторане, а показывает выбранный — меню, слайды, персонажа, подсказки. Заказы и вызовы не отправляются, показы и статистика не считаются, официанты ничего не получают">👁 показ:
+          <select onchange="setView(${i}, this.value)"><option value="">— нет —</option>${rests.map((r) => `<option value="${esc(r.id)}" ${d.showRest === r.id ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></label>
+        ${d.showRest ? `<br><small style="color:#1e88e5">👁 показывает «${esc(rests.find((r) => r.id === d.showRest)?.name || '')}» — просмотр, заказы и вызовы не уходят</small>` : ''}</td>
       <td>${new Date(d.lastSeen).toLocaleString()}</td>
       <td>
+        ${d.table || d.role === 'entrance' || d.showRest ? `<button onclick="window.open('/guest/?d=' + encodeURIComponent(devices[${i}].id) + '&view=1', '_blank')" title="Открыть страницу этого планшета в браузере в режиме просмотра: заказы и вызовы не уходят, показы не считаются">👁 Просмотр</button>` : ''}
         <button onclick="send(${i}, 'url')">Страница</button>
         <button onclick="send(${i}, 'reload')">Обновить страницу</button>
         <button onclick="send(${i}, 'reboot')">Перезагрузить</button>
@@ -688,6 +692,13 @@ async function setChannel(channel) {
   loadDevices();
 }
 
+// Режим просмотра: планшет показывает другой ресторан (например, демо-планшет — Veranda), ничего не отправляя
+async function setView(i, restaurantId) {
+  const r = await api(`/api/devices/${encodeURIComponent(devices[i].id)}/view`, 'POST', { restaurantId });
+  if (r?.error) alert(r.error);
+  document.activeElement.blur();
+  loadDevices();
+}
 async function assign(i, value) {
   const [restaurantId, table] = value.split('|');
   await api(`/api/devices/${encodeURIComponent(devices[i].id)}/assign`, 'POST', { restaurantId, table });
