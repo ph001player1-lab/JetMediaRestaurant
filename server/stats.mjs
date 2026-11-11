@@ -189,8 +189,18 @@ const dishName = (r, all = false) => {
 // Журнал визита: заказы и всё, что с ними делали (кто, когда, что добавили/убрали, переделка, отмена с причиной)
 const LOG_KINDS = new Set(['order', 'order_void', 'order_ack', 'order_edit', 'order_kitchen', 'order_ready', 'order_served', 'order_redo',
   'order_cancel', 'order_reject', 'order_remove', 'paid', 'close', 'undo', 'call', 'call_ack', 'call_done', 'call_cancel', 'call_why', 'remind', 'forgotten']);
-function visitLog(events, name) {
-  const lines = (list) => (list || []).map(([id, qty]) => [name(id), qty]);
+// Выбранное в группах меню по «блюдо|выбор» — названия вариантов акций («Наполеон») и цена
+const modsOf = (r) => new Map((r?.menu || []).flatMap((i) => (i.groups || []).flatMap((g) => (g.opts || []).map((o) => [`${i.id}|${o.id}`, o]))));
+// «Акция 1: Десерт» + выбранный вариант → «Акция 1: Десерт · Наполеон» (на всех языках названия)
+const withMods = (n, id, ms, mods) => {
+  const os = (ms || []).map((m) => mods?.get(`${id}|${m}`)).filter(Boolean);
+  if (!os.length) return n;
+  const nm = (o, l) => o.name?.[l] || o.name?.ru || o.name?.en || Object.values(o.name || {})[0] || '';
+  if (typeof n === 'string') return `${n} · ${os.map((o) => nm(o, 'ru')).join(', ')}`;
+  return Object.fromEntries(Object.entries(n || {}).map(([l, v]) => [l, `${v} · ${os.map((o) => nm(o, l)).join(', ')}`]));
+};
+function visitLog(events, name, mods) {
+  const lines = (list) => (list || []).map(([id, qty, , ms]) => [withMods(name(id), id, String(id).startsWith('promo-') ? ms : null, mods), qty]);
   const out = [];
   for (const e of events) {
     if (!LOG_KINDS.has(e.k) || out.length >= 150) continue;
@@ -257,13 +267,22 @@ function dishStats(ev, r) {
   const menu = new Map((r?.menu || []).map((i) => [i.id, i])), name = dishName(r);
   const d = {};
   let dayDish = 0, promo = 0;
+  // какие варианты акций берут: «Акция 1: Десерт · Наполеон — 5 порций»
+  const mods = modsOf(r), pv = {};
   for (const e of ev) {
     if (e.k !== 'order') continue;
-    for (const [id, qty, price] of e.items || []) {
+    for (const [id, qty, price, ms] of e.items || []) {
       const x = (d[id] ??= { id, name: name(id), qty: 0, revenue: 0 });
       x.qty += qty; x.revenue += qty * price;
       if (menu.get(id)?.dayDish) dayDish += qty;
-      if (String(id).startsWith('promo-')) promo += qty;
+      if (!String(id).startsWith('promo-')) continue;
+      promo += qty;
+      for (const m of ms || []) {
+        const o = mods.get(`${id}|${m}`);
+        if (!o) continue;
+        const y = (pv[`${id}|${m}`] ??= { id, name: withMods(name(id), id, [m], mods), qty: 0, revenue: 0 });
+        y.qty += qty; y.revenue += qty * (Number(o.price) || 0);
+      }
     }
   }
   const list = Object.values(d);
@@ -272,6 +291,7 @@ function dishStats(ev, r) {
     top: [...list].sort((a, b) => b.qty - a.qty).slice(0, 20),
     topRevenue: [...list].sort((a, b) => b.revenue - a.revenue).slice(0, 20),
     idle: idle.slice(0, 50), idleCount: idle.length, dayDishQty: dayDish, promoQty: promo,
+    promoVariants: Object.values(pv).sort((a, b) => b.qty - a.qty || b.revenue - a.revenue),
   };
 }
 
@@ -461,7 +481,7 @@ export function restaurantReport({ log, db, r, from, to, staffNames, tests, dayF
     markAll: (() => { const m = all.filter((v) => !v.why || v.why === 'mark'); return { n: m.length, marked: m.filter((v) => v.why).length, ids: m.flatMap((v) => v.ids) }; })(),
     // по времени начала, новые сверху (в списке визиты идут в порядке завершения — забытый стол завершается позже)
     visits: [...all].sort((a, b) => b.from - a.from).slice(0, 300).map(({ events, staff, r: rid, ...v }) => ({ ...v, staff: [...staff],
-      cancelled: events.filter((e) => e.k === 'order_void').length, calls: callsOf(events), log: visitLog(events, dishName(r, true)) })),
+      cancelled: events.filter((e) => e.k === 'order_void').length, calls: callsOf(events), log: visitLog(events, dishName(r, true), modsOf(r)) })),
     staff: staffStats(ev, staffNames, to), tables: tableStats(ev), dishes: dishStats(ev, r),
     promos: promoStats(ev, r, db.stats, days), avatar: avatarStats(ev, db.stats, rids, () => days), ...timeStats(ev),
   };

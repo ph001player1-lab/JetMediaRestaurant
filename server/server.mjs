@@ -1427,7 +1427,7 @@ function slidesFor(r, dev) {
       type: 'promo', id: p.id, image: p.image, images: p.images || {}, phone: p.phone || '', off: p.langOff || [], // текст акции — на самой картинке
       // кнопка на слайде: «Заказать · цена» или «Заказать по акции» (строка меню создаётся сама)
       order: promoMode(p) !== 'none' && (r.menu || []).some((i) => i.id === `promo-${p.id}` && onMenu(i)) ? `promo-${p.id}` : '',
-      price: promoMode(p) === 'price' ? p.price : 0,
+      ...promoPrice(p),
       qr: p.link ? `${PUBLIC_URL}/go/p/${p.id}?r=${r.id}` : '', ...qrPlace(p), ...framing(p),
     })),
     // блюдо — только с галочкой «В показе акций» (блюдо дня без неё остаётся в меню и в советах персонажа)
@@ -1671,7 +1671,7 @@ function guestOrder(b) {
     hist: [{ t: Date.now(), k: 'new', by: t.name || '', src: t.phone ? 'phone' : 'tablet', g: t.n }],
   };
   db.orders.push(o);
-  logEvent(t.r.id, 'order', { id: o.id, table: t.table, dev: t.dev || undefined, total: o.total, items: items.map((i) => [i.id, i.qty, i.price]), lang: b.lang, guest: t.n, phone: t.phone ? 1 : undefined });
+  logEvent(t.r.id, 'order', { id: o.id, table: t.table, dev: t.dev || undefined, total: o.total, items: evItems(items), lang: b.lang, guest: t.n, phone: t.phone ? 1 : undefined });
   touchTable(t.r, t.table);
   notify(t.r.id, t.table, 'order', ` · ฿${o.total}`, false, t.n > 1 ? t : null, o.id);
   save();
@@ -1684,6 +1684,8 @@ function guestOrder(b) {
 const askOf = (i) => !!i.askWaiter || (!i.fromPromo && !(Number(i.price) > 0) && !(i.options || []).some((o) => Number(o.price) > 0)
   && !(i.groups || []).some((g) => g.opts.some((o) => Number(o.price) > 0)));
 const guestMenuOf = (r) => (r.menu || []).filter(onMenu).map((i) => (askOf(i) ? { ...i, ask: true } : i));
+// Блюда заказа в журнале событий: [id, порций, цена] и выбор в группах (для статистики вариантов акций)
+const evItems = (items) => items.map((i) => [i.id, i.qty, i.price, ...(i.mods?.length ? [i.mods] : [])]);
 function buildItems(r, list, guest = false) {
   const menu = new Map((r.menu || []).filter(onMenu).map((i) => [i.id, i]));
   return (list || [])
@@ -1853,7 +1855,7 @@ function staffOrderDo(b) {
   o.kitchenItems = kitchenSnap(o);
   db.orders.push(o);
   touchTable(r, table);
-  logEvent(r.id, 'order', { id: o.id, table, total: o.total, items: items.map((i) => [i.id, i.qty, i.price]), by: member.id, bn: member.name, src: 'staff' });
+  logEvent(r.id, 'order', { id: o.id, table, total: o.total, items: evItems(items), by: member.id, bn: member.name, src: 'staff' });
   save();
   return o;
 }
@@ -2278,7 +2280,7 @@ function staffActionDo(b) {
         for (const k of ['readyAt', 'readyBy', 'servedAt', 'servedBy']) delete x[k]; // снова готовить и снова подать
         x.cookFrom = Date.now();
       }
-      logEvent(r.id, 'order_edit', { ...who, id: x.id, table: x.table, total: x.total, items: items.map((i) => [i.id, i.qty, i.price]), ...diff });
+      logEvent(r.id, 'order_edit', { ...who, id: x.id, table: x.table, total: x.total, items: evItems(items), ...diff });
     }
   } else {
     const x = (b.kind === 'call' ? db.calls : db.orders).find((y) => y.id === b.id && y.restaurantId === r.id);
@@ -3289,7 +3291,41 @@ function cleanAvatar(a, r) {
 // Название берём из акции при создании строки (переводы можно поправить в меню); цену, фото и видимость — всегда из акции.
 const PROMO_CAT = { ru: 'Акции', en: 'Promotions', th: 'โปรโมชั่น', zh: '优惠活动' };
 // Кнопка на слайде акции: 'price' — «Заказать · цена»; 'free' — «Заказать по акции» (в заказе ฿0, например «2 + 1»); 'none' — без кнопки
-const promoMode = (p) => (p.orderMode === 'none' ? 'none' : p.orderMode === 'price' && p.price > 0 ? 'price' : 'free');
+const promoMode = (p) => (p.orderMode === 'none' ? 'none'
+  : p.orderMode === 'price' && (p.price > 0 || (p.variants || []).some((v) => v.price > 0)) ? 'price' : 'free');
+// Варианты акции («Выберите пирожное»: Наполеон ฿120, Чизкейк ฿150) — группа выбора у строки меню акции.
+// У каждого варианта своя полная цена (в режиме «Заказать по акции» — ฿0); выбрать одно или несколько.
+// Заголовок, не написанный на языке гостя, — общий «Выберите вариант»
+const VAR_TITLE = {
+  one: { ru: 'Выберите вариант', en: 'Choose an option', th: 'เลือกตัวเลือก', zh: '请选择' },
+  many: { ru: 'Выберите (можно несколько)', en: 'Choose (you can pick several)', th: 'เลือก (เลือกได้หลายอย่าง)', zh: '请选择（可多选）' },
+};
+// Цена на кнопке слайда и в меню: самая низкая из вариантов; «от», если варианты стоят по-разному или можно выбрать несколько
+function promoPrice(p) {
+  if (promoMode(p) !== 'price') return { price: 0 };
+  const ps = (p.variants || []).map((v) => v.price).filter((x) => x > 0);
+  if (!ps.length) return { price: p.price };
+  const min = Math.min(...ps);
+  return { price: min, ...(Math.max(...ps) > min || p.vMany ? { from: true } : {}) };
+}
+// Переводы вариантов: незаполненные языки — из блюда меню с тем же русским названием («Наполеон»), затем словарь меню
+function fillVariantNames(r, p) {
+  const key = (x) => String(x || '').trim().toLowerCase();
+  const dishes = new Map((r.menu || []).filter((i) => !i.fromPromo && i.name?.ru).map((i) => [key(i.name.ru), i.name]));
+  for (const v of p.variants || []) {
+    const d = dishes.get(key(v.name.ru));
+    if (d) for (const l of ['ru', 'en', 'th', 'zh']) if (!v.name[l] && d[l]) v.name[l] = d[l];
+    fillTr(v.name);
+  }
+  if (p.vTitle) fillTr(p.vTitle);
+}
+function promoGroup(p) {
+  const priced = promoMode(p) === 'price', type = p.vMany ? 'many' : 'one';
+  return {
+    id: 'pv', name: { ...VAR_TITLE[type], ...nonEmpty(p.vTitle) }, type, req: priced || p.vReq !== false,
+    opts: p.variants.map((v) => ({ id: v.id, name: { ...v.name }, price: priced ? v.price : 0 })),
+  };
+}
 // Строка меню новой акции: «Акция N: название» на языке гостя (N — номер акции в списке); менеджер может переименовать
 const PROMO_WORD = { ru: 'Акция', en: 'Promo', th: 'โปรโมชั่น', zh: '优惠' };
 const promoLineName = (n, names) => Object.fromEntries(Object.entries(PROMO_WORD).map(([l, w]) => [l, `${w} ${n}: ${names[l] || names.ru || 'Promo'}`]));
@@ -3304,7 +3340,13 @@ function syncPromoItems(r) {
       menu.push(it);
     }
     if (Object.values(it.name || {}).some((v) => v === BROKEN) && p.name) it.name = promoLineName(n, { ru: p.name });
-    Object.assign(it, { price: promoMode(p) === 'price' ? p.price : 0, photo: p.image, hidden: !p.active, cat: { ...PROMO_CAT, ...it.cat } });
+    // с вариантами цена — у варианта (полная), у самой строки — ฿0
+    const vs = (p.variants || []).length;
+    if (vs) fillVariantNames(r, p);
+    Object.assign(it, {
+      price: promoMode(p) === 'price' && !vs ? p.price : 0, groups: vs ? [promoGroup(p)] : [],
+      photo: p.image, hidden: !p.active, cat: { ...PROMO_CAT, ...it.cat },
+    });
   }
   r.menu = menu;
 }
@@ -3316,6 +3358,9 @@ function promoName(p, old) {
   return n && n !== BROKEN ? String(n) : old(p);
 }
 
+// Текст на языках гостя { ru, en, th, zh } (строка — русский)
+const langText = (o) => Object.fromEntries(['ru', 'en', 'th', 'zh']
+  .map((l) => [l, String((typeof o === 'string' ? (l === 'ru' ? o : '') : o?.[l]) || '').replace(/\s+/g, ' ').trim().slice(0, 80)]).filter(([, v]) => v));
 // Картинки акции по языкам { ru, en, th, zh }: на планшете — на языке гостя, иначе английская или любая другая.
 // image — запасная (первая загруженная), для превью и старых данных
 function cleanPromos(list) {
@@ -3329,6 +3374,10 @@ function cleanPromos(list) {
     price: Math.max(0, Math.round(Number(p.price)) || 0),
     orderMode: ['price', 'free', 'none'].includes(p.orderMode) ? p.orderMode : p.price > 0 ? 'price' : 'free',
     link: String(p.link || '').trim(), phone: String(p.phone || '').trim(), ...qrPlace(p), ...framing(p),
+    variants: (Array.isArray(p.variants) ? p.variants : []).map((v) => ({
+      id: /^[\w-]{1,40}$/.test(v?.id || '') ? v.id : uid(), name: langText(v?.name), price: Math.max(0, Math.round(Number(v?.price)) || 0),
+    })).filter((v) => Object.values(v.name).some(Boolean)).slice(0, 30),
+    vTitle: langText(p.vTitle), vMany: !!p.vMany, vReq: p.vReq !== false,
   }));
 }
 
