@@ -1294,7 +1294,7 @@ function renderServer() {
   // стрелки плавно доходят до нового значения
   requestAnimationFrame(() => requestAnimationFrame(() => document.querySelectorAll('#srvPanel .ndl').forEach((n) => { n.style.transform = `rotate(${n.dataset.to}deg)`; })));
 }
-// Трафик VPS за месяц: прибор (доля лимита), табло, столбики по дням, на что ушёл и по ресторанам
+// Трафик VPS за период OVH (с даты установки VPS, у нас — с 30-го): прибор (доля лимита), табло, столбики по дням, на что ушёл и по ресторанам
 function trafficPlate(t, pct, here) {
   const dd = (ts) => new Date(ts).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
   const dt = (ts) => new Date(ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -1303,21 +1303,21 @@ function trafficPlate(t, pct, here) {
   const share = (list) => { const sum = list.reduce((a, x) => a + x.b, 0) || 1; return list.map((x) => `<div class="trow"><span>${esc(x.name)}</span><b>${fmtB(x.b)}</b><i style="width:${Math.max(1, (100 * x.b) / sum).toFixed(1)}%"></i></div>`).join(''); };
   const src = t.src === 'host' ? 'счётчики сетевой карты VPS — то же, что считает OVH'
     : t.src === 'container' ? 'счётчики контейнера этой версии сервера — счётчики всего VPS появятся после выкатки' : 'счётчиков пока нет';
-  return `<div class="cp-row"><div class="plate traf"><h3>ТРАФИК VPS · ${esc(t.month)} · ЛИМИТ ${fmtB(t.quota)}</h3><div class="tw">
-    ${gauge('traf', { label: 'ИСХОДЯЩИЙ', unit: '% лимита за месяц', v: pct, max: 100, major: [0, 20, 40, 60, 80, 100], zones: [[0, 70, 'g'], [70, 90, 'c'], [90, 100, 'w']], text: `${num(pct)}%`, st })}
+  return `<div class="cp-row"><div class="plate traf"><h3>ТРАФИК VPS · ПЕРИОД OVH ${t.from ? dd(t.from) + ' – ' + dd(t.to - 864e5) : esc(t.month)} · ЛИМИТ ${fmtB(t.quota)}</h3><div class="tw">
+    ${gauge('traf', { label: 'ИСХОДЯЩИЙ', unit: '% лимита за период', v: pct, max: 100, major: [0, 20, 40, 60, 80, 100], zones: [[0, 70, 'g'], [70, 90, 'c'], [90, 100, 'w']], text: `${num(pct)}%`, st })}
     <div class="eicas">
-      <div><small>ИСХОДЯЩИЙ ЗА МЕСЯЦ</small><b class="${st}">${fmtB(t.tx)}</b></div>
-      <div><small>ВХОДЯЩИЙ ЗА МЕСЯЦ</small><b>${fmtB(t.rx)}</b></div>
+      <div><small>ИСХОДЯЩИЙ ЗА ПЕРИОД</small><b class="${st}">${fmtB(t.tx)}</b></div>
+      <div><small>ВХОДЯЩИЙ ЗА ПЕРИОД</small><b>${fmtB(t.rx)}</b></div>
       <div><small>СЕГОДНЯ (UTC)</small><b>${fmtB(t.today?.tx || 0)}</b></div>
       <div><small>ВЧЕРА</small><b>${t.yesterday ? fmtB(t.yesterday.tx) : '—'}</b></div>
       <div><small>В СРЕДНЕМ ЗА ДЕНЬ</small><b>${t.perDay == null ? 'нужно 1–3 дня' : fmtB(t.perDay)}</b></div>
-      <div><small>ПРОГНОЗ К КОНЦУ МЕСЯЦА</small><b class="${t.forecast > t.quota ? 'w' : ''}">${t.forecast == null ? '—' : fmtB(t.forecast)}</b></div>
+      <div><small>ПРОГНОЗ К КОНЦУ ПЕРИОДА${t.to ? ' (' + dd(t.to - 864e5) + ')' : ''}</small><b class="${t.forecast > t.quota ? 'w' : ''}">${t.forecast == null ? '—' : fmtB(t.forecast)}</b></div>
       ${t.over ? `<div style="grid-column:1/-1"><small>ЛИМИТ ЗАКОНЧИТСЯ</small><b class="w">≈ ${dd(t.over)} — дальше скорость 10 Мбит/с</b></div>` : ''}</div></div>
     <div class="tdays" role="img" aria-label="Исходящий трафик по дням">${t.days.map((x) => `<span class="${x.d === today ? 'now' : ''}" style="height:${((100 * x.tx) / max).toFixed(1)}%" title="${x.d}: исходящий ${fmtB(x.tx)}, входящий ${fmtB(x.rx)}"></span>`).join('')}</div>
     <div class="tdl"><span>${t.days[0] ? dd(t.days[0].d) : ''}</span><span>исходящий по дням (UTC), наведите на столбик</span><span>${t.days.length ? 'сегодня' : ''}</span></div>
     <div class="tsplit"><div><h4>НА ЧТО УШЁЛ (${here === 'test' ? 'ТЕСТОВАЯ' : 'РАБОЧАЯ'} ВЕРСИЯ, С ${t.since ? dt(t.since) : '—'})</h4>${share(t.cats) || '<small>данных пока нет</small>'}</div>
       <div><h4>ПО РЕСТОРАНАМ (ОПРОСЫ ПЛАНШЕТОВ, ТЕЛЕФОНОВ, ПЕРСОНАЛА)</h4>${share(t.rest) || '<small>данных пока нет</small>'}</div></div>
-    <div class="tdet">Источник: ${src}.${t.pre ? ` До начала учёта (${dt(t.pre.at)}) — ${fmtB(t.pre.tx)} исходящего${t.pre.part ? ', оценка: VPS работает с ' + dd(t.pre.boot) + ', взята доля дней этого месяца' : ''}.` : ''}
+    <div class="tdet">Источник: ${src}.${t.pre ? ` До начала учёта (${dt(t.pre.at)}) — ${fmtB(t.pre.tx)} исходящего${t.pre.part ? ', оценка: VPS работает с ' + dd(t.pre.boot) + ', взята доля дней этого периода' : ' — весь счётчик с запуска VPS (' + dt(t.pre.boot) + ')'}.` : ''}
       Фото блюд с сайтов ресторанов скопировано к нам: ${t.mirror.done} из ${t.mirror.total}${t.mirror.done < t.mirror.total ? ' (по 150 каждые 10 минут)' : ''}${t.mirror.failed ? `, не скачалось ${t.mirror.failed} — повтор через час, планшет пока берёт их с сайта` : ''}. Офлайн-запас на планшетах: ${t.offline ? 'включён' : 'выключен'}.</div></div></div>`;
 }
 // Настройки под панелью (не перерисовываются каждые 5 секунд — поле ввода не сбрасывается)
@@ -1326,10 +1326,12 @@ function renderSrvSet(t) {
   if (!t || (el.dataset.done && !el.dataset.force)) return;
   el.dataset.done = '1'; delete el.dataset.force; el.hidden = false;
   el.innerHTML = `<b>НАСТРОЙКИ</b>
-    <label>Лимит исходящего трафика VPS, ГБ в месяц <input type="number" id="trQuota" min="10" value="${Math.round(t.quota / GB)}"> <button id="trSave">Сохранить</button>
+    <label>Лимит исходящего трафика VPS, ГБ в месяц <input type="number" id="trQuota" min="10" value="${Math.round(t.quota / GB)}">
+      · период OVH начинается <input type="number" id="trDay" min="1" max="31" value="${t.day || 1}" style="width:64px"> числа <button id="trSave">Сохранить</button>
+      <small>OVH считает месяц не с 1-го, а с даты установки VPS (у нас — 30-е): с этого числа и до того же числа следующего месяца.</small>
       <small>OVH, Сингапур: при превышении скорость падает до 10 Мбит/с. В Telegram — при 70% и 90% (бот с «Сервер: трафик VPS»).</small></label>
     <label><input type="checkbox" id="trOffline" ${t.offline ? 'checked' : ''}> Офлайн-запас на планшетах <small>— страница, меню и фото хранятся на планшете и открываются без интернета. Выключить — если что-то пошло не так: планшеты уберут запас при следующем опросе.</small></label>`;
-  $('trSave').onclick = async () => { const r = await api('/api/server/settings', 'POST', { trafficQuotaGB: Number($('trQuota').value) }); if (r.error) return alert(r.error); el.dataset.force = '1'; loadServer(); };
+  $('trSave').onclick = async () => { const r = await api('/api/server/settings', 'POST', { trafficQuotaGB: Number($('trQuota').value), trafficDay: Number($('trDay').value) }); if (r.error) return alert(r.error); el.dataset.force = '1'; loadServer(); };
   $('trOffline').onchange = async (e) => { const r = await api('/api/server/settings', 'POST', { guestOffline: e.target.checked }); if (r.error) { alert(r.error); e.target.checked = !e.target.checked; } };
 }
 async function loadServer() {

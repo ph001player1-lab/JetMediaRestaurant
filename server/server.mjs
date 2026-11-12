@@ -205,10 +205,21 @@ function internalDevice(b, q, req) {
 // ---------- Трафик VPS. У OVH в Сингапуре исходящий трафик ограничен (по умолчанию 500 ГБ в месяц, дальше — 10 Мбит/с).
 // Считаем: 1) счётчики сетевой карты VPS — то же, что видит OVH (docker-compose подключает /proc хоста только на чтение;
 // без него — счётчики контейнера сервера, без тестовой копии); 2) разбивку внутри сервера — по видам запросов и ресторанам.
-// Раз в минуту прибавляем к дню (по UTC, как месяц у OVH); храним 70 дней. 70% и 90% лимита — сообщение в Telegram
+// Раз в минуту прибавляем к дню (по UTC); храним 70 дней. 70% и 90% лимита — сообщение в Telegram.
+// Период OVH — не календарный месяц, а с даты установки VPS: с «дня начала» (настройка, у нашего VPS — 30-е) 00:00 UTC
+// до того же числа следующего месяца (в коротком месяце — его последний день)
 const GIB = 1024 ** 3;
 const tDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
 const monthStart = (t = Date.now()) => { const d = new Date(t); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); };
+function trafficPeriod(now = Date.now()) {
+  const D = Math.min(31, Math.max(1, Math.round(Number(db.settings.trafficDay)) || 1));
+  const at = (y, m) => Date.UTC(y, m, Math.min(D, new Date(Date.UTC(y, m + 1, 0)).getUTCDate()));
+  const d = new Date(now), y = d.getUTCFullYear();
+  let m = d.getUTCMonth();
+  if (at(y, m) > now) m -= 1;
+  const from = at(y, m), to = at(y, m + 1);
+  return { key: tDay(from), from, to, day: D };
+}
 const TRAFFIC_CATS = [
   ['guest', 'Планшеты и телефоны гостей', /^\/(api\/guest\/|t\/)/], ['staff', 'Приложение персонала и ЛК', /^\/api\/(staff|manager)\//],
   ['kitchen', 'Экран кухни', /^\/api\/kitchen\//], ['device', 'Агент планшетов', /^\/api\/device\//],
@@ -257,9 +268,9 @@ function trafficTick() {
       day.rx += back ? c.rx : c.rx - prev.rx;
       day.tx += back ? c.tx : c.tx - prev.tx;
     } else if (c.src === 'host') {
-      // первый замер: на счётчике всё с запуска VPS — в этот месяц берём долю дней этого месяца (оценка)
-      const boot = now - os.uptime() * 1000, ms = monthStart(now), k = boot >= ms ? 1 : (now - ms) / Math.max(1, now - boot);
-      T.pre = { month: tDay(now).slice(0, 7), rx: Math.round(c.rx * k), tx: Math.round(c.tx * k), boot, at: now, part: k < 1 };
+      // первый замер: на счётчике всё с запуска VPS — сам счётчик храним, в период берём его весь (VPS запущен в этом
+      // периоде) или долю дней (запущен раньше — оценка), см. preOf
+      T.pre = { rawTx: c.tx, rawRx: c.rx, boot: now - os.uptime() * 1000, at: now };
     }
     T.last = { ...c, at: now };
     T.src = c.src;
@@ -272,40 +283,62 @@ function trafficTick() {
   trafficAlert();
   if (++trafficSaves % 10 === 0) save();
 }
-// Месяц: сумма дней (UTC) + оценка до начала учёта; прогноз — по среднему за последние 3 полных дня
+// трафик до начала учёта (счётчик сетевой карты с запуска VPS), если учёт начался в этом периоде
+function preOf(p) {
+  const pre = db.traffic.pre;
+  if (!pre || !(pre.rawTx >= 0) || pre.at < p.from || pre.at >= p.to) return null;
+  const k = pre.boot >= p.from ? 1 : (pre.at - p.from) / Math.max(1, pre.at - pre.boot);
+  return { tx: Math.round(pre.rawTx * k), rx: Math.round(pre.rawRx * k), boot: pre.boot, at: pre.at, part: k < 1 };
+}
+// Период OVH: сумма дней (UTC) + до начала учёта; прогноз к концу периода — по среднему за последние 3 полных дня
 function trafficMonth(now = Date.now()) {
-  const T = db.traffic, mon = tDay(now).slice(0, 7), quota = (Number(db.settings.trafficQuotaGB) || 500) * GIB;
-  const days = Object.entries(T.days).filter(([d]) => d.startsWith(mon));
-  const sum = (f) => days.reduce((a, [, x]) => a + (x[f] || 0), 0) + (T.pre?.month === mon ? T.pre[f] || 0 : 0);
+  const T = db.traffic, p = trafficPeriod(now), mon = p.key, quota = (Number(db.settings.trafficQuotaGB) || 500) * GIB, end = tDay(p.to);
+  const days = Object.entries(T.days).filter(([d]) => d >= mon && d < end), pre = preOf(p);
+  const sum = (f) => days.reduce((a, [, x]) => a + (x[f] || 0), 0) + (pre ? pre[f] : 0);
   const tx = sum('tx'), rx = sum('rx');
   const full = [1, 2, 3].map((i) => T.days[tDay(now - i * 864e5)]?.tx).filter((x) => x != null);
   const perDay = full.length ? full.reduce((a, b) => a + b, 0) / full.length : null;
-  const end = Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth() + 1, 1);
-  const forecast = perDay == null ? null : tx + (perDay * (end - now)) / 864e5;
+  const forecast = perDay == null ? null : tx + (perDay * (p.to - now)) / 864e5;
   const over = perDay && tx < quota && forecast > quota ? now + ((quota - tx) / perDay) * 864e5 : null;
-  return { month: mon, tx, rx, quota, perDay, forecast, over };
+  return { month: mon, from: p.from, to: p.to, day: p.day, tx, rx, quota, pct: (100 * tx) / quota, perDay, forecast, over, pre };
 }
 function trafficAlert() {
   if (INSTANCE !== 'prod' || db.traffic.src !== 'host') return;
   const m = trafficMonth(), sent = ((db.traffic.alerts ??= {})[m.month] ??= []);
-  for (const p of [70, 90]) {
-    if (m.tx < (m.quota * p) / 100 || sent.includes(p)) continue;
-    sent.push(p);
-    tgTo('server', `⚠️ Трафик VPS: исходящий за месяц — ${(m.tx / GIB).toFixed(0)} ГБ из ${(m.quota / GIB).toFixed(0)} ГБ (${p}%).`
+  // одно сообщение о самом высоком пройденном пороге (перешли сразу 70 и 90 — только о 90)
+  const hit = [90, 70].find((p) => m.tx >= (m.quota * p) / 100 && !sent.includes(p));
+  if (hit) {
+    for (const p of [70, 90]) if (p <= hit && !sent.includes(p)) sent.push(p);
+    tgTo('server', `⚠️ Трафик VPS: исходящий за период OVH (с ${clock(m.from).slice(0, 5)}) — ${(m.tx / GIB).toFixed(0)} ГБ из ${(m.quota / GIB).toFixed(0)} ГБ (${Math.floor(m.pct)}%).`
       + (m.over ? ` При нынешнем темпе лимит закончится ${clock(m.over).slice(0, 5)} — дальше скорость 10 Мбит/с.` : '')
       + ' Подробно — админка → «Сервер».').catch(() => {});
   }
   for (const k of Object.keys(db.traffic.alerts)) if (k < m.month) delete db.traffic.alerts[k];
 }
+// Однократно: период OVH — с 30-го (дата установки VPS 30.10); замер до начала учёта — счётчиком целиком;
+// уже отправленные сообщения о пороге — за новый период
+function trafficPeriodMigrate() {
+  if (db.migrations.trafficPeriod) return;
+  db.settings.trafficDay ??= 30;
+  const pre = db.traffic.pre;
+  if (pre && pre.tx >= 0 && !(pre.rawTx >= 0)) {
+    const ms = monthStart(pre.at), k = pre.part ? (pre.at - ms) / Math.max(1, pre.at - pre.boot) : 1;
+    db.traffic.pre = { rawTx: Math.round(pre.tx / k), rawRx: Math.round(pre.rx / k), boot: pre.boot, at: pre.at };
+  }
+  const al = db.traffic.alerts || {}, cur = al[tDay().slice(0, 7)];
+  if (cur) (al[trafficPeriod().key] ??= []).push(...cur.filter((p) => !(al[trafficPeriod().key] || []).includes(p)));
+  for (const k of Object.keys(al)) if (k.length === 7) delete al[k];
+  db.migrations.trafficPeriod = Date.now();
+}
 function trafficReport() {
-  const T = db.traffic, m = trafficMonth(), mon = m.month, cats = {}, rest = {};
+  const T = db.traffic, m = trafficMonth(), mon = m.month, end = tDay(m.to), cats = {}, rest = {};
   for (const [d, x] of Object.entries(T.days)) {
-    if (!d.startsWith(mon)) continue;
+    if (d < mon || d >= end) continue;
     for (const [k, v] of Object.entries(x.app || {})) cats[k] = (cats[k] || 0) + v;
     for (const [k, v] of Object.entries(x.rest || {})) rest[k] = (rest[k] || 0) + v;
   }
   return {
-    ...m, src: T.src || '', since: T.since || 0, pre: T.pre?.month === mon ? T.pre : null,
+    ...m, src: T.src || '', since: T.since || 0,
     today: T.days[tDay()] || null, yesterday: T.days[tDay(Date.now() - 864e5)] || null,
     days: Object.keys(T.days).sort().slice(-31).map((d) => ({ d, tx: T.days[d].tx || 0, rx: T.days[d].rx || 0 })),
     cats: TRAFFIC_CATS.map(([k, name]) => ({ k, name, b: cats[k] || 0 })).concat([{ k: 'other', name: 'Прочее', b: cats.other || 0 }]).filter((x) => x.b),
@@ -537,6 +570,7 @@ db.settings ??= {};
 db.traffic ??= { days: {} }; // трафик VPS по дням (админка → «Сервер»)
 // Однократно: прежние роли → доступы по разделам (админ — всё на редактирование, CRM — если была галочка; «только статистика» — статистика)
 db.migrations ??= {};
+trafficPeriodMigrate();
 if (!db.migrations.perms) {
   for (const a of db.admins || []) {
     if (a.role === 'super' || a.perms) continue;
@@ -764,7 +798,7 @@ function diagEvents(b, q, req) {
 // Нагрузка сервера: процессор, память, диск, отклик, запросы в минуту
 function diagServer(b, q, req) {
   diagAuth(req);
-  return { instance: INSTANCE, version: VERSION, self: selfStats(DATA_DIR), host: hostStats(DATA_DIR) };
+  return { instance: INSTANCE, version: VERSION, self: selfStats(DATA_DIR), host: hostStats(DATA_DIR), traffic: trafficReport() };
 }
 
 function adminsApi(method, p, b, me) {
@@ -4217,8 +4251,9 @@ function admin(method, p, b, me, q) {
     if (scope) throw fail(403, 'Нет доступа');
     if (b.trafficQuotaGB !== undefined) db.settings.trafficQuotaGB = Math.min(100000, Math.max(10, Math.round(Number(b.trafficQuotaGB)) || 500));
     if (b.guestOffline !== undefined) db.settings.guestOfflineOff = !b.guestOffline;
+    if (b.trafficDay !== undefined) db.settings.trafficDay = Math.min(31, Math.max(1, Math.round(Number(b.trafficDay)) || 1));
     save();
-    return { trafficQuotaGB: db.settings.trafficQuotaGB || 500, guestOffline: !db.settings.guestOfflineOff };
+    return { trafficQuotaGB: db.settings.trafficQuotaGB || 500, trafficDay: db.settings.trafficDay || 1, guestOffline: !db.settings.guestOfflineOff };
   }
   if (method === 'POST' && p === '/api/export/link') {
     if (scope) throw fail(403, 'Нет доступа');
