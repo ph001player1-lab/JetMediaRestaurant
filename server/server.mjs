@@ -1873,7 +1873,8 @@ function buildItems(r, list, guest = false) {
     .slice(0, 50)
     .map((x) => {
       const m = menu.get(x.id);
-      const opt = x.opt ? (m.options || []).find((o) => o.key === x.opt) : null;
+      // единственный вариант (фреш · 0,2 л) — без выбора, но в название заказа
+      const opt = x.opt ? (m.options || []).find((o) => o.key === x.opt) : m.options?.length === 1 ? m.options[0] : null;
       // К названию добавляем вариант: «Пиво · 500 мл»
       const name = opt
         ? Object.fromEntries(Object.entries(m.name).map(([l, v]) => [l, `${v} · ${opt.label[l] || Object.values(opt.label)[0] || ''}`]))
@@ -1881,16 +1882,20 @@ function buildItems(r, list, guest = false) {
       const g = Math.round(Number(x.g));
       // Выбор в группах (начинка, острота, добавки): цена — из меню, а не с планшета; без выбора — как по умолчанию в источнике
       const want = Array.isArray(x.mods) ? new Set(x.mods.map(String)) : null, picked = [];
+      const base = Number(opt ? opt.price : m.price) || 0;
+      let extra = 0;
       for (const gr of m.groups || []) {
         let sel = gr.opts.filter((o) => (want ? want.has(o.id) : o.def));
         if (gr.type === 'one') sel = sel.slice(0, 1);
         else if (gr.max) sel = sel.slice(0, gr.max); // «от 2 до 3» — не больше 3
         if (gr.req && !sel.length && gr.opts.length && !gr.nodef) sel = [gr.opts.find((o) => o.def) || gr.opts[0]];
         picked.push(...sel);
+        const ps = sel.map((o) => Number(o.price) || 0);
+        extra += gr.topup ? Math.max(0, Math.max(0, ...ps) - base) : ps.reduce((a, v) => a + v, 0);
       }
       const ml = picked.length ? Object.fromEntries([...new Set(picked.flatMap((o) => Object.keys(o.name)))].map((l) => [l,
         picked.map((o) => o.name[l] || Object.values(o.name)[0] || '').join(' · ')])) : undefined;
-      const price = (Number(opt ? opt.price : m.price) || 0) + picked.reduce((a, o) => a + (Number(o.price) || 0), 0);
+      const price = base + extra;
       return {
         id: m.id, opt: opt?.key || '', name, price, qty: Math.min(99, x.qty | 0), ...(g >= 1 && g <= 99 ? { g } : {}), ...(m.sku ? { sku: m.sku } : {}),
         ...(picked.length ? { mods: picked.map((o) => o.id), ml } : {}),
@@ -3020,6 +3025,8 @@ const cleanGroups = (list) => (Array.isArray(list) ? list : []).map((g) => ({
   ...(g?.type === 'many' && Number(g?.max) > 0 ? { max: Math.min(20, Math.round(Number(g.max))) } : {}),
   // «без выбора по умолчанию»: заранее ничего не отмечено — гость (и официант) выбирает сам (острота у Том Яма)
   ...(g?.nodef ? { nodef: true } : {}),
+  // «микс»: у вариантов полная цена (фрукта), блюдо стоит как самое дорогое из выбранного — доплата только сверх цены блюда
+  ...(g?.topup ? { topup: true } : {}),
   opts: (Array.isArray(g?.opts) ? g.opts : []).map((o) => ({
     id: String(o?.id ?? '').slice(0, 80) || uid(), name: trText(o?.name, 120), price: Math.max(0, Number(o?.price) || 0), def: !!o?.def,
   })).filter((o) => Object.keys(o.name).length).slice(0, 80),
@@ -4508,30 +4515,51 @@ if (!db.migrations.tgServer) {
   for (const bt of db.tgBots || []) if ((bt.kinds || []).includes('devices') && !bt.kinds.includes('server')) bt.kinds.push('server');
   db.migrations.tgServer = Date.now();
 }
+// Veranda: соки — 0,2 л и 1 л; фреши — только 0,2 л; квас — 0,2 л (пустая цена — цена блюда); молодой кокос — без объёма.
+// Квас — только по-русски «квас» (английское «kvass» есть и у окрошки на квасе)
+function verandaDrinkRules(r) {
+  const L = (ru, en, th, zh) => ({ ru, en, th, zh });
+  const V02 = L('0,2 л', '0.2 L', '0.2 ลิตร', '0.2升'), V1 = L('1 л', '1 L', '1 ลิตร', '1升');
+  const coconut = (r.menu || []).filter((i) => /кокос|coconut/i.test(`${i.name?.ru} ${i.name?.en}`) && ['Соки', 'Свежевыжатые соки'].includes(i.cat?.ru)).map((i) => i.id);
+  return [
+    { id: 'vr-juice', name: 'Соки: 0,2 л и 1 л', match: { cats: ['Соки'] }, exclude: coconut, add: { options: [{ label: V02, price: 0 }, { label: V1, price: 180 }] } },
+    { id: 'vr-fresh', name: 'Фреши: 0,2 л', match: { cats: ['Свежевыжатые соки'] }, exclude: coconut, add: { options: [{ label: V02, price: 0 }] } },
+    { id: 'vr-kvass', name: 'Квас: 0,2 л', match: { words: ['квас'] }, add: { options: [{ label: V02, price: 0 }] } },
+  ];
+}
+// Veranda: микс внутри каждого фреша — «Сделать микс»: добавить 1–2 других фрукта (своего фрукта в списке нет).
+// Цена микса — по самому дорогому фрукту (у фрукта — цена его фреша): арбуз + манго = ฿140, арбуз + морковь = ฿100.
+// Правка поверх источника — видна и правится в ЛК в карточке фреша. Отдельной позиции «Микс-фреш» больше нет
+const VR_FRUITS = [
+  { id: 'pineapple', re: /ананас|pineapple/i, name: ['Ананас', 'Pineapple', 'สับปะรด', '菠萝'] },
+  { id: 'watermelon', re: /арбуз|watermelon/i, name: ['Арбуз', 'Watermelon', 'แตงโม', '西瓜'] },
+  { id: 'apple', re: /яблоч|apple/i, name: ['Яблоко', 'Apple', 'แอปเปิ้ล', '苹果'] },
+  { id: 'mango', re: /манго|mango/i, name: ['Манго', 'Mango', 'มะม่วง', '芒果'] },
+  { id: 'carrot', re: /морков|carrot/i, name: ['Морковь', 'Carrot', 'แครอท', '胡萝卜'] },
+];
+function verandaFreshMix(r) {
+  const L = (ru, en, th, zh) => ({ ru, en, th, zh });
+  r.menu = (r.menu || []).filter((i) => i.id !== 'vr-mixfresh');
+  const fresh = r.menu.filter((i) => i.cat?.ru === 'Свежевыжатые соки' && !i.fromPromo)
+    .map((i) => ({ i, f: VR_FRUITS.find((f) => f.re.test(i.name?.ru || '')) })).filter((x) => x.f);
+  for (const { i, f } of fresh) {
+    const opts = fresh.filter((x) => x.f !== f).map((x) => ({ id: x.f.id, name: L(...x.f.name), price: Number(x.i.price) || 0, def: false }));
+    const mix = { id: 'mix', name: L('Сделать микс — добавьте фрукты', 'Make it a mix — add fruits', 'ทำเป็นน้ำผลไม้รวม — เพิ่มผลไม้', '做成混合果汁 — 加水果'),
+      type: 'many', req: false, max: 2, topup: true, opts };
+    const groups = [...(i.groups || []).filter((g) => !isRuleId(g.id) && g.id !== 'mix'), mix];
+    if (i.extId) applyMenuEdits(i, { ...i, groups, _ed: { groups: 1 } }, r); else i.groups = cleanGroups(groups);
+  }
+}
 // Однократно: Veranda — массовые правила меню, русские названия лимонадов, микс-фреш и подсказки к заказу
 // (заполнено по просьбе ресторана; дальше всё правится в ЛК)
 function verandaPresets(r) {
   const L = (ru, en, th, zh) => ({ ru, en, th, zh });
   const V03 = L('0,3 л', '0.3 L', '0.3 ลิตร', '0.3升'), V1 = L('1 л', '1 L', '1 ลิตร', '1升');
-  const ofCat = (...cats) => (r.menu || []).filter((i) => cats.includes(i.cat?.ru));
-  const coconut = ofCat('Соки', 'Свежевыжатые соки').filter((i) => /кокос|coconut/i.test(`${i.name?.ru} ${i.name?.en}`)).map((i) => i.id);
   // хинкали с телятиной: соус, добавленный вручную (только по-русски), — теперь из правила, с переводами
   for (const it of r.menu || []) {
     if (it.sku === 'M51' && it.ovr && 'groups' in it.ovr) { it.groups = jclone(it.src?.groups || []); delete it.ovr.groups; delete it.src?.groups; }
   }
-  // микс-фреш: 2–3 фрукта на выбор (без киви)
-  const freshCat = ofCat('Свежевыжатые соки')[0]?.cat || L('Свежевыжатые соки', 'Fresh juices', 'น้ำผลไม้คั้นสด', '鲜榨果汁');
-  if (!(r.menu || []).some((i) => i.id === 'vr-mixfresh')) {
-    const fruit = (id, ...n) => ({ id, name: L(...n), price: 0, def: false });
-    r.menu.push({
-      id: 'vr-mixfresh', cat: { ...freshCat }, name: L('Микс-фреш (2–3 фрукта)', 'Mix fresh (2–3 fruits)', 'น้ำผลไม้คั้นสดรวม (2–3 ชนิด)', '混合鲜榨果汁（2–3种水果）'),
-      desc: L('Свежевыжатый сок из 2–3 фруктов на ваш выбор', 'Freshly squeezed juice from 2–3 fruits of your choice', 'น้ำผลไม้คั้นสดจากผลไม้ 2–3 ชนิดตามที่คุณเลือก', '自选2–3种水果的鲜榨果汁'),
-      price: 140, photo: '', sku: '', promo: false, dayDish: false, hidden: false, off: false, options: [], tags: [],
-      groups: [{ id: 'mixfruits', name: L('Выберите фрукты', 'Choose fruits', 'เลือกผลไม้', '选择水果'), type: 'many', req: true, min: 2, max: 3, opts: [
-        fruit('apple', 'Яблоко', 'Apple', 'แอปเปิ้ล', '苹果'), fruit('carrot', 'Морковь', 'Carrot', 'แครอท', '胡萝卜'), fruit('mango', 'Манго', 'Mango', 'มะม่วง', '芒果'),
-        fruit('pineapple', 'Ананас', 'Pineapple', 'สับปะรด', '菠萝'), fruit('watermelon', 'Арбуз', 'Watermelon', 'แตงโม', '西瓜')] }],
-    });
-  }
+  verandaFreshMix(r); // микс — внутри каждого фреша
   r.menuRules = cleanMenuRules([
     { id: 'vr-sauce', name: 'Соус к пельменям, вареникам и хинкали',
       match: { cats: ['Пельмени, вареники, хинкали'], skus: ['M15S', 'M17S', 'M16S', 'M19S', 'M18S', 'M20S', 'M21S'] },
@@ -4542,8 +4570,7 @@ function verandaPresets(r) {
         { id: 'hot', name: L('Острый', 'Spicy', 'เผ็ด', '辣') }, { id: 'mild', name: L('Не острый', 'Not spicy', 'ไม่เผ็ด', '不辣') }] }] } },
     { id: 'vr-lemonade', name: 'Лимонады: 0,3 л и 1 л', match: { words: ['lemonade', 'лимонад'] }, add: { options: [{ label: V03, price: 0 }, { label: V1, price: 200 }] } },
     { id: 'vr-mors', name: 'Морс: 0,3 л и 1 л', match: { words: ['морс', 'mors'] }, add: { options: [{ label: V03, price: 0 }, { label: V1, price: 200 }] } },
-    { id: 'vr-juice', name: 'Соки и фреши: 0,3 л и 1 л', match: { cats: ['Соки', 'Свежевыжатые соки'] }, exclude: coconut,
-      add: { options: [{ label: V03, price: 0 }, { label: V1, price: 180 }] } },
+    ...verandaDrinkRules(r),
     { id: 'vr-coffee', name: 'Кофе: горячий или холодный', match: { words: ['американо', 'americano', 'капучино', 'cappuccino', 'латте', 'latte'] },
       add: { groups: [{ id: 'temp', name: L('Температура', 'Temperature', 'อุณหภูมิ', '温度'), type: 'one', req: true, opts: [
         { id: 'hot', name: L('Горячий', 'Hot', 'ร้อน', '热') }, { id: 'iced', name: L('Холодный', 'Iced', 'เย็น', '冰') }] }] } },
@@ -4623,6 +4650,20 @@ if (!db.migrations.verandaTomYum) {
     audit('сервер', 'Меню: острота у Том Яма и Том Ка — обязательный выбор без выбора по умолчанию; у «Том Ям с кокосовым молоком» без курицы', r.id);
   }
   db.migrations.verandaTomYum = Date.now();
+}
+// Однократно: Veranda — соки и фреши отдельными правилами (соки 0,2 л и 1 л, фреши только 0,2 л), квас 0,2 л,
+// микс внутри каждого фреша вместо отдельной позиции «Микс-фреш»
+if (!db.migrations.verandaDrinks) {
+  for (const r of Object.values(db.restaurants)) {
+    const k = (r.menuRules || []).findIndex((y) => y.id === 'vr-juice');
+    if (k < 0) continue;
+    const add = cleanMenuRules(verandaDrinkRules(r), r), ids = new Set(add.map((x) => x.id));
+    r.menuRules = [...r.menuRules.slice(0, k).filter((x) => !ids.has(x.id)), ...add, ...r.menuRules.slice(k + 1).filter((x) => !ids.has(x.id))];
+    verandaFreshMix(r);
+    applyRules(r);
+    audit('сервер', 'Меню: соки 0,2 л и 1 л, фреши 0,2 л, квас 0,2 л; микс внутри фрешей (цена — по самому дорогому фрукту), позиция «Микс-фреш» убрана', r.id);
+  }
+  db.migrations.verandaDrinks = Date.now();
 }
 // Однократно: меню из источника пересобрать по-новому (правки менеджера поверх источника) при следующей проверке
 if (!db.migrations.menuOvr) {
