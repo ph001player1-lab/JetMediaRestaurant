@@ -1475,23 +1475,69 @@ function orderStatus(o) {
 // Не навязываемся: одна подсказка на блюдо, не больше N за визит (настройка ресторана), не предлагаем то, что уже в
 // корзине или заказано; «Нет, спасибо» — это правило больше не показываем; два отказа — дальше только тихий блок в корзине
 var UP = upFresh(), upTimer = null;
-function upFresh() { return { shown: 0, seen: {}, no: {}, noCount: 0, turn: {}, logged: {}, asked: {}, sheetDone: false, open: null, pop: null }; }
-function upCfg() { return (state && state.upsell) || null; }
-function upEvent(k, rule, dish, mode, price) {
+function upFresh() {
+  return { shown: 0, seen: {}, no: {}, noCount: 0, turn: {}, logged: {}, asked: {}, sheetDone: false, open: null, pop: null,
+    t0: Date.now(), adds: 0, lastAdd: -99, lastT: 0, grp: null, grpSent: false, acted: true, showAt: 0, n: 0 };
+}
+function upRaw() { return (state && state.upsell) || null; }
+function upHash(x) { var h = 0; for (var i = 0; i < x.length; i++) h = (h * 31 + x.charCodeAt(i)) | 0; return Math.abs(h); }
+// Контрольная группа: часть визитов без подсказок — чтобы сравнить средний чек (группа — по планшету и номеру визита,
+// после перезагрузки страницы та же)
+function upIsCtrl() {
+  var U = upRaw();
+  if (UP.grp === null) UP.grp = U && U.control > 0 && upHash((D || KEY) + ':' + (state.visit || 0)) % 100 < U.control ? 'c' : 't';
+  return UP.grp === 'c';
+}
+function upCfg() {
+  var U = upRaw();
+  if (!U || (PHONE && U.phones === false) || upIsCtrl()) return null;
+  return U;
+}
+function upEvent(k, rule, dish, mode, price, extra) {
   if (PREVIEW || MPREVIEW || VIEW || PHONE || isEntrance()) return;
-  post('/api/guest/event', { k: k, rule: rule, dish: dish || '', mode: mode, price: price || 0 }).catch(function () {});
+  var b = { k: k, rule: rule, dish: dish || '', mode: mode, price: price || 0 };
+  for (var x in extra || {}) b[x] = extra[x];
+  post('/api/guest/event', b).catch(function () {});
+}
+// группа визита — один раз, при первом добавленном блюде
+function upGroup() {
+  var U = upRaw();
+  if (!U || UP.grpSent || !(U.control > 0)) return;
+  UP.grpSent = true;
+  upEvent('up_grp', '', '', '', 0, { g: upIsCtrl() ? 'c' : 't' });
 }
 function upOrdered() {
   var ids = {};
   (state.orders || []).forEach(function (o) { if (o.status !== 'rejected') o.items.forEach(function (i) { ids[i.id] = 1; }); });
   return ids;
 }
-// что предложить по правилу: нет в корзине и в заказах; сначала с фото; по кругу — в следующий раз другие
-function upOffer(r, n) {
-  var ord = upOrdered();
-  var list = r.offer.filter(function (id) { var i = MENU[id]; return i && !i.ask && !inCart(id) && !ord[id]; });
+function upPrice(i) {
+  var o = (i.options || []).map(function (x) { return Number(x.price) || 0; }).filter(Boolean);
+  return o.length ? Math.min.apply(null, o) : Number(i.price) || 0;
+}
+// подсказка по расписанию: дни недели (0 — понедельник) и часы «с — до» (через полночь — тоже)
+function upNow(r) {
+  var d = new Date(), wd = (d.getDay() + 6) % 7;
+  if (r.days && r.days.length && r.days.indexOf(wd) < 0) return false;
+  if (!r.from || !r.to) return true;
+  var hm = function (x) { var p = x.split(':'); return Number(p[0]) * 60 + Number(p[1]); };
+  var m = d.getHours() * 60 + d.getMinutes(), a = hm(r.from), b = hm(r.to);
+  return a <= b ? m >= a && m < b : m >= a || m < b;
+}
+// что предложить по правилу: нет в корзине и в заказах; не дороже потолка (× цены блюда); сначала с фото.
+// Порядок — с сервера (популярное у гостей / дорогое вперёд); «по правилу» и «вперемешку» — по кругу, в следующий раз другие;
+// умная иногда (explore) начинает с другого места — на пробу
+function upOffer(r, n, base) {
+  var U = upRaw() || {}, ord = upOrdered(), cap = U.priceCap > 0 && base > 0 ? base * U.priceCap : 0;
+  var list = r.offer.filter(function (id) {
+    var i = MENU[id];
+    return i && !i.ask && !inCart(id) && !ord[id] && (!U.photoOnly || i.photo) && (!cap || upPrice(i) <= cap);
+  });
   list = list.filter(function (id) { return MENU[id].photo; }).concat(list.filter(function (id) { return !MENU[id].photo; }));
-  var out = [], start = (UP.turn[r.id] || 0) % Math.max(1, list.length);
+  var start = 0;
+  if (U.order === 'rule' || U.order === 'mixed') start = (UP.turn[r.id] || 0) % Math.max(1, list.length);
+  else if (U.explore && Math.random() < U.explore) start = Math.floor(Math.random() * list.length);
+  var out = [];
   for (var k = 0; k < list.length && out.length < n; k++) out.push(list[(start + k) % list.length]);
   return out;
 }
@@ -1506,23 +1552,39 @@ function upAvatar() {
   return '<div class="upav">' + (im ? '<img src="' + esc(im) + '" alt="">' : '👨‍🍳') + '</div>';
 }
 function upAfterAdd(id) {
+  upGroup();
+  UP.adds++;
   var U = upCfg();
-  if (!U || !U.popup || PREVIEW || MPREVIEW || isEntrance() || UP.shown >= U.perVisit || UP.noCount >= 2 || UP.seen[id]) return;
+  if (!U || !U.popup || PREVIEW || MPREVIEW || isEntrance() || UP.shown >= U.perVisit || UP.noCount >= (U.maxNo || 2) || UP.seen[id]) return;
+  var now = Date.now();
+  if (now - UP.t0 < (U.quietMin || 0) * 60000) return; // первые минуты визита — гость осматривается
+  // пауза: не чаще, чем раз в N добавленных блюд и раз в N минут
+  if (UP.shown && (UP.adds - UP.lastAdd <= (U.gapDishes || 0) || now - UP.lastT < (U.gapMin || 0) * 60000)) return;
+  var base = upPrice(MENU[id] || {}), cands = [];
   for (var k = 0; k < U.rules.length; k++) {
     var r = U.rules[k];
-    if (r.nodrink || UP.no[r.id] || r.when.indexOf(id) < 0) continue;
-    var offer = upOffer(r, 12); // карусель: листается пальцем
+    if (r.nodrink || UP.no[r.id] || r.when.indexOf(id) < 0 || !upNow(r)) continue;
+    var offer = upOffer(r, U.cards || 8, base); // карусель: листается пальцем
     if (!offer.length) continue;
-    UP.seen[id] = 1; UP.shown++; UP.turn[r.id] = (UP.turn[r.id] || 0) + 3;
-    upEvent('up_show', r.id, id, 'popup');
-    setTimeout(function () { upPopup(r, offer); }, 700);
-    return;
+    cands.push({ r: r, offer: offer });
+    if (U.mode !== 'smart') break; // ручная — первая подходящая подсказка (порядок в ЛК)
   }
+  if (!cands.length) return;
+  // умная: подсказка, которая приносит больше за показ; иногда — другая, на пробу (иначе новые так и не покажутся)
+  var c = cands[0];
+  if (cands.length > 1) {
+    if (Math.random() < (U.explore || 0)) c = cands[Math.floor(Math.random() * cands.length)];
+    else cands.forEach(function (x) { if ((x.r.w || 0) > (c.r.w || 0)) c = x; });
+  }
+  UP.seen[id] = 1; UP.shown++; UP.lastAdd = UP.adds; UP.lastT = now; UP.turn[c.r.id] = (UP.turn[c.r.id] || 0) + 3;
+  upEvent('up_show', c.r.id, id, 'popup', 0, { n: UP.shown, nn: UP.noCount, tp: base });
+  setTimeout(function () { upPopup(c.r, c.offer, 0, id); }, U.delayMs || 700);
 }
 // pop — последняя всплывашка: открыли из неё блюдо и закрыли «✕» без выбора — показываем её снова на том же месте карусели
-function upPopup(r, offer, left) {
+function upPopup(r, offer, left, trig) {
   var el = $('upPop');
-  UP.pop = { r: r, offer: offer, left: left || 0 };
+  if (!left) { UP.showAt = Date.now(); UP.acted = false; UP.n = UP.shown; }
+  UP.pop = { r: r, offer: offer, left: left || 0, trig: trig || (UP.pop && UP.pop.trig) || '', tp: upPrice(MENU[trig || (UP.pop && UP.pop.trig)] || {}) };
   el.innerHTML = '<div class="uphead">' + upAvatar() + '<div class="upbub">' + esc(tr(r.text) || t('upDefault')) + '</div>' +
     '<button class="upx" data-upno="' + esc(r.id) + '" aria-label="✕">✕</button></div>' +
     '<div class="uprow">' + offer.map(function (id) { return upCard(r.id, id, 'popup'); }).join('') + '</div>' +
@@ -1531,27 +1593,41 @@ function upPopup(r, offer, left) {
   if (left) el.querySelector('.uprow').scrollLeft = left;
   upArm();
 }
+// для умной: место карточки, сколько думал гость, какая по счёту всплывашка, к какому блюду
+function upPopExtra(id) {
+  var p = UP.pop;
+  if (!p) return {};
+  var pos = p.offer.indexOf(id);
+  return { pos: pos >= 0 ? pos : '', ms: UP.showAt ? Date.now() - UP.showAt : '', n: UP.n, nn: UP.noCount, tp: p.tp, tr: p.trig };
+}
 // уходим из всплывашки в карточку блюда — запоминаем, докуда пролистали
 function upLeave() {
   var row = $('upPop').querySelector('.uprow');
   if (UP.pop && row) UP.pop.left = row.scrollLeft;
   upHide();
 }
-function upBack() { if (UP.pop) upPopup(UP.pop.r, UP.pop.offer, UP.pop.left); }
-function upArm() { clearTimeout(upTimer); upTimer = setTimeout(upHide, 9000); }
+function upBack() { if (UP.pop) upPopup(UP.pop.r, UP.pop.offer, UP.pop.left || 1); }
+function upArm() { var U = upRaw() || {}; clearTimeout(upTimer); upTimer = setTimeout(upTimeout, (U.showSec || 9) * 1000); }
+// исчезла сама — гость не тронул
+function upTimeout() {
+  if (UP.pop && !UP.acted) { UP.acted = true; upEvent('up_ign', UP.pop.r.id, UP.pop.trig, 'popup', 0, { n: UP.n, nn: UP.noCount }); }
+  upHide();
+}
 function upHide() { clearTimeout(upTimer); if ($('upPop')) $('upPop').className = ''; }
 $('upPop').addEventListener('pointerdown', upArm);
 $('upPop').addEventListener('scroll', upArm, true); // листают карусель — не прячем
 function upDecline(rid) {
-  if (!UP.no[rid]) { UP.no[rid] = 1; UP.noCount++; upEvent('up_no', rid, '', 'popup'); }
+  if (!UP.no[rid]) { upEvent('up_no', rid, '', 'popup', 0, upPopExtra('')); UP.no[rid] = 1; UP.noCount++; }
+  UP.acted = true;
   upHide();
 }
 function upAdd(v) {
   var p = v.split('|'), rid = p[0], id = p[1], mode = p[2], i = MENU[id];
   if (!i) return;
   // с выбором (объём, допы) — сначала окно выбора; засчитаем, когда добавят
-  if (hasChoice(i)) { UP.open = { rule: rid, mode: mode, id: id }; if (mode === 'popup') upLeave(); openOptions(id); return; }
-  upEvent('up_add', rid, id, mode, Number(i.price) || 0);
+  if (hasChoice(i)) { UP.open = { rule: rid, mode: mode, id: id }; if (mode === 'popup') { upEvent('up_open', rid, id, mode); upLeave(); } openOptions(id); return; }
+  upEvent('up_add', rid, id, mode, upPrice(i), mode === 'popup' ? upPopExtra(id) : {});
+  if (mode === 'popup') UP.acted = true;
   cart[id] = (cart[id] || 0) + 1;
   toast(t('added'));
   renderAll();
@@ -1566,12 +1642,17 @@ function upForCart(n, mode) {
   var inC = {}, ord = upOrdered();
   Object.keys(cart).forEach(function (k) { inC[k.split('|')[0]] = 1; });
   var rules = [], lists = [], ids = [], took = {}, most = 0;
-  U.rules.forEach(function (r) {
-    if (UP.no[r.id]) return;
+  var list = U.rules.slice();
+  if (U.mode === 'smart') list.sort(function (a, b) { return (b.w || 0) - (a.w || 0); }); // умная: что приносит больше — первым
+  list.forEach(function (r) {
+    if (UP.no[r.id] || !upNow(r)) return;
     var hit = r.when.some(function (id) { return inC[id]; });
     if (r.nodrink) hit = hit && !r.drinks.some(function (id) { return inC[id] || ord[id]; });
     if (!hit) return;
-    var got = upOffer(r, n);
+    // ценовой потолок — от самого дорогого блюда в корзине, к которому эта подсказка
+    var base = 0;
+    Object.keys(cart).forEach(function (k) { var id = k.split('|')[0]; if (r.when.indexOf(id) >= 0) base = Math.max(base, upPrice(MENU[id] || {})); });
+    var got = upOffer(r, n, base);
     if (!got.length) return;
     rules.push(r); lists.push(got); most = Math.max(most, got.length);
   });
@@ -1595,7 +1676,7 @@ function upCartBlock() {
 // «Дополнить заказ?» — один раз перед отправкой, если есть что предложить; true — шторка показана
 function upSheet(again) {
   var U = upCfg();
-  if (!U || !U.sheet || MPREVIEW || PREVIEW || (!again && (UP.sheetDone || UP.noCount >= 2))) return false;
+  if (!U || !U.sheet || MPREVIEW || PREVIEW || (!again && (UP.sheetDone || UP.noCount >= (U.maxNo || 2)))) return false;
   var f = upForCart(6, 'sheet');
   if (!f.ids.length && !again) return false;
   sheetMode = 'upsell';
@@ -2362,7 +2443,7 @@ document.addEventListener('click', function (e) {
   var dish = e.target.closest('[data-dish]');
   if (dish && !e.target.closest('button')) {
     // карточка из подсказки: открываем блюдо, как из меню; добавят — засчитаем подсказке и вернём в корзину / «Дополнить заказ?»
-    if (dish.dataset.up) { var up = dish.dataset.up.split('|'); UP.open = { rule: up[0], mode: up[1], id: dish.dataset.dish }; if (up[1] === 'popup') upLeave(); }
+    if (dish.dataset.up) { var up = dish.dataset.up.split('|'); UP.open = { rule: up[0], mode: up[1], id: dish.dataset.dish }; if (up[1] === 'popup') { upEvent('up_open', up[0], dish.dataset.dish, 'popup'); upLeave(); } }
     else UP.open = null;
     openOptions(dish.dataset.dish, true);
     return;
@@ -2416,7 +2497,8 @@ document.addEventListener('click', function (e) {
     var from = UP.open && UP.open.id === pick.id ? UP.open : null;
     UP.open = null;
     if (from) {
-      upEvent('up_add', from.rule, pick.id, from.mode, pl ? pl.price : mi.price);
+      upEvent('up_add', from.rule, pick.id, from.mode, pl ? pl.price : mi.price, from.mode === 'popup' ? upPopExtra(pick.id) : {});
+      if (from.mode === 'popup') UP.acted = true;
       if (from.mode === 'sheet') upSheet(true);
       else if (from.mode === 'cart') { renderCart(); $('cart').className = 'overlay show'; }
       // из всплывашки: выбрали — возвращаемся в меню, всплывашку не показываем снова (закрыли «✕» без выбора — вернёт её)

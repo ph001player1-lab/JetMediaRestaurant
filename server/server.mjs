@@ -17,7 +17,8 @@ import { fetchMenu, POS_VENDORS } from './menu-sources.mjs';
 import { tgApi, tgSend, tgFindChats } from './telegram.mjs';
 import { THEMES, themeOf } from './themes.mjs';
 import { ELEVEN_MODELS, elevenVoices, elevenUsage, cachedTts, synthesize } from './eleven.mjs';
-import { eventLog, thDay, restaurantReport, networkReport, unmergeMarks, setWhySince } from './stats.mjs';
+import { eventLog, thDay, restaurantReport, networkReport, unmergeMarks, setWhySince, testCtx, finalOrders, realOnly, visitsOf } from './stats.mjs';
+import { analyzeUpsell, networkUpsell, typeOfCat, TYPE_NAMES } from './smart.mjs';
 import { countRequest, selfStats, hostStats } from './sysinfo.mjs';
 import { DISTRICTS, DISTRICT_IDS, OUTLINE, cleanGeo, resolveMapLink } from './geo.mjs';
 import { writeZip } from './zip.mjs';
@@ -1696,7 +1697,7 @@ function guestImpression(b) {
 const guestEventBudget = new Map();
 function guestEvent(b) {
   const t = tableOf(b.d);
-  if (!t || !['av_talk', 'av_rec', 'av_dish', 'av_add', 'up_show', 'up_add', 'up_no'].includes(b.k)) throw fail(400, 'bad event');
+  if (!t || !['av_talk', 'av_rec', 'av_dish', 'av_add', 'up_show', 'up_add', 'up_no', 'up_ign', 'up_open', 'up_grp'].includes(b.k)) throw fail(400, 'bad event');
   const hour = Math.floor(Date.now() / 3600e3), bud = guestEventBudget.get(b.d);
   const n = bud?.hour === hour ? bud.n : 0;
   if (n >= 200) return {};
@@ -1704,8 +1705,12 @@ function guestEvent(b) {
   logEvent(t.r.id, b.k, {
     table: t.table, dev: b.d, dish: String(b.dish || '').slice(0, 40) || undefined, lang: b.lang,
     // подсказки к заказу: правило, где показали (popup / cart / sheet), цена добавленного
-    ...(b.k.startsWith('up_') ? { rule: String(b.rule || '').slice(0, 40), mode: ['popup', 'cart', 'sheet'].includes(b.mode) ? b.mode : undefined,
-      price: Number(b.price) > 0 ? Math.round(Number(b.price)) : undefined } : {}),
+    ...(b.k.startsWith('up_') ? { rule: String(b.rule || '').slice(0, 40) || undefined, mode: ['popup', 'cart', 'sheet'].includes(b.mode) ? b.mode : undefined,
+      price: Number(b.price) > 0 ? Math.round(Number(b.price)) : undefined,
+      // для умной настройки: какая по счёту всплывашка в визите (n), сколько отказов было (nn), место карточки (pos),
+      // сколько думал гость (ms), цена и блюдо, к которому подсказка (tp, tr), группа визита: с подсказками / контрольная (g)
+      ...Object.fromEntries(['n', 'nn', 'pos', 'ms', 'tp'].map((k) => [k, Number.isFinite(Number(b[k])) && b[k] !== '' && b[k] != null ? Math.max(0, Math.round(Number(b[k]))) : undefined])),
+      tr: String(b.tr || '').slice(0, 40) || undefined, g: ['c', 't'].includes(b.g) ? b.g : undefined } : {}),
   });
   return {};
 }
@@ -2813,7 +2818,7 @@ function managerGet(b, q) {
       id: r.id, name: r.name, staffCode: r.staffCode || '', langs: r.langs || [], tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
       floor: floorOf(r), menuCats: r.menuCats || {},
       menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [], staffArchive: r.staffArchive || [],
-      menuRules: r.menuRules || [], upsell: upsellCfg(r),
+      menuRules: r.menuRules || [], upsell: upsellCfg(r), upsellSmart: upsellView(r),
       menuSource: publicSource(r.menuSource), menuIssues: menuIssues(r), timers: timersOf(r),
       display: { ...DISPLAY, ...r.display },
       avatar: { ...AVATAR, ...r.avatar },
@@ -3161,26 +3166,73 @@ function cleanMenuRules(list, r) {
 // А — подсказка персонажа после «Добавить», Б — «Часто берут вместе» в корзине, В — «Дополнить заказ?» перед отправкой.
 // «Не забыли напитки?» (nodrink) — в корзине есть еда из «когда» и нет напитков из «напитки». Планшет получает правила уже
 // разложенными по блюдам; ограничения показа (раз на блюдо, N за визит, отказы) — на планшете
-const UPSELL = { on: true, popup: true, cart: true, sheet: true, perVisit: 3 };
+// Подсказки к заказу: режим «умная» (по умолчанию — подбирает частоту и прочее по статистике ресторана в границах
+// менеджера), «ручная» (всё вручную, заготовки «мягко / сбалансированно / активно»), «демо» (всё на максимум).
+// Контрольная группа: доля визитов без подсказок — чтобы видеть, сколько подсказки добавляют к чеку
+const UP_PRESETS = {
+  soft: { perVisit: 1, maxNo: 1, gapDishes: 2, gapMin: 3, quietMin: 0, delayMs: 1200, showSec: 7, cards: 6, priceCap: 2, order: 'popular', photoOnly: true },
+  balanced: { perVisit: 3, maxNo: 2, gapDishes: 0, gapMin: 0, quietMin: 0, delayMs: 700, showSec: 9, cards: 8, priceCap: 4, order: 'popular', photoOnly: false },
+  active: { perVisit: 6, maxNo: 3, gapDishes: 0, gapMin: 0, quietMin: 0, delayMs: 500, showSec: 12, cards: 12, priceCap: 0, order: 'popular', photoOnly: false },
+};
+// границы умной — «сбалансированно»; что умная подбирает сама
+const UP_BOUNDS = { perVisit: [1, 5], maxNo: [1, 3], showSec: [6, 15], cards: [4, 12], priceCap: [2, 8] };
+const UP_SMART_KEYS = Object.keys(UP_BOUNDS);
+const UP_LIMITS = { perVisit: [1, 10], maxNo: [1, 5], gapDishes: [0, 5], gapMin: [0, 30], quietMin: [0, 30], delayMs: [500, 3000], showSec: [5, 20],
+  cards: [3, 12], priceCap: [0, 10], control: [0, 30] };
+const UPSELL = { on: true, popup: true, cart: true, sheet: true, mode: 'smart', preset: 'balanced', phones: true, control: 10, ...UP_PRESETS.balanced, bounds: UP_BOUNDS, locks: {} };
+const clampN = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const timeHM = (x) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(x || '')) ? String(x) : '');
 function cleanUpsell(u) {
+  const num = (k, d) => {
+    const x = Number(u?.[k]), [lo, hi] = UP_LIMITS[k];
+    return Number.isFinite(x) && u?.[k] !== '' && u?.[k] != null ? clampN(k === 'priceCap' ? Math.round(x * 2) / 2 : Math.round(x), lo, hi) : d;
+  };
+  const bounds = {};
+  for (const k of UP_SMART_KEYS) {
+    const [lo, hi] = UP_LIMITS[k], b = u?.bounds?.[k] || UP_BOUNDS[k];
+    const a = clampN(Number.isFinite(Number(b[0])) ? Number(b[0]) : UP_BOUNDS[k][0], k === 'priceCap' ? 1 : lo, hi);
+    bounds[k] = [a, clampN(Number.isFinite(Number(b[1])) ? Number(b[1]) : UP_BOUNDS[k][1], a, hi)];
+  }
+  const P = UP_PRESETS.balanced;
   return {
     on: u?.on !== false, popup: u?.popup !== false, cart: u?.cart !== false, sheet: u?.sheet !== false,
-    perVisit: Math.min(10, Math.max(1, Math.round(Number(u?.perVisit)) || 3)),
+    mode: ['smart', 'manual', 'demo'].includes(u?.mode) ? u.mode : 'smart', preset: ['soft', 'balanced', 'active'].includes(u?.preset) ? u.preset : 'balanced',
+    perVisit: num('perVisit', 3), maxNo: num('maxNo', P.maxNo), gapDishes: num('gapDishes', P.gapDishes), gapMin: num('gapMin', P.gapMin),
+    quietMin: num('quietMin', P.quietMin), delayMs: num('delayMs', P.delayMs), showSec: num('showSec', P.showSec), cards: num('cards', P.cards),
+    priceCap: num('priceCap', P.priceCap), control: num('control', 10),
+    order: ['rule', 'popular', 'pricey', 'mixed'].includes(u?.order) ? u.order : 'popular', photoOnly: !!u?.photoOnly, phones: u?.phones !== false,
+    bounds, locks: Object.fromEntries(UP_SMART_KEYS.filter((k) => u?.locks?.[k]).map((k) => [k, true])),
     rules: (Array.isArray(u?.rules) ? u.rules : []).slice(0, 60).map((x) => ({
       id: /^[\w-]{1,40}$/.test(x?.id || '') ? x.id : uid(), name: String(x?.name || '').trim().slice(0, 80), on: x?.on !== false,
       nodrink: !!x?.nodrink, when: cleanMatch(x?.when), exclude: strList(x?.exclude, 500, 40), drinks: cleanMatch(x?.drinks),
       offer: cleanMatch(x?.offer), text: ltext(x?.text, 120),
+      // когда показывать: дни недели (0 — понедельник; пусто — все) и часы «с — до» (пусто — весь день)
+      days: [...new Set((Array.isArray(x?.days) ? x.days : []).map(Number).filter((d) => d >= 0 && d <= 6))].sort(),
+      from: timeHM(x?.from), to: timeHM(x?.to),
+      ...(/^(pair|net):[^\n]{1,120}$/.test(x?.src || '') ? { src: x.src } : {}), // создана из подсказки «берут вместе» / «опыт сети»
     })),
   };
 }
-const upsellCfg = (r) => ({ ...UPSELL, rules: [], ...(r.upsell || {}) });
+const upsellCfg = (r) => ({ ...UPSELL, rules: [], ...(r.upsell || {}), bounds: { ...UP_BOUNDS, ...(r.upsell?.bounds || {}) }, locks: r.upsell?.locks || {} });
+// Значения, с которыми работает планшет: ручные; «демо» — максимум; умная — подобранные (или стартовые) в границах, 🔒 — ручные
+function upsellEff(r) {
+  const u = upsellCfg(r);
+  const base = Object.fromEntries(['perVisit', 'maxNo', 'gapDishes', 'gapMin', 'quietMin', 'delayMs', 'showSec', 'cards', 'priceCap', 'order', 'photoOnly', 'control'].map((k) => [k, u[k]]));
+  if (u.mode === 'demo') return { ...base, perVisit: 10, maxNo: 5, gapDishes: 0, gapMin: 0, quietMin: 0, showSec: 12, cards: 12, priceCap: 0, control: 0, order: 'mixed', photoOnly: false };
+  if (u.mode === 'manual') return base;
+  const sv = r.upsellSmart?.values || {}, out = { ...base, order: 'smart' };
+  for (const k of UP_SMART_KEYS) out[k] = u.locks[k] ? base[k] : clampN(sv[k] ?? UP_PRESETS.balanced[k], ...u.bounds[k]);
+  return out;
+}
 function upsellFor(r) {
   const u = upsellCfg(r);
   if (!u.on || !(u.popup || u.cart || u.sheet)) return null;
+  const eff = upsellEff(r), sm = r.upsellSmart || {};
   const vis = new Set((r.menu || []).filter((i) => onMenu(i) && !askOf(i)).map((i) => i.id));
   const ids = (m, ex) => matchItems(r, m, ex).map((i) => i.id).filter((id) => vis.has(id));
   // одно и то же блюдо в двух разделах («Картошка фри» в гарнирах и в детском меню) предлагаем один раз — не из детского
   const kids = (i) => /дет|kid/i.test(`${i.cat?.ru || ''} ${i.cat?.en || ''}`);
+  const score = sm.items || {};
   const offerOf = (m) => {
     const by = new Map();
     for (const i of matchItems(r, m).filter((x) => vis.has(x.id))) {
@@ -3192,6 +3244,9 @@ function upsellFor(r) {
     for (const i of by.values()) { const c = lc(i.cat?.ru || i.cat?.en); if (!cats.has(c)) cats.set(c, []); cats.get(c).push(i.id); }
     const out = [], lists = [...cats.values()];
     for (let k = 0; out.length < by.size; k++) for (const l of lists) if (l[k]) out.push(l[k]);
+    // порядок карточек: популярные у гостей (все заказы + взятое из подсказок) или дорогие вперёд; иначе — как в правиле
+    if (eff.order === 'popular' || eff.order === 'smart') return out.map((id, n) => [id, (score[id] || 0) * 1000 - n]).sort((a, b) => b[1] - a[1]).map((x) => x[0]);
+    if (eff.order === 'pricey') return [...out].sort((a, b) => (Number(r.menu.find((i) => i.id === b)?.price) || 0) - (Number(r.menu.find((i) => i.id === a)?.price) || 0));
     return out;
   };
   const rules = [];
@@ -3199,9 +3254,80 @@ function upsellFor(r) {
     if (!x.on) continue;
     const offer = offerOf(x.offer).slice(0, 40), when = ids(x.when, x.exclude);
     if (!offer.length || !when.length) continue;
-    rules.push({ id: x.id, when, offer, text: x.text, ...(x.nodrink ? { nodrink: true, drinks: ids(x.drinks) } : {}) });
+    const st = sm.rules?.[x.id];
+    rules.push({ id: x.id, when, offer, text: x.text, ...(x.nodrink ? { nodrink: true, drinks: ids(x.drinks) } : {}),
+      ...((x.days || []).length ? { days: x.days } : {}), ...(x.from && x.to ? { from: x.from, to: x.to } : {}),
+      ...(eff.order === 'smart' ? { w: st ? st.wn : 0.5 } : {}) });
   }
-  return rules.length ? { popup: u.popup, cart: u.cart, sheet: u.sheet, perVisit: u.perVisit, rules } : null;
+  return rules.length ? { mode: u.mode, popup: u.popup, cart: u.cart, sheet: u.sheet, phones: u.phones, ...eff,
+    explore: u.mode === 'smart' ? 0.15 : 0, rules } : null;
+}
+
+// ---------- Умная настройка подсказок: раз в сутки после 04:30 по Таиланду (и по кнопке в ЛК) — по «боевым» событиям
+// ресторана за 30 дней: показы и ответы на подсказки и все заказы. Сеть — без DEMO
+function upsellSmartRun(r, raw, now = Date.now()) {
+  const ctxs = { [r.id]: testCtx(r, dayFrom(r)) };
+  const ev = realOnly(finalOrders(raw), ctxs), visits = visitsOf(ev, ctxs).filter((v) => !v.why);
+  const u = upsellCfg(r), smart = u.mode === 'smart';
+  const cur = Object.fromEntries(UP_SMART_KEYS.map((k) => [k, clampN(r.upsellSmart?.values?.[k] ?? UP_PRESETS.balanced[k], ...u.bounds[k])]));
+  // в ручном и «демо» — только статистика, значения не трогаем
+  const locks = smart ? u.locks : Object.fromEntries(UP_SMART_KEYS.map((k) => [k, true]));
+  const a = analyzeUpsell({ r, ev, visits, cur, bounds: u.bounds, locks, compiled: upsellFor(r)?.rules || [], now });
+  r.upsellSmart = { at: now, enough: a.enough, sample: a.sample, values: a.values, rules: a.rules, pairs: a.pairs, uplift: a.uplift, bestHours: a.bestHours,
+    items: Object.fromEntries(Object.entries(a.items).sort((x, y) => y[1] - x[1]).slice(0, 400)),
+    log: [...a.changes.map((c) => ({ at: now, ...c })), ...(r.upsellSmart?.log || [])].slice(0, 40) };
+  return a;
+}
+function upsellSmartAll(now = Date.now()) {
+  const byR = {};
+  for (const e of events.read(now - 30 * 864e5, now, null)) (byR[e.r] ??= []).push(e);
+  const list = [];
+  for (const r of Object.values(db.restaurants)) {
+    try {
+      const a = upsellSmartRun(r, byR[r.id] || [], now);
+      if (!/^demo$/i.test((r.name || '').trim()) && (a.sample.shows || a.sample.visits)) list.push({ r, a });
+    } catch (e) { console.error('upsell smart', r.id, e.message); }
+  }
+  db.upsellNet = { at: now, ...networkUpsell(list, DISTRICTS) };
+  db.upsellRunDay = thDay(now);
+  save();
+}
+setInterval(() => {
+  const now = Date.now(), th = new Date(now + 7 * 3600e3);
+  if (db.upsellRunDay !== thDay(now) && th.getUTCHours() * 60 + th.getUTCMinutes() >= 270) upsellSmartAll(now);
+}, 10 * 60e3);
+setTimeout(() => { if (!db.upsellNet) upsellSmartAll(); }, 60e3);
+
+// ЛК → «Подсказки»: что сейчас на планшетах, что умная поменяла и почему, сколько данных, «вес» подсказок,
+// пары «берут вместе» из заказов, опыт сети (пары типов разделов из других ресторанов), рост чека по контрольной группе
+function upsellView(r) {
+  const u = upsellCfg(r), sm = r.upsellSmart || {}, comp = upsellFor(r)?.rules || [];
+  const used = new Set(u.rules.map((x) => x.src).filter(Boolean));
+  const cats = {};
+  for (const i of r.menu || []) if (!i.fromPromo && i.cat?.ru) (cats[typeOfCat(i.cat)] ??= new Set()).add(i.cat.ru);
+  const idsOf = (names) => new Set((r.menu || []).filter((i) => names.has(i.cat?.ru)).map((i) => i.id));
+  const net = (db.upsellNet?.pairs || [])
+    .filter((x) => ((x.conv ?? 0) >= 0.05 && x.shows >= 50) || ((x.conf ?? 0) >= 0.2 && x.visAB >= 20))
+    .filter((x) => cats[x.a] && cats[x.b] && !used.has(`net:${x.key}`))
+    .filter((x) => { const wa = idsOf(cats[x.a]), ob = idsOf(cats[x.b]); return !comp.some((c) => !c.nodrink && c.when.some((id) => wa.has(id)) && c.offer.some((id) => ob.has(id))); })
+    // по чему видно, что работает: берут из всплывашки (≥ 50 показов) или заказывают вместе
+    .slice(0, 6).map((x) => ({ key: `net:${x.key}`, an: x.an, bn: x.bn, whenCats: [...cats[x.a]], offerCats: [...cats[x.b]], rests: x.rests,
+      basis: (x.conv ?? 0) >= 0.05 && x.shows >= 50 ? 'popup' : 'orders', val: (x.conv ?? 0) >= 0.05 && x.shows >= 50 ? x.conv : x.conf }));
+  return {
+    eff: upsellEff(r), at: sm.at || 0, enough: !!sm.enough, sample: sm.sample || { shows: 0, need: 300 }, log: sm.log || [], rules: sm.rules || {},
+    pairs: (sm.pairs || []).filter((x) => !used.has(x.key)), net, uplift: sm.uplift || null, bestHours: sm.bestHours || [],
+    presets: UP_PRESETS, bounds0: UP_BOUNDS, limits: UP_LIMITS,
+  };
+}
+const upsellRecalcAt = new Map();
+function managerUpsellRecalc(b) {
+  const { r } = managerSession(b.token);
+  if (Date.now() - (upsellRecalcAt.get(r.id) || 0) < 60e3) throw fail(429, 'Пересчитать можно раз в минуту');
+  upsellRecalcAt.set(r.id, Date.now());
+  const now = Date.now();
+  upsellSmartRun(r, events.read(now - 30 * 864e5, now, new Set([r.id])), now);
+  save();
+  return upsellView(r);
 }
 
 function mergeMenu(r, items) {
@@ -4143,6 +4269,8 @@ function admin(method, p, b, me, q) {
       restaurants: [...rids].map((id) => ({ id, name: db.restaurants[id].name })),
       network: networkReport({ log: events, db, rids: r ? new Set([r.id]) : rids, from, to, tests: q.tests === '1', dayFrom, waitersOf }),
       restaurant: r ? restaurantReport({ log: events, db, r, from, to, staffNames: staffNamesOf(r), tests: q.tests === '1', dayFrom, waitersOf }) : null,
+      // подсказки по сети за 30 дней (ночной расчёт): рестораны (только доступные), районы и что где работает — по типам разделов
+      upsellNet: !r && db.upsellNet ? { ...db.upsellNet, rests: db.upsellNet.rests.filter((x) => rids.has(x.id)) } : null,
     };
   }
   if (p.startsWith('/api/telegram')) return telegramAdmin(method, p, b);
@@ -4512,6 +4640,7 @@ const PUBLIC = {
   'GET /api/manager/restaurant': managerGet,
   'POST /api/manager/restaurant': managerSave,
   'POST /api/manager/sync': managerSync,
+  'POST /api/manager/upsell/recalc': managerUpsellRecalc,
   'GET /api/manager/stats': managerStats,
   'POST /api/menu/webhook': menuWebhook,
 };
@@ -4784,6 +4913,20 @@ if (!db.migrations.demoUpsell) {
     audit('сервер', 'DEMO: подсказки к заказу на каждый раздел меню — всплывашка, «Часто берут вместе» в корзине, «Дополнить заказ?»', r.id);
   }
   db.migrations.demoUpsell = Date.now();
+}
+// Однократно: подсказки — режим «Умная» с границами «Сбалансированно» и контрольной группой 10%; Чехову — подсказки
+// DEMO (меню DEMO взято из Чехова)
+if (!db.migrations.upsellSmart) {
+  for (const r of Object.values(db.restaurants)) {
+    if (/чехов|chekhov|chehov/i.test(r.name || '') && !r.upsell?.rules?.length) {
+      demoUpsell(r);
+      r.upsell.perVisit = 3;
+      audit('сервер', 'Чехов: подсказки к заказу (как у DEMO) — режим «Умная», границы «Сбалансированно»', r.id);
+    }
+    if (!r.upsell) continue;
+    r.upsell = cleanUpsell({ ...UP_PRESETS.balanced, ...r.upsell, mode: 'smart', preset: 'balanced', bounds: UP_BOUNDS, control: 10 });
+  }
+  db.migrations.upsellSmart = Date.now();
 }
 // Однократно: меню из источника пересобрать по-новому (правки менеджера поверх источника) при следующей проверке
 if (!db.migrations.menuOvr) {

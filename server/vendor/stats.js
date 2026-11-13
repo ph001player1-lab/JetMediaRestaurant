@@ -15,7 +15,7 @@
       dayDish: 'Блюдо дня: заказано порций', promoQty: 'Акции: заказано', idle: 'Ни разу не заказали за период', promos: 'Акции',
       promo: 'Акция', imps: 'Показов', scans: 'Сканов QR', avatar: 'ИИ-персонаж', shows: 'Появлений на экране', talks: 'Разговоров',
       recs: 'Рекомендаций', dishOpens: '«Показать блюдо»', adds: 'Добавлений в заказ', ordered: 'Рекомендованное заказали',
-      hours: 'По часам', weekdays: 'По дням недели', langs: 'Языки гостей', network: 'Рестораны', rest: 'Ресторан', devices: 'Устройств',
+      upNetT: 'Подсказки к заказу по сети — 30 дней', upRev: 'Выручка от подсказок', upNetHint: 'Считается раз в сутки ночью по «боевым» визитам (без тестовых и DEMO). Типы разделов сравнивают рестораны с разными названиями разделов: «Бутылочное пиво» и «Пиво» — пиво.', upNetRests: 'Подсказки — по ресторанам', upNetDist: 'Подсказки — по районам', upNetPairs: 'Что где работает — пары типов разделов', district: 'Район', upMode: 'Режим', upm_smart: 'Умная', upm_manual: 'Ручная', upm_demo: 'Демо', upUplift: 'Рост чека', upPer: 'Всплывашек за визит', upPair: 'К чему → что', upTogether: 'Берут вместе в заказах', upBestDist: 'Лучше всего — районы', hours: 'По часам', weekdays: 'По дням недели', langs: 'Языки гостей', network: 'Рестораны', rest: 'Ресторан', devices: 'Устройств',
       uptime: 'Часов на связи в день', offline: 'Пропадали', crashes: 'Сбоев', ads: 'Внешняя реклама', advertiser: 'Рекламодатель',
       adName: 'Название', ctr: 'Сканов от показов, %', devicesT: 'Устройства', device: 'Устройство', place: 'Стол / вход', now: 'Сейчас',
       hoursOn: 'Часов на связи', adImps: 'Показов рекламы', adScans: 'Сканов рекламы', leads: 'Заявок', online: 'онлайн', offlineNow: 'офлайн', byRest: 'По ресторанам: показы / сканы / заявки', tts: 'Озвучка ElevenLabs, символов', sec: 'с', min: 'мин',
@@ -38,7 +38,7 @@
       dayDish: 'Dish of the day: portions ordered', promoQty: 'Promos: ordered', idle: 'Never ordered in the period', promos: 'Promos',
       promo: 'Promo', imps: 'Impressions', scans: 'QR scans', avatar: 'AI host', shows: 'Appearances', talks: 'Conversations',
       recs: 'Recommendations', dishOpens: '“Show dish”', adds: 'Added to order', ordered: 'Recommended and ordered',
-      hours: 'By hour', weekdays: 'By weekday', langs: 'Guest languages', network: 'Restaurants', rest: 'Restaurant', devices: 'Devices',
+      upNetT: 'Order suggestions across the network — 30 days', upRev: 'Revenue from suggestions', upNetHint: 'Calculated nightly from real visits (no test visits, no DEMO). Section types compare restaurants with different section names: “Bottled beer” and “Beer” are both beer.', upNetRests: 'Suggestions by restaurant', upNetDist: 'Suggestions by district', upNetPairs: 'What works where — section type pairs', district: 'District', upMode: 'Mode', upm_smart: 'Smart', upm_manual: 'Manual', upm_demo: 'Demo', upUplift: 'Bill growth', upPer: 'Pop-ups per visit', upPair: 'With → offer', upTogether: 'Ordered together', upBestDist: 'Best districts', hours: 'By hour', weekdays: 'By weekday', langs: 'Guest languages', network: 'Restaurants', rest: 'Restaurant', devices: 'Devices',
       uptime: 'Hours online per day', offline: 'Went offline', crashes: 'Crashes', ads: 'External ads', advertiser: 'Advertiser',
       adName: 'Name', ctr: 'Scans per impressions, %', devicesT: 'Devices', device: 'Device', place: 'Table / entrance', now: 'Now',
       hoursOn: 'Hours online', adImps: 'Ad impressions', adScans: 'Ad scans', leads: 'Leads', online: 'online', offlineNow: 'offline', byRest: 'By restaurant: impressions / scans / leads', tts: 'ElevenLabs voice, characters', sec: 's', min: 'min',
@@ -61,7 +61,7 @@
       dayDish: 'เมนูประจำวัน: จำนวนที่สั่ง', promoQty: 'โปรโมชัน: สั่ง', idle: 'ไม่มีใครสั่งในช่วงนี้', promos: 'โปรโมชัน',
       promo: 'โปรโมชัน', imps: 'แสดงผล', scans: 'สแกน QR', avatar: 'ผู้ช่วย AI', shows: 'ปรากฏบนจอ', talks: 'การสนทนา',
       recs: 'การแนะนำ', dishOpens: '“ดูเมนู”', adds: 'เพิ่มในออร์เดอร์', ordered: 'สั่งตามคำแนะนำ',
-      hours: 'รายชั่วโมง', weekdays: 'รายวันในสัปดาห์', langs: 'ภาษาของแขก', network: 'ร้านอาหาร', rest: 'ร้าน', devices: 'อุปกรณ์',
+      upNetT: 'คำแนะนำในเครือข่าย — 30 วัน', upRev: 'ยอดขายจากคำแนะนำ', upNetHint: 'คำนวณทุกคืนจากการมาเยือนจริง (ไม่รวมทดสอบและ DEMO) ประเภทหมวดใช้เทียบร้านที่ตั้งชื่อหมวดต่างกัน', upNetRests: 'คำแนะนำ — ตามร้าน', upNetDist: 'คำแนะนำ — ตามพื้นที่', upNetPairs: 'อะไรได้ผลที่ไหน — คู่ประเภทหมวด', district: 'พื้นที่', upMode: 'โหมด', upm_smart: 'อัจฉริยะ', upm_manual: 'ตั้งเอง', upm_demo: 'สาธิต', upUplift: 'บิลเพิ่มขึ้น', upPer: 'ป๊อปอัปต่อการมาเยือน', upPair: 'กับ → แนะนำ', upTogether: 'สั่งคู่กัน', upBestDist: 'พื้นที่ที่ดีที่สุด', hours: 'รายชั่วโมง', weekdays: 'รายวันในสัปดาห์', langs: 'ภาษาของแขก', network: 'ร้านอาหาร', rest: 'ร้าน', devices: 'อุปกรณ์',
       uptime: 'ชั่วโมงออนไลน์ต่อวัน', offline: 'ออฟไลน์', crashes: 'ขัดข้อง', ads: 'โฆษณาภายนอก', advertiser: 'ผู้ลงโฆษณา',
       adName: 'ชื่อ', ctr: 'สแกนต่อการแสดง %', devicesT: 'อุปกรณ์', device: 'อุปกรณ์', place: 'โต๊ะ / ทางเข้า', now: 'ตอนนี้',
       hoursOn: 'ชั่วโมงออนไลน์', adImps: 'แสดงโฆษณา', adScans: 'สแกนโฆษณา', leads: 'คำขอ', online: 'ออนไลน์', offlineNow: 'ออฟไลน์', byRest: 'ตามร้าน: แสดง / สแกน / คำขอ', tts: 'เสียง ElevenLabs ตัวอักษร', sec: 'วิ', min: 'นาที',
@@ -252,6 +252,20 @@
         + table('promos', t.promos, [[t.promo, 'name'], [t.imps, 'imps'], [t.scans, 'scans'], [t.qty, 'qty'], [t.revenue, 'revenue', money, (v) => v]], d.promos)
         + avatarHtml(d.avatar) + timeHtml(d);
     }
+    // Подсказки по сети (ночной расчёт за 30 дней): рестораны, районы, что где работает — по типам разделов
+    function upsellNetHtml(u) {
+      if (!u) return '';
+      const pc = (v) => (v == null ? '—' : `${Math.round(v * 100)}%`), pcv = (v) => (v == null ? '' : Math.round(v * 100));
+      const up = (v) => (v == null ? '—' : `<b class="${v > 0 ? 'js-up' : 'js-down'}">${v > 0 ? '+' : ''}${v}%</b>`);
+      return `<h2>${esc(t.upNetT)}</h2><p class="js-hint">${esc(t.upNetHint)}</p>`
+        + table('upRests', t.upNetRests, [[t.rest, 'name'], [t.district, 'district'], [t.upMode, 'mode', (v) => esc(t['upm_' + v] || v), (v) => t['upm_' + v] || v],
+          [t.upShown, 'shows'], [t.upAdded, 'adds'], [t.upConv, 'conv', pc, pcv], [t.upRev, 'rev', money, (v) => v], [t.upUplift, 'uplift', up, (v) => v ?? ''], [t.upPer, 'perVisit']], u.rests || [])
+        + table('upDist', t.upNetDist, [[t.district, 'name'], [t.network, 'rests'], [t.upShown, 'shows'], [t.upAdded, 'adds'], [t.upConv, 'conv', pc, pcv],
+          [t.upRev, 'rev', money, (v) => v], [t.upUplift, 'uplift', up, (v) => v ?? '']], u.districts || [])
+        + table('upPairs', t.upNetPairs, [[t.upPair, 'an', (v, r) => esc(`${r.an} → ${r.bn}`), (v, r) => `${r.an} → ${r.bn}`], [t.upConv, 'conv', pc, pcv], [t.upAdded, 'adds'], [t.upShown, 'shows'],
+          [t.upTogether, 'conf', pc, pcv], [t.network, 'rests'], [t.upBestDist, 'dist', (v) => esc((v || []).slice(0, 3).map((x) => `${x.name} ${pc(x.conv)}`).join(', ')),
+            (v) => (v || []).slice(0, 3).map((x) => `${x.name} ${pc(x.conv)}`).join(', ')]], u.pairs || []);
+    }
     // столбцы ошибок в таблице ресторанов: сколько и на какую сумму; больше нуля — красным
     const errCell = (v) => (v?.n ? `<b class="js-down">${v.n} · ${money(v.sum)}</b>` : '<span class="js-up">0</span>');
     function adminHtml(d) {
@@ -269,6 +283,7 @@
         + table('ads', t.ads, [[t.advertiser, 'advertiser'], [t.adName, 'title'], [t.imps, 'imps'], [t.scans, 'scans'], [t.ctr, 'ctr'], [t.leads, 'leads'],
           [t.byRest, 'byRest', (v) => esc((v || []).map((x) => `${x.name}: ${x.imps}/${x.scans}/${x.leads || 0}`).join('; ')), (v) => (v || []).map((x) => `${x.name}: ${x.imps}/${x.scans}/${x.leads || 0}`).join('; ')]], n.ads)
         + `<div class="js-cards">${card(t.tts, (n.tts?.chars || 0).toLocaleString('en'))}</div>`
+        + (d.restaurant ? '' : upsellNetHtml(d.upsellNet))
         + (d.restaurant ? `<hr><h2>${esc(d.restaurants.find((x) => x.id === st.r)?.name || '')}</h2>${restaurantHtml(d.restaurant)}` : avatarHtml(n.avatar) + timeHtml(n));
     }
 

@@ -565,3 +565,6 @@ export function networkReport({ log, db, rids, from, to, tests, dayFrom = () => 
     tts: { chars: ev.filter((e) => e.k === 'tts').reduce((s, e) => s + (e.chars || 0), 0) },
   };
 }
+
+// для умной настройки подсказок (smart.mjs): итоговые заказы, только «боевые» события, визиты
+export { finalOrders, realOnly, visitsOf };
