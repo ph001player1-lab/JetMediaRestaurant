@@ -1565,17 +1565,21 @@ function upForCart(n, mode) {
   if (!U) return { rules: [], ids: [] };
   var inC = {}, ord = upOrdered();
   Object.keys(cart).forEach(function (k) { inC[k.split('|')[0]] = 1; });
-  var rules = [], ids = [];
+  var rules = [], lists = [], ids = [], took = {}, most = 0;
   U.rules.forEach(function (r) {
     if (UP.no[r.id]) return;
     var hit = r.when.some(function (id) { return inC[id]; });
     if (r.nodrink) hit = hit && !r.drinks.some(function (id) { return inC[id] || ord[id]; });
     if (!hit) return;
-    var got = upOffer(r, n).filter(function (id) { return ids.indexOf(id) < 0; });
+    var got = upOffer(r, n);
     if (!got.length) return;
-    rules.push(r);
-    got.forEach(function (id) { if (ids.length < n) ids.push(id + '|' + r.id); });
+    rules.push(r); lists.push(got); most = Math.max(most, got.length);
   });
+  // по очереди из каждого правила (гарнир, напиток, гарнир, напиток…) — а не все места первому правилу
+  for (var k = 0; k < most && ids.length < n; k++) {
+    lists.forEach(function (l, j) { var id = l[k]; if (id && !took[id] && ids.length < n) { took[id] = 1; ids.push(id + '|' + rules[j].id); } });
+  }
+  rules = rules.filter(function (r) { return ids.some(function (x) { return x.split('|')[1] === r.id; }); });
   rules.forEach(function (r) { if (!UP.logged[mode + r.id]) { UP.logged[mode + r.id] = 1; upEvent('up_show', r.id, '', mode); } });
   return { rules: rules, ids: ids };
 }
