@@ -1519,7 +1519,7 @@ function upAfterAdd(id) {
     return;
   }
 }
-// pop — последняя всплывашка: открыли из неё блюдо и закрыли или добавили — показываем её снова на том же месте карусели
+// pop — последняя всплывашка: открыли из неё блюдо и закрыли «✕» без выбора — показываем её снова на том же месте карусели
 function upPopup(r, offer, left) {
   var el = $('upPop');
   UP.pop = { r: r, offer: offer, left: left || 0 };
@@ -2419,7 +2419,7 @@ document.addEventListener('click', function (e) {
       upEvent('up_add', from.rule, pick.id, from.mode, pl ? pl.price : mi.price);
       if (from.mode === 'sheet') upSheet(true);
       else if (from.mode === 'cart') { renderCart(); $('cart').className = 'overlay show'; }
-      else if (from.mode === 'popup') upBack(); // снова всплывашка — добавленное отмечено ✓
+      // из всплывашки: выбрали — возвращаемся в меню, всплывашку не показываем снова (закрыли «✕» без выбора — вернёт её)
     } else upAfterAdd(pick.id);
   }
   else if (d.pmore) pickScrollTo(Number(b.dataset.gi));
