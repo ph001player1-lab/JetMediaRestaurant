@@ -66,6 +66,14 @@ const STATIC = {
 };
 const TYPES = { html: 'text/html; charset=utf-8', json: 'application/manifest+json', js: 'text/javascript', svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg' };
 const FILES = Object.fromEntries(Object.values(STATIC).map((f) => [f, fs.readFileSync(new URL(`./${f}`, import.meta.url))]));
+// инструкция ЛК (server/guide/): файл читаем при первом запросе и держим в памяти
+const guideCache = new Map();
+function guideFile(name) {
+  if (!guideCache.has(name)) {
+    try { guideCache.set(name, fs.readFileSync(new URL(`./guide/${name}`, import.meta.url))); } catch { return null; }
+  }
+  return guideCache.get(name);
+}
 // Версия интерфейса: открытые страницы стола и персонала сами перезагружаются, когда она меняется
 const BUILD = crypto.createHash('sha1').update(Buffer.concat(Object.values(FILES))).digest('hex').slice(0, 10);
 
@@ -500,7 +508,10 @@ const fail = (status, message) => Object.assign(new Error(message), { status });
 // ---------- Администраторы портала: вход по почте и паролю, роли, журнал изменений
 //   super  — всё, включая список админов;  admin — всё, кроме админов (или только свои рестораны, если список задан);
 //   доступ админа к каждому разделу — нет / чтение / редактирование (ADMIN_SECTIONS)
-const SUPER_EMAIL = (process.env.SUPERADMIN_EMAIL || 'ph001player1@gmail.com').toLowerCase();
+// Почта суперадмина: SUPERADMIN_EMAIL из .env, иначе — первый суперадмин, который уже есть в базе (адреса в коде нет).
+// Совсем новая установка без .env — admin@jetmedia.local (вход «admin» и пароль ADMIN_PASSWORD, почту меняют в портале)
+const SUPER_EMAIL = String(process.env.SUPERADMIN_EMAIL || (db.admins || []).filter((a) => a.role === 'super' && !a.disabled)
+  .sort((a, b) => (a.at || 0) - (b.at || 0))[0]?.email || 'admin@jetmedia.local').trim().toLowerCase();
 const ROLES = ['super', 'admin'];
 const hashPass = (pass, salt = crypto.randomBytes(16).toString('hex')) => ({ salt, hash: crypto.scryptSync(String(pass), salt, 32).toString('hex') });
 const passOk = (a, pass) => !!a?.hash && crypto.timingSafeEqual(Buffer.from(a.hash, 'hex'), crypto.scryptSync(String(pass ?? ''), a.salt, 32));
@@ -5332,6 +5343,13 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && /^\/t\/[\w-]{8,40}$/.test(url.pathname)) return send(res, 200, FILES['guest.html'], TYPES.html);
     const file = req.method === 'GET' && STATIC[url.pathname];
     if (file) return send(res, 200, FILES[file], TYPES[file.split('.').pop()]);
+    // ЛК → «Инструкция»: тексты слайдов, скриншоты и PDF (server/guide/) — с диска при первом запросе, дальше из памяти
+    const gd = req.method === 'GET' && url.pathname.match(/^\/staff\/guide\/([\w-]+)\.(jpg|png|json|pdf)$/);
+    if (gd) {
+      const f = guideFile(`${gd[1]}.${gd[2]}`);
+      if (!f) return send(res, 404, { error: 'not found' });
+      return send(res, 200, f, { jpg: 'image/jpeg', png: 'image/png', json: 'application/json; charset=utf-8', pdf: 'application/pdf' }[gd[2]]);
+    }
 
     const up = req.method === 'GET' && url.pathname.match(/^\/uploads\/([a-f0-9]+\.(jpg|png|webp|svg|mp3|ogg|wav))$/);
     if (up) {

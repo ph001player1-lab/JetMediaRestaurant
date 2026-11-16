@@ -15,6 +15,7 @@ services:
       - DATA_DIR=/data
       - INSTANCE=test
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - SUPERADMIN_EMAIL=${SUPERADMIN_EMAIL:-}
       - DEVICE_KEY=${DEVICE_KEY}
       - PUBLIC_URL=https://test.jetmedia.dev
     restart: unless-stopped
