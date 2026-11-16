@@ -789,12 +789,30 @@ function diagPush(b, q, req) {
   };
 }
 // События устройств из журнала: пропадания (больше порога), обрывы глазами планшета, сбои — за days дней (до 31)
+// ?k=up_show,up_add,order… — любые виды событий (по умолчанию — связь планшетов), ?r= — ресторан (id или название)
+const diagRest = (x) => (x ? Object.values(db.restaurants).find((r) => r.id === x || lc(r.name) === lc(x)) || { id: '-' } : null);
 function diagEvents(b, q, req) {
   diagAuth(req);
-  const days = Math.min(31, Math.max(1, Number(q.days) || 7)), to = Date.now();
-  const kinds = new Set(['dev_offline', 'dev_outage', 'dev_crash', 'dev_off', 'dev_on']);
-  return events.read(to - days * 864e5, to, null).filter((e) => kinds.has(e.k))
+  const days = Math.min(31, Math.max(1, Number(q.days) || 7)), to = Date.now(), rest = diagRest(q.r);
+  const kinds = new Set(q.k ? String(q.k).split(',').map((x) => x.trim()).filter(Boolean) : ['dev_offline', 'dev_outage', 'dev_crash', 'dev_off', 'dev_on']);
+  const any = kinds.has('*');
+  return events.read(to - days * 864e5, to, rest ? new Set([rest.id]) : null).filter((e) => any || kinds.has(e.k))
+    .slice(-Math.min(20000, Number(q.limit) || 5000))
     .map((e) => ({ ...e, restaurant: db.restaurants[e.r]?.name || '', device: db.devices[e.dev] ? deviceName(db.devices[e.dev]) : e.dev }));
+}
+// Журнал действий (портал и ЛК менеджеров): кто, когда, что — только чтение; ?r=, ?q= (поиск по тексту), ?days=, ?limit=
+function diagAudit(b, q, req) {
+  diagAuth(req);
+  const from = Date.now() - Math.min(90, Math.max(1, Number(q.days) || 7)) * 864e5, rest = diagRest(q.r);
+  return readAudit({ q: q.q, r: rest?.id, limit: Math.min(2000, Number(q.limit) || 500) }, null).filter((e) => e.t >= from);
+}
+// Настройки ресторана, которые правит менеджер в ЛК: подсказки (и что насчитала умная), массовые правила, акции — только чтение
+function diagRestaurant(b, q, req) {
+  diagAuth(req);
+  const r = diagRest(q.r);
+  if (!r || !db.restaurants[r.id]) throw fail(404, 'no restaurant');
+  return { id: r.id, name: r.name, upsell: upsellCfg(r), upsellSmart: upsellView(r), upsellTest: r.upsellTest || null, menuRules: r.menuRules || [],
+    promos: (r.promos || []).map(({ images, image, ...p }) => p), display: r.display || {} };
 }
 // Нагрузка сервера: процессор, память, диск, отклик, запросы в минуту
 function diagServer(b, q, req) {
@@ -1710,7 +1728,9 @@ function guestEvent(b) {
       // для умной настройки: какая по счёту всплывашка в визите (n), сколько отказов было (nn), место карточки (pos),
       // сколько думал гость (ms), цена и блюдо, к которому подсказка (tp, tr), группа визита: с подсказками / контрольная (g)
       ...Object.fromEntries(['n', 'nn', 'pos', 'ms', 'tp'].map((k) => [k, Number.isFinite(Number(b[k])) && b[k] !== '' && b[k] != null ? Math.max(0, Math.round(Number(b[k]))) : undefined])),
-      tr: String(b.tr || '').slice(0, 40) || undefined, g: ['c', 't'].includes(b.g) ? b.g : undefined } : {}),
+      tr: String(b.tr || '').slice(0, 40) || undefined, g: ['c', 't'].includes(b.g) ? b.g : undefined,
+      // режим проверки: в статистику и обучение умной не идёт
+      tst: b.tst && t.r.upsellTest?.until > Date.now() - 600e3 ? 1 : undefined } : {}),
   });
   return {};
 }
@@ -2818,7 +2838,7 @@ function managerGet(b, q) {
       id: r.id, name: r.name, staffCode: r.staffCode || '', langs: r.langs || [], tables: r.tables || [], tariff: r.tariff || 'standard', staff: r.staff || [],
       floor: floorOf(r), menuCats: r.menuCats || {},
       menu: r.menu || [], promos: r.promos || [], blockedAds: r.blockedAds || [], staffArchive: r.staffArchive || [],
-      menuRules: r.menuRules || [], upsell: upsellCfg(r), upsellSmart: upsellView(r),
+      menuRules: r.menuRules || [], upsell: upsellCfg(r), upsellSmart: upsellView(r), upsellTest: r.upsellTest?.until > Date.now() ? r.upsellTest : null,
       menuSource: publicSource(r.menuSource), menuIssues: menuIssues(r), timers: timersOf(r),
       display: { ...DISPLAY, ...r.display },
       avatar: { ...AVATAR, ...r.avatar },
@@ -3259,15 +3279,29 @@ function upsellFor(r) {
       ...((x.days || []).length ? { days: x.days } : {}), ...(x.from && x.to ? { from: x.from, to: x.to } : {}),
       ...(eff.order === 'smart' ? { w: st ? st.wn : 0.5 } : {}) });
   }
-  return rules.length ? { mode: u.mode, popup: u.popup, cart: u.cart, sheet: u.sheet, phones: u.phones, ...eff,
-    explore: u.mode === 'smart' ? 0.15 : 0, rules } : null;
+  // обычная цена блюда ресторана (медиана): ценовой потолок не ниже её × N — к чаю за ฿50 предлагаем и десерт за ฿210
+  const prices = (r.menu || []).filter((i) => vis.has(i.id) && Number(i.price) > 0).map((i) => Number(i.price)).sort((a, b) => a - b);
+  const refPrice = prices.length ? prices[Math.floor(prices.length / 2)] : 0;
+  // режим проверки (ЛК → «Подсказки», на час): без ограничений визита и контрольной группы, в статистику не идёт
+  const test = r.upsellTest?.until > Date.now() ? r.upsellTest.until : 0;
+  return rules.length ? { mode: u.mode, popup: u.popup, cart: u.cart, sheet: u.sheet, phones: u.phones, ...eff, refPrice,
+    explore: u.mode === 'smart' ? 0.15 : 0, ...(test ? { test } : {}), rules } : null;
+}
+// ЛК → «Подсказки» → «Проверить на планшетах»: час без ограничений на планшетах ресторана (или выключить раньше)
+function managerUpsellTest(b) {
+  const { r, member } = managerSession(b.token);
+  r.upsellTest = b.on ? { until: Date.now() + 3600e3, by: member?.name || '' } : null;
+  menuPacks.delete(r.id); // планшеты увидят сразу, при следующем опросе
+  audit(`ЛК: ${member?.name || 'менеджер'}`, b.on ? 'Подсказки: включил режим проверки на планшетах на 1 час' : 'Подсказки: выключил режим проверки', r.id);
+  save();
+  return { upsellTest: r.upsellTest };
 }
 
 // ---------- Умная настройка подсказок: раз в сутки после 04:30 по Таиланду (и по кнопке в ЛК) — по «боевым» событиям
 // ресторана за 30 дней: показы и ответы на подсказки и все заказы. Сеть — без DEMO
 function upsellSmartRun(r, raw, now = Date.now()) {
   const ctxs = { [r.id]: testCtx(r, dayFrom(r)) };
-  const ev = realOnly(finalOrders(raw), ctxs), visits = visitsOf(ev, ctxs).filter((v) => !v.why);
+  const ev = realOnly(finalOrders(raw.filter((e) => !e.tst)), ctxs), visits = visitsOf(ev, ctxs).filter((v) => !v.why);
   const u = upsellCfg(r), smart = u.mode === 'smart';
   const cur = Object.fromEntries(UP_SMART_KEYS.map((k) => [k, clampN(r.upsellSmart?.values?.[k] ?? UP_PRESETS.balanced[k], ...u.bounds[k])]));
   // в ручном и «демо» — только статистика, значения не трогаем
@@ -3860,7 +3894,11 @@ function setMenu(r, list, synced = !!r.menuSource && r.menuSource.type !== 'manu
       Object.assign(it, { dayDish: !!n.dayDish, promo: !!n.promo, hidden: !!n.hidden, askWaiter: !!n.askWaiter });
       // отметки блюда из источника — правка поверх источника (как цена); у строк акций — просто из ЛК
       if (it.extId) applyMenuEdits(it, n, r);
-      else it.tags = (Array.isArray(n.tags) ? n.tags : []).filter((x) => tagKeys(r).includes(x));
+      else {
+        it.tags = (Array.isArray(n.tags) ? n.tags : []).filter((x) => tagKeys(r).includes(x));
+        // строка акции: название на языках (ЛК → «Акции» → «Название в меню») — переводы, которые дописал менеджер
+        if (it.fromPromo && n.name && typeof n.name === 'object') it.name = { ...it.name, ...nonEmpty(trText(n.name, 200)) };
+      }
     }
     const added = list.filter((n) => n && !n.extId && !n.fromPromo && !(n.id && mine.has(n.id)));
     out.push(...cleanMenu(added, r).map((c) => ({ ...c, extId: undefined, fromPromo: undefined })));
@@ -4619,6 +4657,8 @@ const PUBLIC = {
   'GET /api/diag/events': diagEvents,
   'GET /api/diag/server': diagServer,
   'GET /api/diag/push': diagPush,
+  'GET /api/diag/audit': diagAudit,
+  'GET /api/diag/restaurant': diagRestaurant,
   'GET /api/kitchen/state': kitchenState,
   'POST /api/kitchen/ready': kitchenReady,
   'POST /api/guest/order': guestOrder,
@@ -4641,6 +4681,7 @@ const PUBLIC = {
   'POST /api/manager/restaurant': managerSave,
   'POST /api/manager/sync': managerSync,
   'POST /api/manager/upsell/recalc': managerUpsellRecalc,
+  'POST /api/manager/upsell/test': managerUpsellTest,
   'GET /api/manager/stats': managerStats,
   'POST /api/menu/webhook': menuWebhook,
 };
@@ -4927,6 +4968,68 @@ if (!db.migrations.upsellSmart) {
     r.upsell = cleanUpsell({ ...UP_PRESETS.balanced, ...r.upsell, mode: 'smart', preset: 'balanced', bounds: UP_BOUNDS, control: 10 });
   }
   db.migrations.upsellSmart = Date.now();
+}
+// Однократно (просьба менеджера Veranda): переводы акции «Десерты» (Mango ball и др., опечатки); соус к пельменям и
+// вареникам — бесплатно, к хинкали — любой соус из раздела «Соусы» по +25 ฿; рис опцией в карточке Том Яма и Том Ка
+// (подсказку «Рис к Том Яму» выключаем); десерт предлагаем ко всем чаям
+if (!db.migrations.verandaNov16) {
+  const L = (ru, en, th, zh) => ({ ru, en, th, zh });
+  const TR = {
+    'манговый торт': L('Манговый торт', 'Mango ball', 'แมงโก้บอล', '芒果球'),
+    'чихкейк нью-йорк': L('Чизкейк Нью-Йорк', 'New York Cheesecake', 'ชีสเค้กนิวยอร์ก', '纽约芝士蛋糕'),
+    'чизкейк нью-йорк': L('Чизкейк Нью-Йорк', 'New York Cheesecake', 'ชีสเค้กนิวยอร์ก', '纽约芝士蛋糕'),
+    'медомек': L('Медовик', 'Medovik (honey cake)', 'เค้กน้ำผึ้งเมโดวิก', '俄式蜂蜜蛋糕'),
+    'медовик': L('Медовик', 'Medovik (honey cake)', 'เค้กน้ำผึ้งเมโดวิก', '俄式蜂蜜蛋糕'),
+    'наполеон': { th: 'เค้กนโปเลียน', zh: '拿破仑蛋糕' }, 'тирамису': { th: 'ทีรามิสุ', zh: '提拉米苏' },
+  };
+  const DESSERTS = { en: 'Desserts', th: 'ของหวาน', zh: '甜点' };
+  for (const r of Object.values(db.restaurants)) {
+    if (!/veranda/i.test(r.name || '')) continue;
+    for (const p of r.promos || []) {
+      let hit = false;
+      for (const v of p.variants || []) {
+        const x = TR[lc(v.name?.ru)];
+        if (x) { v.name = { ...v.name, ...x, ...(v.name?.en && !x.en ? { en: v.name.en } : {}) }; hit = true; }
+      }
+      const it = hit && (r.menu || []).find((i) => i.id === `promo-${p.id}`);
+      if (it) for (const l of ['en', 'th', 'zh']) if (/Десерты/.test(it.name?.[l] || '')) it.name[l] = it.name[l].replace('Десерты', DESSERTS[l]);
+    }
+    const rules = r.menuRules || [], menu = r.menu || [];
+    const khinkali = menu.filter((i) => /хинкал/i.test(i.name?.ru || '')).map((i) => i.id);
+    const sauce = rules.find((x) => x.id === 'vr-sauce');
+    if (sauce) {
+      if (sauce.name === 'Соус к пельменям, вареникам и хинкали') sauce.name = 'Соус к пельменям и вареникам — бесплатно';
+      for (const g of sauce.add?.groups || []) for (const o of g.opts || []) o.price = 0;
+      sauce.exclude = [...new Set([...(sauce.exclude || []), ...khinkali])];
+    }
+    // хинкали: правило раньше «соуса к пельменям» — у блюда уже есть «Соус», второй такой группы не будет
+    const sauces = menu.filter((i) => lc(i.cat?.ru) === 'соусы' && !i.hidden && !i.fromPromo)
+      .map((i) => ({ id: `s-${i.id}`, name: { ...i.name }, price: Number(i.price) || 25 }));
+    if (sauces.length && !rules.some((x) => x.id === 'vr-khinkali')) {
+      rules.splice(Math.max(0, rules.indexOf(sauce)), 0, { id: 'vr-khinkali', name: 'Соус к хинкали — любой, +25 ฿', match: { words: ['хинкали'] },
+        add: { groups: [{ id: 'sauce', name: L('Соус', 'Sauce', 'ซอส', '酱料'), type: 'many', req: false, opts: sauces }] } });
+    }
+    const rice = menu.find((i) => i.sku === 'H8' && i.cat?.ru === 'Гарниры');
+    if (rice && !rules.some((x) => x.id === 'vr-rice')) {
+      const at = rules.findIndex((x) => x.id === 'vr-spicy');
+      rules.splice(at >= 0 ? at + 1 : rules.length, 0, { id: 'vr-rice', name: 'Рис к Том Яму и Том Ка', match: { skus: ['TS1', 'TS2', 'TS11', 'TS7'] },
+        add: { groups: [{ id: 'rice', name: L('Рис', 'Rice', 'ข้าว', '米饭'), type: 'many', req: false, opts: [{ id: 'rice', name: { ...rice.name }, price: Number(rice.price) || 20 }] }] } });
+    }
+    r.menuRules = cleanMenuRules(rules, r);
+    if (r.upsell?.rules) {
+      for (const x of r.upsell.rules) {
+        if (x.id === 'vu-rice') x.on = false; // рис — теперь опция в карточке супа
+        if (x.id === 'vu-coffee') {
+          x.when = { ...x.when, words: [...new Set([...(x.when?.words || []), 'чай'])] };
+          if (x.name === 'Десерт к кофе') x.name = 'Десерт к кофе и чаю';
+        }
+      }
+      r.upsell = cleanUpsell(r.upsell);
+    }
+    syncPromoItems(r);
+    audit('сервер', 'Veranda: переводы акции «Десерты» (Mango ball…); соус к пельменям и вареникам бесплатно, к хинкали — любой соус +25 ฿; рис опцией к Том Яму и Том Ка; десерт ко всем чаям', r.id);
+  }
+  db.migrations.verandaNov16 = Date.now();
 }
 // Однократно: меню из источника пересобрать по-новому (правки менеджера поверх источника) при следующей проверке
 if (!db.migrations.menuOvr) {

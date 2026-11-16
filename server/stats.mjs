@@ -300,7 +300,7 @@ function dishStats(ev, r) {
 function upsellStats(ev, r) {
   const names = new Map((r?.upsell?.rules || []).map((x) => [x.id, x.name || x.id])), by = {};
   for (const e of ev) {
-    if (!['up_show', 'up_add', 'up_no'].includes(e.k) || !e.rule) continue;
+    if (!['up_show', 'up_add', 'up_no'].includes(e.k) || !e.rule || e.tst) continue; // tst — режим проверки подсказок
     const x = (by[e.rule] ??= { name: names.get(e.rule) || e.rule, shown: 0, added: 0, no: 0, revenue: 0 });
     if (e.k === 'up_show') x.shown++;
     else if (e.k === 'up_no') x.no++;
