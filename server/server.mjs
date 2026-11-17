@@ -1237,6 +1237,32 @@ function fleetWifiForProvision(b, q) {
   return { nets: db.fleetWifi.map(({ ssid, pass, pass2 }) => ({ ssid, pass, pass2, level: 'fleet' })), primary: db.fleetWifi.find((n) => n.primary)?.ssid || '',
     ...(db.servicePin ? { pin: { salt: db.servicePin.salt, hash: db.servicePin.hash } } : {}) };
 }
+// Загрузчик без PowerShell (provision.cmd + tablet.sh на самом планшете): настройки агента одним файлом для sh —
+// конфиг агента в base64 (адрес сервера, ключ, серийный номер, сети «для всех планшетов», отпечаток PIN) и Wi-Fi,
+// к которому подключиться сразу. Значения в одинарных кавычках — sh на планшете читает их как есть.
+// Без ключа — только адрес сервера и серийный номер: планшет потом добавляют в портале вручную
+const shq = (x) => `'${String(x ?? '').replace(/[\r\n]/g, '').replace(/'/g, `'\\''`)}'`;
+function provisionEnv(q, host) {
+  const key = String(q.key || '').trim(), serial = String(q.serial || '').replace(/[^\w.:-]/g, '').slice(0, 64);
+  if (key && (!DEVICE_KEY || key !== DEVICE_KEY)) throw fail(403, 'bad device key');
+  const server = /^[\w.-]+(:\d+)?$/.test(host || '') ? `https://${host}` : 'https://api.jetmedia.dev';
+  const cfg = { server, enroll: key, url: '', pin: '1234', serial, provisionedAt: new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 19) };
+  const lines = ['# JET MEDIA: настройки для планшета (строки «#>» provision.cmd показывает в окне)'];
+  let wifi = null;
+  if (key) {
+    const f = fleetWifiForProvision({}, { key });
+    if (f.nets.length) {
+      cfg.wifi = { nets: f.nets, primary: f.primary };
+      wifi = f.nets.find((n) => n.ssid === f.primary) || f.nets[0];
+      lines.push(`#> Сети для всех планшетов из админки: ${f.nets.map((n) => n.ssid).join(', ')}`);
+    } else lines.push('#> В админке нет сетей «для всех планшетов» (Устройства → Wi-Fi для всех планшетов)');
+    if (f.pin) { cfg.pinSalt = f.pin.salt; cfg.pinHash = f.pin.hash; lines.push('#> PIN сервисного меню возьмётся из админки'); }
+    else lines.push('#> PIN сервисного меню в админке не задан — будет 1234');
+  }
+  lines.push(`CFG=${shq(Buffer.from(JSON.stringify(cfg)).toString('base64'))}`, `KEYED=${key ? 1 : ''}`,
+    `WIFI_SSID=${shq(wifi?.ssid)}`, `WIFI_PASS=${shq(wifi?.pass)}`);
+  return lines.join('\n') + '\n';
+}
 // Сколько планшетов ресторана уже получили свои сети из админки
 function wifiStatus(r) {
   const devs = Object.values(db.devices).filter((d) => d.restaurantId === r.id);
@@ -5395,6 +5421,11 @@ const server = http.createServer(async (req, res) => {
       const me = currentAdmin(req);
       if (!me || !canEdit(me, 'rest', 'ads', 'chars')) managerSession(token);
       return send(res, 200, await upload(req));
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/device/provision-env') {
+      try { return send(res, 200, provisionEnv(Object.fromEntries(url.searchParams), req.headers.host), 'text/plain; charset=utf-8'); }
+      catch (e) { return send(res, e.status || 500, `# ${e.message}\n`, 'text/plain; charset=utf-8'); }
     }
 
     const body = req.method === 'POST' ? await readBody(req) : {};

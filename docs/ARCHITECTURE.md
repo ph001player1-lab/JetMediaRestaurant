@@ -132,7 +132,7 @@ Device Owner на устройстве может быть **только оди
 
 Сейчас — вручную по USB, для больших партий — заводская установка у поставщика.
 
-`provisioning/provision.ps1` (Windows PowerShell + ADB):
+`provisioning/provision.cmd` (командная строка Windows + ADB + curl, без PowerShell; проверки и настройка — `tablet.sh` на самом планшете, настройки — с сервера `/api/device/provision-env`; прежний вариант — `provision.ps1`):
 1. Найти все подключённые планшеты (`adb devices`) и работать с несколькими параллельно через USB-хаб.
 2. Проверить, что на устройстве нет аккаунтов (при первом включении вход в Google-аккаунт пропускаем, иначе `set-device-owner` не сработает), версию Android и модель.
 3. Установить `jet-agent` и `jet-shell`.
@@ -500,7 +500,7 @@ JetMediaRestaurant/
 │   ├── shell/                WebView, JS-мост, локальный хаб
 │   └── core/                 общее: сеть, протокол, хранилище
 ├── provisioning/
-│   ├── provision.ps1         подготовка планшетов по USB, несколько сразу
+│   ├── provision.cmd         подготовка планшетов по USB без PowerShell (+ tablet.sh на самом планшете)
 │   └── config.example.json
 ├── infra/
 │   ├── docker-compose.yml
