@@ -30,6 +30,7 @@ param(
   [switch]$Reboot
 )
 
+Write-Host "JET MEDIA — подготовка планшетов. Версия скрипта: 17.11.2026-1" -ForegroundColor Cyan
 $Pkg = $Admin.Split('/')[0]
 $Log = "$PSScriptRoot\provision-log.csv"
 $ProgressPreference = 'SilentlyContinue'
@@ -40,12 +41,12 @@ function Say($text, $color = 'Gray') { Write-Host $text -ForegroundColor $color 
 # ADB: рядом со скриптом, в PATH или скачиваем официальный platform-tools
 function Get-Adb {
   $local = "$PSScriptRoot\platform-tools\adb.exe"
-  if (Test-Path $local) { return $local }
+  if (Test-Path $local) { Say "ADB: $local"; return $local }
   $cmd = Get-Command adb -ErrorAction SilentlyContinue
   if ($cmd) { return $cmd.Source }
   Say "ADB не найден, скачиваю Android platform-tools..." Yellow
   $zip = "$env:TEMP\platform-tools.zip"
-  Invoke-WebRequest "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile $zip -UseBasicParsing
+  Invoke-WebRequest "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile $zip -UseBasicParsing -TimeoutSec 120
   Expand-Archive $zip -DestinationPath $PSScriptRoot -Force
   return $local
 }
@@ -54,8 +55,9 @@ $Adb = Get-Adb
 # Свежий агент с GitHub; если сети нет — берём тот, что уже лежит в apk\
 function Get-Agent {
   New-Item -ItemType Directory -Force (Split-Path $AgentApk) | Out-Null
+  Say "Скачиваю свежий агент с GitHub..."
   try {
-    Invoke-WebRequest $AgentUrl -OutFile "$AgentApk.tmp" -UseBasicParsing
+    Invoke-WebRequest $AgentUrl -OutFile "$AgentApk.tmp" -UseBasicParsing -TimeoutSec 90
     Move-Item -Force "$AgentApk.tmp" $AgentApk
     Say "Агент скачан: $AgentApk" Green
   } catch { Say "Не удалось скачать агент, беру локальный файл" Yellow }
@@ -127,6 +129,7 @@ function Remove-OtherOwner($s, $i) {
 }
 
 function Provision($s) {
+  Say "`n${s}: читаю данные планшета..."
   $i = Inspect $s
   Say "`n=== $($i.Serial) · $($i.Model) · Android $($i.Android) ===" Cyan
   if ($i.Owner -and $i.Owner -ne $Pkg) { $i = Remove-OtherOwner $s $i }
@@ -168,8 +171,23 @@ function Provision($s) {
   Write-Log $i "ok"
 }
 
-Say "JET MEDIA — подготовка планшетов. Версия скрипта: 07.11.2026-3" Cyan
-& $Adb start-server | Out-Null
+# ADB-сервер: бывает, что зависает старая копия adb (от другой программы или прошлого запуска) — тогда окно молчит.
+# Ждём 20 секунд, потом закрываем все adb и запускаем заново
+function Start-Adb {
+  Say "Запускаю ADB..."
+  $p = Start-Process -FilePath $Adb -ArgumentList 'start-server' -NoNewWindow -PassThru
+  if ($p.WaitForExit(20000)) { return }
+  Say "ADB не отвечает 20 секунд — закрываю все копии adb и запускаю заново..." Yellow
+  try { $p.Kill() } catch {}
+  Get-Process adb -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  Start-Sleep -Seconds 2
+  $p = Start-Process -FilePath $Adb -ArgumentList 'start-server' -NoNewWindow -PassThru
+  if (-not $p.WaitForExit(30000)) {
+    Say "ADB так и не запустился. Отключите планшет, перезагрузите компьютер и запустите provision.cmd снова." Red
+    exit 1
+  }
+}
+Start-Adb
 # Ключ регистрации: спрашиваем один раз и запоминаем рядом со скриптом.
 # Можно пропустить — тогда планшет появится в портале в «Новых устройствах» и его нужно добавить вручную.
 $KeyFile = "$PSScriptRoot\device-key.txt"
