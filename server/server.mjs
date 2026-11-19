@@ -1584,6 +1584,23 @@ function tableOf(deviceId) {
 }
 
 const openAt = (list, r, table) => list.filter((x) => x.restaurantId === r.id && x.table === table && !x.closed);
+// Что за столом ещё ждёт реакции (и напоминает): новые вызовы и заказы, на которые никто не нажал «Иду»
+const waitingAt = (r, table) => [...openAt(db.calls, r, table).filter((c) => c.status === 'new').map((c) => ['call', c]),
+  ...openAt(db.orders, r, table).filter((o) => o.status === 'pending' && !o.ackAt).map((o) => ['order', o])];
+// «Иду» ко всему столу: вызовы — «идёт <имя>» (гость видит «официант идёт»), новые заказы ждут «Подтвердить» уже без
+// напоминаний. via — каким действием у стола это случилось (в журнале событий; для «Иду» к столу — без via)
+function ackWaitingAt(r, member, table, via) {
+  const now = Date.now(), who = { by: member.id, bn: member.name, ...(via ? { via } : {}) };
+  for (const [type, x] of waitingAt(r, table)) {
+    if (type === 'order') {
+      Object.assign(x, { ackAt: now, ackBy: member.name });
+      logEvent(r.id, 'order_ack', { ...who, id: x.id, table: x.table, ms: now - x.at, total: x.total });
+    } else {
+      logEvent(r.id, 'call_ack', { ...who, id: x.id, table: x.table, type: x.type, ms: now - x.at });
+      Object.assign(x, { status: 'ack', by: member.name, ackAt: now });
+    }
+  }
+}
 
 // ---------- Заказ с телефонов гостей. QR-код на планшете ведёт на /t/<ключ> — ключ визита стола. Ключ живёт,
 // пока стол не закрыли, и не дольше 4 часов после последнего действия за столом; после закрытия стола планшет
@@ -2002,10 +2019,10 @@ function buildItems(r, list, guest = false) {
 // ---------- Персонал: вход по коду ресторана + личному PIN, уведомления через Web Push
 
 const PUSH_TEXT = {
-  en: { kitchen: 'Send the order to the kitchen', kitchenLate: 'Order confirmed {m} min ago — tap “✓ Order sent to the kitchen”', waits: 'waiting {m} min', check: '✅ You are on shift — notifications work', lost: 'not delivered to {n}', table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready', wholeTable: 'whole table', test: 'Test: notifications work' },
-  th: { kitchen: 'ส่งออร์เดอร์เข้าครัว', kitchenLate: 'ยืนยันออร์เดอร์แล้ว {m} นาทีก่อน — กด “✓ ส่งออร์เดอร์เข้าครัวแล้ว”', waits: 'รอ {m} นาที', check: '✅ คุณเข้ากะแล้ว — การแจ้งเตือนใช้งานได้', lost: 'ส่งไม่ถึง {n}', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ', wholeTable: 'ทั้งโต๊ะ', test: 'ทดสอบ: การแจ้งเตือนใช้งานได้' },
-  ru: { kitchen: 'Отправьте заказ на кухню', kitchenLate: 'Заказ подтверждён {m} мин назад — нажмите «✓ Заказ отправлен на кухню»', waits: 'ждёт {m} мин', check: '✅ Вы на смене — уведомления работают', lost: 'не дошло до {n}', table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов', wholeTable: 'весь стол', test: 'Проверка: уведомления приходят' },
-  my: { kitchen: 'အော်ဒါကို မီးဖိုချောင်သို့ ပို့ပါ', kitchenLate: 'အော်ဒါ အတည်ပြုပြီး {m} မိနစ် ကြာပြီ — “✓ အော်ဒါကို မီးဖိုချောင်သို့ ပို့ပြီး” ကို နှိပ်ပါ', waits: '{m} မိနစ် စောင့်နေသည်', check: '✅ သင် တာဝန်ချိန်ရောက်ပြီ — အသိပေးချက်များ အလုပ်လုပ်သည်', lost: '{n} ထံ မရောက်ပါ', table: 'စားပွဲ', waiter: 'စားပွဲထိုး ခေါ်နေသည်', bill: 'ဘေလ် တောင်းနေသည်', order: 'အော်ဒါ အသစ်', again: 'သတိပေးချက်', guest: 'ဧည့်သည်', ready: 'အော်ဒါ အဆင်သင့် ဖြစ်ပြီ', wholeTable: 'စားပွဲတစ်ခုလုံး', test: 'စမ်းသပ်: အသိပေးချက်များ အလုပ်လုပ်သည်' },
+  en: { takenBy: 'handled by {n}', handled: 'no longer needed', guestCancel: 'cancelled by the guest', kitchenDone: 'Order sent to the kitchen', kitchen: 'Send the order to the kitchen', kitchenLate: 'Order confirmed {m} min ago — tap “✓ Order sent to the kitchen”', waits: 'waiting {m} min', check: '✅ You are on shift — notifications work', lost: 'not delivered to {n}', table: 'Table', waiter: 'Waiter call', bill: 'Bill requested', order: 'New order', again: 'Reminder', guest: 'Guest', ready: 'Order is ready', wholeTable: 'whole table', test: 'Test: notifications work' },
+  th: { takenBy: 'รับแล้ว: {n}', handled: 'ไม่ต้องดำเนินการแล้ว', guestCancel: 'แขกยกเลิกแล้ว', kitchenDone: 'ส่งออร์เดอร์เข้าครัวแล้ว', kitchen: 'ส่งออร์เดอร์เข้าครัว', kitchenLate: 'ยืนยันออร์เดอร์แล้ว {m} นาทีก่อน — กด “✓ ส่งออร์เดอร์เข้าครัวแล้ว”', waits: 'รอ {m} นาที', check: '✅ คุณเข้ากะแล้ว — การแจ้งเตือนใช้งานได้', lost: 'ส่งไม่ถึง {n}', table: 'โต๊ะ', waiter: 'เรียกพนักงาน', bill: 'ขอเช็คบิล', order: 'ออร์เดอร์ใหม่', again: 'เตือนอีกครั้ง', guest: 'แขก', ready: 'อาหารพร้อมเสิร์ฟ', wholeTable: 'ทั้งโต๊ะ', test: 'ทดสอบ: การแจ้งเตือนใช้งานได้' },
+  ru: { takenBy: 'принято: {n}', handled: 'уже не нужно', guestCancel: 'гость отменил', kitchenDone: 'Заказ отправлен на кухню', kitchen: 'Отправьте заказ на кухню', kitchenLate: 'Заказ подтверждён {m} мин назад — нажмите «✓ Заказ отправлен на кухню»', waits: 'ждёт {m} мин', check: '✅ Вы на смене — уведомления работают', lost: 'не дошло до {n}', table: 'Стол', waiter: 'Вызов официанта', bill: 'Просят счёт', order: 'Новый заказ', again: 'Напоминание', guest: 'Гость', ready: 'Заказ готов', wholeTable: 'весь стол', test: 'Проверка: уведомления приходят' },
+  my: { takenBy: '{n} လက်ခံပြီး', handled: 'မလိုတော့ပါ', guestCancel: 'ဧည့်သည် ပယ်ဖျက်ပြီး', kitchenDone: 'အော်ဒါကို မီးဖိုချောင်သို့ ပို့ပြီးပါပြီ', kitchen: 'အော်ဒါကို မီးဖိုချောင်သို့ ပို့ပါ', kitchenLate: 'အော်ဒါ အတည်ပြုပြီး {m} မိနစ် ကြာပြီ — “✓ အော်ဒါကို မီးဖိုချောင်သို့ ပို့ပြီး” ကို နှိပ်ပါ', waits: '{m} မိနစ် စောင့်နေသည်', check: '✅ သင် တာဝန်ချိန်ရောက်ပြီ — အသိပေးချက်များ အလုပ်လုပ်သည်', lost: '{n} ထံ မရောက်ပါ', table: 'စားပွဲ', waiter: 'စားပွဲထိုး ခေါ်နေသည်', bill: 'ဘေလ် တောင်းနေသည်', order: 'အော်ဒါ အသစ်', again: 'သတိပေးချက်', guest: 'ဧည့်သည်', ready: 'အော်ဒါ အဆင်သင့် ဖြစ်ပြီ', wholeTable: 'စားပွဲတစ်ခုလုံး', test: 'စမ်းသပ်: အသိပေးချက်များ အလုပ်လုပ်သည်' },
 };
 
 function session(token) {
@@ -2101,14 +2118,20 @@ function missingChoice(r, list) {
 const itemsSig = (items) => items.map((i) => `${i.id}|${i.opt || ''}|${(i.mods || []).join(',')}|${i.qty}`).sort().join(';');
 
 function staffOrder(b) {
-  const { s: ses } = session(b.token);
+  const { s: ses, r } = session(b.token);
   const n = db.orders.length;
+  // заказ официанта за стол — тоже «Иду» ко всему столу: запоминаем, что ждало, — «↩ Отменить» вернёт и это
+  const waited = (r.tables || []).includes(String(b.table || '')) ? waitingAt(r, String(b.table)) : [];
+  const snap = () => waited.map(([type, x]) => ({ type, id: x.id, json: JSON.stringify(x) }));
+  const before = snap();
   capture = [];
   let o;
   try { o = staffOrderDo(b); } finally { var evs = capture; capture = null; }
   // новый заказ официанта — его можно отменить сразу («↩ Отменить «Новый заказ»»)
   if (db.orders.length > n && o?.id) {
-    ses.lastAct = { id: uid(), act: 'order:new', table: o.table, at: Date.now(), before: [], created: [o.id], after: [{ type: 'order', id: o.id, json: JSON.stringify(o) }], events: evs, ids: [o.id] };
+    const after = snap(), changed = after.filter((a, i) => a.json !== before[i].json);
+    ses.lastAct = { id: uid(), act: 'order:new', table: o.table, at: Date.now(), before: before.filter((a) => changed.some((c) => c.id === a.id)), created: [o.id],
+      after: [{ type: 'order', id: o.id, json: JSON.stringify(o) }, ...changed], events: evs, ids: [o.id, ...changed.map((a) => a.id)] };
     save();
   }
   return o;
@@ -2144,6 +2167,7 @@ function staffOrderDo(b) {
   db.orders.push(o);
   touchTable(r, table);
   logEvent(r.id, 'order', { id: o.id, table, total: o.total, items: evItems(items), by: member.id, bn: member.name, src: 'staff' });
+  ackWaitingAt(r, member, table, 'order:new'); // официант у стола — остальное за столом больше не напоминает
   save();
   return o;
 }
@@ -2287,10 +2311,10 @@ function staffShift(b) {
 
 // Квитанции от телефона: служба уведомлений приняла — ещё не значит, что телефон получил. Обработчик уведомлений
 // на телефоне сам сообщает: «получил» (когда пришло на самом деле) и «показал» / «ошибка показа»
-const pushAcks = new Map(); // id → { s: сессия, at: когда отправили }
-function pushAckId(s) {
+const pushAcks = new Map(); // id → { s: сессия, at: когда отправили, ref: вызов или заказ, kind: вид уведомления }
+function pushAckId(s, ref = '', kind = '') {
   const id = crypto.randomBytes(9).toString('base64url');
-  pushAcks.set(id, { s, at: Date.now() });
+  pushAcks.set(id, { s, at: Date.now(), ref, kind });
   if (pushAcks.size > 2000) pushAcks.delete(pushAcks.keys().next().value);
   return id;
 }
@@ -2317,10 +2341,30 @@ function staffPushAck(b) {
   if (pl) {
     if (b.stage === 'got') pl.gotAt = Date.now();
     if (b.stage === 'shown') pl.shownAt = Date.now();
+    if (b.stage === 'quiet') pl.quietAt = Date.now();
     if (b.stage === 'fail') pl.showErr = String(b.err || 'error').slice(0, 120);
     save();
   }
-  return {};
+  // Телефон спрашивает, получив уведомление: ещё актуально? Пришло с опозданием (телефон спал), а вызов уже приняли —
+  // телефон покажет тихое «✓ …» вместо тревоги и уберёт прежние уведомления этого стола
+  const stale = b.stage === 'got' ? pushStale(a) : '';
+  return stale ? { stale: 1, body: stale } : {};
+}
+// Текст «✓ Вызов официанта — принято: Tin», если то, о чём уведомление, уже не ждёт; иначе пусто
+function pushStale({ s, ref, kind }) {
+  if (!ref) return '';
+  const c = db.calls.find((y) => y.id === ref), o = c ? null : db.orders.find((y) => y.id === ref);
+  if (!c && !o) return '';
+  let live, by;
+  if (c) [live, by] = [c.status === 'new' && !c.closed, c.by || ''];
+  else if (kind === 'order') [live, by] = [o.status === 'pending' && !o.ackAt && !o.closed, o.ackBy || o.by || ''];
+  else if (kind === 'kitchen') [live, by] = [o.status === 'confirmed' && !o.kitchenAt && !o.closed, o.kitchenBy || ''];
+  else if (kind === 'ready') [live, by] = [o.status === 'confirmed' && !o.servedAt && !o.closed, o.servedBy || ''];
+  else return '';
+  if (live) return '';
+  const L = PUSH_TEXT[s.lang] || PUSH_TEXT.en;
+  if (kind === 'kitchen') return `✓ ${L.kitchenDone}${by ? ` · ${by}` : ''}`;
+  return `✓ ${L[kind] || ''} — ${c?.cancelled ? L.guestCancel : by ? L.takenBy.replace('{n}', by) : L.handled}`;
 }
 
 // «Проверить уведомление»: через 10 секунд (успеть заблокировать экран) или через 6 минут — телефон успевает
@@ -2372,11 +2416,16 @@ const OFF_SHIFT = 'Вы не на смене — нажмите «На смен�
 // отключение телефона гостя и «Тестовый заказ» не отменяются (стол закрывается с подтверждением, тест — переключатель)
 const UNDO_MS = 2 * 60e3;
 const NO_UNDO = new Set(['table:close', 'table:paid', 'guest:off', 'order:test', 'order:untest']);
+// Действия у стола, после которых остальные вызовы и новые заказы этого стола больше не напоминают: официант (или менеджер)
+// уже у стола и всё видит. «На кухню», «Удалить дубль», «Тест» сюда не входят — их нажимают не у стола
+const TABLE_ACK = new Set(['call:ack', 'call:done', 'order:ack', 'order:confirm', 'order:served', 'order:paid', 'guestpaid:']);
 function undoTargets(b, r) {
   if (b.kind === 'table' || b.kind === 'guestpaid') return [...openAt(db.calls, r, b.id).map((x) => ['call', x]), ...openAt(db.orders, r, b.id).map((x) => ['order', x])];
-  if (b.kind === 'call') return db.calls.filter((y) => y.id === b.id && y.restaurantId === r.id).map((x) => ['call', x]);
-  if (b.kind === 'order') return db.orders.filter((y) => y.id === b.id && y.restaurantId === r.id).map((x) => ['order', x]);
-  return [];
+  if (b.kind !== 'call' && b.kind !== 'order') return [];
+  const own = (b.kind === 'call' ? db.calls : db.orders).filter((y) => y.id === b.id && y.restaurantId === r.id).map((x) => [b.kind, x]);
+  // действие у стола заодно снимает ожидание с остальных вызовов и заказов стола — «↩ Отменить» вернёт и их
+  if (!own.length || !TABLE_ACK.has(`${b.kind}:${b.action || ''}`)) return own;
+  return [...own, ...waitingAt(r, own[0][1].table).filter(([, y]) => y.id !== b.id)];
 }
 function staffAction(b) {
   const { s: ses, r } = session(b.token);
@@ -2438,11 +2487,7 @@ function staffActionDo(b) {
   }
   if (b.kind === 'table' && b.action === 'ack') {
     // «Иду» к столу — сразу по всем новым заказам и вызовам этого стола
-    for (const x of openAt(db.orders, r, b.id)) if (x.status === 'pending') ackOrder(x);
-    for (const c of openAt(db.calls, r, b.id).filter((y) => y.status === 'new')) {
-      logEvent(r.id, 'call_ack', { ...who, id: c.id, table: c.table, type: c.type, ms: Date.now() - c.at });
-      Object.assign(c, { status: 'ack', by: member.name, ackAt: Date.now() });
-    }
+    ackWaitingAt(r, member, b.id);
     touchTable(r, b.id);
   } else if (b.kind === 'table') {
     // «Закрыть стол» или «Счёт оплачен» (когда касса не подключена): закрываем сессию стола, телефоны гостей отключаются
@@ -2586,6 +2631,13 @@ function staffActionDo(b) {
     }
     Object.assign(x, { status, by: member.name, [`${status}At`]: Date.now() });
     if (status === 'confirmed') x.kitchenItems = kitchenSnap(x);
+  }
+  // Действие у стола («Иду», «Готово», «Подтвердить», «Подано», оплата) — «Иду» ко всему столу: остальные вызовы
+  // и новые заказы этого стола, пришедшие до нажатия, больше не напоминают. Новый вызов после — снова уведомление
+  const act = `${b.kind}:${b.action || ''}`;
+  if (TABLE_ACK.has(act)) {
+    const table = b.kind === 'guestpaid' ? b.id : [...db.calls, ...db.orders].find((y) => y.id === b.id && y.restaurantId === r.id)?.table;
+    if (table) ackWaitingAt(r, member, table, act);
   }
   save();
   return {};
@@ -2735,7 +2787,7 @@ function notify(restaurantId, table, kind, extra = '', reminder = false, guest =
     // предыдущее того же стола и вида приложение убирает само (group)
     const data = { title: tableLabel(table, L.table), body, group: `${kind}-${table}`, tag: `${kind}-${table}-${Date.now()}` };
     for (const sub of s.subs) {
-      const ack = pushAckId(s);
+      const ack = pushAckId(s, ref, kind);
       sendPush(sub, { ...data, ack }, db.vapid).then((res) => {
         pushRecord(s, sub, res, { kind, table, ack, ...(reminder ? { reminder } : {}), ...(ref ? { ref } : {}) });
         if (res.ok) return;
@@ -2744,7 +2796,7 @@ function notify(restaurantId, table, kind, extra = '', reminder = false, guest =
         for (const mgr of managers.filter((x) => !sent.has(x) && x !== s)) {
           const ML = PUSH_TEXT[mgr.lang] || PUSH_TEXT.en;
           for (const msub of mgr.subs) {
-            const mack = pushAckId(mgr);
+            const mack = pushAckId(mgr, ref, kind);
             sendPush(msub, { ...data, body: `${data.body} · ⚠ ${ML.lost.replace('{n}', member(s)?.name || '')}`, ack: mack }, db.vapid)
               .then((r2) => pushRecord(mgr, msub, r2, { kind, table, ack: mack, resent: member(s)?.name || '', ...(ref ? { ref } : {}) }));
           }
