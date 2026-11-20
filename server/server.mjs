@@ -764,6 +764,7 @@ function diagDevices(b, q, req) {
         pinFromAdmin: db.servicePin ? pin === db.servicePin.hash.slice(0, 8) : null, // PIN сервисного меню — из админки (сам PIN не показываем)
         offlineAlert: d.offlineAlert || 0, quiet: d.quiet || 0, offAt: d.offAt || 0, offReason: d.offReason || '', onAt: d.onAt || 0, bootAt: d.bootAt || 0,
         ip: d.ip || '', telemetry, outages: d.outages || [], netlog: d.netlog || [], events: d.events || [], scan: d.scan || null, upd: d.upd || null,
+        pageFix: d.pageFix || null,
       };
     }),
     restaurants: Object.values(db.restaurants).map((r) => ({ id: r.id, name: r.name, hours: r.hours || null, used: hoursOf(r), detected: detected(r.id) })),
@@ -991,6 +992,7 @@ function devicePoll(b, q, req) {
   if (nt.backup?.ssid && !pt.backup?.ssid) wifiNews(d, 'backup', nt);
   if (nt.backup === null && pt.backup?.ssid) wifiNews(d, 'back', pt);
   d.telemetry = b.telemetry || {};
+  if (Date.now() - (d.lastSeen || 0) > ONLINE_MS) d.backAt = Date.now(); // снова на связи — сторож страницы ждёт её заново
   d.lastSeen = Date.now();
   d.ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   // Страница планшета сама восстанавливается: привязан к столу или входу, а показывает не ту страницу (например,
@@ -1381,6 +1383,65 @@ setInterval(() => {
     tgAlert(`🟢 ${db.restaurants[rid]?.name || 'Ресторан'}: снова на связи планшетов — ${x.list.length} (не было ${fmtDur(median(x.list))})`);
   }
 }, 30_000).unref();
+
+// ---------- Сторож страницы планшета. Агент на связи и экран включён, а страница стола молчит (обычно спрашивает
+// сервер каждые 5 секунд) — на экране стандартная ошибка Android («Webpage not available») или зависшая страница,
+// сам планшет из неё не выйдет. Сервер: «Обновить страницу» (2 раза, через 3 минуты), не помогло — перезагрузка
+// планшета (не чаще раза в час), не помогла и она — сообщение в Telegram. Каждый случай — в журнале устройства
+// (портал) и в журнале событий. Только рабочая: на тестовую планшеты не опрашивают
+const PAGE_SILENT_MS = 2 * 60_000, PAGE_RETRY_MS = 3 * 60_000, PAGE_REBOOT_GAP = 3600e3, STARTED_AT = Date.now();
+const devNote = (d, text) => { d.events = [{ at: Date.now(), text }, ...(d.events || [])].filter((x) => Date.now() - x.at < 60 * 864e5).slice(0, 30); };
+function pageWatch(now = Date.now()) {
+  if (INSTANCE === 'test') return;
+  for (const d of Object.values(db.devices)) {
+    const f = d.pageFix;
+    if (f && (d.pageSeen || 0) > f.since) { // страница ожила
+      const text = `страница не открывалась ${fmtDur(d.pageSeen - f.since)} — помогло: ${f.rebootAt ? 'перезагрузка планшета' : 'обновление страницы'} (сервер)`;
+      devNote(d, text);
+      if (f.alerted) tgAlert(`🟢 ${deviceName(d)}: ${text}`);
+      if (d.restaurantId) logEvent(d.restaurantId, 'page_ok', { dev: d.id, ms: d.pageSeen - f.since, tries: f.tries, ...(f.rebootAt ? { reboot: 1 } : {}) });
+      delete d.pageFix;
+      save();
+      continue;
+    }
+    // следим за страницами столов и входа; не трогаем: показ чужого ресторана, тестовый канал, страницу, заданную вручную
+    const watched = d.restaurantId && (d.table || d.role === 'entrance') && !d.showRest && d.channel !== 'test' && d.urlWant === undefined
+      && d.pageSeen && now - (d.lastSeen || 0) < ONLINE_MS && !d.offAt && d.telemetry?.screen !== false;
+    if (!watched) continue;
+    // отсчёт — с последнего ответа страницы, включения экрана, возвращения на связь и запуска сервера
+    const last = Math.max(d.pageSeen, d.onAt || 0, d.backAt || 0, STARTED_AT);
+    if (!f) {
+      if (now - last < PAGE_SILENT_MS) continue;
+      d.pageFix = { since: d.pageSeen, tries: 1, at: now };
+      (d.queue ??= []).push({ type: 'reload' });
+      logEvent(d.restaurantId, 'page_stuck', { dev: d.id, ms: now - d.pageSeen });
+      save();
+      continue;
+    }
+    if (f.alerted || now - Math.max(f.at, last) < PAGE_RETRY_MS) continue;
+    if (f.tries < 2) {
+      Object.assign(f, { tries: f.tries + 1, at: now });
+      (d.queue ??= []).push({ type: 'reload' });
+      save();
+      continue;
+    }
+    if (!f.rebootAt && d.telemetry?.owner && now - (d.pageRebootAt || 0) > PAGE_REBOOT_GAP) {
+      f.rebootAt = f.at = d.pageRebootAt = now;
+      (d.queue ??= []).push({ type: 'reboot' });
+      logEvent(d.restaurantId, 'page_reboot', { dev: d.id });
+      save();
+      continue;
+    }
+    // не помогло ничего (или перезагружали меньше часа назад) — нужен человек
+    f.alerted = now;
+    const text = `страница стола не открывается ${fmtDur(now - f.since)}, хотя планшет на связи: обновление${f.rebootAt ? ' и перезагрузка не помогли' : ' не помогло'}. Портал → Устройства: «Перезагрузить» или проверьте планшет`;
+    devNote(d, text);
+    tgAlert(`🔴 ${deviceName(d)}: ${text}`);
+    logEvent(d.restaurantId, 'page_alert', { dev: d.id, ms: now - f.since });
+    save();
+  }
+}
+setInterval(pageWatch, 30_000).unref();
 
 // Сторож агента не смог поднять приложение — сообщает отдельно (не чаще раза в 10 минут)
 function deviceAlert(b) {

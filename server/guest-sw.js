@@ -21,19 +21,31 @@ self.addEventListener('fetch', (e) => {
   else if (IMG.test(u.pathname)) e.respondWith(stored(req));
 });
 
-// сначала сеть (до 8 с); ошибка сети или сервера — сохранённая копия
+// сначала сеть (до 8 с); ошибка сети или сервера — сохранённая копия. Страница стола никогда не заканчивается
+// стандартной ошибкой Android («Webpage not available»): нет ни сети, ни копии — своя заставка, которая сама
+// пробует снова каждые 10 секунд и как только появилась сеть
 async function fresh(req, key) {
-  const c = await caches.open(PAGE);
+  let c = null;
+  try { c = await caches.open(PAGE); } catch (e) { /* память браузера недоступна — только сеть */ }
   try {
     const res = await Promise.race([fetch(req), new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 8000))]);
-    if (res.ok) { await c.put(key, res.clone()); return res; }
-    return (await c.match(key)) || res;
+    if (res.ok) { if (c) await c.put(key, res.clone()).catch(() => {}); return res; }
+    return (c && (await c.match(key).catch(() => null))) || res;
   } catch (err) {
-    const hit = await c.match(key);
+    const hit = c && (await c.match(key).catch(() => null));
     if (hit) return hit;
+    if (req.mode === 'navigate') return offline();
     throw err;
   }
 }
+
+const offline = () => new Response(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JET MEDIA</title></head><body style="margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+text-align:center;background:#1f1a17;color:#fff;font:22px/1.6 sans-serif"><h1>📶</h1><p>Нет связи — восстанавливаем подключение<br>
+No connection — reconnecting<br>ไม่มีการเชื่อมต่อ — กำลังเชื่อมต่อใหม่<br>网络中断——正在重新连接</p>
+<p style="opacity:.7">Пожалуйста, позовите официанта жестом · Please wave to the waiter</p>
+<script>setTimeout(function () { location.reload(); }, 10000); window.addEventListener('online', function () { setTimeout(function () { location.reload(); }, 1500); });</script>
+</body></html>`, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 
 async function stored(req) {
   const c = await caches.open(FILES), hit = await c.match(req.url);
